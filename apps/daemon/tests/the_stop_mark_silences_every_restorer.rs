@@ -23,10 +23,11 @@
 //! **What it leaves**: a guard uninstalls the install — the daemon stopped
 //! through the CLI and its restorer unregistered — however the test leaves,
 //! and every run first sweeps this checkout's leftovers whose owner is dead,
-//! by a lock the owner holds in `target/nc-registered`, as the service
-//! manager's own suite does. It never enables lingering, never reloads the
-//! manager, and touches no service it did not register. It spawns processes
-//! and registers a service, so no mutation command runs it.
+//! by a lock the owner holds in `nc-registered`, under the `target` of this
+//! checkout, as the service manager's own suite does. It never enables
+//! lingering, never reloads the manager, and touches no service it did not
+//! register. It spawns processes and registers a service, so no mutation
+//! command runs it.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
