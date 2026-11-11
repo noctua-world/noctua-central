@@ -2203,9 +2203,12 @@ mark as the last raise wrote it, and whose process ends only once that wait is g
 refused by the instance lock (`NC-DMN-0008`); a dispatch, a pump or a sweep still running past
 `stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
 the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
-the local database under, and whose unit the next start recovers; and a connection whose
+the local database under, and whose unit the next start recovers; a connection whose
 client has not taken its last answer by that bound, which goes with the daemon's runtime,
-the answer unwritten and uncounted. What the daemon leaves undone is under **What is deliberately not claimed**.
+the answer unwritten and uncounted; and a client running as the same user that connects and
+never sends its first request, which keeps every stop waiting `stop_drain_ms`, since each
+connection is owed an answer to its first request. What the daemon leaves undone is under
+**What is deliberately not claimed**.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 

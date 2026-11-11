@@ -446,8 +446,9 @@ impl Server {
     /// **Still accepting**: a connection made meanwhile is counted with the
     /// rest, answered that the daemon is stopping and closed, so the drain
     /// waits for it as well. One still open at the bound has a client that
-    /// takes nothing, or a dispatch the drain counts already, and goes with the
-    /// runtime.
+    /// takes nothing, one that has asked nothing yet — each connection is owed
+    /// an answer to its first request — or a dispatch the drain counts
+    /// already, and goes with the runtime.
     pub async fn wound_down(
         &self,
         schedule: Vec<tokio::task::JoinHandle<()>>,
