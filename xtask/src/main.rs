@@ -122,14 +122,20 @@ enum Command {
         /// Tear the stack down and remove its volumes instead of bringing it up.
         #[arg(long, conflicts_with_all = ["install", "uninstall"])]
         down: bool,
-        /// Install this checkout as its development channel instead: the CLI
-        /// and the daemon built and copied out of `target/`, the profile, its
-        /// device, its world and the built plugins. No autostart, and `PATH`
-        /// is left as it is.
+        /// Install this checkout as its development channel instead.
+        ///
+        /// The CLI and the daemon built and copied out of the target directory
+        /// cargo built them in, the profile, its device, its world and the
+        /// built plugins; the daemon registered `--restored` with the system's
+        /// service manager, which restores it and starts it at each login, and
+        /// started through it unless the profile carries the stop mark; and,
+        /// for a real install on Linux, lingering enabled where logind lets it,
+        /// or the command that enables it printed. `PATH` is left as it is.
         #[arg(long, conflicts_with = "uninstall")]
         install: bool,
         /// Remove this checkout's development install instead: its daemon
-        /// stopped, its binaries and its manifest removed, its profile kept.
+        /// stopped, its restorer unregistered, its binaries, its manifest and
+        /// the stop mark its own stop wrote removed, its profile kept.
         #[arg(long)]
         uninstall: bool,
     },

@@ -16,10 +16,14 @@
 //! 3. **The handshake**, `nc_ipc::connect`: the daemon proves it holds the
 //!    token, over both nonces, before the client sends anything past its own
 //!    proof.
-//! 4. **The welcome the proof covers**: the process it names must be the one
-//!    the system says is at the other end, and the channel the install's
+//! 4. **The welcome sent beside the proof**: the process it names must be the
+//!    one the system says is at the other end, and the channel the install's
 //!    (`NC-CLI-0004`) — so a daemon of another channel that somehow held this
-//!    token, or a relay between the two, is refused before a request is made.
+//!    token is refused before a request is made, and so is a relay between the
+//!    two that passes the daemon's own welcome on. **The daemon's proof binds
+//!    the two nonces and not the welcome**, so a relay that rewrites the
+//!    welcome to name itself is not refused by it; such a relay runs as this
+//!    user, as both ends' peer checks require, which is the process below.
 //!
 //! Only then is a request sent, one at a time; an answer of another kind than
 //! the request's is refused (`NC-CLI-0005`).
@@ -27,8 +31,9 @@
 //! # What this does not answer
 //!
 //! A process running as the same user, which can read the token and answer
-//! as the daemon, or connect as a client — authorization re-decides every
-//! dispatch (`§14`); and the PID record the daemon writes, which this does not
+//! as the daemon, connect as a client, or relay a connection rewriting the
+//! welcome — authorization re-decides every dispatch (`§14`); and the PID
+//! record the daemon writes, which this does not
 //! read: the welcome is held to the system's word for the other end, and not
 //! to the record process control reads ([`crate::control`]).
 

@@ -47,7 +47,9 @@
 //! a start resumes above the ceiling and the newest unit its local journal
 //! holds, waiting for the clock rather than minting behind it. Two daemons over
 //! one profile: the second refuses at once. A network reaching the daemon: it
-//! binds nothing a network can reach, which a gate holds.
+//! binds nothing a network can reach, which a gate holds over its own sources
+//! and those of `nc-ipc` and `nc-platform`, which its endpoint and protocol are
+//! built from.
 //!
 //! # What it does not
 //!

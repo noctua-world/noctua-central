@@ -162,8 +162,8 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
 
 It is one repository on purpose (`NOCTUA.md §10.1`): those parts share the command
 catalog, the policy pack, the generated types and the journal format. `NOCTUA.md §10.2`
-says which directories are absent until a stage fills them — every app but the daemon,
-and the services, among them.
+says which directories are absent until a stage fills them — every app but the daemon and
+the CLI, and the services, among them.
 
 `NOCTUA.md` is the authority on what this is and by what rules, and the plan
 (`NOCTUA-PLAN.md`) says what to build and in what order. Two files under `reference/` —
@@ -782,14 +782,19 @@ held by its tests, and by no gate over a signal sent another way.
 
 23. **The daemon has no network listener.** What a daemon serves, it serves at its
     endpoint — a socket or a pipe its user alone reaches (`nc_platform::ipc`) — and
-    nowhere a network can: no `TcpListener`, `TcpSocket` or `UdpSocket` is written in the
-    shipped sources of any app under `apps/`, of `crates/nc-ipc` or of
-    `crates/nc-platform`. **Gated** by `the_daemon_has_no_network_listener` in
-    `xtask/src/gates.rs`, over those sources with comments and strings blanked, and by
+    nowhere a network can: no `TcpListener`, `TcpSocket` or `UdpSocket` is written under
+    `apps/*/src`, `crates/nc-ipc/src` or `crates/nc-platform/src` — every app's sources,
+    their tests among them, and those of `nc-ipc` and `nc-platform`, which its endpoint and
+    protocol are built from. **Gated** by `the_daemon_has_no_network_listener` in `xtask/src/gates.rs`,
+    over those sources with comments and strings blanked, and by
     `the_listener_walk_goes_everywhere_inside_its_scope`, which plants a listener in every
     directory the tree has and holds the walk to finding each one in its scope and none
-    outside it. **Not held**: a listener a dependency opens on the daemon's behalf, which no
-    source here names — the kernel's transport dials out and listens nowhere.
+    outside it. **Not held**: a listener written in any other crate of this tree the daemon
+    is built from — `nc-kernel`, `nc-log`, `nc-local` and the rest its graph reaches, whose
+    sources this gate does not read, and whose own tests open listeners on this machine —
+    which only review keeps from the daemon's run; and a listener a dependency opens on the
+    daemon's behalf, which no source here names. The kernel's transport dials out and
+    listens nowhere.
 
 24. **No code outside `nc-platform` decides by the system it is built for**
     (`NOCTUA.md §2.7`): a `cfg`, `cfg!`, `cfg_attr` or `cfg_select!` arm naming `unix`, `windows`,
@@ -1871,9 +1876,13 @@ and on Windows the Administrators group, `SYSTEM` and a holder of the take-owner
 privilege; another account actually connecting, which no test can be (under **What is
 deliberately not claimed**); on Windows, the process at the other end read by its id, so
 one that exited may have handed its id to another process by the time its token is
-asked — of another user, refused, or of this one; and a Windows listener whose next
+asked — of another user, refused, or of this one; a Windows listener whose next
 instance could not be made, which makes it again as a first instance and so is refused
-while its own connections still hold the name.
+while its own connections still hold the name; and on Windows another account making the
+pipe's name first while the daemon is down — the name is the channel's and the user's,
+which any account can spell — which keeps the daemon from starting (`NC-IPC-0011`, at
+every start its restorer makes) though it is never joined or taken for the daemon, since
+the client holds the pipe to its owner and the process at its other end.
 
 ### Each end of a connection proves it holds the token, and neither sends it
 
@@ -2306,8 +2315,9 @@ program reach a channel's daemon through.
   (`NC-CLI-0002`), and only as the 64 lower-case hexadecimal digits a daemon writes
   (`NC-CLI-0003`); it is never printed or sent, and the text it was read from is
   overwritten. The handshake proves the daemon holds it before the client sends anything
-  past its own proof, and the proven welcome must name the process the system shows at
-  the other end and this install's channel (`NC-CLI-0004`). Each of these is exit 10.
+  past its own proof, and the welcome the daemon sends beside that proof — which binds the
+  two nonces, not the welcome — must name the process the system shows at the other end
+  and this install's channel (`NC-CLI-0004`). Each of these is exit 10.
 - **What reaches the kernel was read and held first.** A command line is read against the
   schema the daemon's registry lists for its command — a flag is a property's name, a
   value is read as its type, a list's flag is repeated once for each item, a scalar's
@@ -2346,8 +2356,9 @@ tests of `crates/nc-channel/src/found.rs`, by
 `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can read the token and answer
-as the daemon, or ask the daemon anything the CLI can — authorization re-decides every
-dispatch (`§14`); a command's welcome held to the system's word and not to the PID record,
+as the daemon, relay a connection and rewrite the welcome sent beside the daemon's proof,
+or ask the daemon anything the CLI can — authorization re-decides every dispatch (`§14`);
+a command's welcome held to the system's word and not to the PID record,
 which process control reads, and the `--json` document printed raw to a terminal (both
 under **What is deliberately not claimed**).
 

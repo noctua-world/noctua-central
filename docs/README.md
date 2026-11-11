@@ -176,7 +176,7 @@ Linux job runs it; the verdict names each one, and on Linux it holds the run to 
 | Path | What it is |
 |---|---|
 | `catalog/` | The declarative registries every part of the platform reads: error codes, notifications, emails, limits, commands, log events, the capabilities a plugin can be granted, and both locales |
-| `apps/` | The binaries a person's machine runs, each a library and a thin binary. `daemon` is the daemon a channel runs: it serves its kernel at its endpoint, and `noctua-daemon` with no argument is it |
+| `apps/` | The binaries a person's machine runs, each a library and a thin binary. `daemon` is the daemon a channel runs: it serves its kernel at its endpoint, and `noctua-daemon` with no argument is it. `cli` is `noctua`, the command line a channel is reached through: every command read against its schema, the daemon started, stopped and asked how it is, and the installer `cargo xtask dev --install` runs |
 | `crates/` | The libraries. `nc-catalog` is generated from `catalog/` and committed; `nc-catalog-compiler` is what generates it; `nc-kernel` is the local kernel, which hosts the plugins and authorizes and journals every command they run |
 | `docs/` | This manual, and every error code, notification, email, limit, command, log event and capability, as Markdown — the pages generated from `catalog/` by `cargo xtask docs` and committed. Editing a page by hand fails the gate; edit the registry instead. This file is the one written by hand |
 | `migrations/` | The schema, forward-only and applied in numeric order by `cargo xtask dev` |
@@ -186,8 +186,8 @@ Linux job runs it; the verdict names each one, and on Linux it holds the run to 
 | `docker-compose.yml` | The local stack. Both services bind to loopback only |
 | `xtask/` | The five verbs |
 
-Of the apps and the services `NOCTUA.md §10.2` describes, the daemon is the one here;
-each of the rest arrives with the work that fills it. The policy pack and the migrations are here and gated: `cargo xtask check`
+Of the apps and the services `NOCTUA.md §10.2` describes, the daemon and the CLI are the
+ones here; each of the rest arrives with the work that fills it. The policy pack and the migrations are here and gated: `cargo xtask check`
 validates the pack, runs its cases, and reads every migration, the local database's
 included — those it also applies to a scratch SQLite file and holds to the list
 `nc-local` checks every database against.
