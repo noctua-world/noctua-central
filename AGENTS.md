@@ -840,7 +840,9 @@ held by its tests, and by no gate over a signal sent another way.
     `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` — four stale records, a
     sleeper still running after each, and the sleeper's own record the control a stop
     does end — by the tests of `crates/nc-platform/src/process.rs`, of
-    `apps/cli/src/control.rs` and of `crates/nc-channel/src/record.rs`, and by the
+    `apps/cli/src/control.rs` and of `crates/nc-channel/src/record.rs`, by
+    `a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go` in
+    `apps/daemon/src/run.rs`, which holds the order a stop asked again reads, and by the
     operators over those sources. **Not held**: macOS's moment between the last reading
     of a process and its signal; and a signal sent another way, which no gate reads the
     CLI's source for — every one this tree sends is a method of `Verified`, and
@@ -2179,10 +2181,12 @@ and `a_stop_asked_again_while_it_drains_is_answered_that_it_is_stopping`, throug
 endpoint), `pidfile`, `plugins`, `schedule`
 (`a_stop_waits_for_the_run_it_finds_and_begins_none_after`, over thirty-two schedules,
 and `a_run_still_going_at_the_bound_is_given_up_on_and_counted`), `environment` and `run`
-(`a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up`, and
+(`a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up`,
 `a_run_resumes_above_the_newest_unit_kept_and_a_clean_stop_settles_its_mark`, where a
 stop asked again while a real daemon drains is answered that it is stopping and the
-daemon ends well), by
+daemon ends well, and `a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go`,
+where the record is gone while the end of the run still waits on a connection held
+open), by
 `a_connection_closed_has_sent_its_last_answer` in `crates/nc-ipc/tests/heartbeat.rs`, by
 `a_log_told_of_no_store_writes_every_line_to_stderr` in `crates/nc-log/src/lib.rs`, by
 `a_directory_held_is_not_held_again_at_once` and

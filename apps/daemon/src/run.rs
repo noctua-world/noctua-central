@@ -683,6 +683,123 @@ mod tests {
         );
     }
 
+    /// A stopped run's PID record is gone before its endpoint is.
+    ///
+    /// The end of a run held open by a connection that has asked nothing yet,
+    /// which the endpoint owes an answer: while the end waits for it, the record
+    /// no longer names the daemon, and that connection is still answered that
+    /// it is stopping; once it has closed, the endpoint and the token go. A stop
+    /// asked again reads the record before it signals, so one that finds the
+    /// endpoint gone finds no record naming the daemon. **Found by a review**:
+    /// nothing held this order, and with it reversed a stop asked again found
+    /// the endpoint gone and the record still naming the daemon ending its
+    /// stop, and signalled it.
+    #[test]
+    fn a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go() {
+        use std::sync::Arc;
+        let installed =
+            crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
+        let (layout, user) = (&installed.layout, &installed.user);
+        crate::profile::prepare(layout, user).expect("the profile");
+        let found = nc_channel::found::beside(&installed.executable).expect("the install reads");
+        let lock = layout
+            .instance_lock
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        let held = nc_platform::try_hold(&layout.state, &lock, user)
+            .expect("asked")
+            .expect("nothing held it");
+        let instance = [5_u8; 16];
+        let identity = nc_platform::process::this_process().expect("this process is read");
+        crate::pidfile::write(
+            &layout.pid_file,
+            &crate::pidfile::Record::of(identity, instance),
+            user,
+        )
+        .expect("the record");
+        let token = nc_ipc::Token::fresh().expect("a token");
+        let text = token.to_text();
+        crate::pidfile::replace_private(&layout.token, &text, user).expect("the token");
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        let world =
+            nc_authz::LocalWorld::parse(&crate::testing::a_world(), &pdp).expect("the world reads");
+        let named = crate::server::Named {
+            pid: std::process::id(),
+            instance,
+            channel: found.install.channel,
+            realm: world.realm().as_str().to_owned(),
+            person: world.person().clone(),
+            since: crate::server::now_ms(),
+        };
+        let log = nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
+            .expect("a store on this machine");
+        let server = Arc::new(crate::server::Server::new(
+            named,
+            token,
+            Arc::new(std::sync::Mutex::new(log)),
+        ));
+        let endpoint = nc_platform::ipc::Endpoint::new(
+            layout.runtime.clone(),
+            layout.socket.clone(),
+            layout.pipe.clone(),
+        );
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(async {
+                let listener = nc_ipc::listen(&endpoint, user, &held).expect("bound");
+                let accepting = tokio::spawn(Arc::clone(&server).accepting(listener));
+                let (stream, _) = nc_platform::ipc::connect(&endpoint, user)
+                    .await
+                    .expect("the endpoint answers");
+                let token = nc_ipc::Token::from_text(&text).expect("the token reads back");
+                let (mut holding, _) =
+                    tokio::time::timeout(crate::testing::PATIENCE, nc_ipc::connect(stream, &token))
+                        .await
+                        .expect("the handshake ended in time")
+                        .expect("proven");
+                server.stop();
+                let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+                let mut ending =
+                    core::pin::pin!(super::ended(&found, instance, &server, accepting, deadline));
+                // Long enough for the end to be waiting on the connection held
+                // and on nothing else.
+                assert!(
+                    tokio::time::timeout(core::time::Duration::from_millis(300), ending.as_mut())
+                        .await
+                        .is_err(),
+                    "the run ended with a connection still open"
+                );
+                assert!(
+                    !layout.pid_file.exists(),
+                    "the endpoint was let go while the PID record still named the daemon"
+                );
+                match asked(&mut holding, nc_ipc::Request::Status).await {
+                    nc_ipc::Answer::Status(status) => assert!(
+                        status.to_canonical().contains("\"state\":\"stopping\""),
+                        "{status:?}"
+                    ),
+                    other => panic!("the held connection was answered {other:?}"),
+                }
+                drop(holding);
+                tokio::time::timeout(crate::testing::PATIENCE, ending)
+                    .await
+                    .expect("the run ended once its last connection had closed");
+                assert!(!layout.token.exists(), "the token outlived the run");
+                assert!(
+                    matches!(
+                        nc_platform::ipc::connect(&endpoint, user).await,
+                        Err(nc_platform::ipc::Refused::Nobody(_))
+                    ),
+                    "the endpoint outlived the run"
+                );
+            });
+        drop(held);
+    }
+
     /// Two installs a suite makes never share a namespace or a root, and
     /// no other process's install spells one; each is initialized as the
     /// installer initializes one and names a central log nothing answers at,

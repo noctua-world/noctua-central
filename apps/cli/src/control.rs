@@ -1329,13 +1329,35 @@ mod tests {
     ///
     /// Then it starts one: told it runs already, the start would leave nothing
     /// running once the stop it found had ended. The scripted daemon goes once
-    /// it has welcomed the start, and no daemon is beside the CLI to start, so
-    /// the start ends in 11 having asked nothing.
+    /// it has welcomed the start, and its record names this process — though
+    /// not as it is, so nothing holds it to one — until a thread removes it a
+    /// while after the start began: only then may the start go on, and with no
+    /// daemon beside the CLI to start it ends in 11 having asked nothing.
+    /// **Found by a review**: with no record to outlive the welcome, a start
+    /// that did not wait at all ended the same way, and this test held nothing
+    /// of the wait it is named for.
     #[test]
     fn a_start_waits_for_a_daemon_that_is_stopping_and_then_starts_one() {
         let installed = Scratch::new("ending");
+        let layout = &installed.found.layout;
         let token = Token::fresh().expect("a token");
         installed.token(&token);
+        recorded_as(
+            &installed,
+            &this_process_but(|record| record.started.push('0')),
+        );
+        // The stopping daemon's record is removed this long after the start
+        // began, and what the start had done by then is read first.
+        let ending = std::thread::spawn({
+            let (record, started) = (layout.pid_file.clone(), layout.daemon_err.clone());
+            move || {
+                std::thread::sleep(core::time::Duration::from_millis(400));
+                let went_on = started.exists();
+                let removed = std::time::Instant::now();
+                std::fs::remove_file(&record).expect("the record is removed");
+                (went_on, removed)
+            }
+        });
         let daemon = Scripted::serve(
             &installed,
             Script {
@@ -1349,8 +1371,22 @@ mod tests {
         );
         let refused = controlled(&installed, Control::Start)
             .expect_err("the daemon it found ended, and none is beside it to start");
+        let gave_up = std::time::Instant::now();
+        let (went_on, removed) = ending.join().expect("the record was removed");
+        assert!(
+            !went_on,
+            "the start went on to start a daemon while the one it found was still stopping"
+        );
+        assert!(
+            gave_up >= removed,
+            "the start ended before the daemon it found had"
+        );
         assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStart, "{refused:?}");
         assert_eq!(refused.exit, Exit::ProcessControl);
+        assert!(
+            refused.detail.contains("could not be started"),
+            "{refused:?}"
+        );
         assert_eq!(daemon.heard(), Vec::<Request>::new());
     }
 

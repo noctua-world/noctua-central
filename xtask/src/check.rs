@@ -19483,7 +19483,7 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 10, 7),
         ("daemon/plugins.rs", 17, 6),
         ("daemon/profile.rs", 19, 5),
-        ("daemon/run.rs", 23, 1),
+        ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 47, 6),
         ("daemon/serves_its_kernel.rs", 19, 3),
@@ -25512,7 +25512,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18249;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18251;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25582,7 +25582,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24913;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24918;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25636,7 +25636,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,913 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,918 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37530,7 +37530,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2143] = [
+    static OPERATORS: [(&str, &str, &str); 2145] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47117,6 +47117,16 @@ Options:
             "dev",
             "without_messages",
             "a build that failed shows none of cargo's messages",
+        ),
+        (
+            "cli_control",
+            "start",
+            "a start waits for a stopping daemon to end before it starts one",
+        ),
+        (
+            "daemon_run",
+            "ended",
+            "a stopped run's record goes before its endpoint",
         ),
     ];
 

@@ -7692,6 +7692,15 @@ WEAKENINGS = [
     ("dev", "without_messages", "a build that failed shows none of cargo's messages",
      "                .is_none_or(|message| message.get(\"reason\").is_none())\n",
      "                .is_none_or(|_| true)\n"),
+    # A start that finds a daemon stopping waits for it to end before it starts
+    # one, and a stopped run removes its record before it lets its endpoint go,
+    # which is the order a stop asked again reads.
+    ("cli_control", "start", "a start waits for a stopping daemon to end before it starts one",
+     "        ended_once_asked(found, recorded(found), pid, stop_within()).await?;\n",
+     ""),
+    ("daemon_run", "ended", "a stopped run's record goes before its endpoint",
+     "    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);\n    server.let_go(accepting, deadline).await;\n",
+     "    server.let_go(accepting, deadline).await;\n    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
