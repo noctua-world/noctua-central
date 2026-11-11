@@ -955,6 +955,11 @@ pub enum Error {
     },
     /// A service was unregistered, and its manager still knows it.
     StillRegistered(String),
+    /// A unit was unregistered — stopped, its links and its definition gone —
+    /// and systemd still holds it, wanted by a unit it runs, until it reads
+    /// its units again: a unit kept in the runtime directory, which is a
+    /// test's and is never reloaded away.
+    StillWanted(String),
 }
 
 impl core::fmt::Display for Error {
@@ -981,6 +986,13 @@ impl core::fmt::Display for Error {
                 formatter,
                 "`{name}` was unregistered and its manager still knows it: ask the manager \
                  what holds it, and remove it by hand"
+            ),
+            Self::StillWanted(name) => write!(
+                formatter,
+                "`{name}` is stopped and its links and its definition are gone, and a unit \
+                 the user's manager runs still wants it, which the manager lets go when it \
+                 next reads its units: at its next start, or at `systemctl --user \
+                 daemon-reload`, which nothing here asks for a unit in the runtime directory"
             ),
         }
     }
@@ -1337,13 +1349,23 @@ impl Registrar {
     /// part of the way to unregistered, and the manager still knowing the name
     /// once the bound has passed is the one refusal.
     ///
+    /// **A unit systemd's running units still want is let go by one reload,
+    /// and only a real install's.** The links [`Registrar::enable`] makes are
+    /// read as the user's manager starts, and from then on `default.target`
+    /// wants the unit, which keeps it loaded once its file and links are gone
+    /// until the manager reads its units again. Of a unit kept outside the
+    /// runtime directory — where a login reads it — the manager is asked
+    /// `daemon-reload` then, once; of one kept in it, a test's, never, and the
+    /// unregistration says what still holds it ([`Error::StillWanted`]).
+    ///
     /// # Errors
     ///
     /// [`Error::Described`] for a name this manager does not take,
     /// [`Error::Io`] when the tool cannot be run or the definition cannot be
     /// removed, [`Error::Refused`] and [`Error::Unreadable`] when what the
-    /// manager knows cannot be asked, and [`Error::StillRegistered`] when it
-    /// still knows the name.
+    /// manager knows cannot be asked, [`Error::StillWanted`] for a unit in the
+    /// runtime directory a running unit still wants, and
+    /// [`Error::StillRegistered`] when the manager still knows the name.
     pub fn unregister(&self, name: &str, directory: &Path) -> Result<(), Error> {
         self.takes(name)?;
         for arguments in self.to_stop(name, directory) {
@@ -1354,13 +1376,37 @@ impl Registrar {
             self.ask(&arguments)?;
         }
         let until = std::time::Instant::now() + FORGOTTEN_WITHIN;
+        let mut reloaded = false;
         while self.is_registered(name)? {
+            if !reloaded && self.still_wanted(name)? {
+                let reload = self
+                    .to_let_go(directory)
+                    .ok_or_else(|| Error::StillWanted(name.to_owned()))?;
+                self.ask(&reload)?.succeeded()?;
+                reloaded = true;
+                continue;
+            }
             if std::time::Instant::now() >= until {
                 return Err(Error::StillRegistered(name.to_owned()));
             }
             std::thread::sleep(ASKED_EVERY);
         }
         Ok(())
+    }
+
+    /// Whether the manager holds the service `name` only because a unit it
+    /// runs still wants it.
+    ///
+    /// **On systemd alone**: a unit loaded and inactive whose file is gone,
+    /// which a running unit names among those it wants; under the others a
+    /// service is its registration alone.
+    fn still_wanted(&self, name: &str) -> Result<bool, Error> {
+        match self.manager {
+            Manager::Systemd => Ok(wanted_once_gone(
+                &self.ask(&Self::to_ask_what_wants(name))?.succeeded()?.out,
+            )),
+            Manager::Launchd | Manager::TaskScheduler => Ok(false),
+        }
     }
 
     /// Whether the manager knows a service named `name`, running or not.
@@ -1641,6 +1687,33 @@ impl Registrar {
         }
     }
 
+    /// What asks systemd whether a running unit still wants the unit `name`:
+    /// its load and its activity, whether its file changed since it was
+    /// loaded, and the units that want it, as the manager holds them.
+    fn to_ask_what_wants(name: &str) -> Vec<OsString> {
+        words([
+            "--user",
+            "show",
+            "--property=LoadState",
+            "--property=ActiveState",
+            "--property=NeedDaemonReload",
+            "--property=WantedBy",
+            name,
+        ])
+    }
+
+    /// What has systemd let go of a unit a running unit still wants once its
+    /// definition, in `directory`, and its links are gone.
+    ///
+    /// **One reload, and only of a unit kept outside the runtime directory**:
+    /// a real install's, which the user's manager read at a login or a boot.
+    /// One kept in the runtime directory is a test's, and nothing here
+    /// reloads the manager for it.
+    fn to_let_go(&self, directory: &Path) -> Option<Vec<OsString>> {
+        (self.manager == Manager::Systemd && self.volatile_units().as_deref() != Some(directory))
+            .then(|| words(["--user", "daemon-reload"]))
+    }
+
     /// What asks the manager its counters of the service.
     fn to_count(&self, name: &str) -> Vec<OsString> {
         match self.manager {
@@ -1743,6 +1816,27 @@ fn lingered(
     )))
 }
 
+/// Whether systemd's `answer`, the `KEY=value` lines
+/// [`Registrar::unregister`] asks for, says a running unit still wants a unit
+/// whose file is gone.
+///
+/// **Loaded, inactive and changed on disk, and wanted**: the manager loads a
+/// unit's file when it is first asked for and forgets an inactive unit nothing
+/// holds, so one still loaded once its file is removed is held by what the
+/// manager read before — measured with systemd 260, a unit a started unit
+/// wants stays loaded, `NeedDaemonReload` true, until that unit goes.
+fn wanted_once_gone(answer: &str) -> bool {
+    let value = |key: &str| {
+        answer
+            .lines()
+            .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+    };
+    value("LoadState") == Some("loaded")
+        && value("ActiveState") == Some("inactive")
+        && value("NeedDaemonReload") == Some("yes")
+        && value("WantedBy").is_some_and(|wanted| !wanted.trim().is_empty())
+}
+
 /// `list`, as the arguments a tool is handed.
 fn words<const N: usize>(list: [&str; N]) -> Vec<OsString> {
     list.into_iter().map(OsString::from).collect()
@@ -1805,8 +1899,8 @@ mod tests {
     use super::{
         Counters, Error, Found, Lingering, Manager, Registrar, Service, csv_fields, definition,
         first_words, in_an_absolute_entry, launchd_labels, launchd_plist, not_held, systemd_unit,
-        systemd_word, task_names, task_xml, under, utf16_with_its_mark, windows_argument, words,
-        xml_text,
+        systemd_word, task_names, task_xml, under, utf16_with_its_mark, wanted_once_gone,
+        windows_argument, words, xml_text,
     };
 
     /// The user every definition below is written for, a SID, so that a task's
@@ -3120,6 +3214,79 @@ mod tests {
         }
     }
 
+    /// A unit still wanted once its file is gone is read so from systemd's
+    /// own answer, and only one kept where a login reads it is reloaded away.
+    ///
+    /// The answers are the shapes systemd 260 gave for a unit a started unit
+    /// wants once its file was removed, and for a name nothing holds; a unit
+    /// in the runtime directory, a test's, is never reloaded away, and
+    /// launchd and Task Scheduler hold nothing so.
+    #[test]
+    fn a_unit_still_wanted_is_read_so_and_reloaded_away_only_where_a_login_reads_it() {
+        assert!(wanted_once_gone(
+            "WantedBy=noctua-dev-test-0123abcd-77-1a-wants.service\nLoadState=loaded\n\
+             ActiveState=inactive\nNeedDaemonReload=yes\n"
+        ));
+        for (answer, what) in [
+            (
+                "WantedBy=\nLoadState=not-found\nActiveState=inactive\nNeedDaemonReload=yes\n",
+                "a name nothing holds",
+            ),
+            (
+                "WantedBy=default.target\nLoadState=not-found\nActiveState=inactive\n\
+                 NeedDaemonReload=yes\n",
+                "a link left to a unit that is not loaded",
+            ),
+            (
+                "WantedBy=\nLoadState=loaded\nActiveState=inactive\nNeedDaemonReload=yes\n",
+                "a unit nothing wants, not yet forgotten",
+            ),
+            (
+                "WantedBy=default.target\nLoadState=loaded\nActiveState=inactive\n\
+                 NeedDaemonReload=no\n",
+                "a unit whose file is there",
+            ),
+            (
+                "WantedBy=default.target\nLoadState=loaded\nActiveState=active\n\
+                 NeedDaemonReload=yes\n",
+                "a unit that runs",
+            ),
+            ("", "no answer"),
+        ] {
+            assert!(!wanted_once_gone(answer), "{what} was read as still wanted");
+        }
+        assert_eq!(
+            Registrar::to_ask_what_wants("x.service"),
+            words([
+                "--user",
+                "show",
+                "--property=LoadState",
+                "--property=ActiveState",
+                "--property=NeedDaemonReload",
+                "--property=WantedBy",
+                "x.service"
+            ])
+        );
+        let systemd = registrar(Manager::Systemd);
+        let volatile = systemd.volatile_units().expect("systemd's runtime units");
+        assert_eq!(
+            systemd.to_let_go(Path::new("/home/u/.config/systemd/user")),
+            Some(words(["--user", "daemon-reload"]))
+        );
+        assert_eq!(
+            systemd.to_let_go(&volatile),
+            None,
+            "a unit in the runtime directory, a test's, was reloaded away"
+        );
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            assert_eq!(
+                registrar(manager).to_let_go(Path::new("/scratch")),
+                None,
+                "{manager}"
+            );
+        }
+    }
+
     /// A registration never replaces a service its manager already holds,
     /// whoever registered it, and says to unregister it first.
     ///
@@ -4052,6 +4219,149 @@ mod tests {
                 .unwrap_or_else(|error| panic!("`{name}` was not started: {error}"));
             scratch.wait_for(started + 1, &name, ASKED_TO_START_WITHIN);
             scratch.unregister();
+        }
+
+        /// A unit that wants a scratch service and stays active, as a user
+        /// manager's `default.target` does once it has read an enabled unit's
+        /// link as it started.
+        ///
+        /// Its own unit in the runtime directory, under this checkout's prefix,
+        /// with a scratch of its own whose lock says its owner lives, as a
+        /// sweep reads one; unregistered however the test leaves.
+        struct Holder {
+            /// This system's manager, for this user.
+            registrar: Registrar,
+            /// The holder's name, until it is let go.
+            name: Option<String>,
+            /// The runtime directory its unit is in.
+            directory: PathBuf,
+            /// Its scratch, named for it, holding its owner's lock.
+            root: PathBuf,
+            /// The lock, let go before the scratch goes.
+            owner: Option<std::fs::File>,
+        }
+
+        impl Drop for Holder {
+            fn drop(&mut self) {
+                if let Some(name) = self.name.take() {
+                    drop(self.registrar.unregister(&name, &self.directory));
+                }
+                drop(self.owner.take());
+                drop(std::fs::remove_dir_all(&self.root));
+            }
+        }
+
+        impl Holder {
+            /// A unit wanting the service `wanted` of `scratch`, started: one
+            /// shot of this test binary that lists no test, and remains active.
+            fn wanting(scratch: &Scratch, wanted: &str) -> Self {
+                let registrar = scratch.registrar().clone();
+                let directory = registrar.volatile_units().expect("systemd's runtime units");
+                let stem = format!("{}-wants", scratch.stem);
+                let name = registered_as(&stem);
+                // **Its owner's lock before its unit**, so a sweep another
+                // test of this process runs meanwhile reads it as living.
+                let root = scratches().join(&stem);
+                crate::create_private_directory(&root).expect("the holder's scratch");
+                let owner = crate::create_private(&root.join(OWNER)).expect("a lock");
+                owner.try_lock().expect("a lock nobody else holds");
+                let program = std::env::current_exe().expect("this test binary");
+                let unit = format!(
+                    "[Unit]\n\
+                     Description=A scratch unit of nc-platform's tests that wants another\n\
+                     Wants={wanted}\n\
+                     \n\
+                     [Service]\n\
+                     Type=oneshot\n\
+                     RemainAfterExit=yes\n\
+                     ExecStart={} \"--exact\" \"no::such::test\"\n\
+                     StandardOutput=null\n\
+                     StandardError=null\n",
+                    super::super::systemd_word(program.to_str().expect("a path in UTF-8"))
+                );
+                let holder = Self {
+                    registrar,
+                    name: Some(name.clone()),
+                    directory,
+                    root,
+                    owner: Some(owner),
+                };
+                super::super::write_new(&holder.directory.join(&name), unit.as_bytes())
+                    .expect("the holder's unit written");
+                holder
+                    .registrar
+                    .start(&name)
+                    .unwrap_or_else(|error| panic!("`{name}` was not started: {error}"));
+                holder
+            }
+
+            /// The holder unregistered, which its manager must then not know.
+            fn let_go(mut self) {
+                let name = self.name.take().expect("held");
+                self.registrar
+                    .unregister(&name, &self.directory)
+                    .unwrap_or_else(|error| panic!("`{name}` was not unregistered: {error}"));
+            }
+        }
+
+        /// A unit something its manager runs still wants is said to be once it
+        /// is unregistered, and goes with what wants it; elsewhere a service is
+        /// its registration alone, and goes with it.
+        ///
+        /// **What a login makes of a real install's unit, made here without
+        /// one**: the user's manager reads `default.target`'s links as it
+        /// starts, and from then on wants an enabled unit as the holder here
+        /// wants this one. A test reloads nothing, so the unregistration of a
+        /// unit in the runtime directory leaves it stopped, its file gone, and
+        /// says what still holds it.
+        #[test]
+        fn a_unit_still_wanted_once_unregistered_is_said_to_be_and_goes_with_what_wants_it() {
+            if let Some((mode, scratch, carried)) = as_a_scratch_service() {
+                be_a_scratch_service(&mode, &scratch, &carried);
+                return;
+            }
+            let mut scratch = Scratch::new();
+            let name = scratch.register(
+                "a_unit_still_wanted_once_unregistered_is_said_to_be_and_goes_with_what_wants_it",
+                "exit",
+            );
+            scratch.wait_for(1, &name, WITHIN);
+            let holder = (MANAGER == Manager::Systemd).then(|| Holder::wanting(&scratch, &name));
+            let (_, directory) = scratch.registered.clone().expect("registered");
+            let registrar = scratch.registrar().clone();
+            let unregistered = registrar.unregister(&name, &directory);
+            let Some(holder) = holder else {
+                unregistered.unwrap_or_else(|error| panic!("`{name}` stays: {error}"));
+                scratch.registered = None;
+                assert!(!registrar.is_registered(&name).expect("asked"));
+                return;
+            };
+            assert!(
+                matches!(&unregistered, Err(super::super::Error::StillWanted(said)) if *said == name),
+                "`{name}`, which a running unit wants, was unregistered as {unregistered:?}. {}",
+                scratch.what_the_manager_says(&name)
+            );
+            assert!(
+                !directory.join(MANAGER.file_for(&name)).exists(),
+                "`{name}` is said to be still wanted and its definition stays"
+            );
+            assert!(
+                registrar.is_registered(&name).expect("asked")
+                    && !registrar.counters(&name).expect("counted").running(),
+                "`{name}`, still wanted, is not held stopped by its manager. {}",
+                scratch.what_the_manager_says(&name)
+            );
+            holder.let_go();
+            let until = Instant::now() + WITHIN;
+            while registrar.is_registered(&name).expect("asked") {
+                assert!(
+                    Instant::now() < until,
+                    "`{name}` outlived the unit that wanted it by {WITHIN:?}. {}",
+                    scratch.what_the_manager_says(&name)
+                );
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            scratch.registered = None;
         }
     }
 }

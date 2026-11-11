@@ -7420,16 +7420,16 @@ WEAKENINGS = [
     ("cli_control", "status", "a status nothing answers says there is no record",
      "        Recorded::Nothing => \"no PID record is there\".to_owned(),",
      "        Recorded::Nothing => String::new(),"),
-    ("cli_install", "install_with", "the world handed to the daemon is removed",
+    ("cli_install", "install_restored_by", "the world handed to the daemon is removed",
      "    let removed = std::fs::remove_file(&world);",
      "    let removed: std::io::Result<()> = Ok(());"),
-    ("cli_install", "install_with", "an earlier install's daemon is stopped first",
+    ("cli_install", "install_restored_by", "an earlier install's daemon is stopped first",
      "    let stopped = stopped_before(&cli)?;",
      "    let stopped = None;"),
     ("cli_install", "development", "a relocated install names no central log",
      "        log_endpoint: log_endpoint.filter(|_| namespace.is_none()),",
      "        log_endpoint,"),
-    ("cli_install", "uninstall", "an uninstall keeps the profile",
+    ("cli_install", "uninstall_restored_by", "an uninstall keeps the profile",
      "    std::fs::remove_dir(&layout.install)",
      "    std::fs::remove_dir_all(&layout.state)"),
     ("cli_install", "development_world", "a development world names its grant",
@@ -7468,16 +7468,16 @@ WEAKENINGS = [
     ("cli_control", "listening_after", "nothing answering is told from something holding the endpoint",
      "            !matches!(refused, Refused::Nobody(_) | Refused::TooLong { .. })",
      "            !matches!(refused, Refused::TooLong { .. })"),
-    ("cli_install", "install_with", "the CLI is copied runnable",
+    ("cli_install", "install_restored_by", "the CLI is copied runnable",
      "    replaced(&cli, &read_whole(plan.cli)?, &user, true)?;",
      "    replaced(&cli, &read_whole(plan.cli)?, &user, false)?;"),
-    ("cli_install", "install_with", "the daemon is copied runnable",
+    ("cli_install", "install_restored_by", "the daemon is copied runnable",
      "    replaced(&daemon, &read_whole(plan.daemon)?, &user, true)?;",
      "    replaced(&daemon, &read_whole(plan.daemon)?, &user, false)?;"),
     ("cli_control", "listening_after", "an endpoint no socket can have is held by nothing",
      "            !matches!(refused, Refused::Nobody(_) | Refused::TooLong { .. })",
      "            !matches!(refused, Refused::Nobody(_))"),
-    ("cli_install", "uninstall", "an uninstall stops the daemon first",
+    ("cli_install", "uninstall_restored_by", "an uninstall stops the daemon first",
      "    stopped(&found)?;\n",
      ""),
     ("cli_control", "ended_once_asked", "with nothing verified a record still naming it holds the stop",
@@ -7570,6 +7570,36 @@ WEAKENINGS = [
     ("dev", "lingering_said", "a refused lingering is said as the command that enables it",
      "             boot: run `loginctl enable-linger {name}`, or",
      "             boot: run `loginctl enable-linger`, or"),
+    ("platform_service", "wanted_once_gone", "a unit nothing wants is never still wanted",
+     "\n        && value(\"WantedBy\").is_some_and(|wanted| !wanted.trim().is_empty())",
+     ""),
+    ("platform_service", "wanted_once_gone", "a unit not loaded is never still wanted",
+     "    value(\"LoadState\") == Some(\"loaded\")",
+     "    value(\"LoadState\").is_some()"),
+    ("platform_service", "wanted_once_gone", "a unit that runs is never still wanted",
+     "        && value(\"ActiveState\") == Some(\"inactive\")",
+     "        && value(\"ActiveState\").is_some()"),
+    ("platform_service", "wanted_once_gone", "a unit whose file is there is never still wanted",
+     "        && value(\"NeedDaemonReload\") == Some(\"yes\")",
+     "        && value(\"NeedDaemonReload\").is_some()"),
+    ("platform_service", "to_let_go", "a test's unit is never reloaded away",
+     "        (self.manager == Manager::Systemd && self.volatile_units().as_deref() != Some(directory))",
+     "        (self.manager == Manager::Systemd)"),
+    ("platform_service", "to_let_go", "only systemd's units are reloaded away",
+     "        (self.manager == Manager::Systemd && self.volatile_units().as_deref() != Some(directory))",
+     "        (self.volatile_units().as_deref() != Some(directory))"),
+    ("cli_install", "install_restored_by", "a reinstall lets the earlier restorer go before a binary is replaced",
+     "        restorer.unregistered()?;\n",
+     ""),
+    ("cli_install", "install_restored_by", "a reinstall reads the mark before its own stop",
+     "    let marked = plan.restorer && marked(&layout, &user)?;\n    let stopped = stopped_before(&cli)?;\n",
+     "    let stopped = stopped_before(&cli)?;\n    let marked = plan.restorer && marked(&layout, &user)?;\n"),
+    ("cli_install", "development_plan", "a development plan registers its restorer",
+     "        restorer: true,\n",
+     "        restorer: false,\n"),
+    ("cli_install", "uninstall_restored_by", "an uninstall reaches its manager before it stops anything",
+     "    let restorer = restorer_of(&found.install, &found.layout, &found.user).map_err(|unmade| {\n        Unmade(format!(\n            \"{unmade}, so whether it holds the daemon's restorer cannot be said and nothing was \\\n             removed: uninstall from an environment that reaches it\"\n        ))\n    })?;\n    stopped(&found)?;\n",
+     "    stopped(&found)?;\n    let restorer = restorer_of(&found.install, &found.layout, &found.user).map_err(|unmade| {\n        Unmade(format!(\n            \"{unmade}, so whether it holds the daemon's restorer cannot be said and nothing was \\\n             removed: uninstall from an environment that reaches it\"\n        ))\n    })?;\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -7878,16 +7908,16 @@ ELSEWHERE = {
     "local_journal": ["cargo", "test", "-q", "-p", "nc-local"],
     # Each system's privacy, by its own crate's tests first, and then — in
     # `ALSO_RUN` — by the local database's suites that stand on it. **All of
-    # the crate but the two tests that register a real service**, which judge
-    # no clause of these files and would register a unit with the developer's
-    # manager twice for each operator.
+    # the crate but the three tests that register a real service**, which judge
+    # no clause of these files and would register units with the developer's
+    # manager three times for each operator.
     "platform": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_process": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     # **The service manager's module, by its own tests alone**: the
     # generators' texts, the escaping, the readers and the commands — and not
-    # the two that register a real service, which judge none of its clauses.
+    # the three that register a real service, which judge none of its clauses.
     "platform_service": ["cargo", "test", "-q", "-p", "nc-platform", "--", "service::", "--skip", "with_the_manager"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
     "prune_sqlite": ["cargo", "test", "-q", "-p", "nc-prune"],

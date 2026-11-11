@@ -35,11 +35,12 @@ detects it and says so.
   answers — the tests write their units only in `$XDG_RUNTIME_DIR/systemd/user`; on
   macOS, a graphical login for the user running the gate, whose launchd domain
   `gui/<uid>` the agents are bootstrapped into — a login over SSH alone has none, and the
-  gate fails there; on Windows, Task Scheduler, which is always there. On Linux, for the
-  daemon to start at boot rather than at your first login, **lingering** for your user:
-  `cargo xtask dev --install` enables it where logind lets you, and otherwise prints the
-  command — `loginctl enable-linger <name>` — and, for NixOS, the option
-  `users.users.<name>.linger = true;`. No test enables it.
+  gate fails there; on Windows, Task Scheduler, which is always there, and where a test's
+  task that a run killed half way leaves starts at each logon until the next run sweeps
+  it. On Linux, for the daemon to start at boot rather than at your first login,
+  **lingering** for your user: `cargo xtask dev --install` enables it where logind lets
+  you, and otherwise prints the command — `loginctl enable-linger <name>` — and, for
+  NixOS, the option `users.users.<name>.linger = true;`. No test enables it.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
 
@@ -87,7 +88,11 @@ change `PATH`**: the CLI is `noctua-dev-<checkout>`, at the path the install pri
 it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
 `stop` stops it and keeps it down whatever restores it, until `start`, and `status` says
 how it is. `cargo xtask dev --uninstall` stops the daemon, unregisters it from the
-service manager and removes the binaries, and keeps the profile.
+service manager and removes the binaries, and keeps the profile; on Linux, once your user
+manager has read the unit's link at a login or a boot, unregistering it asks for one
+`systemctl --user daemon-reload`, the only reload anything here asks for. Run from an
+environment that does not reach the service manager — no `systemctl` on `PATH` by an
+absolute entry, no `SystemRoot` — it removes nothing, and says so.
 
 ## What the gate checks, and where
 

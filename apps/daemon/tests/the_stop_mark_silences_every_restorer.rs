@@ -2,31 +2,39 @@
 //! stop, whatever restores it (`NOCTUA.md §17.3`, `§17.5`; `NOCTUA-PLAN.md`,
 //! Stage 13, acceptance 8).
 //!
-//! **Installed as `cargo xtask dev --install` installs it**: through
-//! `nc_cli::install` with its restorer, so the daemon this build made is
-//! registered with this system's service manager — a systemd user unit, a
-//! launch agent, a scheduled task — as `noctua-daemon --restored`, and started
-//! through it. The install is this checkout's development channel, relocated
-//! under a namespace that carries this process and a nonce, so every name it
-//! gives the system is the layout's and a test's: the unit is written only in
-//! `$XDG_RUNTIME_DIR/systemd/user`, the agent's property list stays in the
-//! scratch it is bootstrapped from, and the task sits in the root folder.
+//! **Installed from the plan `cargo xtask dev --install` makes**,
+//! `nc_cli::install::development_plan`, with no plugins: the daemon this
+//! build made is registered with this system's service manager — a systemd
+//! user unit, a launch agent, a scheduled task — as `noctua-daemon
+//! --restored`, and started through it. The install is this checkout's
+//! development channel, relocated under a namespace that carries this process
+//! and a nonce, so every name it gives the system is the layout's and a
+//! test's: the unit is written only in `$XDG_RUNTIME_DIR/systemd/user`, the
+//! agent's property list stays in the scratch it is bootstrapped from, and the
+//! task sits in the root folder, where it starts at each logon until it is
+//! unregistered.
 //!
 //! **Read through the manager's own counters**, and through the daemon's own
 //! PID record, never through sleeps alone: killed, it is restored as a new
-//! instance; stopped with `noctua stop`, the manager starts it as a restorer
-//! would and it ends at once on the `stopped` mark and stays down; started
+//! instance; installed again over it, it is stopped, its restorer let go and
+//! registered again, and started through it; stopped with `noctua stop`, the
+//! manager starts it as a restorer would and it ends at once on the `stopped`
+//! mark and stays down, and an install made then keeps it down; started
 //! again, the mark written and then the daemon killed, it is restored once,
 //! ends well on the mark, and stays down — on Windows, whose restorer is a
 //! repetition every minute, started each minute and ending well each time.
 //!
 //! **What it leaves**: a guard uninstalls the install — the daemon stopped
-//! through the CLI and its restorer unregistered — however the test leaves,
-//! and every run first sweeps this checkout's leftovers whose owner is dead,
-//! by a lock the owner holds in `nc-registered`, under the `target` of this
-//! checkout, as the service manager's own suite does. It never enables
-//! lingering, never reloads the manager, and touches no service it did not
-//! register. It spawns processes and registers a service, so no mutation
+//! through the CLI and its restorer unregistered, and unregistered directly
+//! when the uninstall did not get that far — however the test leaves. Every
+//! run first sweeps this checkout's leftovers whose owner is dead, by a lock
+//! the owner holds in `nc-registered`, under the `target` of this checkout, as
+//! the service manager's own suite does, and **only a name whose lock's
+//! directory is there**: it is made before anything is registered under the
+//! name and kept until its restorer is unregistered, so a service of this
+//! checkout no run of this suite registered is never touched. It never
+//! enables lingering, never reloads the manager, and touches no service it did
+//! not register. It spawns processes and registers a service, so no mutation
 //! command runs it.
 
 use std::ffi::OsString;
@@ -66,6 +74,10 @@ const NEW_FOR: Duration = Duration::from_secs(60);
 /// The service manager's own suite marks it so too, and either takes it away
 /// once nothing but the mark is left.
 const MADE_BY_A_SCRATCH: &str = ".made-by-nc-platform-tests";
+
+/// The directory of links `enable` makes for the units `default.target`
+/// wants, in the unit directory a unit is kept in.
+const WANTED: &str = "default.target.wants";
 
 /// This checkout: the directory two above this crate's.
 fn checkout() -> PathBuf {
@@ -181,12 +193,20 @@ struct Scratch {
     owner: Option<std::fs::File>,
     /// The install's root, under the temporary directory.
     root: PathBuf,
+    /// The stand-in for the CLI the install copies, which is driven
+    /// in-process.
+    cli: PathBuf,
     /// The install, once made.
     found: Option<Found>,
     /// This system's manager, for this user.
     registrar: Registrar,
     /// The name the manager knows the daemon by.
     name: String,
+    /// Where the install keeps its restorer's definition.
+    kept_in: PathBuf,
+    /// The directory of `default.target`'s links, when this test's enable is
+    /// what makes it.
+    wanted_made: Option<PathBuf>,
 }
 
 impl Drop for Scratch {
@@ -194,13 +214,27 @@ impl Drop for Scratch {
         if let Some(found) = self.found.take() {
             let _ = nc_cli::install::uninstall(&found.install);
         }
+        // **Unregistered directly when the uninstall did not get that far**:
+        // one whose daemon did not stop returns before it lets the restorer
+        // go.
+        if !matches!(self.registrar.is_registered(&self.name), Ok(false)) {
+            let _ = self.registrar.unregister(&self.name, &self.kept_in);
+        }
+        let gone = matches!(self.registrar.is_registered(&self.name), Ok(false));
+        if let Some(wanted) = &self.wanted_made {
+            let _ = std::fs::remove_dir(wanted);
+        }
         if let Some(units) = self.registrar.volatile_units() {
             take_the_units_away(&units);
         }
         drop(self.owner.take());
         let _ = nc_platform::testing::make_private(&self.root);
         let _ = std::fs::remove_dir_all(&self.root);
-        let _ = std::fs::remove_dir_all(&self.lock_dir);
+        // **The lock's directory outlives a restorer that stays**, so the next
+        // run's sweep finds it, its owner dead, and unregisters it.
+        if gone {
+            let _ = std::fs::remove_dir_all(&self.lock_dir);
+        }
     }
 }
 
@@ -228,10 +262,26 @@ impl Scratch {
             namespace: Some(nc_channel::Namespace::parse(&namespace).expect("a namespace")),
             log_endpoint: None,
         };
+        let cli = root.join("cli");
+        std::io::Write::write_all(
+            &mut nc_platform::create_private(&cli).expect("a stand-in CLI"),
+            b"the CLI is driven in-process",
+        )
+        .expect("written");
         let user = nc_platform::user_in(&root).expect("the scratch is private");
         let registrar = Registrar::for_user(&user).expect("this system's service manager");
         let layout = nc_channel::layout(&install, &user.to_string());
         let name = nc_cli::install::restorer_name(&layout, MANAGER).to_owned();
+        let kept_in = nc_cli::install::kept_in(
+            &install,
+            &layout,
+            MANAGER,
+            registrar.volatile_units().as_deref(),
+        )
+        .expect("a directory the restorer is kept in");
+        // **The lock's directory before anything is registered under the
+        // name**, so a sweep reads every service of this suite's as one it
+        // recorded.
         let scratches = scratches();
         std::fs::create_dir_all(&scratches).expect("this checkout's scratches");
         let lock_dir = scratches.join(stem_of(&name));
@@ -244,15 +294,23 @@ impl Scratch {
             namespace.as_bytes(),
         )
         .expect("written");
-        let scratch = Self {
+        let mut scratch = Self {
             lock_dir,
             owner: Some(owner),
             root,
+            cli,
             found: None,
             registrar,
             name,
+            kept_in,
+            wanted_made: None,
         };
         scratch.sweep(&install, &user);
+        scratch.wanted_made = scratch
+            .registrar
+            .volatile_units()
+            .map(|units| units.join(WANTED))
+            .filter(|wanted| !wanted.is_dir());
         if let Some(units) = scratch.registrar.volatile_units()
             && !units.is_dir()
         {
@@ -265,13 +323,16 @@ impl Scratch {
         (scratch, install)
     }
 
-    /// Unregisters each service of this checkout's installs relocated as this
-    /// test relocates one whose owner is dead, and takes away every scratch of
-    /// theirs whose owner is.
+    /// Unregisters each service a run of this test registered for this
+    /// checkout whose owner is dead, and takes away every scratch of theirs
+    /// whose owner is.
     ///
     /// **The prefix is the layout's**, for a namespace opening as this test's
     /// do, and held again before each name is unregistered, since launchd
-    /// and Task Scheduler list every service they hold.
+    /// and Task Scheduler list every service they hold. **And only a name a
+    /// run of this test recorded**, by its lock's directory: a relocated
+    /// install a person made of this checkout, whose namespace opens so too,
+    /// has none, and is left as it is.
     fn sweep(&self, install: &nc_channel::Install, user: &nc_platform::User) {
         let probe = nc_channel::Install {
             namespace: Some(nc_channel::Namespace::parse("r0").expect("a namespace")),
@@ -297,21 +358,24 @@ impl Scratch {
                 "`{name}` was answered as one of this checkout's, under `{prefix}`, and is not"
             );
             let theirs = scratches.join(stem_of(&name));
-            if owner_lives(&theirs) || (theirs.is_dir() && too_new(&theirs)) {
+            if !theirs.is_dir() || owner_lives(&theirs) || too_new(&theirs) {
                 continue;
             }
             let directory = self
                 .registrar
                 .volatile_units()
                 .unwrap_or_else(|| theirs.clone());
-            self.registrar
-                .unregister(&name, &directory)
-                .unwrap_or_else(|error| {
-                    panic!("`{name}`, a leftover of this checkout, stays: {error}")
-                });
-            take_away(&theirs);
+            match self.registrar.unregister(&name, &directory) {
+                Ok(()) => take_away(&theirs),
+                // **Left for the manager's next start**: stopped, its file
+                // and its links gone, and wanted by a unit the manager runs
+                // since something reloaded it, which no test does.
+                Err(nc_platform::service::Error::StillWanted(_)) => {}
+                Err(error) => panic!("`{name}`, a leftover of this checkout, stays: {error}"),
+            }
         }
         let stems = stem_of(prefix).to_owned();
+        let listed = self.registrar.registered_under(prefix).unwrap_or_default();
         if let Ok(entries) = std::fs::read_dir(&scratches) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -319,34 +383,35 @@ impl Scratch {
                     .file_name()
                     .to_str()
                     .is_some_and(|scratch| scratch.starts_with(&stems));
-                if ours && path != self.lock_dir && !too_new(&path) && !owner_lives(&path) {
+                let still_registered = listed
+                    .iter()
+                    .any(|name| scratches.join(stem_of(name)) == path);
+                if ours
+                    && !still_registered
+                    && path != self.lock_dir
+                    && !too_new(&path)
+                    && !owner_lives(&path)
+                {
                     take_away(&path);
                 }
             }
         }
     }
 
-    /// Installs `install` as `dev --install` does.
+    /// Installs `install` as `dev --install` does, and answers what it made.
     ///
     /// The daemon this build made, the test world, its restorer registered and the
     /// daemon started through it.
-    fn install(&mut self, install: &nc_channel::Install) -> nc_cli::install::Registered {
+    fn install(&mut self, install: &nc_channel::Install) -> nc_cli::install::Installed {
         let world = nc_cli::install::development_world(include_str!("../../../policy/world.json"))
             .expect("the test world");
-        let cli = self.root.join("cli");
-        std::io::Write::write_all(
-            &mut nc_platform::create_private(&cli).expect("a stand-in CLI"),
-            b"the CLI is driven in-process",
-        )
-        .expect("written");
-        let plan = nc_cli::install::Plan {
-            install: install.clone(),
-            cli: &cli,
-            daemon: Path::new(BINARY),
-            world: &world,
-            plugins: Vec::new(),
-            restorer: true,
-        };
+        let plan = nc_cli::install::development_plan(
+            install.clone(),
+            &self.cli,
+            Path::new(BINARY),
+            &world,
+            Vec::new(),
+        );
         let installed = nc_cli::install::install(&plan);
         // **Held before the outcome is read**, so an install that registered
         // and then failed is uninstalled by the guard too.
@@ -362,10 +427,7 @@ impl Scratch {
             nc_platform::EXECUTABLE_SUFFIX
         )))
         .ok();
-        let installed = installed.unwrap_or_else(|unmade| panic!("not installed: {unmade}"));
-        installed
-            .registered
-            .expect("the install registered its restorer")
+        installed.unwrap_or_else(|unmade| panic!("not installed: {unmade}"))
     }
 
     /// The install made.
@@ -421,6 +483,54 @@ impl Scratch {
             );
             std::thread::sleep(Duration::from_millis(100));
         }
+    }
+
+    /// The daemon running as a new instance, started through its manager:
+    /// its record, after `before`'s, held to the process the manager says
+    /// runs, and the manager's counters then.
+    fn running_after(&self, before: &Record) -> (Record, Counters) {
+        let record = self.recorded_once(
+            |record| {
+                record.instance != before.instance && Verified::open(&record.identity()).is_ok()
+            },
+            "a new instance, running",
+        );
+        let counted = self.counted_once(Counters::running, "running");
+        if let Some(pid) = counted.pid() {
+            assert_eq!(
+                pid, record.pid,
+                "its manager runs another process than its record"
+            );
+        }
+        (record, counted)
+    }
+
+    /// The registration's own start ended on the mark.
+    ///
+    /// **As its manager counts it**: the start of launchd's load and of the
+    /// registration trigger of Task Scheduler, each ended well, and under
+    /// systemd the unit down again once its start returned.
+    fn ended_on_the_mark_once_registered(&self) {
+        match MANAGER {
+            Manager::Systemd => {}
+            Manager::Launchd => {
+                self.counted_once(
+                    |now| {
+                        matches!(now, Counters::Launchd { runs, .. } if *runs >= 1)
+                            && !now.running()
+                            && now.ended_well() == Some(true)
+                    },
+                    "started by its load and ended well on the mark",
+                );
+            }
+            Manager::TaskScheduler => {
+                self.counted_once(
+                    |now| !now.running() && now.ended_well() == Some(true),
+                    "started by its registration and ended well on the mark",
+                );
+            }
+        }
+        self.counted_once(|now| !now.running(), "down, on the mark");
     }
 
     /// Whether the daemon stays down for [`LEFT_DOWN_FOR`]: its manager
@@ -544,9 +654,10 @@ fn restored_once_and_ended_well(scratch: &Scratch, before: &Counters, killed: u3
 
 /// The stop mark silences every restorer, and a crash is restored.
 ///
-/// Killed, the daemon is restored as a new instance; stopped, a restorer's
-/// start leaves it down; with the mark written and then killed, it is restored
-/// once, ends well and stays down.
+/// Killed, the daemon is restored as a new instance; installed again over
+/// it, it is started again through its restorer; stopped, a restorer's start
+/// and an install leave it down; with the mark written and then killed, it is
+/// restored once, ends well and stays down.
 #[test]
 #[expect(
     clippy::too_many_lines,
@@ -554,16 +665,17 @@ fn restored_once_and_ended_well(scratch: &Scratch, before: &Counters, killed: u3
 )]
 fn the_stop_mark_silences_every_restorer() {
     let (mut scratch, install) = Scratch::new();
-    let registered = scratch.install(&install);
+    let installed = scratch.install(&install);
+    let registered = installed
+        .registered
+        .expect("the install registered its restorer");
     assert_eq!(registered.manager, MANAGER);
     assert_eq!(registered.name, scratch.name);
+    assert_eq!(registered.kept_in, scratch.kept_in);
     // **Started once registered**: a fresh profile carries no mark. The
     // registration may have started it already, so which start it says is
     // read further down, after a stop, where only the manager's can.
-    let started = registered
-        .started
-        .clone()
-        .expect("the install started its daemon");
+    let started = registered.started.expect("the install started its daemon");
     assert!(started.contains("is running"), "{started}");
     assert!(
         scratch
@@ -577,7 +689,7 @@ fn the_stop_mark_silences_every_restorer() {
             registered.kept_in, units,
             "a test's unit outside the runtime directory"
         );
-        let wanted = units.join("default.target.wants").join(&scratch.name);
+        let wanted = units.join(WANTED).join(&scratch.name);
         assert!(
             wanted.symlink_metadata().is_ok(),
             "the unit is not enabled to start at login: no `{}`",
@@ -612,7 +724,26 @@ fn the_stop_mark_silences_every_restorer() {
         assert_eq!(pid, second.pid, "its manager restored another process");
     }
 
-    // **Stopped, a restorer's start leaves it down.**
+    // **Installed again over it: stopped, its restorer let go and registered
+    // again, and started again through it.**
+    let over = scratch.install(&install);
+    let said = over
+        .stopped
+        .expect("the daemon the earlier install ran was not stopped first");
+    assert!(
+        said.contains(&format!(
+            "process {}, stopped when it was asked to",
+            second.pid
+        )),
+        "{said}"
+    );
+    let again = over.registered.expect("the restorer registered again");
+    assert_eq!(again.name, scratch.name);
+    let started = again.started.expect("the install started its daemon again");
+    assert!(started.contains("is running"), "{started}");
+    let (third, _) = scratch.running_after(&second);
+
+    // **Stopped, a restorer's start and an install leave it down.**
     let stopped = run(scratch.found(), "stop");
     assert_eq!(stopped.exit, Exit::Success, "{stopped:?}");
     assert!(
@@ -641,6 +772,18 @@ fn the_stop_mark_silences_every_restorer() {
         "a restorer's start wrote a record: {:?}",
         scratch.record()
     );
+    let kept = scratch.install(&install);
+    let registered = kept.registered.expect("the restorer registered again");
+    assert!(
+        registered.started.is_none(),
+        "an install started a daemon a person had stopped: {registered:?}"
+    );
+    assert!(
+        scratch.found().layout.stopped.is_file(),
+        "an install took a person's stop away"
+    );
+    scratch.ended_on_the_mark_once_registered();
+    scratch.stays_down();
 
     // **Started again, the mark written, then killed: restored once, it ends
     // well on the mark and stays down.**
@@ -654,20 +797,16 @@ fn the_stop_mark_silences_every_restorer() {
         !scratch.found().layout.stopped.exists(),
         "a start left the mark"
     );
-    let third = scratch.recorded_once(
-        |record| record.instance != second.instance && Verified::open(&record.identity()).is_ok(),
-        "a new instance, running",
-    );
-    let before = scratch.counted_once(Counters::running, "running");
+    let (fourth, before) = scratch.running_after(&third);
     nc_cli::control::mark(&scratch.found().layout, &scratch.found().user).expect("the mark");
-    killed(&third);
-    restored_once_and_ended_well(&scratch, &before, third.pid);
+    killed(&fourth);
+    restored_once_and_ended_well(&scratch, &before, fourth.pid);
     scratch.stays_down();
     let left = scratch
         .record()
         .expect("the killed daemon's record is left");
     assert_eq!(
-        left.instance, third.instance,
+        left.instance, fourth.instance,
         "a start on the mark wrote a record of its own"
     );
 
@@ -688,16 +827,14 @@ fn the_stop_mark_silences_every_restorer() {
         "`{}` was uninstalled and its manager still holds it",
         scratch.name
     );
-    if MANAGER == Manager::Systemd {
-        let units = scratch.registrar.volatile_units().expect("systemd's");
+    if let Some(units) = scratch.registrar.volatile_units() {
         assert!(
             units
-                .join("default.target.wants")
+                .join(WANTED)
                 .join(&scratch.name)
                 .symlink_metadata()
                 .is_err(),
             "the unit's link to start at login outlived it"
         );
-        let _ = std::fs::remove_dir(units.join("default.target.wants"));
     }
 }

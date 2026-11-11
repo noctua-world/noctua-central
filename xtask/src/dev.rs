@@ -608,12 +608,12 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
             ));
         }
     }
-    let plan = nc_cli::install::Plan {
+    let plan = nc_cli::install::development_plan(
         install,
-        cli: &cli,
-        daemon: &daemon,
-        world: &world,
-        plugins: sources
+        &cli,
+        &daemon,
+        &world,
+        sources
             .iter()
             .map(|(name, manifest, component)| nc_cli::install::Plugin {
                 name,
@@ -621,8 +621,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
                 component,
             })
             .collect(),
-        restorer: true,
-    };
+    );
     let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
     said_installed(&installed)
 }

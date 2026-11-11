@@ -19462,7 +19462,7 @@ mod the_frozen_path_rule {
         ("cli/control.rs", 61, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
-        ("cli/install.rs", 50, 9),
+        ("cli/install.rs", 60, 13),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
@@ -19487,7 +19487,7 @@ mod the_frozen_path_rule {
         ("daemon/testing.rs", 32, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("daemon/the_stop_mark_silences_every_restorer.rs", 32, 3),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
         ("nc-authz/directory.rs", 41, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19608,7 +19608,7 @@ mod the_frozen_path_rule {
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/lib.rs", 93, 22),
         ("nc-platform/process.rs", 44, 15),
-        ("nc-platform/service.rs", 169, 18),
+        ("nc-platform/service.rs", 178, 21),
         ("nc-platform/testing.rs", 34, 4),
         ("nc-platform/unix.rs", 99, 4),
         ("nc-platform/windows.rs", 141, 13),
@@ -22440,8 +22440,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 703 scratches this tree
-    /// builds, 615 of the 703 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 707 scratches this tree
+    /// builds, 619 of the 707 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22510,7 +22510,7 @@ mod the_frozen_path_rule {
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 12, 12),
-        ("cli/install.rs", 9, 9),
+        ("cli/install.rs", 12, 12),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -22545,7 +22545,7 @@ mod the_frozen_path_rule {
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 28, 28),
         ("nc-platform/process.rs", 2, 2),
-        ("nc-platform/service.rs", 6, 6),
+        ("nc-platform/service.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25509,7 +25509,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18124;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18169;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25528,7 +25528,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4658;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4682;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25545,7 +25545,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1566;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1577;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25579,7 +25579,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24676;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24756;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25633,7 +25633,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,676 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,756 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25666,7 +25666,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1566 of
+    /// this tree offers, **1577 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37527,7 +37527,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2106] = [
+    static OPERATORS: [(&str, &str, &str); 2116] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46694,12 +46694,12 @@ Options:
         ),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
             "the world handed to the daemon is removed",
         ),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
             "an earlier install's daemon is stopped first",
         ),
         (
@@ -46707,7 +46707,11 @@ Options:
             "development",
             "a relocated install names no central log",
         ),
-        ("cli_install", "uninstall", "an uninstall keeps the profile"),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall keeps the profile",
+        ),
         (
             "cli_install",
             "development_world",
@@ -46760,10 +46764,14 @@ Options:
             "listening_after",
             "nothing answering is told from something holding the endpoint",
         ),
-        ("cli_install", "install_with", "the CLI is copied runnable"),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
+            "the CLI is copied runnable",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
             "the daemon is copied runnable",
         ),
         (
@@ -46773,7 +46781,7 @@ Options:
         ),
         (
             "cli_install",
-            "uninstall",
+            "uninstall_restored_by",
             "an uninstall stops the daemon first",
         ),
         (
@@ -46925,6 +46933,56 @@ Options:
             "dev",
             "lingering_said",
             "a refused lingering is said as the command that enables it",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit nothing wants is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit not loaded is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit that runs is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit whose file is there is never still wanted",
+        ),
+        (
+            "platform_service",
+            "to_let_go",
+            "a test's unit is never reloaded away",
+        ),
+        (
+            "platform_service",
+            "to_let_go",
+            "only systemd's units are reloaded away",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "a reinstall lets the earlier restorer go before a binary is replaced",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "a reinstall reads the mark before its own stop",
+        ),
+        (
+            "cli_install",
+            "development_plan",
+            "a development plan registers its restorer",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall reaches its manager before it stops anything",
         ),
     ];
 
