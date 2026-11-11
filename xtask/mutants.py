@@ -7391,8 +7391,8 @@ WEAKENINGS = [
      "            return Err(Unread::Missing);",
      "            return Err(Unread::Malformed(String::new()));"),
     ("cli_control", "when_unanswered", "only a verified process is signalled",
-     "        Recorded::Verified(..) => Unanswered::Signal,",
-     "        Recorded::Verified(..) => Unanswered::Refuse,"),
+     "        Recorded::Verified(..) if still_recorded => Unanswered::Signal,",
+     "        Recorded::Verified(..) if still_recorded => Unanswered::Refuse,"),
     ("cli_control", "when_unanswered", "a record of another process is refused",
      "        Recorded::Unverified(_) => Unanswered::Refuse,",
      "        Recorded::Unverified(_) => Unanswered::Stopped,"),
@@ -7679,6 +7679,14 @@ WEAKENINGS = [
     ("platform_unix", "user_in", "a directory is judged against its own owner before anything is made in it",
      "    judged(directory, &found, &User(found.uid()), Kind::Directory)?;\n",
      "    let _ = found;\n"),
+    # A stop signals a process verified only while its record, read again once
+    # the daemon did not answer, still names it.
+    ("cli_control", "when_unanswered", "a verified process whose record went is waited for",
+     "        Recorded::Verified(..) => Unanswered::Wait,\n",
+     "        Recorded::Verified(..) => Unanswered::Signal,\n"),
+    ("cli_control", "still_names", "a record written over names another process",
+     ".is_ok_and(|now| now == *record)",
+     ".is_ok()"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

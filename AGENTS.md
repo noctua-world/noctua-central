@@ -826,7 +826,9 @@ held by its tests, and by no gate over a signal sent another way.
     Linux, one process handle on Windows, the process read again just before it on macOS.
     A stop asks the daemon through its endpoint first and signals only one that does not
     answer: one that answers it is stopping is waited for and never signalled
-    (`NC-CLI-0008` when it outlasts the wait). A record naming a process that runs no
+    (`NC-CLI-0008` when it outlasts the wait), and so is one whose record, read again once
+    nothing answered, no longer names it — a daemon removes its record at the end of its
+    own stop, before its endpoint goes. A record naming a process that runs no
     more — judged before anything else, so whoever holds its id now — or a process this
     user may not read at all, which is not its daemon (on Windows, another account's, for
     an account that is not an elevated administrator), is a daemon already stopped while
@@ -2351,7 +2353,9 @@ program reach a channel's daemon through.
   schema by the call the kernel makes (`NC-VAL-0002`, exit 2). A command line the CLI
   cannot read (`NC-CLI-0001`), a command the registry does not hold (`NC-KERN-0001`, exit
   5) and arguments the schema refuses reach no kernel; an answer of another kind than the
-  request's is refused (`NC-CLI-0005`, exit 8).
+  request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
+  protocol reads — not one message, or past the bound — from a daemon the handshake proved
+  (exit 8).
 - **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
   every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
   code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
@@ -2411,7 +2415,10 @@ is installed.
   `stop_within_ms` through what verified it, or, with nothing verified, until its endpoint
   answers no more and its record no longer names it, and never signalled: one still there
   then is a stop that did not finish (`NC-CLI-0008`, exit 11). One that does not answer is
-  asked to end and then killed, `kill_within_ms` each, through the verification alone. A
+  asked to end and then killed, `kill_within_ms` each, through the verification alone —
+  once its record, read again, still names it: a daemon removes its record at the end of
+  its own stop and lets its endpoint go only after, so one whose record went since it was
+  read is ending a stop asked before, and is waited for as one that answered. A
   record missing or naming a process that runs no more is a daemon stopped (exit 0) while
   nothing holds its endpoint; something that holds it and does not answer, with no record
   to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and a record naming
@@ -2523,7 +2530,8 @@ started, held apart on disk, each stopped while the other three answer, and one 
 three untouched (acceptance 3), by `process_control_that_does_not_finish_is_exit_11` and
 `a_start_whose_daemon_ends_before_it_answers_is_exit_11_with_what_it_wrote` in
 `apps/daemon/tests/exit_codes.rs`, by the unit tests of `apps/cli/src/control.rs` — the
-decision that signals only a verified process, the mark written, kept, removed and
+decision that signals only a verified process, and only while its record still names
+it, the mark written, kept, removed and
 refused, a stop nothing answers ending well over a record of a process gone and refusing
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
@@ -3372,7 +3380,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   for it, and one still running then — draining a call that does not end, or hung after it
   answered — is a stop that did not finish (`NC-CLI-0008`, exit 11), left running with the
   `stopped` mark written; a stop asked again waits for it again — a stopping daemon answers
-  at its endpoint until its record is removed — and nothing in the CLI ends it harder.
+  at its endpoint until its record is removed, and a stop that finds the endpoint gone and
+  the record it read gone with it waits for it too — and nothing in the CLI ends it harder.
 - **On macOS a process is read, then signalled**: `ps` and the boot's session say what a
   process is, and are asked again just before each signal, but nothing holds the process
   between the two as a pidfd does on Linux and a handle on Windows, so an id handed out

@@ -20,31 +20,35 @@
 //!    stop that did not finish (`NC-CLI-0008`, exit 11).
 //! 4. **Only when it does not answer, a signal — and only through what was
 //!    verified**: asked to end, `kill_within_ms`, then killed, `kill_within_ms`
-//!    again. **Nothing unverified is signalled, and no process numbered zero
-//!    or below**: a record missing, or naming a process that runs no more —
-//!    or one this user may not read, which is not its daemon — is a daemon
-//!    already stopped while nothing holds its endpoint; a record naming
-//!    another process — another executable, another user — or one that does
-//!    not read, and an endpoint something still holds with no record to hold
-//!    it to a process, are never signalled, and the stop ends in exit 11 with
+//!    again, once its record, read again, still names it. A daemon removes its
+//!    record at the end of its own stop and only then lets its endpoint go, so
+//!    one whose record went since step 2 is ending a stop asked before this
+//!    one, and is waited for as in step 3, never signalled. **Nothing
+//!    unverified is signalled, and no process numbered zero or below**: a
+//!    record missing, or naming a process that runs no more — or one this
+//!    user may not read, which is not its daemon — is a daemon already
+//!    stopped while nothing holds its endpoint; a record naming another
+//!    process — another executable, another user — or one that does not
+//!    read, and an endpoint something still holds with no record to hold it
+//!    to a process, are never signalled, and the stop ends in exit 11 with
 //!    `NC-CLI-0009`.
 //!
 //! # A start
 //!
-//! It removes the mark and answers at once when a daemon already answers —
-//! but for one that says it is stopping, which it waits for as a stop does
-//! and then starts again. Otherwise, **where this system's service manager holds the install's
-//! restorer** (`cargo xtask dev --install` registers one), it asks that
-//! manager to start it — `noctua-daemon --restored`, as every restorer starts
-//! it — so the daemon it starts is one the manager restores; where the
+//! It removes the mark and answers at once when a daemon already answers — but
+//! for one that says it is stopping, which it waits for as a stop does and then
+//! starts again. Otherwise, **where this system's service manager holds the
+//! install's restorer** (`cargo xtask dev --install` registers one), it asks
+//! that manager to start it — `noctua-daemon --restored`, as every restorer
+//! starts it — so the daemon it starts is one the manager restores; where the
 //! manager holds none, or there is none to ask, it starts the install's own
 //! daemon, beside this CLI and never found on `PATH`, detached
 //! (`nc_platform::process::spawn_detached`) with its standard error written
-//! fresh into the profile's `daemon.err`. Either way it waits
-//! `start_within_ms` for that daemon to answer the handshake. One that does
-//! not answer by then, or that a detached start sees end first, is a start
-//! that failed (`NC-CLI-0007`), with what it wrote to its standard error, or
-//! what its manager says of it.
+//! fresh into the profile's `daemon.err`. Either way it waits `start_within_ms`
+//! for that daemon to answer the handshake. One that does not answer by then,
+//! or that a detached start sees end first, is a start that failed
+//! (`NC-CLI-0007`), with what it wrote to its standard error, or what its
+//! manager says of it.
 //!
 //! `restart` is a stop and then a start, the mark written and removed between
 //! them; `status` is the daemon's own, or, when nothing answers, what the PID
@@ -241,11 +245,22 @@ fn recorded(found: &Found) -> Recorded {
     }
 }
 
+/// Whether the PID record of `found`'s install still names what `record` named.
+///
+/// Read again once the daemon did not answer, so a record the daemon removed
+/// meanwhile, or one another start wrote over it, is told from one that stayed.
+fn still_names(found: &Found, record: &Record) -> bool {
+    record::read(&found.layout.pid_file, &found.user).is_ok_and(|now| now == *record)
+}
+
 /// What a stop does once the daemon did not answer it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Unanswered {
     /// Signal it, through what verified it.
     Signal,
+    /// Wait for it through what verified it, and never signal it: it is ending
+    /// a stop.
+    Wait,
     /// Nothing: no daemon runs.
     Stopped,
     /// Nothing, and say so: what the record names is not a process this may
@@ -254,15 +269,24 @@ enum Unanswered {
 }
 
 /// What a stop does with what the record said, once the daemon did not
-/// answer: **only a process verified is signalled**.
+/// answer: **only a process verified is signalled**, and only while its
+/// record still names it.
 ///
 /// With no record, or one naming a process that runs no more, the daemon is
 /// stopped only while nothing at all `listening` holds its endpoint; one that
 /// does and did not answer is a daemon hung with its record lost, which
 /// nothing here can hold to a process, and so is refused.
-const fn when_unanswered(recorded: &Recorded, listening: bool) -> Unanswered {
+///
+/// **A record gone once it was read is a stop ending**, whatever holds the
+/// endpoint: a daemon removes its record at the end of its own stop, while
+/// its endpoint still answers that it is stopping, and lets the endpoint go
+/// only after — so a process verified whose record no longer names it when
+/// read again (`still_recorded`) is one a stop asked before this one is
+/// ending, waited for as one that answered and never signalled.
+const fn when_unanswered(recorded: &Recorded, listening: bool, still_recorded: bool) -> Unanswered {
     match recorded {
-        Recorded::Verified(..) => Unanswered::Signal,
+        Recorded::Verified(..) if still_recorded => Unanswered::Signal,
+        Recorded::Verified(..) => Unanswered::Wait,
         Recorded::Nothing | Recorded::Gone(_) if listening => Unanswered::Refuse,
         Recorded::Nothing | Recorded::Gone(_) => Unanswered::Stopped,
         Recorded::Unverified(_) => Unanswered::Refuse,
@@ -302,10 +326,22 @@ async fn stop(found: &Found) -> Result<String, Failure> {
         }
         Err(unasked) => listening_after(&unasked),
     };
-    let unanswered = when_unanswered(&recorded, listening);
+    let still_recorded =
+        matches!(&recorded, Recorded::Verified(_, record) if still_names(found, record));
+    let unanswered = when_unanswered(&recorded, listening, still_recorded);
     match recorded {
         Recorded::Verified(verified, _) if unanswered == Unanswered::Signal => {
             signalled(cli, &verified)
+        }
+        Recorded::Verified(verified, record) if unanswered == Unanswered::Wait => {
+            let pid = record.pid;
+            ended_once_asked(
+                found,
+                Recorded::Verified(verified, record),
+                pid,
+                stop_within(),
+            )
+            .await
         }
         Recorded::Gone(why) if unanswered == Unanswered::Stopped => Ok(format!(
             "The daemon of {cli} is stopped: nothing answers at its endpoint, and {why}.\n"
@@ -773,24 +809,73 @@ mod tests {
     #[test]
     fn only_a_verified_process_is_signalled_when_the_daemon_does_not_answer() {
         let gone = || Recorded::Gone("it ended".to_owned());
-        assert_eq!(
-            when_unanswered(&Recorded::Nothing, false),
-            Unanswered::Stopped
-        );
-        assert_eq!(when_unanswered(&gone(), false), Unanswered::Stopped);
-        // Something that holds the endpoint and did not answer, with no
-        // record holding it to a process, is a daemon hung and never stopped.
-        assert_eq!(
-            when_unanswered(&Recorded::Nothing, true),
-            Unanswered::Refuse
-        );
-        assert_eq!(when_unanswered(&gone(), true), Unanswered::Refuse);
-        for listening in [false, true] {
+        for still in [false, true] {
             assert_eq!(
-                when_unanswered(&Recorded::Unverified("another".to_owned()), listening),
+                when_unanswered(&Recorded::Nothing, false, still),
+                Unanswered::Stopped
+            );
+            assert_eq!(when_unanswered(&gone(), false, still), Unanswered::Stopped);
+            // Something that holds the endpoint and did not answer, with no
+            // record holding it to a process, is a daemon hung and never stopped.
+            assert_eq!(
+                when_unanswered(&Recorded::Nothing, true, still),
                 Unanswered::Refuse
             );
+            assert_eq!(when_unanswered(&gone(), true, still), Unanswered::Refuse);
+            for listening in [false, true] {
+                assert_eq!(
+                    when_unanswered(
+                        &Recorded::Unverified("another".to_owned()),
+                        listening,
+                        still
+                    ),
+                    Unanswered::Refuse
+                );
+            }
         }
+    }
+
+    /// A verified process is signalled only while its record still names it.
+    ///
+    /// One whose record went once the stop read it, or was written over, is a
+    /// daemon ending a stop asked before — it removes its record before its
+    /// endpoint goes — and is waited for, whatever holds the endpoint. **Found
+    /// while closing a review's finding**: a stop asked again that read the
+    /// record just before a draining daemon removed it, and reached the
+    /// endpoint just after it went, signalled the daemon.
+    #[test]
+    fn a_verified_process_is_signalled_only_while_its_record_still_names_it() {
+        let installed = Scratch::new("renamed");
+        let (_child, record) = a_sleeper();
+        recorded_as(&installed, &record);
+        let recorded = super::recorded(&installed.found);
+        let Recorded::Verified(_, read) = &recorded else {
+            panic!("the child is not held to its record: {recorded:?}");
+        };
+        assert!(super::still_names(&installed.found, read));
+        for listening in [false, true] {
+            assert_eq!(
+                when_unanswered(&recorded, listening, true),
+                Unanswered::Signal
+            );
+            assert_eq!(
+                when_unanswered(&recorded, listening, false),
+                Unanswered::Wait
+            );
+        }
+        recorded_as(
+            &installed,
+            &this_process_but(|other| other.started.push('0')),
+        );
+        assert!(
+            !super::still_names(&installed.found, read),
+            "a record written over still names what it named"
+        );
+        std::fs::remove_file(&installed.found.layout.pid_file).expect("removed");
+        assert!(
+            !super::still_names(&installed.found, read),
+            "a record removed still names what it named"
+        );
     }
 
     /// An endpoint no socket can have is held by nothing, and every other
