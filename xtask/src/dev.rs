@@ -637,7 +637,8 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
 ///
 /// # Errors
 ///
-/// Returns that the build named no binary `name`.
+/// Returns that the build said it made no binary of that name, so there is
+/// nothing to install.
 fn built_at(built: &str, name: &str) -> Result<PathBuf, String> {
     built
         .lines()

@@ -194,7 +194,8 @@ impl Installed {
     ///
     /// # Panics
     ///
-    /// When it could not be started.
+    /// When it could not be started, or the file its standard error is
+    /// written to could not be opened.
     #[must_use]
     pub fn spawn_as(
         &self,
