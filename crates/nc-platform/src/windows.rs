@@ -49,9 +49,9 @@ use std::ptr::null_mut;
 use std::sync::OnceLock;
 
 use windows_sys::Win32::Foundation::{
-    ERROR_SUCCESS, FALSE, FILETIME, GENERIC_ALL, GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE,
-    HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, LocalFree, SetHandleInformation, TRUE,
-    WIN32_ERROR,
+    ERROR_INVALID_PARAMETER, ERROR_SUCCESS, FALSE, FILETIME, GENERIC_ALL, GENERIC_EXECUTE,
+    GENERIC_READ, GENERIC_WRITE, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, LocalFree,
+    SetHandleInformation, TRUE, WAIT_OBJECT_0, WAIT_TIMEOUT, WIN32_ERROR,
 };
 use windows_sys::Win32::Security::Authorization::{GetSecurityInfo, SE_FILE_OBJECT};
 use windows_sys::Win32::Security::Cryptography::{
@@ -78,7 +78,12 @@ use windows_sys::Win32::Storage::FileSystem::{SYNCHRONIZE, WRITE_DAC, WRITE_OWNE
 use windows_sys::Win32::System::SystemServices::{
     ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE, SECURITY_DESCRIPTOR_REVISION,
 };
-use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes, OpenProcessToken};
+use windows_sys::Win32::System::Threading::{
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, DETACHED_PROCESS, GetCurrentProcess,
+    GetProcessTimes, OpenProcessToken, PROCESS_ACCESS_RIGHTS, PROCESS_NAME_WIN32,
+    PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, QueryFullProcessImageNameW, TerminateProcess,
+    WaitForSingleObject,
+};
 
 use crate::{Failed, Judged, Kind, Refusal};
 
@@ -995,18 +1000,26 @@ pub(crate) fn session_of(_pid: u32) -> io::Result<Option<u32>> {
 /// hundred-nanosecond intervals since 1601 Windows counts in. Windows names
 /// no boot a later reading could tell apart, so there is none.
 pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    // SAFETY: `GetCurrentProcess` answers a pseudo-handle that needs no
+    // closing and stays valid for as long as this process runs.
+    Ok((None, created(unsafe { GetCurrentProcess() })?))
+}
+
+/// When the process `process` is a handle of started: its creation time, in
+/// the hundred-nanosecond intervals since 1601 Windows counts in.
+fn created(process: HANDLE) -> io::Result<String> {
     let empty = || FILETIME {
         dwLowDateTime: 0,
         dwHighDateTime: 0,
     };
     let (mut creation, mut exit, mut kernel, mut user) = (empty(), empty(), empty(), empty());
-    // SAFETY: `GetCurrentProcess` answers a pseudo-handle that needs no
-    // closing, and each pointer is to a local `FILETIME` that lives across the
-    // call and that the call alone writes; nothing is allocated, so nothing is
-    // freed.
+    // SAFETY: the caller's handle, open across the call with the right to
+    // query it, and each pointer is to a local `FILETIME` that lives across
+    // the call and that the call alone writes; nothing is allocated, so
+    // nothing is freed.
     let answered = unsafe {
         GetProcessTimes(
-            GetCurrentProcess(),
+            process,
             &raw mut creation,
             &raw mut exit,
             &raw mut kernel,
@@ -1017,7 +1030,319 @@ pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
         return Err(io::Error::last_os_error());
     }
     let started = (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime);
-    Ok((None, started.to_string()))
+    Ok(started.to_string())
+}
+
+/// What an executable's name ends with here.
+pub(crate) const EXECUTABLE_SUFFIX: &str = ".exe";
+
+/// Where Windows keeps a user's profiles: its local and roaming folders.
+pub(crate) const BASES: crate::Bases = crate::Bases::KnownFolders;
+
+/// A new executable, made as any file this module makes: Windows runs a file
+/// its access list lets its owner read, and that one entry is full control.
+pub(crate) fn create_private_executable(path: &Path) -> io::Result<File> {
+    create_private(path)
+}
+
+/// `command` made to start with no console, in a process group of its own,
+/// and with no window.
+pub(crate) fn detached(command: &mut std::process::Command) {
+    use std::os::windows::process::CommandExt as _;
+    command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+}
+
+/// Nothing: Windows has no process group of the POSIX kind to read.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Unix one can fail"
+)]
+pub(crate) fn group_of(_pid: u32) -> io::Result<Option<u32>> {
+    Ok(None)
+}
+
+/// A process held for an end: one handle, open to query it, to terminate it
+/// and to wait for it, which names that process for as long as it is open.
+#[derive(Debug)]
+pub(crate) struct Process(OwnedHandle);
+
+/// The process `record` names, held through one handle opened before anything
+/// is read of it, and what the system says of it through that handle; nothing
+/// when no process holds its id.
+///
+/// **A process this user may not hold is still read, where it may query it.**
+/// One another account runs, or one above this process's integrity, refuses a
+/// handle that may end it to a process holding no debug privilege; it is
+/// opened again with a handle that may only query it, and its start, its image
+/// and its user are read through that one, which is never held. So a record of
+/// another start is told from it as from any process
+/// (`crate::process::held_to`). One this user may not even query is the
+/// system's refusal, `PermissionDenied`: for an account that is not an elevated
+/// administrator that is every process of another account, as the hosted
+/// runner measured under a filtered token.
+pub(crate) fn open(
+    record: &crate::process::Identity,
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
+    match process_opened(
+        record.pid,
+        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE,
+    ) {
+        Ok(None) => Ok(None),
+        Ok(Some(handle)) => {
+            let process = Process(handle);
+            let raw = process.0.as_raw_handle();
+            let seen = crate::process::Seen {
+                boot: None,
+                started: created(raw)?,
+                executable: canonical_image_of(raw),
+                ours: ours(raw)?,
+                ended: waited(&process, 0)?,
+            };
+            Ok(Some((Some(process), seen)))
+        }
+        Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => {
+            let Some(handle) = process_opened(record.pid, PROCESS_QUERY_LIMITED_INFORMATION)?
+            else {
+                return Ok(None);
+            };
+            let raw = handle.as_raw_handle();
+            let seen = crate::process::Seen {
+                boot: None,
+                started: created(raw)?,
+                executable: canonical_image_of(raw),
+                ours: ours(raw)?,
+                // A handle that may only query cannot wait, so an end is not
+                // read here; a process read and not held is never signalled,
+                // so an end unseen changes only which refusal is said.
+                ended: false,
+            };
+            Ok(Some((None, seen)))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// A handle of process `pid` with `rights`; nothing when no process holds its
+/// id.
+fn process_opened(pid: u32, rights: PROCESS_ACCESS_RIGHTS) -> io::Result<Option<OwnedHandle>> {
+    // SAFETY: no pointer is handed over; the call answers a handle this
+    // function then owns, or null.
+    let handle = unsafe { OpenProcess(rights, FALSE, pid) };
+    if handle.is_null() {
+        let error = io::Error::last_os_error();
+        // No process holds the id.
+        if error.raw_os_error() == i32::try_from(ERROR_INVALID_PARAMETER).ok() {
+            return Ok(None);
+        }
+        return Err(error);
+    }
+    // SAFETY: the handle `OpenProcess` just answered, which nothing else
+    // holds; the `OwnedHandle` closes it once, on every path.
+    Ok(Some(unsafe { OwnedHandle::from_raw_handle(handle) }))
+}
+
+/// The executable the process `process` is a handle of runs, canonicalized;
+/// nothing where it could not be read.
+fn canonical_image_of(process: HANDLE) -> Option<std::path::PathBuf> {
+    image_of(process)
+        .ok()
+        .and_then(|image| std::fs::canonicalize(image).ok())
+}
+
+/// Whether the process `process` is a handle of runs as this process's user.
+///
+/// A token this user may not query is another account's, or one above this
+/// process's integrity, and is never taken for this user's.
+fn ours(process: HANDLE) -> io::Result<bool> {
+    match user_of(process) {
+        Ok(user) => Ok(user == this_user()?.sid),
+        Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// The path of the executable the process `process` is a handle of runs.
+fn image_of(process: HANDLE) -> io::Result<std::path::PathBuf> {
+    use std::os::windows::ffi::OsStringExt as _;
+    let mut buffer = vec![0_u16; 32_768];
+    let mut length = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+    // SAFETY: the caller's handle, open across the call with the right to
+    // query it; `buffer` holds `length` UTF-16 units and lives across the
+    // call, which writes the path into it and its length into `length`.
+    // Nothing is allocated.
+    let answered = unsafe {
+        QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            buffer.as_mut_ptr(),
+            &raw mut length,
+        )
+    };
+    if answered == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    let length = usize::try_from(length)
+        .unwrap_or(buffer.len())
+        .min(buffer.len());
+    Ok(std::ffi::OsString::from_wide(&buffer[..length]).into())
+}
+
+/// The user the token of the process `process` is a handle of names.
+fn user_of(process: HANDLE) -> io::Result<Sid> {
+    let mut token: HANDLE = null_mut();
+    // SAFETY: the caller's handle, open across the call with the right to
+    // query it; `token` is a local the call writes a handle into.
+    if unsafe { OpenProcessToken(process, TOKEN_QUERY, &raw mut token) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so `token` is a handle this function owns
+    // and nothing else holds; the `OwnedHandle` closes it once, on every path.
+    let token = unsafe { OwnedHandle::from_raw_handle(token) };
+    token_sid(&token, TokenUser)
+}
+
+/// Whether `process` has ended within `milliseconds`.
+fn waited(process: &Process, milliseconds: u32) -> io::Result<bool> {
+    // SAFETY: the handle is `process`'s, open across the call with the right
+    // to wait for it; nothing is handed back and nothing allocated.
+    match unsafe { WaitForSingleObject(process.0.as_raw_handle(), milliseconds) } {
+        WAIT_OBJECT_0 => Ok(true),
+        WAIT_TIMEOUT => Ok(false),
+        _ => Err(io::Error::last_os_error()),
+    }
+}
+
+/// Ends `process` through its handle: `TerminateProcess`, asked or forced.
+///
+/// Windows has no request a process may answer, so the two are one; a process
+/// that has already ended is not an error.
+pub(crate) fn signal(process: &Process, _ending: crate::process::Ending) -> io::Result<()> {
+    if waited(process, 0)? {
+        return Ok(());
+    }
+    // SAFETY: the handle is `process`'s, open across the call with the right
+    // to terminate it; nothing is handed back and nothing allocated.
+    if unsafe { TerminateProcess(process.0.as_raw_handle(), 1) } == FALSE {
+        let error = io::Error::last_os_error();
+        // A process that ended between the wait and the call refuses it.
+        if waited(process, 0)? {
+            return Ok(());
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+/// Whether `process` has ended.
+pub(crate) fn ended(process: &Process) -> io::Result<bool> {
+    waited(process, 0)
+}
+
+/// A child this process starts, whose access list lets this user query it alone.
+///
+/// It is the system's command interpreter, waiting on its input: a thread
+/// holding no privilege ([`without_privileges`]) is refused a handle that may
+/// end it and handed one that may only query it, whoever this user is. Its
+/// id is answered, and the child, which only the handle that started it ends.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a child a test reads and never signals but through the handle that started it; \
+              its input a pipe, its output null"
+)]
+pub(crate) fn a_process_read_and_not_held() -> io::Result<(u32, Option<std::process::Child>)> {
+    let root = std::env::var_os("SystemRoot")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "`SystemRoot` is not set"))?;
+    let mut child = std::process::Command::new(Path::new(&root).join("System32").join("cmd.exe"))
+        .args(["/d", "/q"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    let listed = this_user()
+        .and_then(|user| acl_of(&[Ace::allow(user.sid, PROCESS_QUERY_LIMITED_INFORMATION, 0)]))
+        .and_then(|list| write_list(&child, Some(&list)));
+    if let Err(error) = listed {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error);
+    }
+    Ok((child.id(), Some(child)))
+}
+
+/// `run`, on this thread, as this process's user holding no privilege: a
+/// restricted copy of this process's token with every privilege taken out,
+/// which the thread acts as until `run` ends, however it ends.
+///
+/// **The debug privilege opens any process whatever its access list says**,
+/// and an elevated account may hold it enabled, as the hosted runner's does;
+/// so what a list lets this user open is read within this.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn without_privileges<T>(run: impl FnOnce() -> T) -> io::Result<T> {
+    use windows_sys::Win32::Security::{
+        CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, ImpersonateLoggedOnUser, RevertToSelf,
+        TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE,
+    };
+
+    /// This thread, itself again once this is dropped.
+    struct Itself;
+
+    impl Drop for Itself {
+        fn drop(&mut self) {
+            // SAFETY: no pointer is handed over; the call ends the acting as
+            // another token this thread began, and allocates nothing.
+            let _itself_again = unsafe { RevertToSelf() };
+        }
+    }
+
+    let mut own: HANDLE = null_mut();
+    // SAFETY: `GetCurrentProcess` answers a pseudo-handle that needs no
+    // closing; `own` is a local the call writes a handle into.
+    let opened = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY,
+            &raw mut own,
+        )
+    };
+    if opened == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so `own` is a handle this function owns and
+    // nothing else holds; the `OwnedHandle` closes it once, on every path.
+    let own = unsafe { OwnedHandle::from_raw_handle(own) };
+    let mut restricted: HANDLE = null_mut();
+    // SAFETY: `own` is open across the call with the right to duplicate it; no
+    // SID or privilege is handed over, each count zero and each pointer null;
+    // `restricted` is a local the call writes a handle into.
+    let made = unsafe {
+        CreateRestrictedToken(
+            own.as_raw_handle(),
+            DISABLE_MAX_PRIVILEGE,
+            0,
+            core::ptr::null(),
+            0,
+            core::ptr::null(),
+            0,
+            core::ptr::null(),
+            &raw mut restricted,
+        )
+    };
+    if made == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: as for `own`.
+    let restricted = unsafe { OwnedHandle::from_raw_handle(restricted) };
+    // SAFETY: `restricted` is open across the call with every right on it; the
+    // call has this thread act as a copy of it, and keeps no pointer.
+    if unsafe { ImpersonateLoggedOnUser(restricted.as_raw_handle()) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    let itself = Itself;
+    let answered = run();
+    drop(itself);
+    Ok(answered)
 }
 
 /// Nothing: Windows has no handle to sync a directory through, and NTFS
@@ -1254,16 +1579,7 @@ fn user_of_process(pid: u32) -> io::Result<Sid> {
     // SAFETY: the handle `OpenProcess` just answered, which nothing else
     // holds; the `OwnedHandle` closes it once, on every path.
     let process = unsafe { OwnedHandle::from_raw_handle(process) };
-    let mut token: HANDLE = null_mut();
-    // SAFETY: the handle is `process`'s, open across the call with the right
-    // to query it; `token` is a local the call writes a handle into.
-    if unsafe { OpenProcessToken(process.as_raw_handle(), TOKEN_QUERY, &raw mut token) } == FALSE {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: the call succeeded, so `token` is a handle this function owns
-    // and nothing else holds; the `OwnedHandle` closes it once, on every path.
-    let token = unsafe { OwnedHandle::from_raw_handle(token) };
-    token_sid(&token, TokenUser)
+    user_of(process.as_raw_handle())
 }
 
 /// The owner of the object `handle` is open on, as a kernel object.
@@ -1550,15 +1866,18 @@ fn write_owner(file: &File, owner: &Sid) -> io::Result<()> {
     Ok(())
 }
 
-/// Gives what `file` is open on the access list `list`, protected from its
-/// parent's — none at all for no list.
+/// Gives the access list `list` to what `object` is a handle of, a file or a
+/// process, protected from its parent's; none at all for no list.
 ///
 /// **Through the handle, and nothing else**, as [`write_owner`] is. The calls
 /// that write a list by a path's name carry its inheritable entries down to
 /// every file and directory under it, and a list denying the user the right
 /// to list a directory would refuse that very walk.
 #[cfg(any(test, feature = "test-support"))]
-fn write_list(file: &File, list: Option<&[u32]>) -> io::Result<()> {
+fn write_list(
+    object: &impl std::os::windows::io::AsRawHandle,
+    list: Option<&[u32]>,
+) -> io::Result<()> {
     use windows_sys::Win32::Security::SetKernelObjectSecurity;
 
     let mut descriptor = SECURITY_DESCRIPTOR::default();
@@ -1576,10 +1895,10 @@ fn write_list(file: &File, list: Option<&[u32]>) -> io::Result<()> {
     if unsafe { SetSecurityDescriptorControl(at, SE_DACL_PROTECTED, SE_DACL_PROTECTED) } == FALSE {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: the handle is `file`'s, open across the call with the right to
+    // SAFETY: the handle is `object`'s, open across the call with the right to
     // write the list; `at` and the list it points at are alive across it, and
     // the call only reads them.
-    if unsafe { SetKernelObjectSecurity(file.as_raw_handle(), DACL_SECURITY_INFORMATION, at) }
+    if unsafe { SetKernelObjectSecurity(object.as_raw_handle(), DACL_SECURITY_INFORMATION, at) }
         == FALSE
     {
         return Err(io::Error::last_os_error());

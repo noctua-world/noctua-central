@@ -2,7 +2,9 @@
 //!
 //! # The start, in order
 //!
-//! 1. **The install** beside the canonicalized executable.
+//! 1. **The install** beside the canonicalized executable — and, for a start a
+//!    restorer asked for (`--restored`, [`restore`]), **the `stopped` mark**:
+//!    while the profile carries it the daemon does not start, and ends well.
 //! 2. **The profile**, its directories made private or judged, and **the
 //!    instance lock** in its state directory, taken at once or not at all:
 //!    one daemon keeps one profile, and a second refuses (`NC-DMN-0008`). The
@@ -59,7 +61,7 @@ use nc_kernel::logging::LogSink;
 
 use crate::environment::{self, Opening};
 use crate::server::{Named, Server};
-use crate::{Refused, device, install, mark, pidfile, plugins, profile};
+use crate::{Refused, device, mark, pidfile, plugins, profile};
 
 /// How a run that stopped when it was asked ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,8 +83,79 @@ pub struct Stopped {
 /// the central log, the endpoint, the local database, the mark, the blobs or
 /// the kernel.
 pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
+    serving(&nc_channel::found::beside(executable).map_err(Refused::Install)?)
+}
+
+/// How a start a restorer asked for ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Restored {
+    /// The profile carries the `stopped` mark, so the daemon stays down.
+    StaysDown,
+    /// Another daemon of the channel holds its profile, so it is up already.
+    AlreadyUp,
+    /// The daemon ran, and stopped when it was asked to.
+    Ran(Stopped),
+}
+
+/// Runs the daemon of the install beside `executable` as every restorer
+/// starts it, `--restored`: not at all while its profile carries the
+/// `stopped` mark, and not twice.
+///
+/// **The mark is read before anything else of the profile**, so a person's
+/// explicit stop holds whichever restorer starts the daemon next — a service
+/// manager, a logon task, the interface's countdown — and no restorer has to
+/// know of it (`NOCTUA.md §17.5`). **A daemon already up is not a failure**:
+/// a restorer that starts one beside it leaves it as it is and ends well.
+///
+/// # Errors
+///
+/// [`Refused`], as [`serve`] refuses, and [`Refused::NotPrivate`] for a state
+/// directory or a mark another account can reach — never one of them read as
+/// a stop asked for.
+pub fn restore(executable: &Path) -> Result<Restored, Refused> {
+    let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
+    if stopped_on_purpose(&found.layout, &found.user)? {
+        return Ok(Restored::StaysDown);
+    }
+    match serving(&found) {
+        Ok(stopped) => Ok(Restored::Ran(stopped)),
+        Err(Refused::Held { .. }) => Ok(Restored::AlreadyUp),
+        Err(refused) => Err(refused),
+    }
+}
+
+/// Whether the profile of `layout` carries the `stopped` mark: its state
+/// directory and the mark judged this user's alone, and no mark where either
+/// is not there yet.
+///
+/// # Errors
+///
+/// [`Refused::NotPrivate`] for a state directory or a mark another account
+/// can reach, and [`Refused::Unavailable`] when either could not be read.
+pub fn stopped_on_purpose(
+    layout: &nc_channel::Layout,
+    user: &nc_platform::User,
+) -> Result<bool, Refused> {
+    for (path, kind) in [
+        (&layout.state, nc_platform::Kind::Directory),
+        (&layout.stopped, nc_platform::Kind::File),
+    ] {
+        match nc_platform::judge(path, kind, user) {
+            Ok(()) => {}
+            Err(nc_platform::Judged::Failed(absent))
+                if absent.error().kind() == std::io::ErrorKind::NotFound =>
+            {
+                return Ok(false);
+            }
+            Err(judged) => return Err(Refused::judged(judged)),
+        }
+    }
+    Ok(true)
+}
+
+/// Runs the daemon of `found`'s install until it is asked to stop.
+fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
     let began = std::time::Instant::now();
-    let found = install::beside(executable)?;
     let (layout, user) = (&found.layout, &found.user);
     profile::prepare(layout, user)?;
     let lock_name = layout
@@ -140,7 +213,7 @@ pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
     };
     let server = Arc::new(Server::new(named, token, Arc::clone(&log)));
     let started = Started {
-        found: &found,
+        found,
         held: &held,
         device,
         world,
@@ -168,7 +241,7 @@ pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
 
 /// What the start read before it bound the endpoint.
 struct Started<'a> {
-    found: &'a install::Found,
+    found: &'a nc_channel::found::Found,
     held: &'a nc_platform::Held,
     device: device::Device,
     world: nc_authz::LocalWorld,
@@ -346,6 +419,59 @@ mod tests {
             !installed.layout.pid_file.exists() && !installed.layout.token.exists(),
             "a refused start wrote its run"
         );
+        drop(held);
+    }
+
+    /// A start a restorer asks for ends well at once while the profile
+    /// carries the `stopped` mark, and beside a daemon already up; a mark
+    /// another account can reach is refused rather than read as a stop; and
+    /// with neither it is a start like any other.
+    ///
+    /// **Held behind a central log a start refuses**, as the test above is,
+    /// so no start here gets past that fence into this suite's own process.
+    #[test]
+    fn a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up() {
+        let installed =
+            crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
+        installed.with_a_central_log_refused();
+        let layout = &installed.layout;
+        let refused = super::restore(&installed.executable).expect_err("a start, fenced");
+        assert_eq!(refused.code(), ErrorCode::DaemonNoCentralLog, "{refused}");
+        drop(nc_platform::create_private(&layout.stopped).expect("the mark"));
+        assert!(matches!(
+            super::restore(&installed.executable),
+            Ok(super::Restored::StaysDown)
+        ));
+        assert!(
+            !layout.pid_file.exists() && !layout.token.exists(),
+            "a start that stayed down wrote its run"
+        );
+        nc_platform::testing::open_to_another_user(&layout.stopped).expect("opened");
+        let refused = super::restore(&installed.executable).expect_err("a mark not private");
+        assert_eq!(
+            refused.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refused}"
+        );
+        assert!(
+            layout.stopped.is_file(),
+            "a refused mark was not left as it was"
+        );
+        nc_platform::testing::make_private(&layout.stopped).expect("private again");
+        std::fs::remove_file(&layout.stopped).expect("the mark is removed");
+        let lock = layout
+            .instance_lock
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        let held = nc_platform::try_hold(&layout.state, &lock, &installed.user)
+            .expect("asked")
+            .expect("nothing held it");
+        assert!(matches!(
+            super::restore(&installed.executable),
+            Ok(super::Restored::AlreadyUp)
+        ));
         drop(held);
     }
 

@@ -41,6 +41,12 @@ nc-platform.workspace = true
 # implementation (`NOCTUA.md §17.1`).
 # It reaches neither the log nor the local database, and adds no package.
 nc-channel.workspace = true
+# **The installer `cargo xtask dev --install` runs**, the one the suites run
+# under a scratch root: the binaries copied out of `target/`, the manifest, the
+# device, the world and the plugins, and the CLI's own stop before anything is
+# replaced. Kernel-free, so this tool stays outside the log's wall; already in
+# the graph under the daemon's suites, so it adds no package.
+nc-cli.workspace = true
 
 # The alarms in `AGENTS.md` are copied verbatim from `NOCTUA.md §3.6` and are
 # printed when `NOCTUA.md` cannot be reached, so they cannot be compared against

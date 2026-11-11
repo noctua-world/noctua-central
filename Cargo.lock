@@ -1788,6 +1788,23 @@ dependencies = [
  "nc-canon",
  "nc-catalog",
  "nc-channel",
+ "nc-platform",
+]
+
+[[package]]
+name = "nc-cli"
+version = "0.1.0-rc.1"
+dependencies = [
+ "nc-canon",
+ "nc-catalog",
+ "nc-channel",
+ "nc-cli",
+ "nc-ipc",
+ "nc-platform",
+ "nc-plugin-reference",
+ "nc-schema",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1800,6 +1817,7 @@ dependencies = [
  "nc-canon",
  "nc-catalog",
  "nc-channel",
+ "nc-cli",
  "nc-daemon",
  "nc-ids",
  "nc-ipc",
@@ -3994,6 +4012,7 @@ dependencies = [
  "nc-catalog",
  "nc-catalog-compiler",
  "nc-channel",
+ "nc-cli",
  "nc-local",
  "nc-platform",
  "nc-policy",

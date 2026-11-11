@@ -7756,7 +7756,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 43] = [
+const SUITES: [(&str, &str); 48] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7765,6 +7765,9 @@ const SUITES: [(&str, &str); 43] = [
     // The one naming function, over every channel, two users and two
     // namespaces: it touches no disk and spawns nothing.
     ("nc-channel", "the_names_are_disjoint.rs"),
+    // Every catalog and reference-plugin schema read from a command line and
+    // back: it touches no disk and spawns nothing.
+    ("nc-cli", "arguments_from_schemas.rs"),
     // The daemon's binary, copied into a scratch install beside a manifest.
     ("nc-daemon", "the_binary_prepares_a_profile.rs"),
     // A child of the test binary killed while it mints behind the real mark,
@@ -7774,6 +7777,15 @@ const SUITES: [(&str, &str); 43] = [
     ("nc-daemon", "ipc_refusals.rs"),
     // A real daemon serving its kernel, its schedule and its stop.
     ("nc-daemon", "serves_its_kernel.rs"),
+    // A real daemon asked every command, and each way a run of the CLI ends,
+    // through the CLI driven in-process.
+    ("nc-daemon", "every_command_from_the_cli.rs"),
+    ("nc-daemon", "exit_codes.rs"),
+    // A stale PID record never signalled, and four installs side by side,
+    // each made by the installer and started and stopped through the CLI
+    // driven in-process.
+    ("nc-daemon", "a_recycled_pid_is_never_signalled.rs"),
+    ("nc-daemon", "channels_side_by_side.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     // The protocol: the daemon's listener at the catalog's bound over a real
@@ -7952,10 +7964,11 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1061] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1067] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
+    "`policy/world.json` could not be read: {error}",
     "`uses: {used}` is not pinned to a full commit",
     "`uses: {used}` is pinned with no release beside it",
     "`{RELEASE_WORKFLOW}` is missing",
@@ -7978,11 +7991,16 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1061] = [
     "as `<<`, which merges a mapping anchored elsewhere",
     "as an alias of a word anchored elsewhere",
     "enters an environment",
+    "its daemon is not started and nothing restores it yet: `{} start` starts it, and `{} help` lists every command once it runs",
+    "its profile is kept under `{}`, `{}` and `{}`, so an install made again is the same device with the same data",
     "mints the release App's token",
     "no action was read from CI's files, so nothing checked that each is pinned to a commit",
     "publishes a release",
     "reads a secret",
     "reads a step's output",
+    "the CLI and the daemon did not build: {said}",
+    "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
+    "the daemon the earlier install ran was stopped first: {}",
     "the release does not fire on a push",
     "the release fires on `{}`",
     "the release fires on a push to {named:?}, and a release is made from {RELEASED_FROM:?} alone",
@@ -11220,7 +11238,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 732] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11232,6 +11250,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
     "(indented less than the step) {code}",
     "  client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "(at another depth) {code}",
+    "nothing was installed for this checkout, so nothing was removed",
+    "the CLI and the daemon are built",
     "what an install installs runs in the job that installs it — in the release's gate as in every other — so each word of it is named: a crate with no version, or with a range, is whatever crates.io holds on the day, a second crate is one no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no version on crates.io describes it. Install one crate a line, as `cargo install --locked name@X.Y.Z`, which cargo installs exactly and builds with the lockfile it was published with, and move the version in every place it is written at once",
     "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "each job of the release runs what `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, installs the toolchain and the auditor, brings the stack up and runs the gate; the release checks out, installs the toolchain, builds the release tool, then mints the App's token and releases. The release job holds the App's key and its token, so the tool is built before the token exists, and the gate is what judges the commit it releases. A step to add is a line there, which is a line in a diff",
@@ -11611,6 +11631,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
     "deleting without quorum is refused, even by the owner of the thing",
     "dependencies",
     "dev",
+    "dev --install",
+    "dev --uninstall",
     "diff -r /tmp/a-second-checkout-of-noctua-central/crates/nc-catalog/src",
     "diff -r /tmp/a-second-checkout-of-noctua-central/crates/nc-log/src",
     "diff -r /tmp/a-second-checkout-of-noctua-central/docs",
@@ -11881,6 +11903,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
     "{} core policy file(s) are on disk and decide something, by name, and the family pack is not empty",
     "{} generated file(s) match the catalog",
     "{files} generated file(s), {written} rewritten",
+    "{} is uninstalled",
     "{} manifest(s), each one this workspace's",
     "{} migrated function(s) search `pg_temp` last, so a planted name cannot get in front of one",
     "{} of them are recorded applied, and each still has its file",
@@ -15296,7 +15319,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         );
     }
 
-    /// What each verb is handed, which is six lines nothing else reads.
+    /// What each verb is handed, which is seven lines nothing else reads.
     ///
     /// **The enum is pinned above, and this pins the dispatch.**
     /// `build::run`, `dev::run`, `docs::run` and `release::run` have exactly
@@ -15320,13 +15343,18 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// not happen by accident.
     #[test]
     fn each_verb_is_handed_what_its_flags_say() {
-        const HANDED: [&str; 6] = [
+        const HANDED: [&str; 7] = [
             // `build --plugins` is the same verb with a flag, and its arm comes
             // first because the one below it matches every other build.
             "Command::Build { plugins: true, .. } => plugins::run(&root),",
             "Command::Build { reserve, .. } => build::run(&root, reserve),",
             "Command::Check { offline } => check::run(&root, offline),",
-            "Command::Dev { down } => dev::run(&root, down),",
+            // `dev --install` and `--uninstall` are the same verb with a flag,
+            // and their arm comes first because the one below it matches every
+            // other `dev`, which they must never reach: an install is not a
+            // stack brought up, and `--down` is not an uninstall.
+            "Command::Dev { install, uninstall, .. } if install || uninstall => dev::install(&root, uninstall),",
+            "Command::Dev { down, .. } => dev::run(&root, down),",
             "Command::Docs => docs::run(&root),",
             "Command::Release { channel, dry_run, publish, after_the_gate_job, } => release::run(&root, channel, dry_run, publish, after_the_gate_job),",
         ];
@@ -17188,7 +17216,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 19);
+        assert_eq!(members_of(root()), 20);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17377,13 +17405,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 19] = [
+    const SOURCE_ROOTS: [(&str, usize); 20] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
-        ("nc-daemon", 6),
+        ("nc-cli", 3),
+        ("nc-daemon", 10),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19413,25 +19442,39 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 181] = [
+    const DOCUMENTED: [(&str, usize, usize); 197] = [
+        ("cli/args.rs", 40, 10),
+        ("cli/arguments_from_schemas.rs", 10, 0),
+        ("cli/client.rs", 38, 13),
+        ("cli/control.rs", 57, 13),
+        ("cli/exit.rs", 9, 2),
+        ("cli/help.rs", 17, 3),
+        ("cli/install.rs", 35, 8),
+        ("cli/lib.rs", 1, 8),
+        ("cli/main.rs", 6, 5),
+        ("cli/render.rs", 20, 4),
+        ("cli/run.rs", 21, 5),
+        ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
+        ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 12, 16),
-        ("daemon/install.rs", 14, 6),
+        ("daemon/every_command_from_the_cli.rs", 26, 2),
+        ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
-        ("daemon/lib.rs", 7, 15),
-        ("daemon/main.rs", 15, 6),
+        ("daemon/lib.rs", 7, 14),
+        ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
-        ("daemon/pidfile.rs", 19, 8),
+        ("daemon/pidfile.rs", 10, 7),
         ("daemon/plugins.rs", 17, 6),
         ("daemon/profile.rs", 19, 5),
-        ("daemon/run.rs", 9, 1),
+        ("daemon/run.rs", 14, 1),
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 44, 6),
         ("daemon/serves_its_kernel.rs", 19, 3),
-        ("daemon/testing.rs", 30, 8),
+        ("daemon/testing.rs", 32, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("nc-authz/directory.rs", 38, 15),
+        ("nc-authz/directory.rs", 41, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
@@ -19442,11 +19485,11 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/emit.rs", 28, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 58, 19),
+        ("nc-catalog-compiler/load.rs", 59, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
         ("nc-catalog-compiler/model.rs", 49, 17),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 73, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 75, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             13,
@@ -19462,7 +19505,9 @@ mod the_frozen_path_rule {
         ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
-        ("nc-channel/lib.rs", 53, 14),
+        ("nc-channel/found.rs", 18, 10),
+        ("nc-channel/lib.rs", 55, 16),
+        ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 26, 0),
         ("nc-guest/lib.rs", 1, 0),
         ("nc-ids/against_denote.rs", 6, 6),
@@ -19547,12 +19592,12 @@ mod the_frozen_path_rule {
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 84, 22),
-        ("nc-platform/process.rs", 8, 1),
+        ("nc-platform/lib.rs", 93, 22),
+        ("nc-platform/process.rs", 42, 15),
         ("nc-platform/service.rs", 155, 18),
-        ("nc-platform/testing.rs", 29, 1),
-        ("nc-platform/unix.rs", 77, 2),
-        ("nc-platform/windows.rs", 122, 11),
+        ("nc-platform/testing.rs", 34, 4),
+        ("nc-platform/unix.rs", 99, 4),
+        ("nc-platform/windows.rs", 141, 13),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -19566,7 +19611,7 @@ mod the_frozen_path_rule {
         ("nc-prune/postgres.rs", 21, 10),
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
-        ("nc-schema/lib.rs", 80, 58),
+        ("nc-schema/lib.rs", 92, 65),
         ("nc-schema/properties.rs", 14, 1),
         ("nc-schema/selector.rs", 18, 20),
         ("reference/adapter.rs", 18, 28),
@@ -19578,7 +19623,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 73, 8),
+        ("xtask/dev.rs", 74, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 250, 33),
@@ -22381,8 +22426,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 654 scratches this tree
-    /// builds, 567 of the 654 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 699 scratches this tree
+    /// builds, 612 of the 699 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22448,11 +22493,15 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 48] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 55] = [
+        ("cli/client.rs", 7, 7),
+        ("cli/control.rs", 12, 12),
+        ("cli/install.rs", 7, 7),
+        ("cli/run.rs", 6, 6),
+        ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
-        ("daemon/install.rs", 8, 8),
-        ("daemon/main.rs", 4, 4),
+        ("daemon/main.rs", 5, 5),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
         ("daemon/plugins.rs", 3, 3),
@@ -22461,12 +22510,14 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 164, 164),
+        ("nc-catalog-compiler/the_gates_fire.rs", 168, 168),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
             2,
         ),
+        ("nc-channel/found.rs", 9, 9),
+        ("nc-channel/record.rs", 2, 2),
         ("nc-ipc/endpoint.rs", 2, 2),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 5, 5),
@@ -22477,7 +22528,8 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 27, 27),
+        ("nc-platform/lib.rs", 28, 28),
+        ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -25441,7 +25493,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17149;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17979;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25460,7 +25512,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4048;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4590;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25477,7 +25529,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1349;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1545;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25494,7 +25546,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 21, 38, 39, 92];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 20, 38, 39, 92];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25511,7 +25563,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23598;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24465;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25529,7 +25581,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 520;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 519;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25565,8 +25617,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **520 of 23,598 are accepted by the first-line
-    /// rule alone, and 283 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **519 of 24,465 are accepted by the first-line
+    /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25587,7 +25639,7 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 21 descending, 38
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 20 descending, 38
     /// swaps, 39 rotations and 92 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
@@ -25598,7 +25650,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1349 of
+    /// this tree offers, **1545 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26369,7 +26421,7 @@ mod the_frozen_path_rule {
     /// still leaves the count short.
     #[cfg(test)]
     fn the_members_with_a_library_and_a_binary(members: &[crate::members::Member]) -> usize {
-        const A_LIBRARY_AND_A_BINARY: [&str; 1] = ["apps/daemon"];
+        const A_LIBRARY_AND_A_BINARY: [&str; 2] = ["apps/daemon", "apps/cli"];
         for both in A_LIBRARY_AND_A_BINARY {
             assert!(
                 members
@@ -28100,7 +28152,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 727;
+    const THE_REST_IT_SAYS: usize = 732;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28248,7 +28300,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 493] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 503] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29364,6 +29416,31 @@ mod the_frozen_path_rule {
         (
             "—",
             "the container stack, which this verb brings up and takes down",
+        ),
+        ("if uninstall", "dev --uninstall"),
+        ("else", "dev --install"),
+        (
+            "—",
+            "nothing was installed for this checkout, so nothing was removed",
+        ),
+        ("Some(layout) =>", "{} is uninstalled"),
+        (
+            "Some(layout) =>",
+            "its profile is kept under `{}`, `{}` and `{}`, so an install made again is the same device with the same data",
+        ),
+        ("—", "the CLI and the daemon are built"),
+        (
+            "if let Some(stopped) = &installed.stopped",
+            "the daemon the earlier install ran was stopped first: {}",
+        ),
+        ("—", "{} is installed"),
+        (
+            "—",
+            "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
+        ),
+        (
+            "—",
+            "its daemon is not started and nothing restores it yet: `{} start` starts it, and `{} help` lists every command once it runs",
         ),
         ("—", "dev"),
         (
@@ -34103,7 +34180,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 50] = [
+    const NOT_MUTATED: [(&str, &str); 55] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34211,6 +34288,45 @@ mod the_meta_gate {
              decided by those modules' unit tests, which the runner's commands for \
              them run, and a weakening of this file would remove evidence rather \
              than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/every_command_from_the_cli.rs",
+            "a suite: a real daemon process asked every command the catalog \
+             declares and every command of the reference plugin through the CLI \
+             in-process, each found in the journal, and help read from its \
+             registry. It spawns a process, so no mutation command runs it: what it \
+             drives in the CLI's modules, `server.rs` and `nc-authz`'s world \
+             reader is decided by their own unit tests, which the runner's commands \
+             for them run, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/exit_codes.rs",
+            "a suite: a real daemon process and the CLI in-process, one test for \
+             each way a run ends, the irreversible command's exit 4 among them. It \
+             spawns a process, so no mutation command runs it: what it drives in \
+             `exit.rs`, `run.rs` and `client.rs` is decided by those modules' unit \
+             tests, which the runner's commands for them run, and a weakening of \
+             this file would remove evidence rather than uncover an undecided \
+             clause",
+        ),
+        (
+            "apps/daemon/tests/a_recycled_pid_is_never_signalled.rs",
+            "a suite: a sleeper child of the test recorded as the daemon four stale \
+             ways and once as it is, and the CLI's stop in-process after each. It \
+             spawns a process, so no mutation command runs it: what it drives in \
+             `control.rs`, `record.rs` and `process.rs` is decided by those modules' \
+             unit tests, which the runner's commands for them run, and a weakening of \
+             this file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/channels_side_by_side.rs",
+            "a suite: four installs made by the installer and their daemons started, \
+             held apart and stopped through the CLI in-process. It spawns a process, \
+             so no mutation command runs it: what it drives in `install.rs`, \
+             `control.rs` and `lib.rs` of `nc-platform` is decided by those modules' \
+             unit tests, which the runner's commands for them run, and a weakening of \
+             this file would remove evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -34513,6 +34629,15 @@ mod the_meta_gate {
              then judged, after this row claimed the first was the second and a \
              reviewer moved a whole generated file into an excuse list, which \
              the first cannot see",
+        ),
+        (
+            "apps/cli/tests/arguments_from_schemas.rs",
+            "a suite: every catalog and reference-plugin schema, and one of \
+             every type, read from a command line back into the instance it was \
+             written from. It starts no process. What it drives in `args.rs` is \
+             edited by the runner, whose commands for it run this suite beside \
+             that module's unit tests, and a weakening of this file would remove \
+             evidence rather than uncover an undecided clause",
         ),
     ];
 
@@ -35086,7 +35211,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 9] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 13] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35127,6 +35252,19 @@ mod the_meta_gate {
         ),
         ("apps/daemon/tests/ipc_refusals.rs", SPAWNS_A_PROCESS),
         ("apps/daemon/tests/serves_its_kernel.rs", SPAWNS_A_PROCESS),
+        (
+            "apps/daemon/tests/every_command_from_the_cli.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        ("apps/daemon/tests/exit_codes.rs", SPAWNS_A_PROCESS),
+        (
+            "apps/daemon/tests/a_recycled_pid_is_never_signalled.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/daemon/tests/channels_side_by_side.rs",
+            SPAWNS_A_PROCESS,
+        ),
     ];
 
     /// The runner refuses a run it cannot judge its database-backed files in.
@@ -36411,7 +36549,7 @@ Options:
     }
 
     /// The mutated sources whose tests live somewhere else, each said here.
-    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 14] = [
         "xtask/src/main.rs",
         "plugins/reference/src/lib.rs",
         "plugins/reference/src/adapter.rs",
@@ -36433,6 +36571,8 @@ Options:
         "crates/nc-ipc/src/message.rs",
         "crates/nc-ipc/src/handshake.rs",
         "crates/nc-ipc/src/connection.rs",
+        // The CLI's crate root, whose one function `run.rs`'s tests drive.
+        "apps/cli/src/lib.rs",
     ];
 
     /// Every source the runner mutates is judged by something that runs its own
@@ -36883,9 +37023,14 @@ Options:
                 let code = crate::gates::without_string_contents(&crate::gates::without_comments(
                     &text, "//",
                 ));
+                // **And the installer**, which runs the daemon it installs to
+                // initialize the profile: a suite that installs through it
+                // starts that process, and every daemon the CLI's own `start`
+                // starts after it, through doors that name neither.
                 if !(code.contains("process::Command")
                     || code.contains("Command::new(")
-                    || code.contains(".spawn()"))
+                    || code.contains(".spawn()")
+                    || code.contains("nc_cli::install::install("))
                 {
                     continue;
                 }
@@ -37296,7 +37441,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 195,
+            walked, 211,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37336,7 +37481,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1985] = [
+    static OPERATORS: [(&str, &str, &str); 2088] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40591,6 +40736,23 @@ Options:
             "authz_directory",
             "parse",
             "the person is one of the realm's",
+        ),
+        ("authz_directory", "parse", "an epoch of zero is refused"),
+        (
+            "authz_directory",
+            "parse",
+            "a world naming no epoch is refused",
+        ),
+        ("authz_directory", "parse", "the epoch is the realm's"),
+        (
+            "authz_directory",
+            "parse",
+            "a grant that is not text is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "the grant a world names is its person's",
         ),
         (
             "authz_embedded",
@@ -45397,24 +45559,9 @@ Options:
             "a path refused is not this user's alone",
         ),
         (
-            "daemon_install",
-            "beside",
-            "no manifest beside the binary is said as none",
-        ),
-        (
-            "daemon_install",
-            "beside",
-            "the manifest is read beside the canonical executable",
-        ),
-        (
-            "daemon_install",
-            "beside",
-            "a directory another account can reach is the manifest's refusal",
-        ),
-        (
-            "daemon_install",
-            "manifest_judged",
-            "a manifest another account can reach is the manifest's refusal",
+            "daemon_lib",
+            "fmt",
+            "an install's refusal is said in the shared reader's words",
         ),
         (
             "daemon_profile",
@@ -45955,22 +46102,22 @@ Options:
             "a sweep keeps to its checkout's prefix",
         ),
         (
-            "daemon_pidfile",
+            "channel_record",
             "process_of",
             "a record naming process zero is refused",
         ),
         (
-            "daemon_pidfile",
+            "channel_record",
             "parse",
             "a PID record is read only as it is written",
         ),
         (
-            "daemon_pidfile",
+            "channel_record",
             "parse",
             "a record holding a key it does not read is refused",
         ),
         (
-            "daemon_pidfile",
+            "channel_record",
             "read",
             "a record another account can reach is refused",
         ),
@@ -46172,7 +46319,7 @@ Options:
         ),
         (
             "daemon_run",
-            "serve",
+            "serving",
             "a profile another daemon holds is refused as held",
         ),
         (
@@ -46209,6 +46356,439 @@ Options:
             "log_root",
             "record",
             "a log told of no store writes every line to stderr",
+        ),
+        (
+            "schema",
+            "the_kind_of",
+            "a decoded annotation holds nothing a reader cannot see",
+        ),
+        (
+            "schema",
+            "compile_object",
+            "a property's name holds nothing a reader cannot see",
+        ),
+        (
+            "schema",
+            "compile_string",
+            "an option holds nothing a reader cannot see",
+        ),
+        ("schema", "first_unseen", "a decoded control is unseen too"),
+        (
+            "schema",
+            "arguments_of",
+            "a required argument is shown as required",
+        ),
+        (
+            "schema",
+            "shape_of",
+            "options are shown in the order written",
+        ),
+        ("schema", "eq", "a schema is compared by what it requires"),
+        (
+            "channel_found",
+            "beside",
+            "the executable is canonicalized before its directory is judged",
+        ),
+        (
+            "channel_found",
+            "beside",
+            "the manifest is judged before it is read",
+        ),
+        ("channel_found", "beside", "no manifest is said as none"),
+        (
+            "channel_found",
+            "judged",
+            "a manifest another account can reach is refused as not private",
+        ),
+        (
+            "channel_found",
+            "code",
+            "the filesystem's answer has its own code",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a confirmation ends a run in its own outcome",
+        ),
+        ("cli_exit", "code", "no install is the table's last code"),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a refusal's kind decides its outcome",
+        ),
+        ("cli_args", "read", "an option given twice is refused"),
+        (
+            "cli_args",
+            "named",
+            "a word is a command only by a well-formed name",
+        ),
+        (
+            "cli_args",
+            "arguments",
+            "a schema's own `help` property takes its flag",
+        ),
+        ("cli_args", "flags", "a boolean said false is false"),
+        ("cli_args", "once", "a scalar's flag given twice is refused"),
+        (
+            "cli_args",
+            "whole",
+            "a whole number is decimal digits alone",
+        ),
+        (
+            "cli_args",
+            "held_to",
+            "the arguments are held to the schema before anything is sent",
+        ),
+        (
+            "cli_render",
+            "escaped",
+            "every character a reader sees nothing of is escaped",
+        ),
+        (
+            "cli_render",
+            "locale",
+            "a variable set empty is passed over",
+        ),
+        (
+            "cli_render",
+            "locale",
+            "every variable starting pt is Portuguese",
+        ),
+        (
+            "cli_render",
+            "message_of",
+            "a message needing values is shown by its detail",
+        ),
+        (
+            "cli_help",
+            "title",
+            "a catalog command is shown by the catalog's title",
+        ),
+        ("cli_help", "argument_help", "a required argument says so"),
+        ("cli_help", "bounds", "both bounds are shown"),
+        (
+            "cli_client",
+            "held_to",
+            "the welcome's process is the one the system shows",
+        ),
+        (
+            "cli_client",
+            "held_to",
+            "the welcome's channel is the install's",
+        ),
+        (
+            "cli_client",
+            "token_of",
+            "the token and its directory are judged before it is read",
+        ),
+        (
+            "cli_client",
+            "exit",
+            "nothing listening is a daemon not running",
+        ),
+        (
+            "cli_client",
+            "exit",
+            "a request too long to send is arguments refused",
+        ),
+        (
+            "cli_client",
+            "read",
+            "an entry's fields are read as text alone",
+        ),
+        ("cli_run", "run", "help on the exit codes asks no daemon"),
+        (
+            "cli_run",
+            "registered",
+            "a command the registry does not hold is not found",
+        ),
+        (
+            "cli_run",
+            "asks_for_json",
+            "`--json` before the command is read before the line",
+        ),
+        (
+            "cli_run",
+            "dispatched",
+            "a refusal ends the run by its kind",
+        ),
+        (
+            "cli_main",
+            "written",
+            "an answer cut short on standard output is exit 1",
+        ),
+        (
+            "cli_lib",
+            "unfound",
+            "no install ends a run in its own outcome",
+        ),
+        (
+            "cli_help",
+            "everything",
+            "a command's name is escaped in the list of every command",
+        ),
+        (
+            "cli_help",
+            "command",
+            "a command's name is escaped in its own help",
+        ),
+        (
+            "cli_run",
+            "run",
+            "help on everything shows the grammar when no registry is read",
+        ),
+        (
+            "cli_run",
+            "unlisted",
+            "under `--json` help with no registry is the refusal alone",
+        ),
+        (
+            "cli_run",
+            "asks_for_json",
+            "only the options before the command ask for `--json`",
+        ),
+        (
+            "platform_process",
+            "judged",
+            "a process that has ended is not held to its record",
+        ),
+        (
+            "platform_process",
+            "judged",
+            "a record of another boot names a process that runs no more",
+        ),
+        (
+            "platform_process",
+            "judged",
+            "a start that is not the record's is an id handed out again",
+        ),
+        (
+            "platform_process",
+            "judged",
+            "another user's process is never held to a record",
+        ),
+        (
+            "platform_process",
+            "judged",
+            "another executable is never held to a record",
+        ),
+        ("platform_process", "open", "process zero is never opened"),
+        (
+            "platform_process",
+            "pid_in_fdinfo",
+            "a pidfd's process is read off its own line",
+        ),
+        (
+            "platform_unix",
+            "open",
+            "an id no process holds is no process",
+        ),
+        ("platform_unix", "ended_in", "a zombie has ended"),
+        (
+            "platform",
+            "bases_of",
+            "an XDG directory that is not absolute is passed over",
+        ),
+        (
+            "platform",
+            "bases_of",
+            "a base that is not an absolute path is refused",
+        ),
+        (
+            "platform",
+            "bases_of",
+            "a device is kept in the local folder, never the roaming one",
+        ),
+        (
+            "channel_record",
+            "read",
+            "no record is told from one that does not read",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "only a verified process is signalled",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "a record of another process is refused",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "a record of a process gone is a daemon stopped",
+        ),
+        ("cli_control", "mark", "a mark already there is kept"),
+        (
+            "cli_control",
+            "stop",
+            "the mark is written before the daemon is asked",
+        ),
+        ("cli_control", "start", "a start removes the mark"),
+        (
+            "cli_control",
+            "there",
+            "a mark the CLI finds another account can reach is refused",
+        ),
+        (
+            "cli_control",
+            "recorded",
+            "a record that does not read is never a daemon stopped",
+        ),
+        (
+            "cli_control",
+            "recorded",
+            "a record of a process gone is not refused",
+        ),
+        (
+            "cli_control",
+            "status",
+            "a status nothing answers says there is no record",
+        ),
+        (
+            "cli_install",
+            "install_with",
+            "the world handed to the daemon is removed",
+        ),
+        (
+            "cli_install",
+            "install_with",
+            "an earlier install's daemon is stopped first",
+        ),
+        (
+            "cli_install",
+            "development",
+            "a relocated install names no central log",
+        ),
+        ("cli_install", "uninstall", "an uninstall keeps the profile"),
+        (
+            "cli_install",
+            "development_world",
+            "a development world names its grant",
+        ),
+        ("cli_args", "of", "a verb is its word exactly"),
+        (
+            "daemon_run",
+            "restore",
+            "a restored start stays down on the mark",
+        ),
+        (
+            "daemon_run",
+            "restore",
+            "a restored start beside a daemon up ends well",
+        ),
+        (
+            "daemon_run",
+            "stopped_on_purpose",
+            "a stop mark another account can reach is refused",
+        ),
+        ("daemon_main", "asked", "--restored is answered"),
+        (
+            "loader",
+            "check_daemon_control",
+            "a start no longer than a handshake is refused",
+        ),
+        (
+            "loader",
+            "check_daemon_control",
+            "a stop shorter than twice the drain is refused",
+        ),
+        (
+            "platform_process",
+            "held_to",
+            "a process read and not held is judged before it is called another",
+        ),
+        (
+            "cli_control",
+            "ended_once_asked",
+            "a daemon that said it is stopping is never signalled",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "an endpoint something holds with no record is never a daemon stopped",
+        ),
+        (
+            "cli_control",
+            "listening_after",
+            "nothing answering is told from something holding the endpoint",
+        ),
+        ("cli_install", "install_with", "the CLI is copied runnable"),
+        (
+            "cli_install",
+            "install_with",
+            "the daemon is copied runnable",
+        ),
+        (
+            "cli_control",
+            "listening_after",
+            "an endpoint no socket can have is held by nothing",
+        ),
+        (
+            "cli_install",
+            "uninstall",
+            "an uninstall stops the daemon first",
+        ),
+        (
+            "cli_control",
+            "ended_once_asked",
+            "with nothing verified a record still naming it holds the stop",
+        ),
+        (
+            "cli_control",
+            "ended_once_asked",
+            "with nothing verified an endpoint still held holds the stop",
+        ),
+        (
+            "cli_control",
+            "running",
+            "a start says it runs only once the status says so",
+        ),
+        (
+            "cli_control",
+            "controlled",
+            "a restart stops before it starts",
+        ),
+        (
+            "cli_control",
+            "controlled",
+            "a restart whose stop did not finish starts nothing",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon that does not end when asked is killed",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon is asked to end before it is killed",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon that ends when asked is not killed",
+        ),
+        (
+            "cli_control",
+            "given_up",
+            "a start gives up at once on a daemon that ended",
+        ),
+        (
+            "cli_control",
+            "given_up",
+            "a start waits for a silent daemon until its deadline",
+        ),
+        (
+            "cli_control",
+            "tail_of",
+            "a failed start shows the last lines its daemon wrote",
+        ),
+        (
+            "cli_control",
+            "tail_of",
+            "a failed start says so when its daemon wrote nothing",
         ),
     ];
 

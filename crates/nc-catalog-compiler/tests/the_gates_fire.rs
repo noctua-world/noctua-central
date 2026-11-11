@@ -2196,6 +2196,64 @@ fn a_stop_drain_shorter_than_a_dispatch_fails_the_build() {
     );
 }
 
+/// A start that waits no longer than a handshake may take fails the build,
+/// and one a millisecond longer does not.
+#[test]
+fn a_start_no_longer_than_a_handshake_fails_the_build() {
+    let scratch = Scratch::new("daemon-start-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "start_within_ms = 30_000",
+        "start_within_ms = 5_000",
+    );
+    scratch.must_fail_saying(
+        "start-shorter-than-a-handshake",
+        "`[daemon] start_within_ms` is 5000, not above `ipc_handshake_ms`, 5000",
+    );
+    let longer = Scratch::new("daemon-start-longer");
+    longer.replacing(
+        "catalog/limits.toml",
+        "start_within_ms = 30_000",
+        "start_within_ms = 5_001",
+    );
+    assert!(
+        longer
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "start-shorter-than-a-handshake"),
+        "a start a millisecond longer than a handshake was refused"
+    );
+}
+
+/// A stop that waits a millisecond less than twice the drain fails the
+/// build, and one that waits exactly twice as long does not.
+#[test]
+fn a_stop_shorter_than_twice_the_drain_fails_the_build() {
+    let scratch = Scratch::new("daemon-stop-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "stop_within_ms = 65_000",
+        "stop_within_ms = 59_999",
+    );
+    scratch.must_fail_saying(
+        "stop-shorter-than-the-daemons-own",
+        "`[daemon] stop_within_ms` is 59999, below twice `stop_drain_ms`, 60000",
+    );
+    let exact = Scratch::new("daemon-stop-exact");
+    exact.replacing(
+        "catalog/limits.toml",
+        "stop_within_ms = 65_000",
+        "stop_within_ms = 60_000",
+    );
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "stop-shorter-than-the-daemons-own"),
+        "a stop that waits exactly twice the drain was refused"
+    );
+}
+
 /// Every relation between two kernel limits is refused at the number where it
 /// stops holding, and not one past it.
 ///

@@ -1,0 +1,55 @@
+[package]
+name = "nc-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The command line a channel is reached through: a command line read into a command's arguments, the daemon asked, and what it answered shown."
+
+# **A library and a thin binary, and the library holds no kernel.** What the
+# CLI does is the library's — read a command line, ask the daemon, render the
+# answer — and `noctua` reads its arguments, its install and its environment
+# and prints. No `nc-kernel` and no `nc-daemon`, here or under them: the CLI
+# reaches a kernel only through the daemon's endpoint, and Stage 14's
+# generated reference reads this crate's tables without building a kernel.
+[[bin]]
+name = "noctua"
+path = "src/main.rs"
+
+[dependencies]
+# The codes every refusal carries (`NOCTUA.md §15.1`), their sentences in both
+# locales, and the catalog's own commands' titles and descriptions.
+nc-catalog.workspace = true
+# A command's arguments, built and sent as the one canonical form, and the text
+# after `--` read by the one reader of it.
+nc-canon.workspace = true
+# The install beside the executable and every name it derives (`§17.1`).
+nc-channel.workspace = true
+# Who runs this, a path judged this user's alone, and the endpoint a daemon is
+# reached through.
+nc-platform.workspace = true
+# The protocol: the handshake that proves both ends, and one request at a time.
+nc-ipc.workspace = true
+# A command's argument schema, read into the flags it takes and held to the
+# same rule the kernel holds the arguments to.
+nc-schema.workspace = true
+# The value `nc-schema` validates, read back from the canonical text of the
+# arguments as the kernel reads it.
+serde_json.workspace = true
+# The runtime a connection runs on: one thread (`rt`), the endpoint's socket or
+# pipe (`net`) and the protocol's bounds (`time`). Already in the graph with
+# each of them; never `process` or `signal`.
+tokio = { workspace = true, features = ["rt", "net", "time"] }
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests**, as every crate with a `tests/` suite does.
+nc-cli = { path = "." }
+# The doors a test stages a token another account can reach through.
+nc-platform = { workspace = true, features = ["test-support"] }
+# The reference plugin's command table, whose every schema a command line is
+# read into: its host half, which holds no kernel.
+nc-plugin-reference.workspace = true
+
+[lints]
+workspace = true

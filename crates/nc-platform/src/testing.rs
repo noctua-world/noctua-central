@@ -26,6 +26,65 @@ pub const HOLDS_THROUGH_A_FILE: bool = imp::HOLDS_THROUGH_A_FILE;
 /// script in it: `python3` on Unix and `python` on Windows.
 pub const PYTHON: &str = imp::PYTHON;
 
+/// A process this user may read and may not hold for a signal, for as long as
+/// this lives.
+///
+/// On Unix it is process 1, `init` or `launchd`, which the system runs as root
+/// from its boot on. On Windows it is a child this starts, the system's command
+/// interpreter waiting on its input, whose access list lets this user query it
+/// and nothing more: it is ended and waited for when this is dropped, and read
+/// within [`without_privileges`], since a privilege such as the debug one opens
+/// any process whatever its list says. **Not another account's process on
+/// Windows**, which an account that is not an elevated administrator may not
+/// even query.
+#[derive(Debug)]
+pub struct ReadAndNotHeld {
+    /// Its process id.
+    pid: u32,
+    /// The child, where this started one.
+    child: Option<std::process::Child>,
+}
+
+impl ReadAndNotHeld {
+    /// Its process id.
+    #[must_use]
+    pub const fn pid(&self) -> u32 {
+        self.pid
+    }
+}
+
+impl Drop for ReadAndNotHeld {
+    fn drop(&mut self) {
+        if let Some(child) = &mut self.child {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// A [`ReadAndNotHeld`], started where it is a child of this process.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it: the child could not be started,
+/// or its access list written.
+pub fn a_process_read_and_not_held() -> io::Result<ReadAndNotHeld> {
+    let (pid, child) = imp::a_process_read_and_not_held()?;
+    Ok(ReadAndNotHeld { pid, child })
+}
+
+/// `run`, on this thread, as this process's user holding no privilege, so the
+/// access list of a process is what decides what the thread may open of it;
+/// the thread is itself again however `run` ends. On Unix it is `run` as it
+/// is.
+///
+/// # Errors
+///
+/// [`io::Error`] when the thread could not be made to hold no privilege.
+pub fn without_privileges<T>(run: impl FnOnce() -> T) -> io::Result<T> {
+    imp::without_privileges(run)
+}
+
 /// What a path lets in, read so that two readings compare: on Unix its mode
 /// bits; on Windows its owner, every entry of its access list and its
 /// read-only mark.
@@ -179,6 +238,16 @@ pub fn is_held(directory: &Path, name: &str) -> bool {
 /// [`io::Error`] as the system answered it.
 pub fn session_of(pid: u32) -> io::Result<Option<u32>> {
     imp::session_of(pid)
+}
+
+/// The process group the process `pid` is in, as the system numbers it, or
+/// nothing where this system has no group of the POSIX kind.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn group_of(pid: u32) -> io::Result<Option<u32>> {
+    imp::group_of(pid)
 }
 
 /// A user that is not `user`: what a path another user owns is judged

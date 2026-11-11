@@ -1665,7 +1665,14 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.pump_every_ms, declared.pump_every_ms);
     assert_eq!(generated.sweep_every_ms, declared.sweep_every_ms);
     assert_eq!(generated.stop_drain_ms, declared.stop_drain_ms);
-    assert_eq!(declared.each().len(), 9, "a daemon limit was added or lost");
+    assert_eq!(generated.start_within_ms, declared.start_within_ms);
+    assert_eq!(generated.stop_within_ms, declared.stop_within_ms);
+    assert_eq!(generated.kill_within_ms, declared.kill_within_ms);
+    assert_eq!(
+        declared.each().len(),
+        12,
+        "a daemon limit was added or lost"
+    );
 }
 
 /// What each field kind must become in the generated struct.

@@ -491,6 +491,12 @@ pub struct DaemonLimits {
     pub sweep_every_ms: u64,
     /// How long a stop waits for the dispatches already running, in milliseconds.
     pub stop_drain_ms: u64,
+    /// How long `start` waits for the daemon it started to answer, in milliseconds.
+    pub start_within_ms: u64,
+    /// How long `stop` waits for a daemon that answered it to end, in milliseconds.
+    pub stop_within_ms: u64,
+    /// How long `stop` waits for a daemon it signalled to end, in milliseconds.
+    pub kill_within_ms: u64,
 }
 
 /// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.
@@ -504,4 +510,7 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     pump_every_ms: 1_000,
     sweep_every_ms: 600_000,
     stop_drain_ms: 30_000,
+    start_within_ms: 30_000,
+    stop_within_ms: 65_000,
+    kill_within_ms: 5_000,
 };

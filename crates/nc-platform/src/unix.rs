@@ -59,6 +59,30 @@ pub(crate) const POSIX_SESSIONS: bool = true;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";
 
+/// Process 1, which this user may read and, as another account's, may not signal.
+///
+/// `init` on Linux and `launchd` on macOS, which the system starts first, as
+/// root, and which runs until it stops; nothing is started for it.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one starts a child"
+)]
+pub(crate) fn a_process_read_and_not_held() -> io::Result<(u32, Option<std::process::Child>)> {
+    Ok((1, None))
+}
+
+/// `run`, as it is: what this user may signal here is its user's to decide,
+/// and a test does not change it.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one can fail"
+)]
+pub(crate) fn without_privileges<T>(run: impl FnOnce() -> T) -> io::Result<T> {
+    Ok(run())
+}
+
 /// A user, by the number the system knows it by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct User(u32);
@@ -296,7 +320,7 @@ pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
     let pid = std::process::id().to_string();
-    let boot = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
+    let boot = boot_session()?;
     let said = asked("/bin/ps", &["-o", "lstart=", "-p", &pid])?;
     let started = crate::process::started_in_ps(&said).ok_or_else(|| {
         io::Error::new(
@@ -304,7 +328,332 @@ pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
             "`ps` printed no start for this process",
         )
     })?;
-    Ok((Some(boot.trim().to_owned()), started))
+    Ok((Some(boot), started))
+}
+
+/// The boot's session identifier, `kern.bootsessionuuid`, asked once.
+///
+/// A boot does not change under a process that runs in it, and a wait reads
+/// it again at every look.
+#[cfg(not(target_os = "linux"))]
+fn boot_session() -> io::Result<String> {
+    static BOOT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    if let Some(boot) = BOOT.get() {
+        return Ok(boot.clone());
+    }
+    let said = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
+    Ok(BOOT.get_or_init(|| said.trim().to_owned()).clone())
+}
+
+/// What an executable's name ends with here: nothing.
+pub(crate) const EXECUTABLE_SUFFIX: &str = "";
+
+/// Where this system keeps a user's profiles: the XDG directories on Linux,
+/// the home's Library on macOS.
+pub(crate) const BASES: crate::Bases = if cfg!(target_os = "macos") {
+    crate::Bases::Library
+} else {
+    crate::Bases::Xdg
+};
+
+/// A new file, `0700`, refusing one that exists — a link included: an
+/// executable its owner alone reads, writes and runs.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "an installer's copy of an executable, created private before anything else can \
+              make it, inside a directory its caller judged"
+)]
+pub(crate) fn create_private_executable(path: &Path) -> io::Result<std::fs::File> {
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o700)
+        .open(path)?;
+    file.set_permissions(Permissions::from_mode(0o700))?;
+    Ok(file)
+}
+
+/// `command` made to start the leader of a process group of its own, so no
+/// signal a terminal sends this process's group reaches it.
+pub(crate) fn detached(command: &mut std::process::Command) {
+    std::os::unix::process::CommandExt::process_group(command, 0);
+}
+
+/// The process group `pid` leads or is in, as the system numbers it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn group_of(pid: u32) -> io::Result<Option<u32>> {
+    let pid = i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    let group = rustix::process::getpgid(Some(pid))?;
+    Ok(u32::try_from(group.as_raw_nonzero().get()).ok())
+}
+
+/// The process id `pid` as the system's calls take one, or nothing for a
+/// number no process can hold.
+fn pid_of(pid: u32) -> Option<rustix::process::Pid> {
+    i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+}
+
+/// A process held for a signal: on Linux through a pidfd, which names one
+/// process for as long as it is open.
+#[cfg(target_os = "linux")]
+#[derive(Debug)]
+pub(crate) struct Process {
+    /// Its id.
+    pid: u32,
+    /// The pidfd it is held through.
+    pidfd: std::os::fd::OwnedFd,
+}
+
+/// The process `record` names, held through a pidfd opened before anything is
+/// read of it, and what the system says of it; nothing when no process holds
+/// its id.
+///
+/// **The pidfd first, and asked again last.** What `/proc/<pid>` says is read
+/// after the pidfd is open, and the pidfd is then asked which process it holds:
+/// while it still names `pid`, no other process can have been handed that id,
+/// so everything read was of the process the pidfd holds — the one every
+/// signal goes to.
+#[cfg(target_os = "linux")]
+pub(crate) fn open(
+    record: &crate::process::Identity,
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
+    let Some(pid) = pid_of(record.pid) else {
+        return Ok(None);
+    };
+    let pidfd = match rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()) {
+        Ok(pidfd) => pidfd,
+        Err(rustix::io::Errno::SRCH) => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let process = Process {
+        pid: record.pid,
+        pidfd,
+    };
+    let directory = std::path::PathBuf::from(format!("/proc/{}", record.pid));
+    let (Some(stat), Some(owner)) = (
+        gone_if_missing(std::fs::read_to_string(directory.join("stat")))?,
+        gone_if_missing(std::fs::metadata(&directory))?,
+    ) else {
+        return Ok(None);
+    };
+    let started = crate::process::started_in_stat(&stat).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "`/proc/{}/stat` holds no start time after its name",
+                record.pid
+            ),
+        )
+    })?;
+    let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let executable = std::fs::read_link(directory.join("exe")).ok();
+    let seen = crate::process::Seen {
+        boot: Some(boot.trim().to_owned()),
+        started,
+        executable,
+        ours: owner.uid() == rustix::process::getuid().as_raw(),
+        ended: ended_in(&stat),
+    };
+    if !process.holds_its_id()? {
+        return Ok(None);
+    }
+    Ok(Some((Some(process), seen)))
+}
+
+/// Whether a `stat` line says its process has ended: a zombie, or one dead.
+#[cfg(target_os = "linux")]
+fn ended_in(stat: &str) -> bool {
+    matches!(crate::process::state_in_stat(stat), Some("Z" | "X" | "x"))
+}
+
+/// `read`'s answer, or nothing when what it read is not there: a process that
+/// ended while it was read.
+#[cfg(target_os = "linux")]
+fn gone_if_missing<T>(read: io::Result<T>) -> io::Result<Option<T>> {
+    match read {
+        Ok(read) => Ok(Some(read)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Process {
+    /// Whether the pidfd still holds a process with its id: one not yet
+    /// reaped, which no other process can share the id of.
+    fn holds_its_id(&self) -> io::Result<bool> {
+        use std::os::fd::AsRawFd as _;
+        let fdinfo =
+            std::fs::read_to_string(format!("/proc/self/fdinfo/{}", self.pidfd.as_raw_fd()))?;
+        let held = crate::process::pid_in_fdinfo(&fdinfo).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Unsupported,
+                "the system does not say which process a pidfd holds",
+            )
+        })?;
+        Ok(held == i64::from(self.pid))
+    }
+}
+
+/// Sends `process` the signal `ending` names, through its pidfd; one that has
+/// already ended is not an error.
+#[cfg(target_os = "linux")]
+pub(crate) fn signal(process: &Process, ending: crate::process::Ending) -> io::Result<()> {
+    match rustix::process::pidfd_send_signal(&process.pidfd, signal_for(ending)) {
+        Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Whether `process` has ended: reaped, or a zombie its parent has yet to hear.
+#[cfg(target_os = "linux")]
+pub(crate) fn ended(process: &Process) -> io::Result<bool> {
+    let stat = gone_if_missing(std::fs::read_to_string(format!(
+        "/proc/{}/stat",
+        process.pid
+    )))?;
+    // Asked after the `stat` is read, so a `stat` of a process the id was
+    // handed to since is never taken for this one's.
+    Ok(!process.holds_its_id()? || stat.is_none_or(|stat| ended_in(&stat)))
+}
+
+/// The signal `ending` names.
+fn signal_for(ending: crate::process::Ending) -> rustix::process::Signal {
+    match ending {
+        crate::process::Ending::Asked => rustix::process::Signal::TERM,
+        crate::process::Ending::Forced => rustix::process::Signal::KILL,
+    }
+}
+
+/// A process held for a signal: on macOS by its id and the record it was held
+/// to, which is read again before each signal.
+#[cfg(not(target_os = "linux"))]
+#[derive(Debug)]
+pub(crate) struct Process {
+    /// The record it was verified against.
+    record: crate::process::Identity,
+}
+
+/// The process `record` names, and what the system says of it; nothing when
+/// no process holds its id.
+///
+/// **macOS** has no `/proc` and no pidfd: whether a process holds the id is
+/// asked with signal 0, and what it is with `ps` — its user, its start and its
+/// executable, then its state — by the absolute path, in the C locale and UTC.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn open(
+    record: &crate::process::Identity,
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
+    let Some(pid) = pid_of(record.pid) else {
+        return Ok(None);
+    };
+    match rustix::process::test_kill_process(pid) {
+        Ok(()) | Err(rustix::io::Errno::PERM) => {}
+        Err(rustix::io::Errno::SRCH) => return Ok(None),
+        Err(error) => return Err(error.into()),
+    }
+    let number = record.pid.to_string();
+    let Some(said) = asked_of_one("/bin/ps", &["-o", "uid=,lstart=,comm=", "-p", &number])? else {
+        return Ok(None);
+    };
+    let (uid, started, command) = crate::process::seen_in_ps(&said).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("`ps` printed no user, start and executable for process {number}"),
+        )
+    })?;
+    // A zombie keeps its id, its start and its name until its parent hears
+    // it, so its state is what says it has ended.
+    let state = asked_of_one("/bin/ps", &["-o", "stat=", "-p", &number])?.unwrap_or_default();
+    let seen = crate::process::Seen {
+        boot: Some(boot_session()?),
+        started,
+        executable: std::fs::canonicalize(command).ok(),
+        ours: uid == rustix::process::getuid().as_raw(),
+        ended: state.trim_start().starts_with('Z'),
+    };
+    Ok(Some((
+        Some(Process {
+            record: record.clone(),
+        }),
+        seen,
+    )))
+}
+
+/// Sends `process` the signal `ending` names, once it is read again.
+///
+/// Only while it is still the process it was verified as: one that has ended
+/// is not an error, and one that is no longer it is sent nothing.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn signal(process: &Process, ending: crate::process::Ending) -> io::Result<()> {
+    let Some((_, seen)) = open(&process.record)? else {
+        return Ok(());
+    };
+    match crate::process::judged(&process.record, &seen) {
+        Ok(()) => {}
+        Err(crate::process::Unverified::Gone(_)) => return Ok(()),
+        Err(unverified) => {
+            return Err(io::Error::other(format!(
+                "nothing was sent: read again, {unverified}"
+            )));
+        }
+    }
+    let Some(pid) = pid_of(process.record.pid) else {
+        return Ok(());
+    };
+    match rustix::process::kill_process(pid, signal_for(ending)) {
+        Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Whether `process` has ended: no process holds its id, or the one that does
+/// is no longer the one verified — a zombie among them, whose executable is
+/// no longer read.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn ended(process: &Process) -> io::Result<bool> {
+    Ok(match open(&process.record)? {
+        None => true,
+        Some((_, seen)) => crate::process::judged(&process.record, &seen).is_err(),
+    })
+}
+
+/// What `program` prints for `arguments` about one process, in the C locale
+/// and UTC; nothing when it says there is no such process — its exit code
+/// nonzero, and nothing printed.
+#[cfg(not(target_os = "linux"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the system's own tool, named by its absolute path and handed an environment of \
+              the C locale and UTC alone, is how macOS says what a process is"
+)]
+fn asked_of_one(program: &str, arguments: &[&str]) -> io::Result<Option<String>> {
+    let output = std::process::Command::new(program)
+        .args(arguments)
+        .env_clear()
+        .env("LC_ALL", "C")
+        .env("TZ", "UTC")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()?;
+    if !output.status.success() && output.stdout.iter().all(u8::is_ascii_whitespace) {
+        return Ok(None);
+    }
+    let said = String::from_utf8(output.stdout)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "an answer that is not UTF-8"))?;
+    if output.status.success() {
+        Ok(Some(said))
+    } else {
+        Err(io::Error::other(format!(
+            "`{program}` answered {}",
+            output.status
+        )))
+    }
 }
 
 /// What the system's tool `program` prints for `arguments`, in the C locale

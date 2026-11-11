@@ -224,8 +224,22 @@ async fn every_dispatch_is_the_kernels_decision_and_is_journaled() {
     let read = store.journal().from(0).await.expect("the journal reads");
     store.close().await;
     assert_eq!(read.stopped_at, None);
+    // Each dispatch's own entry, in order: the brackets of a unit an
+    // authorized command opened are the unit's.
+    let decided: Vec<&nc_journal::Entry> = read
+        .entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry.record.result,
+                nc_journal::Outcome::Allowed
+                    | nc_journal::Outcome::Denied
+                    | nc_journal::Outcome::Failed
+            )
+        })
+        .collect();
     assert_eq!(
-        read.entries.len(),
+        decided.len(),
         dispatched.len(),
         "{:?}",
         read.entries
@@ -233,9 +247,7 @@ async fn every_dispatch_is_the_kernels_decision_and_is_journaled() {
             .map(|entry| &entry.record.action)
             .collect::<Vec<_>>()
     );
-    for (((command, _, action), answer), entry) in
-        dispatched.iter().zip(&answers).zip(&read.entries)
-    {
+    for (((command, _, action), answer), entry) in dispatched.iter().zip(&answers).zip(decided) {
         let record = &entry.record;
         assert_eq!(record.principal.as_str(), "ana", "{command}");
         assert_eq!(record.realm.as_str(), "home", "{command}");
@@ -245,6 +257,18 @@ async fn every_dispatch_is_the_kernels_decision_and_is_journaled() {
         match answer {
             Answer::Result(_) => {
                 assert_eq!(record.result, nc_journal::Outcome::Allowed, "{command}");
+                // Decided with the grant and the epoch the profile's world
+                // names.
+                assert_eq!(
+                    record.grant_used.as_ref().map(nc_ids::OpaqueId::as_str),
+                    Some(nc_daemon::testing::GRANT),
+                    "{command}"
+                );
+                assert_eq!(
+                    record.policy_epoch,
+                    u64::try_from(nc_daemon::testing::EPOCH).ok(),
+                    "{command}"
+                );
             }
             Answer::Refused(refusal) => {
                 assert_ne!(record.result, nc_journal::Outcome::Allowed, "{command}");

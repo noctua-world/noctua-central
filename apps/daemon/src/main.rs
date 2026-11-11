@@ -4,7 +4,10 @@
 //! **Thin**: it reads its arguments, hands them to `nc_daemon`, and writes what
 //! comes back through the one printing door below. Run with no argument it is
 //! the daemon (`nc_daemon::run::serve`), which answers exit code 0 once it
-//! stopped when it was asked to. It answers `noctua-daemon --initialize`, the
+//! stopped when it was asked to. `noctua-daemon --restored` is how every
+//! restorer starts it (`nc_daemon::run::restore`): exit code 0 at once while
+//! the profile carries the `stopped` mark or another daemon of the channel
+//! runs, and the daemon otherwise. It answers `noctua-daemon --initialize`, the
 //! installer's entry, with `--world <file>` to copy a world in, and refuses
 //! any other invocation with exit code 2; a refusal — of the install, the
 //! profile or anything else a start reads — is exit code 1, with its code and
@@ -41,6 +44,9 @@ fn main() -> ExitCode {
 enum Asked {
     /// No argument: run the daemon until it is asked to stop.
     Serve,
+    /// `--restored`: run it as a restorer starts it, honouring the `stopped`
+    /// mark.
+    Restored,
     /// `--initialize`, and the world file named by `--world` when it follows.
     Initialize {
         /// The world file to copy into the profile, when one is named.
@@ -52,6 +58,7 @@ enum Asked {
 fn asked(arguments: &[OsString]) -> Option<Asked> {
     match arguments {
         [] => Some(Asked::Serve),
+        [restored] if restored == "--restored" => Some(Asked::Restored),
         [initialize] if initialize == "--initialize" => Some(Asked::Initialize { world: None }),
         [initialize, named, world] if initialize == "--initialize" && named == "--world" => {
             Some(Asked::Initialize {
@@ -72,7 +79,8 @@ fn answer(
         return (
             UNANSWERED,
             "noctua-daemon: the invocations this build answers are `noctua-daemon`, which \
-             runs the daemon, and `noctua-daemon --initialize [--world <file>]`"
+             runs the daemon, `noctua-daemon --restored`, which runs it as a restorer \
+             does, and `noctua-daemon --initialize [--world <file>]`"
                 .to_owned(),
         );
     };
@@ -90,15 +98,25 @@ fn answer(
     let world = match asked {
         Asked::Serve => {
             return match nc_daemon::run::serve(&executable) {
-                Ok(stopped) => (
+                Ok(stopped) => (0, ran(stopped)),
+                Err(refused) => (REFUSED, format!("noctua-daemon: {refused}")),
+            };
+        }
+        Asked::Restored => {
+            return match nc_daemon::run::restore(&executable) {
+                Ok(nc_daemon::run::Restored::StaysDown) => (
                     0,
-                    format!(
-                        "noctua-daemon: stopped when it was asked to, after {} ms, giving up \
-                         on {} dispatch(es), pump(s) or sweep(s) still running",
-                        stopped.ran.as_millis(),
-                        stopped.abandoned
-                    ),
+                    "noctua-daemon: the profile carries the `stopped` mark, so the daemon \
+                     stays down until `start` removes it"
+                        .to_owned(),
                 ),
+                Ok(nc_daemon::run::Restored::AlreadyUp) => (
+                    0,
+                    "noctua-daemon: another daemon of this channel runs, so this one did not \
+                     start"
+                        .to_owned(),
+                ),
+                Ok(nc_daemon::run::Restored::Ran(stopped)) => (0, ran(stopped)),
                 Err(refused) => (REFUSED, format!("noctua-daemon: {refused}")),
             };
         }
@@ -115,6 +133,16 @@ fn answer(
         ),
         Err(refused) => (REFUSED, format!("noctua-daemon: {refused}")),
     }
+}
+
+/// What a run that stopped when it was asked to says.
+fn ran(stopped: nc_daemon::run::Stopped) -> String {
+    format!(
+        "noctua-daemon: stopped when it was asked to, after {} ms, giving up on {} \
+         dispatch(es), pump(s) or sweep(s) still running",
+        stopped.ran.as_millis(),
+        stopped.abandoned
+    )
 }
 
 /// The one place this binary prints: a line to its standard error.
@@ -176,6 +204,10 @@ mod tests {
     fn the_daemon_and_initialize_are_answered_and_nothing_else_is() {
         assert_eq!(super::asked(&[]), Some(super::Asked::Serve));
         assert_eq!(
+            super::asked(&words(&["--restored"])),
+            Some(super::Asked::Restored)
+        );
+        assert_eq!(
             super::asked(&words(&["--initialize"])),
             Some(super::Asked::Initialize { world: None })
         );
@@ -192,6 +224,9 @@ mod tests {
             &["--initialize", "--globe", "w.json"],
             &["--world", "w.json", "--initialize"],
             &["--initialize", "--initialize"],
+            &["--restored", "--restored"],
+            &["--restored", "--initialize"],
+            &["--restore"],
         ] {
             assert_eq!(super::asked(&words(unanswered)), None, "{unanswered:?}");
         }
@@ -208,18 +243,38 @@ mod tests {
             line.contains("`noctua-daemon`, which runs the daemon"),
             "{line}"
         );
+        assert!(line.contains("`noctua-daemon --restored`"), "{line}");
     }
 
-    /// The daemon run outside an install is a refusal, exit code 1 with the
-    /// channel's code, and nothing is started.
+    /// A start a restorer asks for, outside an install, is exit code 1 in
+    /// the shared reader's words, as the daemon's own start is.
+    #[test]
+    fn a_restored_start_outside_an_install_is_exit_code_1() {
+        let scratch = Scratch::new("restored");
+        let executable = scratch.executable();
+        let (code, line) = super::answer(&words(&["--restored"]), || Ok(executable.clone()));
+        assert_eq!(code, 1, "{line}");
+        let refused = nc_channel::found::beside(&executable).expect_err("no manifest is there");
+        assert_eq!(line, format!("noctua-daemon: {refused}"));
+    }
+
+    /// The daemon run outside an install is exit code 1 in the shared reader's
+    /// words: the channel's code once, and the manifest it looked for.
     #[test]
     fn the_daemon_outside_an_install_is_exit_code_1() {
         let scratch = Scratch::new("serve");
         let executable = scratch.executable();
-        let (code, line) = super::answer(&[], || Ok(executable));
+        let (code, line) = super::answer(&[], || Ok(executable.clone()));
         assert_eq!(code, 1, "{line}");
+        // The reader's sentence, and not a second code of the daemon's before it.
+        let refused = nc_channel::found::beside(&executable).expect_err("no manifest is there");
+        assert_eq!(line, format!("noctua-daemon: {refused}"));
         let code = nc_catalog::ErrorCode::ChannelNoManifest.code();
-        assert!(line.contains(&format!("[{code}]")), "{line}");
+        assert_eq!(line.matches(&format!("[{code}]")).count(), 1, "{line}");
+        let manifest = std::fs::canonicalize(&executable)
+            .expect("the stand-in is there")
+            .with_file_name(nc_channel::MANIFEST);
+        assert!(line.contains(&manifest.display().to_string()), "{line}");
     }
 
     /// A refusal is exit code 1 with its code — outside an install, and when

@@ -535,6 +535,122 @@ fn stands_aside(runs_the_stack: bool) -> bool {
     true
 }
 
+/// Installs this checkout as its development channel, or removes that
+/// install — on every system, with or without the stack.
+///
+/// **The environment is read here and nowhere after**: the base directories
+/// this system keeps a user's profiles under, and `NC_INSTALL_NAMESPACE`,
+/// which relocates the install as a test's, are written into the manifest, so
+/// the binaries never read them (`NOCTUA.md §17.1`). The CLI and the daemon are
+/// built, and the plugins, then copied out of `target/` by `nc_cli::install`,
+/// with the test world and its grant (`policy/world.json`); a daemon an earlier
+/// install runs is stopped first. **No autostart is registered and `PATH` is
+/// not changed**: the CLI is at the path this prints.
+///
+/// # Errors
+///
+/// Returns what did not finish: the environment, the build, or the
+/// install.
+pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
+    if uninstall {
+        ui::heading("dev --uninstall");
+    } else {
+        ui::heading("dev --install");
+    }
+    let log_store = format!(
+        "http://127.0.0.1:{}/insert/jsonline",
+        port(root, Port::Logs)
+    );
+    let install =
+        nc_cli::install::development(root, &|name: &str| std::env::var_os(name), Some(log_store))
+            .map_err(|unmade| unmade.to_string())?;
+    if uninstall {
+        match nc_cli::install::uninstall(&install).map_err(|unmade| unmade.to_string())? {
+            None => ui::ok("nothing was installed for this checkout, so nothing was removed"),
+            Some(layout) => {
+                ui::ok(&format!("{} is uninstalled", layout.cli));
+                ui::detail(&format!(
+                    "its profile is kept under `{}`, `{}` and `{}`, so an install made again \
+                     is the same device with the same data",
+                    layout.data.display(),
+                    layout.config.display(),
+                    layout.state.display()
+                ));
+            }
+        }
+        return Ok(());
+    }
+    crate::check::cargo(
+        root,
+        &[
+            "build",
+            "--locked",
+            "--package",
+            "nc-cli",
+            "--package",
+            "nc-daemon",
+            "--bins",
+        ],
+        false,
+    )
+    .map_err(|said| format!("the CLI and the daemon did not build: {said}"))?;
+    ui::ok("the CLI and the daemon are built");
+    crate::plugins::run(root)?;
+    let built = root.join("target").join("debug");
+    let suffix = nc_platform::EXECUTABLE_SUFFIX;
+    let (cli, daemon) = (
+        built.join(format!("noctua{suffix}")),
+        built.join(format!("noctua-daemon{suffix}")),
+    );
+    let world = std::fs::read_to_string(root.join("policy/world.json"))
+        .map_err(|error| format!("`policy/world.json` could not be read: {error}"))?;
+    let world = nc_cli::install::development_world(&world).map_err(|unmade| unmade.to_string())?;
+    let mut sources = Vec::new();
+    for member in crate::members::members(root)? {
+        if let Some(name) = member.path.strip_prefix("plugins/") {
+            sources.push((
+                name.to_owned(),
+                root.join(&member.path).join(nc_channel::PLUGIN_MANIFEST),
+                root.join(format!("target/plugins/components/{name}.wasm")),
+            ));
+        }
+    }
+    let plan = nc_cli::install::Plan {
+        install,
+        cli: &cli,
+        daemon: &daemon,
+        world: &world,
+        plugins: sources
+            .iter()
+            .map(|(name, manifest, component)| nc_cli::install::Plugin {
+                name,
+                manifest,
+                component,
+            })
+            .collect(),
+    };
+    let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
+    ui::gap();
+    if let Some(stopped) = &installed.stopped {
+        ui::detail(&format!(
+            "the daemon the earlier install ran was stopped first: {}",
+            stopped.trim_end()
+        ));
+    }
+    ui::ok(&format!("{} is installed", installed.found.layout.cli));
+    ui::detail(&format!(
+        "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
+        installed.cli.display()
+    ));
+    ui::detail(&format!(
+        "its daemon is not started and nothing restores it yet: `{} start` starts it, and \
+         `{} help` lists every command once it runs",
+        installed.cli.display(),
+        installed.cli.display()
+    ));
+    Ok(())
+}
+
 /// Brings the stack up, or takes it down with its volumes — on Linux. Elsewhere
 /// it says the stack is not applicable there and changes nothing.
 ///

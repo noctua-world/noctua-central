@@ -285,6 +285,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.manifest-unavailable",
+        [
+            "Noctua could not read the file saying which installation this is, because the disk did not answer. Check that the disk is connected, then try again.",
+            "O Noctua não conseguiu ler o arquivo que diz qual instalação é esta, porque o disco não respondeu. Verifique se o disco está conectado e tente de novo.",
+        ],
+    ),
+    (
         "error.channel.manifest-unreadable",
         [
             "Noctua could not read the file that says which installation this is, so it stopped before doing anything. Install Noctua again.",
@@ -310,6 +317,69 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "This installation names a release channel Noctua does not know, so it stopped before doing anything. Install Noctua again.",
             "Esta instalação indica um canal de versões que o Noctua não conhece, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.cli.answer-unreadable",
+        [
+            "Noctua answered with something this program does not understand. Install Noctua again so both are the same version.",
+            "O Noctua respondeu com algo que este programa não entende. Instale o Noctua de novo para que os dois sejam da mesma versão.",
+        ],
+    ),
+    (
+        "error.cli.command-line-unreadable",
+        [
+            "Noctua did not understand that command line, so it did nothing. Its help says what each command takes.",
+            "O Noctua não entendeu essa linha de comando, então não fez nada. A ajuda dele diz o que cada comando aceita.",
+        ],
+    ),
+    (
+        "error.cli.daemon-did-not-start",
+        [
+            "Noctua was started and did not answer, so it may not be running. What it said as it ended is shown beside this.",
+            "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar aparece ao lado desta mensagem.",
+        ],
+    ),
+    (
+        "error.cli.daemon-did-not-stop",
+        [
+            "Noctua was asked to stop and did not, so it may still be running. Try again in a moment.",
+            "Foi pedido ao Noctua que parasse e ele não parou, então pode ainda estar em execução. Tente de novo daqui a pouco.",
+        ],
+    ),
+    (
+        "error.cli.daemon-misnamed",
+        [
+            "What answered is not this installation's Noctua, so nothing was sent to it.",
+            "O que respondeu não é o Noctua desta instalação, então nada foi enviado a ele.",
+        ],
+    ),
+    (
+        "error.cli.output-failed",
+        [
+            "This program could not write its answer, so part of it may be missing.",
+            "Este programa não conseguiu escrever a resposta, então parte dela pode estar faltando.",
+        ],
+    ),
+    (
+        "error.cli.process-unverified",
+        [
+            "Noctua did not answer, and the program its records name could not be shown to be Noctua, so nothing was stopped.",
+            "O Noctua não respondeu, e não foi possível mostrar que o programa indicado nos registros dele é o Noctua, então nada foi parado.",
+        ],
+    ),
+    (
+        "error.cli.token-not-private",
+        [
+            "The file that proves this program belongs to Noctua could be reached by another account on this computer, so nothing was sent to Noctua.",
+            "O arquivo que prova que este programa pertence ao Noctua poderia ser acessado por outra conta deste computador, então nada foi enviado ao Noctua.",
+        ],
+    ),
+    (
+        "error.cli.token-unreadable",
+        [
+            "The file that proves this program belongs to Noctua is missing or damaged, so nothing was sent to Noctua. Start Noctua again and try once more.",
+            "O arquivo que prova que este programa pertence ao Noctua está faltando ou danificado, então nada foi enviado ao Noctua. Inicie o Noctua de novo e tente mais uma vez.",
         ],
     ),
     (
@@ -834,8 +904,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.kernel.unconfirmed",
         [
-            "That cannot be undone, so it needs your confirmation first. Nothing was done.",
-            "Isso não pode ser desfeito, então precisa primeiro da sua confirmação. Nada foi feito.",
+            "That cannot be undone, so it needs your confirmation in the Noctua window first. Nothing was done.",
+            "Isso não pode ser desfeito, então precisa primeiro da sua confirmação na janela do Noctua. Nada foi feito.",
         ],
     ),
     (
@@ -1193,10 +1263,20 @@ pub const KEYS: &[&str] = &[
     "error.channel.base-malformed",
     "error.channel.checkout-malformed",
     "error.channel.manifest-not-private",
+    "error.channel.manifest-unavailable",
     "error.channel.manifest-unreadable",
     "error.channel.namespace-malformed",
     "error.channel.no-manifest",
     "error.channel.unknown",
+    "error.cli.answer-unreadable",
+    "error.cli.command-line-unreadable",
+    "error.cli.daemon-did-not-start",
+    "error.cli.daemon-did-not-stop",
+    "error.cli.daemon-misnamed",
+    "error.cli.output-failed",
+    "error.cli.process-unverified",
+    "error.cli.token-not-private",
+    "error.cli.token-unreadable",
     "error.daemon.device-unreadable",
     "error.daemon.engine-refused",
     "error.daemon.instance-held",

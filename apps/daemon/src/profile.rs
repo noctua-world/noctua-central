@@ -9,10 +9,12 @@
 //! alone, and anything else refuses the start with it left as it was.
 //!
 //! **The world is a file the installer copies in, and the daemon reads**: the
-//! realm and the person every dispatch is decided as, through
-//! `nc_authz::LocalWorld::parse`, with the pack the realm selects. A profile
-//! without one does not start, and nothing here makes one up — a person with
-//! no account has no world yet, which `§5.13` leaves open.
+//! realm and the person every dispatch is decided as, the grant that person
+//! holds there and the realm's epoch, through `nc_authz::LocalWorld::parse`,
+//! with the pack the realm selects — read at each start, so a grant the file
+//! names stands until the file changes. A profile without one does not start,
+//! and nothing here makes one up — a person with no account has no world yet,
+//! which `§5.13` leaves open.
 
 use std::path::{Path, PathBuf};
 
@@ -271,6 +273,7 @@ mod tests {
             "person".to_owned(),
             nc_canon::Value::Text(person.to_owned()),
         );
+        fields.insert("epoch".to_owned(), nc_canon::Value::Integer(7));
         fields.insert(
             "world".to_owned(),
             nc_canon::parse(WORLD).expect("the policy world is JSON"),

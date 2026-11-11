@@ -475,3 +475,18 @@ sweep_every_ms = 600_000
 # would cut short a dispatch the kernel would let finish, and leave its unit for
 # the next start to recover.
 stop_drain_ms = 30_000
+# How long `start` waits for the daemon it started to answer the handshake
+# (§17.1); one that ended first, or has not answered by then, is a start that
+# failed, and what it wrote to its standard error is shown. More than
+# `ipc_handshake_ms`, which the compiler holds it to, so a handshake the daemon
+# is allowed is never cut short by the start that waits for it.
+start_within_ms = 30_000
+# How long `stop` waits for a daemon that answered it to end. At least twice
+# `stop_drain_ms`, which the compiler holds it to: a stopping daemon waits that
+# long for what it is still running and as long again for its runtime's last
+# work, so a stop that waited less would give up on a daemon still ending well.
+stop_within_ms = 65_000
+# How long `stop` waits for a daemon to end once it was signalled through the
+# process its PID record was held to — asked to end, then killed — before it
+# says the stop did not finish.
+kill_within_ms = 5_000

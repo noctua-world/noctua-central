@@ -72,6 +72,9 @@ nc-local = { workspace = true, features = ["test-support"] }
 # A connection a test serves in memory, its client taking one byte at a time
 # (`tokio::io::duplex`). Already in the graph with `io-util`.
 tokio = { workspace = true, features = ["io-util"] }
+# The CLI, driven in-process against a real daemon by the suites that hold
+# every command and every exit code to what the daemon answers.
+nc-cli.workspace = true
 
 [lints]
 workspace = true

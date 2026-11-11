@@ -120,8 +120,18 @@ enum Command {
     /// Bring up the local stack and apply the migrations.
     Dev {
         /// Tear the stack down and remove its volumes instead of bringing it up.
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["install", "uninstall"])]
         down: bool,
+        /// Install this checkout as its development channel instead: the CLI
+        /// and the daemon built and copied out of `target/`, the profile, its
+        /// device, its world and the built plugins. No autostart, and `PATH`
+        /// is left as it is.
+        #[arg(long, conflicts_with = "uninstall")]
+        install: bool,
+        /// Remove this checkout's development install instead: its daemon
+        /// stopped, its binaries and its manifest removed, its profile kept.
+        #[arg(long)]
+        uninstall: bool,
     },
     /// Regenerate the self-documentation surfaces under docs/.
     Docs,
@@ -160,7 +170,10 @@ fn main() -> ExitCode {
         Command::Build { plugins: true, .. } => plugins::run(&root),
         Command::Build { reserve, .. } => build::run(&root, reserve),
         Command::Check { offline } => check::run(&root, offline),
-        Command::Dev { down } => dev::run(&root, down),
+        Command::Dev {
+            install, uninstall, ..
+        } if install || uninstall => dev::install(&root, uninstall),
+        Command::Dev { down, .. } => dev::run(&root, down),
         Command::Docs => docs::run(&root),
         Command::Release {
             channel,

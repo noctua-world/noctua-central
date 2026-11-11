@@ -87,6 +87,26 @@ pub enum ErrorCode {
     ChannelNoManifest,
     /// NC-CHAN-0007 — The install manifest, or the directory holding it, is not this user's alone, so it was not read
     ChannelManifestNotPrivate,
+    /// NC-CHAN-0008 — The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer
+    ChannelManifestUnavailable,
+    /// NC-CLI-0001 — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object
+    CliCommandLineUnreadable,
+    /// NC-CLI-0002 — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent
+    CliTokenNotPrivate,
+    /// NC-CLI-0003 — The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent
+    CliTokenUnreadable,
+    /// NC-CLI-0004 — The daemon's welcome names another process than the one the system says is at the other end, or another channel than this install's, so nothing was sent
+    CliDaemonMisnamed,
+    /// NC-CLI-0005 — The daemon answered a request with something the CLI does not read: an answer of another kind than the request's, or a registry entry it cannot read
+    CliAnswerUnreadable,
+    /// NC-CLI-0006 — The CLI could not write what it answered to its standard output or its standard error
+    CliOutputFailed,
+    /// NC-CLI-0007 — The daemon was started and did not answer: it ended, or did not answer within its bound
+    CliDaemonDidNotStart,
+    /// NC-CLI-0008 — The daemon was asked to stop, or signalled, and did not end within its bound, so it may still be running
+    CliDaemonDidNotStop,
+    /// NC-CLI-0009 — The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled
+    CliProcessUnverified,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -347,6 +367,16 @@ impl ErrorCode {
         Self::ChannelNamespaceMalformed,
         Self::ChannelNoManifest,
         Self::ChannelManifestNotPrivate,
+        Self::ChannelManifestUnavailable,
+        Self::CliCommandLineUnreadable,
+        Self::CliTokenNotPrivate,
+        Self::CliTokenUnreadable,
+        Self::CliDaemonMisnamed,
+        Self::CliAnswerUnreadable,
+        Self::CliOutputFailed,
+        Self::CliDaemonDidNotStart,
+        Self::CliDaemonDidNotStop,
+        Self::CliProcessUnverified,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -488,6 +518,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => "NC-CHAN-0005",
             Self::ChannelNoManifest => "NC-CHAN-0006",
             Self::ChannelManifestNotPrivate => "NC-CHAN-0007",
+            Self::ChannelManifestUnavailable => "NC-CHAN-0008",
+            Self::CliCommandLineUnreadable => "NC-CLI-0001",
+            Self::CliTokenNotPrivate => "NC-CLI-0002",
+            Self::CliTokenUnreadable => "NC-CLI-0003",
+            Self::CliDaemonMisnamed => "NC-CLI-0004",
+            Self::CliAnswerUnreadable => "NC-CLI-0005",
+            Self::CliOutputFailed => "NC-CLI-0006",
+            Self::CliDaemonDidNotStart => "NC-CLI-0007",
+            Self::CliDaemonDidNotStop => "NC-CLI-0008",
+            Self::CliProcessUnverified => "NC-CLI-0009",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -630,6 +670,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => "CHAN",
             Self::ChannelNoManifest => "CHAN",
             Self::ChannelManifestNotPrivate => "CHAN",
+            Self::ChannelManifestUnavailable => "CHAN",
+            Self::CliCommandLineUnreadable => "CLI",
+            Self::CliTokenNotPrivate => "CLI",
+            Self::CliTokenUnreadable => "CLI",
+            Self::CliDaemonMisnamed => "CLI",
+            Self::CliAnswerUnreadable => "CLI",
+            Self::CliOutputFailed => "CLI",
+            Self::CliDaemonDidNotStart => "CLI",
+            Self::CliDaemonDidNotStop => "CLI",
+            Self::CliProcessUnverified => "CLI",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -785,6 +835,36 @@ impl ErrorCode {
             }
             Self::ChannelManifestNotPrivate => {
                 "The install manifest, or the directory holding it, is not this user's alone, so it was not read"
+            }
+            Self::ChannelManifestUnavailable => {
+                "The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer"
+            }
+            Self::CliCommandLineUnreadable => {
+                "A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
+            }
+            Self::CliTokenNotPrivate => {
+                "The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
+            }
+            Self::CliTokenUnreadable => {
+                "The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"
+            }
+            Self::CliDaemonMisnamed => {
+                "The daemon's welcome names another process than the one the system says is at the other end, or another channel than this install's, so nothing was sent"
+            }
+            Self::CliAnswerUnreadable => {
+                "The daemon answered a request with something the CLI does not read: an answer of another kind than the request's, or a registry entry it cannot read"
+            }
+            Self::CliOutputFailed => {
+                "The CLI could not write what it answered to its standard output or its standard error"
+            }
+            Self::CliDaemonDidNotStart => {
+                "The daemon was started and did not answer: it ended, or did not answer within its bound"
+            }
+            Self::CliDaemonDidNotStop => {
+                "The daemon was asked to stop, or signalled, and did not end within its bound, so it may still be running"
+            }
+            Self::CliProcessUnverified => {
+                "The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled"
             }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
@@ -1112,6 +1192,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => "error.channel.namespace-malformed",
             Self::ChannelNoManifest => "error.channel.no-manifest",
             Self::ChannelManifestNotPrivate => "error.channel.manifest-not-private",
+            Self::ChannelManifestUnavailable => "error.channel.manifest-unavailable",
+            Self::CliCommandLineUnreadable => "error.cli.command-line-unreadable",
+            Self::CliTokenNotPrivate => "error.cli.token-not-private",
+            Self::CliTokenUnreadable => "error.cli.token-unreadable",
+            Self::CliDaemonMisnamed => "error.cli.daemon-misnamed",
+            Self::CliAnswerUnreadable => "error.cli.answer-unreadable",
+            Self::CliOutputFailed => "error.cli.output-failed",
+            Self::CliDaemonDidNotStart => "error.cli.daemon-did-not-start",
+            Self::CliDaemonDidNotStop => "error.cli.daemon-did-not-stop",
+            Self::CliProcessUnverified => "error.cli.process-unverified",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -1254,6 +1344,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => Severity::Error,
             Self::ChannelNoManifest => Severity::Error,
             Self::ChannelManifestNotPrivate => Severity::Critical,
+            Self::ChannelManifestUnavailable => Severity::Error,
+            Self::CliCommandLineUnreadable => Severity::Warning,
+            Self::CliTokenNotPrivate => Severity::Critical,
+            Self::CliTokenUnreadable => Severity::Error,
+            Self::CliDaemonMisnamed => Severity::Critical,
+            Self::CliAnswerUnreadable => Severity::Error,
+            Self::CliOutputFailed => Severity::Error,
+            Self::CliDaemonDidNotStart => Severity::Error,
+            Self::CliDaemonDidNotStop => Severity::Error,
+            Self::CliProcessUnverified => Severity::Error,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -1396,6 +1496,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => false,
             Self::ChannelNoManifest => false,
             Self::ChannelManifestNotPrivate => false,
+            Self::ChannelManifestUnavailable => true,
+            Self::CliCommandLineUnreadable => false,
+            Self::CliTokenNotPrivate => false,
+            Self::CliTokenUnreadable => true,
+            Self::CliDaemonMisnamed => false,
+            Self::CliAnswerUnreadable => false,
+            Self::CliOutputFailed => true,
+            Self::CliDaemonDidNotStart => true,
+            Self::CliDaemonDidNotStop => true,
+            Self::CliProcessUnverified => false,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1538,6 +1648,16 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => &[],
             Self::ChannelNoManifest => &[],
             Self::ChannelManifestNotPrivate => &[],
+            Self::ChannelManifestUnavailable => &[],
+            Self::CliCommandLineUnreadable => &[],
+            Self::CliTokenNotPrivate => &[],
+            Self::CliTokenUnreadable => &[],
+            Self::CliDaemonMisnamed => &[],
+            Self::CliAnswerUnreadable => &[],
+            Self::CliOutputFailed => &[],
+            Self::CliDaemonDidNotStart => &[],
+            Self::CliDaemonDidNotStop => &[],
+            Self::CliProcessUnverified => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],
@@ -1701,6 +1821,10 @@ pub const AREAS: &[(&str, &str)] = &[
     (
         "CHAN",
         "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)",
+    ),
+    (
+        "CLI",
+        "The command line: what a person types, read into a command's arguments, and what the CLI checks of a daemon before it sends anything (§20.2)",
     ),
     (
         "DB",

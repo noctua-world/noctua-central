@@ -48,18 +48,10 @@ fn run(executable: &Path, arguments: &[&std::ffi::OsStr]) -> (Option<i32>, Strin
     )
 }
 
-/// A world file as an installer writes one: `realm`, `person` and the
-/// entities every policy case is about.
+/// A world file as an installer writes one: the one every suite's install
+/// copies in.
 fn a_world() -> String {
-    let mut fields = std::collections::BTreeMap::new();
-    fields.insert("realm".to_owned(), nc_canon::Value::text("home"));
-    fields.insert("person".to_owned(), nc_canon::Value::text("ana"));
-    fields.insert(
-        "world".to_owned(),
-        nc_canon::parse(include_str!("../../../policy/world.json"))
-            .expect("the policy world is JSON"),
-    );
-    nc_canon::Value::Object(fields).to_canonical()
+    nc_daemon::testing::a_world()
 }
 
 /// An invocation the binary does not answer is refused, with exit code 2 and

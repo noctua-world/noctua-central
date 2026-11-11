@@ -760,6 +760,7 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_daemon(limits.daemon, text, problems);
     check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
     check_daemon_schedule(limits.daemon, &limits.kernel, text, problems);
+    check_daemon_control(limits.daemon, text, problems);
 }
 
 /// What an IPC frame carries around a payload — its type, a dispatch's command
@@ -909,6 +910,50 @@ fn check_daemon_schedule(
              cuts short a dispatch the kernel would let finish and leaves its unit for the \
              next start to recover. Make `stop_drain_ms` at least `dispatch_deadline_ms`",
             "stop-drain-shorter-than-a-dispatch",
+        );
+    }
+}
+
+/// The bounds the CLI's process control waits by keep the daemon's own.
+///
+/// **A start that waits longer than a handshake may take**, or a daemon that
+/// answers within its own bound is a start the CLI calls failed; and **a stop
+/// that waits at least twice the drain**, because a stopping daemon waits
+/// `stop_drain_ms` for what it still runs and as long again for its runtime's
+/// last work, so a stop that waited less gives up on a daemon still ending
+/// well.
+fn check_daemon_control(daemon: DaemonLimits, text: &str, problems: &mut Vec<Problem>) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.start_within_ms <= daemon.ipc_handshake_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("start_within_ms"),
+            format!(
+                "`[daemon] start_within_ms` is {}, not above `ipc_handshake_ms`, {}",
+                daemon.start_within_ms, daemon.ipc_handshake_ms
+            ),
+            "a start waits for the daemon it started to answer the handshake, and the \
+             handshake alone may take `ipc_handshake_ms`, so a start that waits no longer \
+             calls failed a daemon that answers within its own bound. Make `start_within_ms` \
+             more than `ipc_handshake_ms`",
+            "start-shorter-than-a-handshake",
+        );
+    }
+    if daemon.stop_within_ms < daemon.stop_drain_ms.saturating_mul(2) {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("stop_within_ms"),
+            format!(
+                "`[daemon] stop_within_ms` is {}, below twice `stop_drain_ms`, {}",
+                daemon.stop_within_ms,
+                daemon.stop_drain_ms.saturating_mul(2)
+            ),
+            "a stopping daemon waits `stop_drain_ms` for what it still runs and as long again \
+             for its runtime's last work, so a stop that waits less gives up on a daemon still \
+             ending well. Make `stop_within_ms` at least twice `stop_drain_ms`",
+            "stop-shorter-than-the-daemons-own",
         );
     }
 }

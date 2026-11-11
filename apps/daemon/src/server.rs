@@ -633,20 +633,11 @@ mod tests {
 
     use super::{Named, Server};
 
-    /// A world file as an installer writes one: `realm`, `person` and the
-    /// entities every policy case is about.
+    /// A world file as an installer writes one, read: the one every suite's
+    /// install copies in.
     fn a_world() -> nc_authz::LocalWorld {
-        let mut fields = std::collections::BTreeMap::new();
-        fields.insert("realm".to_owned(), Value::text("home"));
-        fields.insert("person".to_owned(), Value::text("ana"));
-        fields.insert(
-            "world".to_owned(),
-            nc_canon::parse(include_str!("../../../policy/world.json"))
-                .expect("the policy world is JSON"),
-        );
         let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
-        nc_authz::LocalWorld::parse(&Value::Object(fields).to_canonical(), &pdp)
-            .expect("the world reads")
+        nc_authz::LocalWorld::parse(&crate::testing::a_world(), &pdp).expect("the world reads")
     }
 
     /// A server for a daemon of `channel` that never bound an endpoint, its
