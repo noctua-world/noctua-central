@@ -2147,7 +2147,9 @@ header gives, the endpoint served, and a stop.
   while the stop drains is told the daemon is stopping — a stop asked again answered
   `stopping`, a status saying so, a dispatch refused (`NC-DMN-0010`) — so a stop asked
   again, a restart's or a reinstall's, waits for the daemon as the first did and signals
-  nothing, and one asked once the record is gone finds a daemon stopped. A stop asked
+  nothing, and one asked once the record is gone finds a daemon stopped — on Windows, once
+  no connection the daemon still serves holds its pipe (**What is deliberately not
+  claimed**). A stop asked
   while the start is under way waits for the connections alike.
 - **A restorer's start honours a stop.** `noctua-daemon --restored`, the entry every
   restorer starts it by, reads the `stopped` mark before anything else of the profile —
@@ -2439,7 +2441,8 @@ is installed.
   its record at the end of its own stop and lets its endpoint go only after, so one whose
   record went since it was read is ending a stop asked before, and is waited for as one
   that answered. A record missing or naming a process that runs no more is a daemon stopped
-  (exit 0) while nothing holds its endpoint; something that holds it and does not answer,
+  (exit 0) while nothing holds its endpoint — on Windows, a process the CLI may open
+  (**What is deliberately not claimed**); something that holds it and does not answer,
   with no record to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and
   a record naming another process — another executable, another user — or one that does not
   read is never signalled (`NC-CLI-0009`, exit 11). **A process gone is judged before
@@ -3388,6 +3391,22 @@ rather than anything decided for the project, and each is a maintainer's to reop
   default — after which the daemon starts at the first login and not at boot; where the
   option is `null` by default, a configuration that leaves it unset keeps lingering as
   `loginctl` left it.
+- **Review alone keeps lingering from the tests**: `nc_platform::service::Registrar::linger`
+  is public and no gate counts its callers, so a test that called it would enable lingering
+  on the machine `check` runs on and still pass; its one caller is `cargo xtask dev --install`,
+  through `lingering_asked` in `xtask/src/dev.rs`.
+- **Review alone wires `dev --install`**: no test runs the verb, so one that asked logind
+  without `lingering_asked`, or built its plan without `nc_cli::install::development_plan`,
+  would pass `check`; the tests hold the two functions, not that the verb calls them.
+- **No test runs the reload that lets a real install's unit go**: no test may reload the
+  user's manager, so it rests on the one measurement with systemd 260 and on the unit tests
+  of what is reloaded and when (`to_let_go`, `wanted_once_gone` in
+  `crates/nc-platform/src/service.rs`); a systemd that kept the unit after that reload would
+  fail `cargo xtask dev --uninstall` with the name still registered.
+- **A start at login is read back on systemd alone**: the link `default.target` wants is
+  read from the disk, while a launch agent's start at login rests on the folder
+  `Manager::loaded_at_login` names and a task's on the logon trigger in its XML, each held by
+  unit tests; no run logs in to see either start.
 - **An install keeps a person's stop by the mark alone**: the mark is what tells a stop
   asked for from a daemon the install found stopped, so a profile whose mark someone
   removed by hand is started by the next install.
@@ -3436,6 +3455,21 @@ rather than anything decided for the project, and each is a maintainer's to reop
   instance lock still refuses a second daemon. Reading a process's start with no handle
   on it is `NtQuerySystemInformation`, in a windows-sys feature
   (`Wdk_System_SystemInformation`) outside the ones decided for this tree.
+- **On Windows no end is read through a handle that may only query**: a daemon of this
+  user's that the CLI may not open — one running at a higher integrity level than the CLI —
+  is not read as ended while anything still holds its process, so a stop that meets it
+  ended, with nothing at its endpoint, ends in `NC-CLI-0009` (exit 11) rather than as a
+  daemon stopped. A start, which waits on the instance lock, is unaffected.
+- **On Windows a stopping daemon's last connections keep its pipe busy**: once its record
+  is removed the daemon accepts no more, and a connection it still serves holds the pipe's
+  one instance, so a stop asked then waits two seconds for an instance and ends in
+  `NC-CLI-0009` (exit 11), instead of finding the daemon stopped, for as long as that
+  connection lasts.
+- **Only the dead-code lint holds the Linux refusal of a pidfd as a failure**: the test of
+  `no_handle`, in `crates/nc-platform/src/process.rs`, calls it directly, so a call site that
+  stopped sending a refused `pidfd_open` through it would pass every test and every operator
+  in `xtask/mutants.py`, and only clippy, which `check` runs with warnings denied, would see
+  the function go unused.
 - **A start that gave up leaves its daemon running**: one that does not answer within
   `start_within_ms` is reported as a start that failed and is not ended, since what it is
   doing is its own to say; `stop` ends it.
