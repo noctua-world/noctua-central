@@ -77,9 +77,11 @@ listening there, or one below 1024, which a user without the privilege may not b
 
 **This checkout as a channel you run.** `cargo xtask dev --install` installs the
 checkout as its development channel, on Linux, macOS and Windows alike, stack or no
-stack: it builds the CLI, the daemon and the plugins, copies them out of the target
-directory cargo built them in — `target/`, or wherever `CARGO_TARGET_DIR` or
-`build.target-dir` puts it — into the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
+stack: it builds the CLI, the daemon and the plugins, copies the CLI and the daemon out of
+the target directory cargo built them in — `target/`, or wherever `CARGO_TARGET_DIR` or
+`build.target-dir` puts it — and the plugins out of the checkout's own `target/`, from its
+`plugins` folder, where the plugin build writes them whatever the environment says, into
+the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
 `%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
 (`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
 install left running first — once it has reached your service manager: run from an

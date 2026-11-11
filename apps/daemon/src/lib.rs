@@ -54,11 +54,12 @@
 //! # What it does not
 //!
 //! A process running as the same user, which can rewrite the manifest, the
-//! world or the mark, delete the mark so a start resumes from the journal
-//! alone, read the token and speak for anybody, or install a plugin — every
-//! dispatch is the kernel's to decide, whoever asked; and a disk that answers a
-//! sync before the bytes are on it. A daemon killed leaves its PID record, its
-//! token and its socket for the next start to replace.
+//! world or the mark, delete the mark so a start resumes from the local
+//! database alone — the newest unit its journal names, or a reversal's its
+//! store committed — read the token and speak for anybody, or install a
+//! plugin — every dispatch is the kernel's to decide, whoever asked; and a
+//! disk that answers a sync before the bytes are on it. A daemon killed leaves
+//! its PID record, its token and its socket for the next start to replace.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a

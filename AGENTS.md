@@ -358,9 +358,11 @@ prints. `POSTGRES_PORT` and `LOGS_PORT` move a port.
 
 `cargo xtask dev --install` installs this checkout as its development channel, on every
 system and with or without the stack: it builds the CLI, the daemon and the plugins and
-copies them out of the target directory cargo built them in — wherever `CARGO_TARGET_DIR`
-or `build.target-dir` puts it — into the install the base directories name, with the
-manifest, the device, the test world and the plugins (`nc_cli::install`), stopping the
+copies them into the install the base directories name — the CLI and the daemon out of
+the target directory cargo built them in, wherever `CARGO_TARGET_DIR` or
+`build.target-dir` puts it, and the plugins out of the checkout's own `target/`, from its
+`plugins` folder, where the plugin build writes them whatever the environment says — with
+the manifest, the device and the test world (`nc_cli::install`), stopping the
 daemon an earlier install runs first — once it has found the service manager and asked
 whether it holds the earlier restorer: from an environment that does not reach it, it stops
 nothing and installs nothing. It registers the daemon with the system's service
@@ -2069,7 +2071,8 @@ unit tests the operators run — and by the operators over those sources in
 `xtask/mutants.py`, each judged by its own module's unit tests.
 
 **Not answered:** a process running as the same user, which can rewrite the manifest, the
-world or the mark, or delete the mark so that a start resumes from the local journal alone;
+world or the mark, or delete the mark so that a start resumes from the local database
+alone — the newest unit its journal names, or a reversal's its store committed;
 a slot spoiled after it answered, which reads as a torn one and falls back to the older
 ceiling; a crash inside the mark's very first write, which leaves a file with neither
 slot whole, so the profile does not start until it is removed by hand; a crash inside the
