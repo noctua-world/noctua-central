@@ -544,13 +544,19 @@ fn stands_aside(runs_the_stack: bool) -> bool {
 /// the binaries never read them (`NOCTUA.md §17.1`). The CLI and the daemon are
 /// built, and the plugins, then copied out of `target/` by `nc_cli::install`,
 /// with the test world and its grant (`policy/world.json`); a daemon an earlier
-/// install runs is stopped first. **No autostart is registered and `PATH` is
-/// not changed**: the CLI is at the path this prints.
+/// install runs is stopped first. **The daemon is registered with this
+/// system's service manager** as `noctua-daemon --restored`, restored when it
+/// dies and started at each login, and started through it unless the profile
+/// carried the `stopped` mark — `NOCTUA.md §17.3`. **On Linux, lingering** is
+/// what starts it at boot rather than at the first login: kept where logind
+/// keeps it, enabled where it lets this user, and otherwise the command and
+/// the NixOS option that enable it are printed. `PATH` is not changed: the
+/// CLI is at the path this prints.
 ///
 /// # Errors
 ///
-/// Returns what did not finish: the environment, the build, or the
-/// install.
+/// Returns what did not finish: the environment, the build, the install,
+/// the registration or the start.
 pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
     if uninstall {
         ui::heading("dev --uninstall");
@@ -565,20 +571,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         nc_cli::install::development(root, &|name: &str| std::env::var_os(name), Some(log_store))
             .map_err(|unmade| unmade.to_string())?;
     if uninstall {
-        match nc_cli::install::uninstall(&install).map_err(|unmade| unmade.to_string())? {
-            None => ui::ok("nothing was installed for this checkout, so nothing was removed"),
-            Some(layout) => {
-                ui::ok(&format!("{} is uninstalled", layout.cli));
-                ui::detail(&format!(
-                    "its profile is kept under `{}`, `{}` and `{}`, so an install made again \
-                     is the same device with the same data",
-                    layout.data.display(),
-                    layout.config.display(),
-                    layout.state.display()
-                ));
-            }
-        }
-        return Ok(());
+        return uninstalled(&install);
     }
     crate::check::cargo(
         root,
@@ -615,12 +608,12 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
             ));
         }
     }
-    let plan = nc_cli::install::Plan {
+    let plan = nc_cli::install::development_plan(
         install,
-        cli: &cli,
-        daemon: &daemon,
-        world: &world,
-        plugins: sources
+        &cli,
+        &daemon,
+        &world,
+        sources
             .iter()
             .map(|(name, manifest, component)| nc_cli::install::Plugin {
                 name,
@@ -628,8 +621,53 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
                 component,
             })
             .collect(),
-    };
+    );
     let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
+    said_installed(&installed)
+}
+
+/// Removes this checkout's development install, `install`, and says what
+/// was removed: `dev --uninstall`.
+///
+/// # Errors
+///
+/// Returns what did not finish: the stop, the restorer, or removing the
+/// files.
+fn uninstalled(install: &nc_channel::Install) -> Result<(), String> {
+    match nc_cli::install::uninstall(install).map_err(|unmade| unmade.to_string())? {
+        None => ui::ok("nothing was installed for this checkout, so nothing was removed"),
+        Some(nc_cli::install::Uninstalled {
+            layout,
+            unregistered,
+        }) => {
+            ui::ok(&format!("{} is uninstalled", layout.cli));
+            if let Some(name) = unregistered {
+                ui::detail(&format!(
+                    "its restorer, `{name}`, is unregistered from this system's service \
+                     manager"
+                ));
+            }
+            ui::detail(&format!(
+                "its profile is kept under `{}`, `{}` and `{}`, so an install made again \
+                 is the same device with the same data",
+                layout.data.display(),
+                layout.config.display(),
+                layout.state.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// What `dev --install` says of the install it made, `installed`: its CLI,
+/// its restorer and its start, and — for a real install on Linux — lingering,
+/// which it enables where logind lets it.
+///
+/// # Errors
+///
+/// Returns what did not finish: finding the service manager, or asking
+/// logind.
+fn said_installed(installed: &nc_cli::install::Installed) -> Result<(), String> {
     ui::gap();
     if let Some(stopped) = &installed.stopped {
         ui::detail(&format!(
@@ -642,13 +680,94 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
         installed.cli.display()
     ));
+    let cli = installed.cli.display();
+    if let Some(registered) = &installed.registered {
+        ui::ok(&format!(
+            "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
+            registered.manager,
+            registered.name,
+            registered.kept_in.display()
+        ));
+        match &registered.started {
+            Some(started) => ui::detail(started.trim_end()),
+            None => ui::detail(&format!(
+                "its profile carried the `stopped` mark before this install, so the daemon \
+                 stays down: `{cli} start` starts it"
+            )),
+        }
+    }
+    let lingering = lingering_asked(&installed.found.install, || {
+        nc_platform::service::Registrar::for_user(&installed.found.user)
+            .and_then(|registrar| registrar.linger())
+            .map_err(|error| error.to_string())
+    })?;
+    if let Some(lingering) = lingering {
+        let name = std::env::var("USER").unwrap_or_else(|_| "<your user name>".to_owned());
+        match lingering_said(&lingering, &name) {
+            Some(Said::Done(said)) => ui::ok(&said),
+            Some(Said::ToDo(said)) => ui::warn(&said),
+            None => {}
+        }
+    }
     ui::detail(&format!(
-        "its daemon is not started and nothing restores it yet: `{} start` starts it, and \
-         `{} help` lists every command once it runs",
-        installed.cli.display(),
-        installed.cli.display()
+        "`{cli} stop` stops the daemon and keeps it down, whatever restores it, until \
+         `{cli} start`; `{cli} help` lists every command"
     ));
     Ok(())
+}
+
+/// What logind answers of lingering for `install`, asked through `ask`.
+///
+/// **Asked for a real install alone**: a relocated install is a test's, whose
+/// restorer lasts this boot or this login alone, and lingering is the
+/// machine's, so `ask` is never called for one.
+fn lingering_asked<E>(
+    install: &nc_channel::Install,
+    ask: impl FnOnce() -> Result<nc_platform::service::Lingering, E>,
+) -> Result<Option<nc_platform::service::Lingering>, E> {
+    if install.namespace.is_none() {
+        ask().map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+/// What `dev --install` says of lingering: done, or for its user to do.
+#[derive(Debug, PartialEq, Eq)]
+enum Said {
+    /// Nothing is left to do.
+    Done(String),
+    /// What its user runs, or configures, to have it.
+    ToDo(String),
+}
+
+/// What `dev --install` says once logind answered `lingering`, for the
+/// user `name`: nothing on a system with no lingering, that it is kept or
+/// was enabled, or **the exact command and the NixOS option** that enable it.
+///
+/// **Never enabled by a test**: lingering is the machine's, and this is the
+/// one thing that asks for it, after the install it is for.
+fn lingering_said(lingering: &nc_platform::service::Lingering, name: &str) -> Option<Said> {
+    use nc_platform::service::Lingering;
+    let option = format!("`users.users.{name}.linger = true;`");
+    match lingering {
+        Lingering::NotApplicable => None,
+        Lingering::Already => Some(Said::Done(
+            "logind keeps your user manager from boot on (lingering), so the daemon starts \
+             with the computer"
+                .to_owned(),
+        )),
+        Lingering::Enabled => Some(Said::Done(format!(
+            "lingering is enabled for {name}, so the daemon starts with the computer; a NixOS \
+             configuration that sets `users.users.{name}.linger = false;` takes it away at each \
+             switch, and {option} declares it"
+        ))),
+        Lingering::Refused(said) => Some(Said::ToDo(format!(
+            "lingering is not enabled, so the daemon starts at your first login and not at \
+             boot: run `loginctl enable-linger {name}`, or `sudo loginctl enable-linger {name}` \
+             where logind refuses you, or on NixOS set {option} — logind said {said}"
+        ))),
+    }
 }
 
 /// Brings the stack up, or takes it down with its volumes — on Linux. Elsewhere
@@ -1449,6 +1568,101 @@ fn unavailable(error: &std::io::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// Lingering is said as done where logind keeps it or enabled it, and
+    /// otherwise as the exact command and the NixOS option that enable it;
+    /// a system with no lingering says nothing of it.
+    ///
+    /// No test enables it: these are logind's answers, as `dev --install`
+    /// reads them.
+    #[test]
+    fn lingering_is_said_as_done_or_as_the_command_and_the_option_that_do_it() {
+        use nc_platform::service::Lingering;
+        assert_eq!(
+            super::lingering_said(&Lingering::NotApplicable, "ana"),
+            None
+        );
+        for done in [Lingering::Already, Lingering::Enabled] {
+            assert!(
+                matches!(
+                    super::lingering_said(&done, "ana"),
+                    Some(super::Said::Done(_))
+                ),
+                "{done:?}"
+            );
+        }
+        let Some(super::Said::Done(enabled)) = super::lingering_said(&Lingering::Enabled, "ana")
+        else {
+            panic!("enabled lingering is not done");
+        };
+        for named in [
+            "`users.users.ana.linger = true;`",
+            "`users.users.ana.linger = false;`",
+        ] {
+            assert!(enabled.contains(named), "{named} is not said: {enabled}");
+        }
+        let refused = Lingering::Refused("`loginctl enable-linger 1000` refused".to_owned());
+        let Some(super::Said::ToDo(said)) = super::lingering_said(&refused, "ana") else {
+            panic!("refused lingering is not left to its user");
+        };
+        for named in [
+            "`loginctl enable-linger ana`",
+            "`sudo loginctl enable-linger ana`",
+            "`users.users.ana.linger = true;`",
+            "refused",
+        ] {
+            assert!(said.contains(named), "{named} is not said: {said}");
+        }
+    }
+
+    /// Lingering is asked for a real install, and never for a relocated one.
+    ///
+    /// A relocated install is a test's, and lingering is the machine's: logind
+    /// is not asked, so nothing a test installs can enable it.
+    #[test]
+    fn lingering_is_asked_for_a_real_install_and_never_for_a_relocated_one() {
+        use nc_platform::service::Lingering;
+        // Nothing is written: the bases are only named.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let base = |name: &str| root.join("home").join(name);
+        let relocated = nc_channel::Install {
+            channel: nc_channel::Channel::Development(nc_channel::Checkout::of(root)),
+            bases: nc_channel::Bases::new(base("d"), base("c"), base("k"), base("s"))
+                .expect("plain absolute bases"),
+            namespace: Some(nc_channel::Namespace::parse("tl1").expect("a namespace")),
+            log_endpoint: None,
+        };
+        let real = nc_channel::Install {
+            namespace: None,
+            ..relocated.clone()
+        };
+        let asked = std::cell::Cell::new(0_u8);
+        assert_eq!(
+            super::lingering_asked(&real, || {
+                asked.set(asked.get() + 1);
+                Ok::<_, String>(Lingering::Already)
+            }),
+            Ok(Some(Lingering::Already))
+        );
+        assert_eq!(asked.get(), 1, "a real install did not ask logind once");
+        assert_eq!(
+            super::lingering_asked(&relocated, || {
+                asked.set(asked.get() + 1);
+                Ok::<_, String>(Lingering::Enabled)
+            }),
+            Ok(None)
+        );
+        assert_eq!(
+            asked.get(),
+            1,
+            "a test's install asked logind for lingering"
+        );
+        assert_eq!(
+            super::lingering_asked(&real, || Err::<Lingering, _>("no `loginctl`".to_owned())),
+            Err("no `loginctl`".to_owned()),
+            "logind's refusal to answer was not the install's"
+        );
+    }
+
     /// Where no stack runs, the verb says so and goes no further; where one
     /// does, it says nothing and carries on.
     #[test]

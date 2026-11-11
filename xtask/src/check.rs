@@ -7756,7 +7756,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 48] = [
+const SUITES: [(&str, &str); 49] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7773,6 +7773,7 @@ const SUITES: [(&str, &str); 48] = [
     // A child of the test binary killed while it mints behind the real mark,
     // and a start from what it left with the clock moved back.
     ("nc-daemon", "the_mark_survives_a_crash.rs"),
+    ("nc-daemon", "the_stop_mark_silences_every_restorer.rs"),
     // A real daemon handed connections that do not prove the token.
     ("nc-daemon", "ipc_refusals.rs"),
     // A real daemon serving its kernel, its schedule and its stop.
@@ -7964,7 +7965,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1067] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1069] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7973,6 +7974,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1067] = [
     "`uses: {used}` is pinned with no release beside it",
     "`{RELEASE_WORKFLOW}` is missing",
     "`{WORKFLOWS}/` could not be walked: {error}",
+    "`{cli} stop` stops the daemon and keeps it down, whatever restores it, until `{cli} start`; `{cli} help` lists every command",
     "`{file}` could not be read: {error}",
     "`{file}` does not open with `permissions: {{}}`",
     "`{file}` opens with `permissions: {value}`",
@@ -7991,8 +7993,9 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1067] = [
     "as `<<`, which merges a mapping anchored elsewhere",
     "as an alias of a word anchored elsewhere",
     "enters an environment",
-    "its daemon is not started and nothing restores it yet: `{} start` starts it, and `{} help` lists every command once it runs",
+    "its profile carried the `stopped` mark before this install, so the daemon stays down: `{cli} start` starts it",
     "its profile is kept under `{}`, `{}` and `{}`, so an install made again is the same device with the same data",
+    "its restorer, `{name}`, is unregistered from this system's service manager",
     "mints the release App's token",
     "no action was read from CI's files, so nothing checked that each is pinned to a commit",
     "publishes a release",
@@ -11238,7 +11241,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 732] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 738] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11984,6 +11987,16 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 732] = [
     "{EDIT}, and its title is the subject the history keeps",
     "{fix}. Nothing written here credits an agent (`NOCTUA.md §2.6`): the author of a change is the person who asked for it",
     "{} commit(s) reachable from {}, each with a conventional subject and no agent credit{}; {} blob(s), none above {} byte(s) but the {} at a path listed for it",
+    // What `dev --install` says of the restorer it registered and of
+    // lingering, which it enables where logind lets it or leaves to its user
+    // as the command and the NixOS option that enable it, and the name it
+    // writes there when the environment names no user.
+    "<your user name>",
+    "`users.users.{name}.linger = true;`",
+    "lingering is enabled for {name}, so the daemon starts with the computer; a NixOS configuration that sets `users.users.{name}.linger = false;` takes it away at each switch, and {option} declares it",
+    "lingering is not enabled, so the daemon starts at your first login and not at boot: run `loginctl enable-linger {name}`, or `sudo loginctl enable-linger {name}` where logind refuses you, or on NixOS set {option} — logind said {said}",
+    "logind keeps your user manager from boot on (lingering), so the daemon starts with the computer",
+    "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -17412,7 +17425,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
         ("nc-cli", 3),
-        ("nc-daemon", 10),
+        ("nc-daemon", 11),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19442,14 +19455,14 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 197] = [
+    const DOCUMENTED: [(&str, usize, usize); 198] = [
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 57, 13),
+        ("cli/control.rs", 61, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
-        ("cli/install.rs", 35, 8),
+        ("cli/install.rs", 65, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
@@ -19474,6 +19487,7 @@ mod the_frozen_path_rule {
         ("daemon/testing.rs", 32, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
         ("nc-authz/directory.rs", 41, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19593,8 +19607,8 @@ mod the_frozen_path_rule {
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/lib.rs", 93, 22),
-        ("nc-platform/process.rs", 42, 15),
-        ("nc-platform/service.rs", 155, 18),
+        ("nc-platform/process.rs", 44, 15),
+        ("nc-platform/service.rs", 178, 21),
         ("nc-platform/testing.rs", 34, 4),
         ("nc-platform/unix.rs", 99, 4),
         ("nc-platform/windows.rs", 141, 13),
@@ -19623,7 +19637,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 74, 8),
+        ("xtask/dev.rs", 81, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 250, 33),
@@ -22426,8 +22440,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 699 scratches this tree
-    /// builds, 612 of the 699 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 708 scratches this tree
+    /// builds, 620 of the 708 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22488,15 +22502,15 @@ mod the_frozen_path_rule {
     /// the tests that want it.
     ///
     /// The count and not the list, for the reason [`OPENS_AN_ITEM`] gives:
-    /// naming all 87 is a list nobody reads, and 87 tests would have to grow a
+    /// naming all 88 is a list nobody reads, and 88 tests would have to grow a
     /// guard for the gap to close. Two numbers per file is what makes a swap
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 55] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 12, 12),
-        ("cli/install.rs", 7, 7),
+        ("cli/install.rs", 13, 13),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -22509,6 +22523,7 @@ mod the_frozen_path_rule {
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 168, 168),
         (
@@ -22530,7 +22545,7 @@ mod the_frozen_path_rule {
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 28, 28),
         ("nc-platform/process.rs", 2, 2),
-        ("nc-platform/service.rs", 6, 6),
+        ("nc-platform/service.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -23162,7 +23177,8 @@ mod the_frozen_path_rule {
     /// is the one thing it exists for, which is point at the site. Measured by
     /// renaming the leaking test and watching such a list stand still.
     #[cfg(test)]
-    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 87] = [
+    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 88] = [
+        ("daemon/the_stop_mark_silences_every_restorer.rs", "root_of"),
         ("nc-catalog-compiler/ledger.rs", "scratch"),
         (
             "xtask/check.rs",
@@ -25493,7 +25509,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17979;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18180;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25512,7 +25528,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4590;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4685;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25529,7 +25545,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1545;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1578;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25563,7 +25579,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24465;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24772;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25617,7 +25633,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,465 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,772 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25650,7 +25666,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1545 of
+    /// this tree offers, **1578 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28152,7 +28168,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 732;
+    const THE_REST_IT_SAYS: usize = 738;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28300,7 +28316,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 503] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 506] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29419,16 +29435,20 @@ mod the_frozen_path_rule {
         ),
         ("if uninstall", "dev --uninstall"),
         ("else", "dev --install"),
+        ("—", "the CLI and the daemon are built"),
         (
             "—",
             "nothing was installed for this checkout, so nothing was removed",
         ),
-        ("Some(layout) =>", "{} is uninstalled"),
+        ("}) =>", "{} is uninstalled"),
         (
-            "Some(layout) =>",
+            "if let Some(name) = unregistered",
+            "its restorer, `{name}`, is unregistered from this system's service manager",
+        ),
+        (
+            "}) =>",
             "its profile is kept under `{}`, `{}` and `{}`, so an install made again is the same device with the same data",
         ),
-        ("—", "the CLI and the daemon are built"),
         (
             "if let Some(stopped) = &installed.stopped",
             "the daemon the earlier install ran was stopped first: {}",
@@ -29439,8 +29459,16 @@ mod the_frozen_path_rule {
             "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
         ),
         (
+            "if let Some(registered) = &installed.registered",
+            "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
+        ),
+        (
             "—",
-            "its daemon is not started and nothing restores it yet: `{} start` starts it, and `{} help` lists every command once it runs",
+            "its profile carried the `stopped` mark before this install, so the daemon stays down: `{cli} start` starts it",
+        ),
+        (
+            "—",
+            "`{cli} stop` stops the daemon and keeps it down, whatever restores it, until `{cli} start`; `{cli} help` lists every command",
         ),
         ("—", "dev"),
         (
@@ -29847,7 +29875,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 115] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 118] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -30056,6 +30084,9 @@ mod the_frozen_path_rule {
             "if applied == 0",
             "// `now`, the rows, not `count`, the files on disk — the",
         ),
+        ("—", "started.trim_end("),
+        ("—", "&said"),
+        ("—", "&said"),
         ("—", "&page.path"),
         ("Err(error) =>", "&error"),
         ("—", "&what_was_built(built"),
@@ -34180,7 +34211,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 55] = [
+    const NOT_MUTATED: [(&str, &str); 56] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34327,6 +34358,17 @@ mod the_meta_gate {
              `control.rs` and `lib.rs` of `nc-platform` is decided by those modules' \
              unit tests, which the runner's commands for them run, and a weakening of \
              this file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/the_stop_mark_silences_every_restorer.rs",
+            "a suite: this checkout's development install registered with the \
+             system's own service manager, killed, stopped and marked, and read \
+             back through the manager's counters. It spawns a process, so no \
+             mutation command runs it: what it drives in `install.rs` and \
+             `control.rs` and in `nc-platform`'s `service.rs` is decided by those \
+             modules' unit tests, which the runner's commands for them run, and a \
+             weakening of this file would remove evidence rather than uncover an \
+             undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -35211,7 +35253,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 13] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 14] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35263,6 +35305,10 @@ mod the_meta_gate {
         ),
         (
             "apps/daemon/tests/channels_side_by_side.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/daemon/tests/the_stop_mark_silences_every_restorer.rs",
             SPAWNS_A_PROCESS,
         ),
     ];
@@ -37441,7 +37487,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 211,
+            walked, 212,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37481,7 +37527,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2088] = [
+    static OPERATORS: [(&str, &str, &str); 2120] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46648,12 +46694,12 @@ Options:
         ),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
             "the world handed to the daemon is removed",
         ),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
             "an earlier install's daemon is stopped first",
         ),
         (
@@ -46661,7 +46707,11 @@ Options:
             "development",
             "a relocated install names no central log",
         ),
-        ("cli_install", "uninstall", "an uninstall keeps the profile"),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall keeps the profile",
+        ),
         (
             "cli_install",
             "development_world",
@@ -46714,10 +46764,14 @@ Options:
             "listening_after",
             "nothing answering is told from something holding the endpoint",
         ),
-        ("cli_install", "install_with", "the CLI is copied runnable"),
         (
             "cli_install",
-            "install_with",
+            "install_restored_by",
+            "the CLI is copied runnable",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
             "the daemon is copied runnable",
         ),
         (
@@ -46727,7 +46781,7 @@ Options:
         ),
         (
             "cli_install",
-            "uninstall",
+            "uninstall_restored_by",
             "an uninstall stops the daemon first",
         ),
         (
@@ -46789,6 +46843,166 @@ Options:
             "cli_control",
             "tail_of",
             "a failed start says so when its daemon wrote nothing",
+        ),
+        (
+            "platform_process",
+            "unread",
+            "a process this user may not read is not its daemon",
+        ),
+        (
+            "platform_service",
+            "loaded_at_login",
+            "a unit read at login is under the configuration's systemd/user",
+        ),
+        (
+            "platform_service",
+            "loaded_at_login",
+            "an agent read at login is in LaunchAgents beside Preferences",
+        ),
+        (
+            "platform_service",
+            "ended_well",
+            "systemd says only that a unit failed",
+        ),
+        (
+            "platform_service",
+            "ended_well",
+            "a task's last result is an end only once nothing runs",
+        ),
+        (
+            "platform_service",
+            "from_launchctl_print",
+            "launchd's last exit code is read",
+        ),
+        (
+            "platform_service",
+            "linger",
+            "a manager with no lingering is not asked for it",
+        ),
+        (
+            "platform_service",
+            "on_systemds_links",
+            "a unit is linked and unlinked without a reload",
+        ),
+        (
+            "platform_service",
+            "on_systemds_links",
+            "a unit in the runtime directory is linked there",
+        ),
+        (
+            "platform_service",
+            "to_stop",
+            "an unregistration takes away the unit's links first",
+        ),
+        (
+            "platform_service",
+            "lingered",
+            "lingering already kept is never asked for again",
+        ),
+        (
+            "platform_service",
+            "lingered",
+            "a refusal of logind's is no lingering",
+        ),
+        (
+            "cli_control",
+            "starts_through",
+            "a start goes through the manager only where it holds the restorer",
+        ),
+        (
+            "cli_install",
+            "restorer_name",
+            "launchd knows the daemon by the agent's label",
+        ),
+        (
+            "cli_install",
+            "kept_in",
+            "a test's unit is kept in the runtime directory alone",
+        ),
+        (
+            "cli_install",
+            "kept_in",
+            "a real restorer is kept where its manager reads it at login",
+        ),
+        (
+            "cli_install",
+            "started_once_registered",
+            "an install keeps a person's stop",
+        ),
+        (
+            "dev",
+            "lingering_said",
+            "a refused lingering is said as the command that enables it",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit nothing wants is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit not loaded is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit that runs is never still wanted",
+        ),
+        (
+            "platform_service",
+            "wanted_once_gone",
+            "a unit whose file is there is never still wanted",
+        ),
+        (
+            "platform_service",
+            "to_let_go",
+            "a test's unit is never reloaded away",
+        ),
+        (
+            "platform_service",
+            "to_let_go",
+            "only systemd's units are reloaded away",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "a reinstall lets the earlier restorer go before a binary is replaced",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "a reinstall reads the mark before its own stop",
+        ),
+        (
+            "cli_install",
+            "development_plan",
+            "a development plan registers its restorer",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall reaches its manager before it stops anything",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall asks its manager before it stops anything",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "an install reaches its manager before it stops anything",
+        ),
+        (
+            "dev",
+            "lingering_asked",
+            "a relocated install never asks for lingering",
+        ),
+        (
+            "dev",
+            "lingering_asked",
+            "a real install asks for lingering",
         ),
     ];
 

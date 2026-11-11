@@ -25,7 +25,7 @@
 //! |---|---|---|
 //! | Linux | a pidfd, opened first | `/proc/<pid>/stat` field 22 and its state, the boot's id, `/proc/<pid>/exe` and the owner of `/proc/<pid>`, then the pidfd asked again which process it holds |
 //! | macOS | the process id | `/bin/ps -o uid=,lstart=,comm=` in the C locale and UTC, its state, and the boot's session, read again before each signal |
-//! | Windows | one process handle | its creation time, its image's path and its token's user; a process this user may not hold is read through a handle that may only query it, and is never held; one it may not even query is refused |
+//! | Windows | one process handle | its creation time, its image's path and its token's user; a process this user may not hold is read through a handle that may only query it, and is never held; one it may not even query is not its daemon, and runs no more for the record |
 //!
 //! **A signal goes through what was verified**: a Linux pidfd names one
 //! process for as long as it is open, so a process id handed out again after
@@ -115,12 +115,12 @@ pub enum Unverified {
     /// The process the record names runs no more; the text says why.
     ///
     /// No process holds its id, the one that holds it started at another time
-    /// or in another boot, or it has ended.
+    /// or in another boot or is one this user may not read, or it has ended.
     Gone(String),
     /// A process holds the record's id and its start, and is not what it names.
     ///
     /// It runs another executable, or as another user, or is a process this
-    /// user may not ask about or may not signal; the text says which.
+    /// user may read and may not signal; the text says which.
     Other(String),
     /// The system could not be asked.
     Failed(std::io::Error),
@@ -151,7 +151,8 @@ impl Verified {
     ///
     /// # Errors
     ///
-    /// [`Unverified::Gone`] when no process the record names runs,
+    /// [`Unverified::Gone`] when no process the record names runs — a process
+    /// this user may not read among them, which is not its daemon —
     /// [`Unverified::Other`] for one that holds its id and is not it — and for
     /// process zero, which a signal reads as a whole group — and
     /// [`Unverified::Failed`] when the system could not be asked.
@@ -167,13 +168,7 @@ impl Verified {
                 held: held_to(record, &seen, held)?,
             }),
             Ok(None) => Err(Unverified::Gone(format!("no process {} runs", record.pid))),
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
-                Err(Unverified::Other(format!(
-                    "process {} is not one this user may ask about: {error}",
-                    record.pid
-                )))
-            }
-            Err(error) => Err(Unverified::Failed(error)),
+            Err(error) => Err(unread(record.pid, error)),
         }
     }
 
@@ -270,6 +265,24 @@ pub(crate) fn judged(record: &Identity, seen: &Seen) -> Result<(), Unverified> {
         ))),
         Some(_) => Ok(()),
     }
+}
+
+/// What a record naming process `pid` is, once the system refused to show
+/// that process with `error`.
+///
+/// **A process this user may not read is not its daemon**, which runs as this
+/// user: a refusal to read it is a record whose process runs no more, as one
+/// whose id no process holds is, and the next start writes its own. Anything
+/// else the system answered is a failure to ask. Neither is ever signalled,
+/// and a daemon read wrongly as gone still holds its profile's instance lock
+/// against a second.
+pub(crate) fn unread(pid: u32, error: std::io::Error) -> Unverified {
+    if error.kind() == std::io::ErrorKind::PermissionDenied {
+        return Unverified::Gone(format!(
+            "process {pid} is one this user may not read, so not this user's daemon ({error})"
+        ));
+    }
+    Unverified::Failed(error)
 }
 
 /// The process `record` names, `held` for a signal, once what the system says
@@ -471,7 +484,7 @@ mod tests {
 
     use super::{
         Identity, Seen, Unverified, Verified, held_to, judged, pid_in_fdinfo, seen_in_ps,
-        started_in_ps, started_in_stat, state_in_stat,
+        started_in_ps, started_in_stat, state_in_stat, unread,
     };
 
     /// How long a child of these tests is waited for at most.
@@ -790,6 +803,37 @@ mod tests {
             another.contains("`/bin/sleep`") && another.contains("noctua-daemon"),
             "{another}"
         );
+    }
+
+    /// A process this user may not read is not its daemon, and runs no more
+    /// for its record; any other refusal is a failure to ask.
+    ///
+    /// The system's refusal is the kind every system writes it as —
+    /// `ERROR_ACCESS_DENIED` on Windows, `EACCES` and `EPERM` on Unix — so the
+    /// decision is held here whatever system runs it.
+    #[test]
+    fn a_process_this_user_may_not_read_is_not_its_daemon() {
+        let refused = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        match unread(4242, refused) {
+            Unverified::Gone(why) => assert!(
+                why.contains("process 4242") && why.contains("may not read"),
+                "{why}"
+            ),
+            answered => panic!("a process this user may not read was answered {answered:?}"),
+        }
+        for kind in [
+            std::io::ErrorKind::NotFound,
+            std::io::ErrorKind::InvalidData,
+            std::io::ErrorKind::Other,
+        ] {
+            assert!(
+                matches!(
+                    unread(4242, std::io::Error::from(kind)),
+                    Unverified::Failed(_)
+                ),
+                "{kind:?} was read as an answer about the process"
+            );
+        }
     }
 
     /// A record of another start is gone whoever holds its id now.

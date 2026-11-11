@@ -21,23 +21,29 @@
 //! 4. **Only when it does not answer, a signal — and only through what was
 //!    verified**: asked to end, `kill_within_ms`, then killed, `kill_within_ms`
 //!    again. **Nothing unverified is signalled, and no process numbered zero
-//!    or below**: a record missing, or naming a process that runs no more, is
-//!    a daemon already stopped while nothing holds its endpoint; a record
-//!    naming another process — another executable, another user — or one
-//!    that cannot be read or asked about, and an endpoint something still
-//!    holds with no record to hold it to a process, are never signalled, and
-//!    the stop ends in exit 11 with `NC-CLI-0009`.
+//!    or below**: a record missing, or naming a process that runs no more —
+//!    or one this user may not read, which is not its daemon — is a daemon
+//!    already stopped while nothing holds its endpoint; a record naming
+//!    another process — another executable, another user — or one that does
+//!    not read, and an endpoint something still holds with no record to hold
+//!    it to a process, are never signalled, and the stop ends in exit 11 with
+//!    `NC-CLI-0009`.
 //!
 //! # A start
 //!
-//! It removes the mark, answers at once when a daemon already answers, and
-//! otherwise starts the install's own daemon, beside this CLI and never found
-//! on `PATH`, detached (`nc_platform::process::spawn_detached`) with its
-//! standard error written fresh into the profile's `daemon.err`; then it waits
-//! `start_within_ms` for that daemon to answer the handshake. One that ends
-//! first, or does not answer by then, is a start that failed (`NC-CLI-0007`),
-//! and what it wrote to its standard error is shown. **No service manager is
-//! asked yet**: a development install registers none.
+//! It removes the mark and answers at once when a daemon already answers.
+//! Otherwise, **where this system's service manager holds the install's
+//! restorer** (`cargo xtask dev --install` registers one), it asks that
+//! manager to start it — `noctua-daemon --restored`, as every restorer starts
+//! it — so the daemon it starts is one the manager restores; where the
+//! manager holds none, or there is none to ask, it starts the install's own
+//! daemon, beside this CLI and never found on `PATH`, detached
+//! (`nc_platform::process::spawn_detached`) with its standard error written
+//! fresh into the profile's `daemon.err`. Either way it waits
+//! `start_within_ms` for that daemon to answer the handshake. One that does
+//! not answer by then, or that a detached start sees end first, is a start
+//! that failed (`NC-CLI-0007`), with what it wrote to its standard error, or
+//! what its manager says of it.
 //!
 //! `restart` is a stop and then a start, the mark written and removed between
 //! them; `status` is the daemon's own, or, when nothing answers, what the PID
@@ -63,6 +69,7 @@ use nc_channel::record::{self, Record, Unread};
 use nc_ipc::{Answer, IpcError, Request};
 use nc_platform::ipc::Refused;
 use nc_platform::process::{Unverified, Verified};
+use nc_platform::service::Registrar;
 use nc_platform::{Judged, Kind, User};
 
 use crate::args::Control;
@@ -490,6 +497,9 @@ async fn start(found: &Found) -> Result<String, Failure> {
             connection.welcome().pid
         ));
     }
+    if let Some((registrar, name)) = restorer_of(found) {
+        return started_by(found, &registrar, &name).await;
+    }
     let daemon = layout.install.join(format!(
         "{}{}",
         layout.daemon,
@@ -519,6 +529,65 @@ async fn start(found: &Found) -> Result<String, Failure> {
                     "the daemon of {cli}, process {}, {how}; its standard error ends: {}",
                     detached.pid(),
                     tail_of(&layout.daemon_err)
+                ),
+            ));
+        }
+        tokio::time::sleep(BETWEEN_LOOKS).await;
+    }
+}
+
+/// The service manager holding the restorer of `found`'s install.
+///
+/// This system's manager, and the name it knows the daemon by, when it holds
+/// one; nothing otherwise.
+fn restorer_of(found: &Found) -> Option<(Registrar, String)> {
+    let registrar = Registrar::for_user(&found.user).ok()?;
+    let name = crate::install::restorer_name(&found.layout, registrar.manager()).to_owned();
+    starts_through(&registrar.is_registered(&name)).then_some((registrar, name))
+}
+
+/// Whether a start goes through the service manager, whose answer to whether
+/// it holds the install's restorer is `registered`.
+///
+/// **Only where it says it does.** One that holds none, or does not answer,
+/// restores nothing a start could hand it, so the start is a detached one —
+/// the one way the daemon then runs — and the instance lock refuses a second
+/// daemon whichever way the first was started.
+const fn starts_through(registered: &Result<bool, nc_platform::service::Error>) -> bool {
+    matches!(registered, Ok(true))
+}
+
+/// Starts the daemon of `found`'s install through its service manager.
+///
+/// `registrar` knows it as `name`; the start waits `start_within_ms` for it to
+/// answer.
+async fn started_by(found: &Found, registrar: &Registrar, name: &str) -> Result<String, Failure> {
+    let cli = &found.layout.cli;
+    let manager = registrar.manager();
+    registrar.start(name).map_err(|error| {
+        failed(
+            ErrorCode::CliDaemonDidNotStart,
+            format!("{manager} did not start the daemon of {cli}, `{name}`: {error}"),
+        )
+    })?;
+    let deadline = tokio::time::Instant::now() + start_within();
+    loop {
+        if let Ok(connection) = client::connect(found).await {
+            let running = running(connection, cli, deadline).await;
+            return Ok(format!(
+                "{running}{manager} started it, as `{name}`, and restores it if it dies.\n"
+            ));
+        }
+        if tokio::time::Instant::now() >= deadline {
+            let says = registrar
+                .counters(name)
+                .map_or_else(|error| error.to_string(), |counted| format!("{counted:?}"));
+            return Err(failed(
+                ErrorCode::CliDaemonDidNotStart,
+                format!(
+                    "the daemon of {cli}, started by {manager} as `{name}`, did not answer within \
+                     {} ms; {manager} says {says}",
+                    nc_catalog::DAEMON.start_within_ms
                 ),
             ));
         }
@@ -1259,6 +1328,26 @@ mod tests {
             stopped.is_file(),
             "a start followed a stop that did not finish"
         );
+    }
+
+    /// A start goes through the manager only where it holds the restorer, and
+    /// one that holds none, or does not answer, is a detached start.
+    #[test]
+    fn a_start_goes_through_the_manager_only_where_it_holds_the_restorer() {
+        assert!(super::starts_through(&Ok(true)));
+        assert!(!super::starts_through(&Ok(false)));
+        for unanswered in [
+            nc_platform::service::Error::NoTool("no `systemctl`".to_owned()),
+            nc_platform::service::Error::Refused {
+                asked: "systemctl --user show".to_owned(),
+                said: "Failed to connect to bus".to_owned(),
+            },
+        ] {
+            assert!(
+                !super::starts_through(&Err(unanswered)),
+                "a manager that did not answer was asked to start the daemon"
+            );
+        }
     }
 
     /// A start gives up at once on a daemon that ended before it answered,
