@@ -842,7 +842,9 @@ held by its tests, and by no gate over a signal sent another way.
     does end — by the tests of `crates/nc-platform/src/process.rs`, of
     `apps/cli/src/control.rs` and of `crates/nc-channel/src/record.rs`, by
     `a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go` in
-    `apps/daemon/src/run.rs`, which holds the order a stop asked again reads, and by the
+    `apps/daemon/src/run.rs`, which holds the order a stop asked again reads, by
+    `a_daemon_whose_record_went_while_a_stop_asked_it_is_waited_for_and_never_signalled`
+    in `apps/cli/src/control.rs`, which holds the stop's reading of it, and by the
     operators over those sources. **Not held**: macOS's moment between the last reading
     of a process and its signal; and a signal sent another way, which no gate reads the
     CLI's source for — every one this tree sends is a method of `Verified`, and
@@ -2542,8 +2544,9 @@ it, the mark written, kept, removed and
 refused, a stop nothing answers ending well over a record of a process gone and refusing
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
-over, and one nothing verified waited for until its endpoint and its record let it go, a
-stop something answers otherwise refused with no record or a record of a process gone, an
+over, and one nothing verified waited for until its endpoint and its record let it go, one
+whose record went while a stop asked it waited for through what verified it and never
+signalled, a stop something answers otherwise refused with no record or a record of a process gone, an
 endpoint no socket can have taken for nothing there, a stop and a status the daemon
 answers, a status with nothing answering, a start with no daemon beside it and one with a
 daemon running, a start that says its daemon runs only once its status says so, one that
