@@ -184,6 +184,7 @@ fn installed(
             daemon: Path::new(BINARY),
             world: &world,
             plugins: Vec::new(),
+            restorer: false,
         };
         let installed = nc_cli::install::install(&plan).expect("installed");
         running.0.push(installed.found);

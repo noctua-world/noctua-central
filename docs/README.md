@@ -28,13 +28,18 @@ detects it and says so.
   down twice. CI installs from the same file, with `rustup toolchain install` and
   no toolchain named, so no workflow names a toolchain of its own.
 - **Docker**, for the local stack — PostgreSQL and the central log store.
-- **A user service manager**, which the gate's own tests register a short-lived scratch
-  service with, under a name that carries this checkout, and remove: on Linux, systemd's,
-  running for your user, so that `systemctl --user` answers — the units are written only
-  in `$XDG_RUNTIME_DIR/systemd/user`; on macOS, a graphical login for the user running the
-  gate, whose launchd domain `gui/<uid>` the agent is bootstrapped into — a login over SSH
-  alone has none, and the gate fails there; on Windows, Task Scheduler, which is always
-  there.
+- **A user service manager**, which the gate's own tests register short-lived scratch
+  services and a relocated development daemon with, under names that carry this
+  checkout, and remove, and which `cargo xtask dev --install` registers your development
+  daemon with: on Linux, systemd's, running for your user, so that `systemctl --user`
+  answers — the tests write their units only in `$XDG_RUNTIME_DIR/systemd/user`; on
+  macOS, a graphical login for the user running the gate, whose launchd domain
+  `gui/<uid>` the agents are bootstrapped into — a login over SSH alone has none, and the
+  gate fails there; on Windows, Task Scheduler, which is always there. On Linux, for the
+  daemon to start at boot rather than at your first login, **lingering** for your user:
+  `cargo xtask dev --install` enables it where logind lets you, and otherwise prints the
+  command — `loginctl enable-linger <name>` — and, for NixOS, the option
+  `users.users.<name>.linger = true;`. No test enables it.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
 
@@ -74,11 +79,15 @@ stack: it builds the CLI, the daemon and the plugins, copies them out of `target
 the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
 `%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
 (`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
-install left running first. **It changes neither `PATH` nor anything that starts with
-the computer**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
+install left running first. **Then it registers the daemon with your service manager** —
+a systemd user unit in your configuration directory's `systemd` folder, a launch agent in
+your Library's `LaunchAgents`, a logon task — which restores it when it dies and starts it at
+each login, and starts it, unless you had stopped it before the install. **It does not
+change `PATH`**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
 it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
-`stop` stops it and keeps it down, `status` says how it is. `cargo xtask dev --uninstall`
-stops the daemon and removes the binaries, and keeps the profile.
+`stop` stops it and keeps it down whatever restores it, until `start`, and `status` says
+how it is. `cargo xtask dev --uninstall` stops the daemon, unregisters it from the
+service manager and removes the binaries, and keeps the profile.
 
 ## What the gate checks, and where
 

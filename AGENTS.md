@@ -360,11 +360,17 @@ prints. `POSTGRES_PORT` and `LOGS_PORT` move a port.
 system and with or without the stack: it builds the CLI, the daemon and the plugins and
 copies them out of `target/` into the install the base directories name, with the
 manifest, the device, the test world and the plugins (`nc_cli::install`), stopping the
-daemon an earlier install runs first. It registers no autostart and leaves `PATH` as it
-is: the CLI is `noctua-dev-<checkout>` at the path it prints. `--uninstall` stops the
-daemon and removes the binaries and the manifest, and keeps the profile. The
-environment is read then and never by a binary — the base directories and
-`NC_INSTALL_NAMESPACE`, which relocates the install as a test's.
+daemon an earlier install runs first. It registers the daemon with the system's service
+manager as `noctua-daemon --restored` — a systemd user unit, a launch agent, a logon task
+— restored when it dies and started at each login, and starts it through that manager
+unless the profile carried the `stopped` mark; on Linux it enables lingering where logind
+lets it, so the daemon starts at boot, and otherwise prints the command and the NixOS
+option that do. It leaves `PATH` as it is: the CLI is `noctua-dev-<checkout>` at the path
+it prints. `--uninstall` stops the daemon, unregisters its restorer and removes the
+binaries and the manifest, and keeps the profile. The environment is read then and never
+by a binary — the base directories and `NC_INSTALL_NAMESPACE`, which relocates the install
+as a test's, whose restorer is kept where the next boot or logout forgets it and which
+never asks for lingering.
 
 `cargo xtask check` judges the history too — every commit reachable from `HEAD` and every
 blob ever reachable ("The history says what each change is, credits no agent, and stays
@@ -455,6 +461,7 @@ fails a gate a minute or two later.
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
 | a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table |
+| a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's never where a login reads it — and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
 
 Two things are true of all of them:
 
@@ -2179,7 +2186,14 @@ someone else holds; one the manager took is registered whatever becomes of the c
 task's XML that Task Scheduler no longer reads, which `unregister` removes when it cannot
 be removed then. A task stores no credential: it runs with the user's own interactive
 token, at least privilege. What each manager is told to restore is what its system's hosted
-runner measured (`NOCTUA.md §17.3`).
+runner measured (`NOCTUA.md §17.3`). **Started at login by where it is, never by a
+reload**: systemd is told with `enable --no-reload` — a link among the units
+`default.target` wants, read as the user's manager starts — and a unit in the runtime
+directory is linked there alone (`--runtime`); `unregister` takes the links away first.
+launchd starts at login the agents in the folder `Manager::loaded_at_login` names, and
+Task Scheduler a task by its logon trigger. **Lingering is asked for by one caller**,
+`cargo xtask dev --install`, for a real install: logind is asked whether it keeps the
+user's manager, and asked to only where it does not.
 
 **A test's registration never meets a real one.** The suites that register a real service —
 `with_the_manager`, in the module's tests — register a scratch program, the test binary
@@ -2209,7 +2223,10 @@ asked, the tool found only in an absolute entry of `PATH` or under an absolute
 registration the manager took standing whatever becomes of its copy, a task's counters
 read by place in another display language, the scratches in the checkout's own `target`,
 and the sweep's judgement of a scratch whose owner lives, one dead, one never locked, one
-too new and another checkout's — by the two scratch services in `with_the_manager`, run on
+too new and another checkout's, a unit linked to start at login and unlinked without a
+reload, lingering asked for only where logind does not keep it and its refusal said in its
+words, and how each manager says an instance ended — by the two scratch services in
+`with_the_manager`, run on
 Linux, macOS and Windows in CI: one killed and restored as a new instance, read through the
 manager's own counter and the instance's record of itself, having been handed its
 arguments character for character through the format's escaping, and registered over in
@@ -2231,7 +2248,7 @@ hosted one being elevated; a task's counters on a Windows whose display language
 English, which no runner has; and a test's task left where nothing runs this checkout's
 tests again (both under **What is deliberately not claimed**). Which program is registered for a channel,
 and how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and
-its installer's, which register nothing yet.
+its installer's (the next answer).
 
 ### The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on
 
@@ -2339,7 +2356,8 @@ is installed.
   another account, as the hosted runner measured under a filtered token. A daemon read so
   wrongly still holds its profile's instance lock, which refuses a second.
 - **A start runs the install's own daemon.** It is the executable the layout names beside
-  this CLI — never one found on `PATH` — started detached
+  this CLI — never one found on `PATH` — started through the system's service manager
+  where that manager holds the install's restorer, as `--restored`, and otherwise detached
   (`nc_platform::process::spawn_detached`): standard input and output null, standard
   error a file in the profile's judged log directory written fresh and private, none of
   this process's handles, a process group of its own on Unix and no console on Windows.
@@ -2355,10 +2373,43 @@ is installed.
   written into a private directory of its own. A daemon an earlier install runs is
   stopped first, through the same stop. The environment — the base directories and
   `NC_INSTALL_NAMESPACE` — is read by the installer alone, so a relocated install is a
-  test's, with no central log and no stack. Nothing is registered with a service manager
-  and `PATH` is not changed.
+  test's, with no central log and no stack. `PATH` is not changed.
+- **The development daemon has a restorer, and every restorer honours the mark.**
+  `cargo xtask dev --install` registers the copied daemon with the system's service
+  manager (`nc_platform::service`) under the name the layout gives it there, its one
+  argument `--restored` (`nc_cli::install::Registered`): a restorer starts the daemon only
+  through that entry, which ends at once, and well, while the `stopped` mark is there, so
+  no manager has to know of a stop. A restorer an earlier install registered is
+  unregistered before any binary is replaced. Its definition is kept where the manager
+  reads it at each login — systemd's user-unit folder under the configuration base the
+  manifest holds,
+  enabled there without the reload `enable` asks for by default; the Library's
+  `LaunchAgents`; Task Scheduler's own copy, started at logon by its trigger — and a
+  relocated install's, a test's, in systemd's runtime directory, enabled there alone
+  (`--runtime`), or in its own profile, never where a login reads it
+  (`nc_cli::install::kept_in`). The install then starts the daemon through the manager,
+  **unless the profile carried the `stopped` mark before the install**: a person's stop,
+  which an install keeps. A `start` with the restorer registered goes through the manager
+  too, so the daemon it starts is one the manager restores; one the manager does not
+  hold, or a manager that does not answer, is a detached start. An uninstall stops the
+  daemon first, then unregisters its restorer — its links and its definition with it.
+  Lingering, which starts a user's manager at boot, is enabled only by
+  `cargo xtask dev --install` for a real install, where logind lets this user, and is
+  otherwise printed as `loginctl enable-linger <name>` and NixOS's
+  `users.users.<name>.linger`; no test asks for it.
 
-**Enforced by** `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` (acceptance 4),
+**Enforced by** `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs`
+(acceptance 8) — this checkout's development install, relocated, registered with the
+system's own manager and started through it, then killed and restored as a new instance
+read through the manager's counters and the daemon's record, stopped and started by the
+manager as a restorer starts it and left down on the mark, started again through the
+manager, marked and killed and restored once to end well and stay down, and unregistered
+by its uninstall, on Linux, macOS and Windows in CI — by the unit tests of the
+installer's and the start's decisions (the name each manager knows a restorer by, where a
+real install's and a test's definitions are kept, a person's stop kept, a start through
+the manager only where it holds the restorer), of `nc_platform::service`'s links,
+lingering and counters, and of what `dev --install` says of lingering, by
+`apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` (acceptance 4),
 by `apps/daemon/tests/channels_side_by_side.rs`, where production, staging and two
 development checkouts are installed through the installer from one scratch environment,
 started, held apart on disk, each stopped while the other three answer, and one restarted
@@ -2397,8 +2448,9 @@ daemon that does not answer and whose record was lost, which no stop can end; a 
 that said it is stopping and does not end, which no stop signals; on Windows, for an
 account that is not an elevated administrator, a record a reboot left whose id another
 account's process now holds, which is read as a daemon stopped without that process being
-read; and a start that gave up, which leaves the daemon it started running (each under
-**What is deliberately not claimed**).
+read; a start that gave up, which leaves the daemon it started running; what a daemon a
+manager started writes to its standard error, which goes nowhere; and lingering, which
+is the machine's (each under **What is deliberately not claimed**).
 
 ### The stack binds to loopback and nothing else
 
@@ -3163,11 +3215,24 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The stack is the checkout's, not its user's**: two accounts working in one checkout
   directory share one compose project and its ports, on a Docker daemon and a loopback
   the machine shares, and none of the three carries the user.
-- **Nothing restores a daemon yet**: `noctua start` starts one and `noctua stop` stops it,
-  and `cargo xtask dev --install` writes a development install, but no service manager is
-  told of any (the development channel's autostart is the rest of Stage 13), so a daemon
-  that crashes stays down until it is started again. `noctua-daemon --restored` and the
-  `stopped` mark are what every restorer will start it by and be silenced by.
+- **Only the development channel has a restorer, and only the service manager restores
+  it**: `cargo xtask dev --install` registers one; production and staging have no
+  installer yet (Stage 19), and the tray and the interface's countdown, which restore a
+  daemon too (`NOCTUA.md §17.5`), arrive with the interface (Stages 16 and 17). A daemon
+  that dies at each start is restored until its manager gives up: systemd after its start
+  limit, five starts in ten seconds; launchd never, once a second; Task Scheduler never,
+  once a minute.
+- **A daemon its manager started writes its standard error nowhere**: each manager is told
+  to hand it none (`nc_platform::service`), so a start through the manager that fails says
+  what the manager counts and not what the daemon wrote, and a refusal of a daemon a
+  restorer started is read in the central log or by starting it by hand.
+- **Lingering is the machine's**: `cargo xtask dev --install` enables it where logind lets
+  this user and prints the command and the NixOS option otherwise, and a NixOS
+  configuration that does not set `users.users.<name>.linger` takes it away again at the
+  next switch, after which the daemon starts at the first login and not at boot.
+- **An install keeps a person's stop by the mark alone**: the mark is what tells a stop
+  asked for from a daemon the install found stopped, so a profile whose mark someone
+  removed by hand is started by the next install.
 - **A stop ends only a daemon it can find**: a daemon that does not answer is signalled
   through the process its PID record is held to, so one that hangs after its record was
   removed, or replaced by hand with one naming another process or one that runs no more,

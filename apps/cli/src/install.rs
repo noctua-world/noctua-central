@@ -23,21 +23,40 @@
 //!    when the profile has none — never again — and copies the world in.
 //! 6. **The plugins**, each its manifest and its component, written into its
 //!    own private directory under the profile's plugins.
+//! 7. **The restorer**, where the plan asks for one (`cargo xtask dev
+//!    --install` does): the daemon registered with this system's service
+//!    manager as `noctua-daemon --restored`, under the name the layout gives
+//!    it there, to be started again when it dies and at each login
+//!    (`NOCTUA.md §17.3`). A restorer an earlier install registered is
+//!    unregistered before any binary is replaced, so none starts one half
+//!    written. Then the daemon is started through it — **unless the profile
+//!    carried the `stopped` mark before this install stopped an earlier
+//!    daemon**: that is a person's stop, which an install keeps.
 //!
-//! **No service manager is told** yet, and nothing is added to `PATH`: the
-//! CLI is reached at its path in the install, which the installer prints.
+//! **Where the restorer's definition is kept is the install's**: a real
+//! install's where its manager reads it at each login
+//! (`nc_platform::service::Manager::loaded_at_login`, under the bases the
+//! manifest holds); a relocated one's — a test's — in systemd's runtime
+//! directory, which the next boot forgets, or in its own profile, from which
+//! launchd loads it for this login alone. Nothing is added to `PATH`: the CLI
+//! is reached at its path in the install, which the installer prints. An
+//! uninstall stops the daemon, then unregisters its restorer.
 //!
 //! # What this does not answer
 //!
 //! A process running as the same user, which can replace any file of an
-//! install between its writing and its use.
+//! install between its writing and its use, or rewrite or remove the
+//! restorer's definition.
 
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
+use core::time::Duration;
+
 use nc_canon::Value;
 use nc_channel::found::Found;
 use nc_channel::{Install, Layout};
+use nc_platform::service::{Manager, Registrar, Service};
 use nc_platform::{Judged, Kind, User};
 
 /// The realm a development install's world decides in.
@@ -55,6 +74,14 @@ pub const GRANT: &str = "g.by_policy";
 
 /// The epoch a development install's world gives its realm.
 pub const EPOCH: i64 = 7;
+
+/// How long a restorer waits before it starts a daemon that died again.
+///
+/// **One second, the least launchd's throttle counts**, so a crash is
+/// restored at once; a daemon that dies at each start is then cut off by
+/// systemd's own start limit within seconds, and started no more until it is
+/// started on purpose. Task Scheduler's repetition, every minute, is its own.
+pub const RESTORED_AFTER: Duration = Duration::from_secs(1);
 
 /// The variable an installer reads a namespace from: an install relocated
 /// under one is a test's, and every name it gives the system is its own
@@ -116,6 +143,9 @@ pub struct Plan<'a> {
     pub world: &'a str,
     /// The plugins installed in the profile.
     pub plugins: Vec<Plugin<'a>>,
+    /// Whether the daemon is registered with the system's service manager, which
+    /// restores it when it dies and starts it at each login.
+    pub restorer: bool,
 }
 
 /// A plugin a build left, installed under `name`.
@@ -138,6 +168,34 @@ pub struct Installed {
     pub cli: PathBuf,
     /// What an earlier install's daemon was told, when one was running.
     pub stopped: Option<String>,
+    /// The restorer registered, when the plan asked for one.
+    pub registered: Option<Registered>,
+}
+
+/// A daemon registered with this system's service manager, which restores it.
+#[derive(Debug, Clone)]
+pub struct Registered {
+    /// The manager.
+    pub manager: Manager,
+    /// The name the manager knows it by.
+    pub name: String,
+    /// The directory its definition is kept in.
+    pub kept_in: PathBuf,
+    /// What its start said, if it was started.
+    ///
+    /// Nothing when the profile carried the `stopped` mark and the daemon was
+    /// left down.
+    pub started: Option<String>,
+}
+
+/// An install removed.
+#[derive(Debug)]
+pub struct Uninstalled {
+    /// Every name it gave the system.
+    pub layout: Layout,
+    /// The restorer unregistered, by the name its manager knew it by; nothing
+    /// when none was registered.
+    pub unregistered: Option<String>,
 }
 
 /// Why an install was not made, or not removed.
@@ -232,7 +290,16 @@ fn install_with(
         layout.daemon,
         nc_platform::EXECUTABLE_SUFFIX
     ));
+    // Read before an earlier daemon is stopped, whose stop writes the mark.
+    let marked = plan.restorer && marked(&layout, &user)?;
     let stopped = stopped_before(&cli)?;
+    let restorer = if plan.restorer {
+        let restorer = Restorer::of(&plan.install, &layout, &user)?;
+        restorer.unregistered()?;
+        Some(restorer)
+    } else {
+        None
+    };
     replaced(&cli, &read_whole(plan.cli)?, &user, true)?;
     replaced(&daemon, &read_whole(plan.daemon)?, &user, true)?;
     replaced(
@@ -265,23 +332,194 @@ fn install_with(
             false,
         )?;
     }
+    let registered = match restorer {
+        Some(restorer) => Some(restorer.registered(&daemon, &found, marked)?),
+        None => None,
+    };
     Ok(Installed {
         found,
         cli,
         stopped,
+        registered,
     })
 }
 
-/// Removes the install `install` describes: its daemon stopped, then its
+/// The name `manager` knows the daemon of `layout` by: its unit, the label
+/// of its agent, or its task.
+#[must_use]
+pub fn restorer_name(layout: &Layout, manager: Manager) -> &str {
+    match manager {
+        Manager::Systemd => &layout.systemd_unit,
+        Manager::Launchd => &layout.launchd_label,
+        Manager::TaskScheduler => &layout.task,
+    }
+}
+
+/// Where `manager` keeps the definition of the restorer of `install`, laid
+/// out as `layout`; `volatile` is where systemd reads a unit it forgets at the
+/// next boot.
+///
+/// **A real install's is read at each login**: under the configuration base
+/// its manifest holds, where its manager reads it
+/// (`nc_platform::service::Manager::loaded_at_login`), or in its own profile
+/// for Task Scheduler, whose copy is its own once the task is registered.
+/// **A relocated install's — a test's — is never one**: in systemd's runtime
+/// directory, and otherwise in its own profile, from which launchd loads it
+/// for this login alone.
+#[must_use]
+pub fn kept_in(
+    install: &Install,
+    layout: &Layout,
+    manager: Manager,
+    volatile: Option<&Path>,
+) -> Option<PathBuf> {
+    match (&install.namespace, manager) {
+        (Some(_), Manager::Systemd) => volatile.map(Path::to_path_buf),
+        (Some(_), Manager::Launchd | Manager::TaskScheduler) => Some(layout.state.clone()),
+        (None, _) => manager
+            .loaded_at_login(install.bases.config())
+            .or_else(|| Some(layout.state.clone())),
+    }
+}
+
+/// Whether an install starts its daemon once its restorer is registered.
+///
+/// Unless the profile carried the `stopped` mark before the install, which is
+/// a person's stop and an install keeps.
+const fn started_once_registered(marked_before: bool) -> bool {
+    !marked_before
+}
+
+/// Whether the profile of `layout` carries the `stopped` mark, the mark
+/// judged this user's alone first.
+fn marked(layout: &Layout, user: &User) -> Result<bool, Unmade> {
+    match nc_platform::judge(&layout.stopped, Kind::File, user) {
+        Ok(()) => Ok(true),
+        Err(Judged::Failed(absent)) if absent.error().kind() == std::io::ErrorKind::NotFound => {
+            Ok(false)
+        }
+        Err(judged) => Err(not_taken(&judged)),
+    }
+}
+
+/// This system's service manager as an install's restorer is registered with.
+///
+/// The manager, the name it knows the daemon by, and where its definition is
+/// kept.
+struct Restorer {
+    /// The manager, for the install's user.
+    registrar: Registrar,
+    /// The name it knows the daemon by.
+    name: String,
+    /// Where the definition is kept.
+    kept_in: PathBuf,
+}
+
+impl Restorer {
+    /// The restorer of `install`, laid out as `layout`, for `user`.
+    fn of(install: &Install, layout: &Layout, user: &User) -> Result<Self, Unmade> {
+        let registrar = Registrar::for_user(user).map_err(|error| {
+            Unmade(format!(
+                "this system's service manager could not be found: {error}"
+            ))
+        })?;
+        let manager = registrar.manager();
+        let kept_in = kept_in(
+            install,
+            layout,
+            manager,
+            registrar.volatile_units().as_deref(),
+        )
+        .ok_or_else(|| {
+            Unmade(format!(
+                "{manager} names no directory a definition of the daemon is read from"
+            ))
+        })?;
+        Ok(Self {
+            name: restorer_name(layout, manager).to_owned(),
+            registrar,
+            kept_in,
+        })
+    }
+
+    /// The restorer unregistered, if its manager holds it: what it was known
+    /// by, or nothing when the manager held none.
+    fn unregistered(&self) -> Result<Option<String>, Unmade> {
+        let manager = self.registrar.manager();
+        let held = self.registrar.is_registered(&self.name).map_err(|error| {
+            Unmade(format!(
+                "{manager} could not say whether it holds `{}`: {error}",
+                self.name
+            ))
+        })?;
+        if !held {
+            return Ok(None);
+        }
+        self.registrar
+            .unregister(&self.name, &self.kept_in)
+            .map_err(|error| {
+                Unmade(format!("{manager} did not let `{}` go: {error}", self.name))
+            })?;
+        Ok(Some(self.name.clone()))
+    }
+
+    /// The daemon at `daemon`, of `found`'s install, registered `--restored`.
+    ///
+    /// It is to start at each login, and is started through the manager — unless
+    /// the profile was `marked` stopped before the install.
+    fn registered(self, daemon: &Path, found: &Found, marked: bool) -> Result<Registered, Unmade> {
+        let manager = self.registrar.manager();
+        let refused = |doing: &str, error: &nc_platform::service::Error| {
+            Unmade(format!(
+                "{manager} did not {doing} the daemon of {} as `{}`: {error}",
+                found.layout.cli, self.name
+            ))
+        };
+        made_with_its_parents(&self.kept_in)?;
+        let service = Service::new(
+            &self.name,
+            &format!("Noctua's daemon of {}", found.layout.cli),
+            daemon,
+            &["--restored".to_owned()],
+            RESTORED_AFTER,
+            &found.user,
+        )
+        .map_err(|error| refused("take", &error))?;
+        self.registrar
+            .register(&service, &self.kept_in)
+            .map_err(|error| refused("register", &error))?;
+        if let Err(error) = self.registrar.enable(&self.name, &self.kept_in) {
+            // A restorer that would not start at login is taken back whole.
+            drop(self.registrar.unregister(&self.name, &self.kept_in));
+            return Err(refused("enable at login", &error));
+        }
+        let started = if started_once_registered(marked) {
+            Some(controlled(found, crate::args::Control::Start)?)
+        } else {
+            None
+        };
+        Ok(Registered {
+            manager,
+            name: self.name,
+            kept_in: self.kept_in,
+            started,
+        })
+    }
+}
+
+/// Removes the install `install` describes: its daemon stopped, its restorer
+/// unregistered where this system's service manager holds one, then its
 /// binaries and its manifest, and its `bin` once empty. **The profile stays**
 /// — its device, its database and its world — so an install made again is
-/// the same device with the same data. Answers whether there was one.
+/// the same device with the same data. Answers what was removed, if there
+/// was an install.
 ///
 /// # Errors
 ///
-/// [`Unmade`] for a daemon that did not stop, or a file another account can
-/// reach or that could not be removed.
-pub fn uninstall(install: &Install) -> Result<Option<Layout>, Unmade> {
+/// [`Unmade`] for a daemon that did not stop, a restorer its manager could
+/// not say it holds or did not let go, or a file another account can reach
+/// or that could not be removed.
+pub fn uninstall(install: &Install) -> Result<Option<Uninstalled>, Unmade> {
     let layout = nc_channel::layout(install, "");
     let cli = layout
         .install
@@ -297,6 +535,12 @@ pub fn uninstall(install: &Install) -> Result<Option<Layout>, Unmade> {
         Err(refused) => return Err(Unmade(format!("the install does not read: {refused}"))),
     };
     stopped(&found)?;
+    // **No manager here holds none**: a system with no tool to register
+    // through has nothing registered by it.
+    let unregistered = match Restorer::of(&found.install, &found.layout, &found.user) {
+        Ok(restorer) => restorer.unregistered()?,
+        Err(_) => None,
+    };
     let layout = found.layout;
     let daemon = layout.install.join(format!(
         "{}{}",
@@ -315,7 +559,10 @@ pub fn uninstall(install: &Install) -> Result<Option<Layout>, Unmade> {
     }
     std::fs::remove_dir(&layout.install)
         .map_err(|error| unmade("removed", &layout.install, &error))?;
-    Ok(Some(layout))
+    Ok(Some(Uninstalled {
+        layout,
+        unregistered,
+    }))
 }
 
 /// What an earlier install's daemon was told, when the CLI at `cli` is one:
@@ -329,20 +576,24 @@ fn stopped_before(cli: &Path) -> Result<Option<String>, Unmade> {
 
 /// The daemon of `found`'s install stopped, through the CLI's own stop.
 fn stopped(found: &Found) -> Result<String, Unmade> {
+    controlled(found, crate::args::Control::Stop)
+}
+
+/// The daemon of `found`'s install, asked `verb` through the CLI's process
+/// control: what it said, or why it did not.
+fn controlled(found: &Found, verb: crate::args::Control) -> Result<String, Unmade> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_io()
         .enable_time()
         .build()
-        .map_err(|error| Unmade(format!("the runtime a stop runs on: {error}")))?;
-    match runtime.block_on(crate::control::controlled(
-        found,
-        crate::args::Control::Stop,
-    )) {
+        .map_err(|error| Unmade(format!("the runtime process control runs on: {error}")))?;
+    match runtime.block_on(crate::control::controlled(found, verb)) {
         Ok(crate::control::Done::Said(said)) => Ok(said),
         Ok(crate::control::Done::Status(_)) => Ok(String::new()),
         Err(failure) => Err(Unmade(format!(
-            "the daemon of {} did not stop [{}]: {}",
+            "the daemon of {} did not {} [{}]: {}",
             found.layout.cli,
+            verb.word(),
             failure.code.code(),
             failure.detail
         ))),
@@ -552,6 +803,7 @@ mod tests {
                 manifest: &manifest,
                 component: &component,
             }],
+            restorer: false,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let layout = nc_channel::layout(&install, &user.to_string());
@@ -637,6 +889,7 @@ mod tests {
             daemon: &this,
             world: "{}",
             plugins: Vec::new(),
+            restorer: false,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let installed = super::install_with(&plan, |daemon: &Path, _: &Path| {
@@ -666,6 +919,7 @@ mod tests {
             daemon: &daemon,
             world: "{}",
             plugins: Vec::new(),
+            restorer: false,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let layout = nc_channel::layout(&install, &user.to_string());
@@ -716,12 +970,14 @@ mod tests {
             daemon: &daemon,
             world: "{}",
             plugins: Vec::new(),
+            restorer: false,
         };
         super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
         let removed = super::uninstall(&install)
             .expect("removed")
             .expect("there was one");
-        assert_eq!(removed.install, layout.install);
+        assert_eq!(removed.layout.install, layout.install);
+        assert_eq!(removed.unregistered, None, "nothing was registered");
         assert!(!layout.install.exists(), "`bin` outlived the uninstall");
         assert!(
             layout.state.is_dir() && layout.data.is_dir(),
@@ -751,6 +1007,7 @@ mod tests {
             daemon: &daemon,
             world: "{}",
             plugins: Vec::new(),
+            restorer: false,
         };
         let installed =
             super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
@@ -787,6 +1044,92 @@ mod tests {
             .expect("there was one");
         assert!(!layout.install.exists(), "`bin` outlived the uninstall");
         assert!(layout.stopped.is_file(), "the mark went with the install");
+    }
+
+    /// A restorer is known to each manager by the name the layout gives it
+    /// there: the unit, the label of the agent, the task.
+    #[test]
+    fn a_restorer_is_known_by_the_name_the_layout_gives_it_there() {
+        use nc_platform::service::Manager;
+        let scratch = Scratch::new("named");
+        let layout = nc_channel::layout(&scratch.install("tn1"), "1000");
+        assert_eq!(
+            super::restorer_name(&layout, Manager::Systemd),
+            layout.systemd_unit
+        );
+        assert_eq!(
+            super::restorer_name(&layout, Manager::Launchd),
+            layout.launchd_label
+        );
+        assert_eq!(
+            super::restorer_name(&layout, Manager::TaskScheduler),
+            layout.task
+        );
+        for manager in Manager::ALL {
+            assert!(
+                manager.takes(super::restorer_name(&layout, manager)),
+                "{manager} takes no name the layout gives it"
+            );
+        }
+    }
+
+    /// A real restorer is read at login, and a test's never is.
+    ///
+    /// A relocated install's — a test's — is kept in systemd's runtime directory,
+    /// or in its own profile.
+    #[test]
+    fn a_real_restorer_is_read_at_login_and_a_tests_never_is() {
+        use nc_platform::service::Manager;
+        let scratch = Scratch::new("kept");
+        let relocated = scratch.install("tk1");
+        let real = nc_channel::Install {
+            namespace: None,
+            ..relocated.clone()
+        };
+        let volatile = scratch.0.join("run").join("systemd").join("user");
+        let (layout, real_layout) = (
+            nc_channel::layout(&relocated, "1000"),
+            nc_channel::layout(&real, "1000"),
+        );
+        let kept =
+            |install, layout, manager| super::kept_in(install, layout, manager, Some(&volatile));
+        assert_eq!(
+            kept(&relocated, &layout, Manager::Systemd),
+            Some(volatile.clone())
+        );
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            assert_eq!(
+                kept(&relocated, &layout, manager),
+                Some(layout.state.clone()),
+                "{manager}"
+            );
+        }
+        assert_eq!(
+            super::kept_in(&relocated, &layout, Manager::Systemd, None),
+            None,
+            "a test's unit was kept somewhere other than the runtime directory"
+        );
+        for manager in [Manager::Systemd, Manager::Launchd] {
+            assert_eq!(
+                kept(&real, &real_layout, manager),
+                manager.loaded_at_login(real.bases.config()),
+                "{manager}"
+            );
+        }
+        assert_eq!(
+            kept(&real, &real_layout, Manager::TaskScheduler),
+            Some(real_layout.state.clone())
+        );
+    }
+
+    /// An install keeps a person's stop.
+    ///
+    /// It starts its daemon once its restorer is registered, unless the profile
+    /// carried the `stopped` mark before it.
+    #[test]
+    fn an_install_keeps_a_persons_stop() {
+        assert!(super::started_once_registered(false));
+        assert!(!super::started_once_registered(true));
     }
 
     /// A development install is read from the environment it is handed.

@@ -141,6 +141,24 @@ impl Manager {
         matches!(self, Self::Systemd)
     }
 
+    /// Where this manager reads, at each login, a program registered to be
+    /// started then, for a user whose configuration base directory is
+    /// `config`.
+    ///
+    /// For systemd, its user units in the `user` folder of the `systemd`
+    /// folder in that base, as `$XDG_CONFIG_HOME` names the base; for launchd,
+    /// its agents in the `LaunchAgents` folder beside it, the base being the
+    /// Library's `Preferences`; nothing for Task Scheduler, which keeps its own
+    /// copy of a task and starts it at each logon by the trigger it carries.
+    #[must_use]
+    pub fn loaded_at_login(self, config: &Path) -> Option<PathBuf> {
+        match self {
+            Self::Systemd => Some(config.join("systemd").join("user")),
+            Self::Launchd => config.parent().map(|library| library.join("LaunchAgents")),
+            Self::TaskScheduler => None,
+        }
+    }
+
     /// Whether `name` is one this manager registers a service under.
     ///
     /// Letters, digits, `.`, `_` and `-`, opening with a letter or a digit —
@@ -645,7 +663,7 @@ pub enum Counters {
         /// How many times systemd restarted it on its own.
         restarts: u64,
     },
-    /// `launchctl print`'s `state`, `pid` and `runs`.
+    /// `launchctl print`'s `state`, `pid`, `runs` and `last exit code`.
     Launchd {
         /// `running` while the program runs.
         state: String,
@@ -653,6 +671,8 @@ pub enum Counters {
         pid: Option<u32>,
         /// How many times launchd started it.
         runs: u64,
+        /// What the last instance exited with, once one has exited.
+        last_exit: Option<i64>,
     },
     /// `schtasks /Query /V`'s `Status`, `Last Run Time` and `Last Result`.
     TaskScheduler {
@@ -717,6 +737,24 @@ impl Counters {
         }
     }
 
+    /// Whether the last instance ended well — exit 0 — as its manager says;
+    /// nothing where the manager keeps no word of it.
+    ///
+    /// **A unit that ended well is one systemd forgets**: one that exits 0 and is
+    /// not restored goes inactive, and its counters with it, so it says only
+    /// that an instance ended otherwise, by the unit's `failed` state. A
+    /// task's last result is an end only once no instance runs.
+    #[must_use]
+    pub fn ended_well(&self) -> Option<bool> {
+        match self {
+            Self::Systemd { active_state, .. } => (active_state == "failed").then_some(false),
+            Self::Launchd { last_exit, .. } => last_exit.map(|code| code == 0),
+            Self::TaskScheduler { last_result, .. } => {
+                (!self.running()).then_some(*last_result == 0)
+            }
+        }
+    }
+
     /// What `manager` answered when its counters of the service `name` were
     /// asked, read.
     fn read(manager: Manager, answer: &str, name: &str) -> Option<Self> {
@@ -751,7 +789,7 @@ impl Counters {
     /// inside the service, whose keys keep that tab and so are never one of
     /// these.
     fn from_launchctl_print(answer: &str) -> Option<Self> {
-        let (mut state, mut pid, mut runs) = (None, None, None);
+        let (mut state, mut pid, mut runs, mut last_exit) = (None, None, None, None);
         for line in answer.lines() {
             let Some(property) = line.strip_prefix('\t') else {
                 continue;
@@ -760,6 +798,8 @@ impl Counters {
                 Some(("state", value)) => state = Some(value.trim().to_owned()),
                 Some(("pid", value)) => pid = Some(value.trim().parse().ok()?),
                 Some(("runs", value)) => runs = Some(value.trim().parse().ok()?),
+                // `(never exited)` until one has, which is no code.
+                Some(("last exit code", value)) => last_exit = value.trim().parse().ok(),
                 _ => {}
             }
         }
@@ -767,6 +807,7 @@ impl Counters {
             state: state?,
             pid,
             runs: runs?,
+            last_exit,
         })
     }
 
@@ -947,6 +988,23 @@ impl core::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Whether a user's service manager outlives the user's sessions, as
+/// [`Registrar::linger`] found it and left it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Lingering {
+    /// It did already: logind keeps the user's manager from boot on.
+    Already,
+    /// It did not, and now does: lingering was enabled.
+    Enabled,
+    /// It did not, and logind refused to enable it; the text is what it said.
+    Refused(String),
+    /// The manager has no such thing.
+    ///
+    /// Both launchd and Task Scheduler start a user's programs from the user's
+    /// login alone.
+    NotApplicable,
+}
+
 /// What this process found around it that says where a manager's tool is.
 #[derive(Debug, Default)]
 struct Found {
@@ -1006,6 +1064,9 @@ pub struct Registrar {
     environment: Vec<(String, String)>,
     /// The user manager's runtime directory, on systemd.
     runtime: Option<PathBuf>,
+    /// The tool logind is asked through, on systemd, where an absolute entry
+    /// of `PATH` holds it.
+    loginctl: Option<PathBuf>,
 }
 
 impl Registrar {
@@ -1038,12 +1099,13 @@ impl Registrar {
 
     /// The registrar for `manager` and `user`, from what was `found`.
     fn found(manager: Manager, user: &str, found: &Found) -> Result<Self, Error> {
-        let registrar = |tool: PathBuf, environment, runtime| Self {
+        let registrar = |tool: PathBuf, environment, runtime, loginctl| Self {
             manager,
             user: user.to_owned(),
             tool,
             environment,
             runtime,
+            loginctl,
         };
         match manager {
             Manager::Systemd => {
@@ -1073,9 +1135,18 @@ impl Registrar {
                         vec![("XDG_RUNTIME_DIR".to_owned(), runtime)],
                     )
                 };
-                Ok(registrar(tool, handed, Some(runtime)))
+                let loginctl = found
+                    .path
+                    .as_deref()
+                    .and_then(|path| in_an_absolute_entry(path, "loginctl"));
+                Ok(registrar(tool, handed, Some(runtime), loginctl))
             }
-            Manager::Launchd => Ok(registrar(PathBuf::from("/bin/launchctl"), Vec::new(), None)),
+            Manager::Launchd => Ok(registrar(
+                PathBuf::from("/bin/launchctl"),
+                Vec::new(),
+                None,
+                None,
+            )),
             Manager::TaskScheduler => {
                 let root = found
                     .system_root
@@ -1093,6 +1164,7 @@ impl Registrar {
                 Ok(registrar(
                     PathBuf::from(format!("{root}\\System32\\schtasks.exe")),
                     Vec::new(),
+                    None,
                     None,
                 ))
             }
@@ -1185,6 +1257,64 @@ impl Registrar {
         Ok(())
     }
 
+    /// Has the manager start the service named `name` at each login as well, its
+    /// definition being in `directory`.
+    ///
+    /// **Only systemd is told**, with `enable`: a link to the unit among
+    /// those `default.target` wants, which the manager reads as it starts —
+    /// at a login, or at boot for a user it lingers for — and never with the
+    /// reload `enable` asks of a running manager by default, which would read
+    /// again every unit the user has. A unit in the runtime directory
+    /// ([`Registrar::volatile_units`]) is enabled there too (`--runtime`), so
+    /// both go at the next boot. launchd starts at login every agent in the
+    /// folder [`Manager::loaded_at_login`] names, and Task Scheduler a task by
+    /// its logon trigger, so there it is where the definition is, or what it
+    /// says.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Described`] for a name this manager does not take,
+    /// [`Error::Io`] when the tool cannot be run, and [`Error::Refused`] when
+    /// the manager refuses.
+    pub fn enable(&self, name: &str, directory: &Path) -> Result<(), Error> {
+        self.takes(name)?;
+        for arguments in self.to_enable(name, directory) {
+            self.ask(&arguments).and_then(Answer::succeeded)?;
+        }
+        Ok(())
+    }
+
+    /// Makes this user's manager outlive the user's sessions — systemd's
+    /// lingering, so a unit enabled with [`Registrar::enable`] starts at boot
+    /// rather than at the first login — where it does not already and logind
+    /// lets this user enable it; and answers which it was.
+    ///
+    /// **Never by a test**: lingering is the machine's, and outlives every
+    /// scratch a test makes; its one caller is `cargo xtask dev --install`. A
+    /// refusal is an answer and not an error, since what is refused is a
+    /// policy of the machine's — a declarative system's configuration among
+    /// them — which only its administrator changes.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NoTool`] when no absolute entry of `PATH` holds `loginctl`,
+    /// and [`Error::Io`] when it cannot be run.
+    pub fn linger(&self) -> Result<Lingering, Error> {
+        if self.manager != Manager::Systemd {
+            return Ok(Lingering::NotApplicable);
+        }
+        let loginctl = self.loginctl.as_deref().ok_or_else(|| {
+            Error::NoTool(
+                "no absolute entry of `PATH` holds `loginctl`, which lingering is asked of and \
+                 enabled through: install systemd's logind, or put the directory holding it on \
+                 `PATH` by its absolute path"
+                    .to_owned(),
+            )
+        })?;
+        let shown = self.ask_with(loginctl, &self.to_ask_lingering())?;
+        lingered(&shown, || self.ask_with(loginctl, &self.to_linger()))
+    }
+
     /// Starts the service named `name` now, through its manager.
     ///
     /// # Errors
@@ -1216,7 +1346,7 @@ impl Registrar {
     /// still knows the name.
     pub fn unregister(&self, name: &str, directory: &Path) -> Result<(), Error> {
         self.takes(name)?;
-        for arguments in self.to_stop(name) {
+        for arguments in self.to_stop(name, directory) {
             self.ask(&arguments)?;
         }
         remove_if_there(&directory.join(self.manager.file_for(name)))?;
@@ -1442,6 +1572,38 @@ impl Registrar {
         }
     }
 
+    /// What has the manager start the service at each login, its definition
+    /// being in `directory`.
+    fn to_enable(&self, name: &str, directory: &Path) -> Vec<Vec<OsString>> {
+        match self.manager {
+            Manager::Systemd => vec![self.on_systemds_links("enable", name, directory)],
+            Manager::Launchd | Manager::TaskScheduler => Vec::new(),
+        }
+    }
+
+    /// `systemctl --user <verb>` of the links to the unit `name`.
+    ///
+    /// Its file is in `directory`. Never reloading the manager, and in the runtime
+    /// directory's own links when the unit is there.
+    fn on_systemds_links(&self, verb: &str, name: &str, directory: &Path) -> Vec<OsString> {
+        let mut arguments = words(["--user", verb, "--no-reload"]);
+        if self.volatile_units().as_deref() == Some(directory) {
+            arguments.push("--runtime".into());
+        }
+        arguments.push(name.into());
+        arguments
+    }
+
+    /// What asks logind whether it keeps this user's manager from boot on.
+    fn to_ask_lingering(&self) -> Vec<OsString> {
+        words(["show-user", &self.user, "--property=Linger", "--value"])
+    }
+
+    /// What asks logind to keep this user's manager from boot on.
+    fn to_linger(&self) -> Vec<OsString> {
+        words(["enable-linger", &self.user])
+    }
+
     /// What starts the service now.
     fn to_start(&self, name: &str) -> Vec<OsString> {
         match self.manager {
@@ -1451,11 +1613,17 @@ impl Registrar {
         }
     }
 
-    /// What stops the service and takes it from the manager, before its
-    /// definition is removed.
-    fn to_stop(&self, name: &str) -> Vec<Vec<OsString>> {
+    /// What stops the service and takes it from the manager.
+    ///
+    /// It is asked before the definition, in `directory`, is removed: on systemd
+    /// the links [`Registrar::enable`] made go first, which a unit never enabled
+    /// answers with nothing done.
+    fn to_stop(&self, name: &str, directory: &Path) -> Vec<Vec<OsString>> {
         match self.manager {
-            Manager::Systemd => vec![words(["--user", "stop", name])],
+            Manager::Systemd => vec![
+                self.on_systemds_links("disable", name, directory),
+                words(["--user", "stop", name]),
+            ],
             Manager::Launchd => vec![words(["bootout", &self.target(name)])],
             Manager::TaskScheduler => vec![
                 words(["/End", "/TN", name]),
@@ -1544,6 +1712,37 @@ impl Registrar {
     }
 }
 
+/// What logind's `answer` to whether it keeps the user's manager from boot
+/// on says, and lingering enabled by `enable` where it does not.
+///
+/// **Enabled only where it is not already**, and a user logind knows nothing
+/// of — no session and no lingering, which `show-user` refuses — is one it
+/// does not keep. What `enable` was refused with is the answer, in logind's
+/// words.
+fn lingered(
+    answer: &Answer,
+    enable: impl FnOnce() -> Result<Answer, Error>,
+) -> Result<Lingering, Error> {
+    if answer.succeeded && answer.out.trim() == "yes" {
+        return Ok(Lingering::Already);
+    }
+    let enabled = enable()?;
+    if enabled.succeeded {
+        return Ok(Lingering::Enabled);
+    }
+    let said = if enabled.err.trim().is_empty() {
+        enabled.out.trim()
+    } else {
+        enabled.err.trim()
+    };
+    Ok(Lingering::Refused(format!(
+        "`{}` {}: {}",
+        enabled.asked,
+        enabled.status,
+        shown(said)
+    )))
+}
+
 /// `list`, as the arguments a tool is handed.
 fn words<const N: usize>(list: [&str; N]) -> Vec<OsString> {
     list.into_iter().map(OsString::from).collect()
@@ -1604,9 +1803,10 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        Counters, Error, Found, Manager, Registrar, Service, csv_fields, definition, first_words,
-        in_an_absolute_entry, launchd_labels, launchd_plist, not_held, systemd_unit, systemd_word,
-        task_names, task_xml, under, utf16_with_its_mark, windows_argument, words, xml_text,
+        Counters, Error, Found, Lingering, Manager, Registrar, Service, csv_fields, definition,
+        first_words, in_an_absolute_entry, launchd_labels, launchd_plist, not_held, systemd_unit,
+        systemd_word, task_names, task_xml, under, utf16_with_its_mark, windows_argument, words,
+        xml_text,
     };
 
     /// The user every definition below is written for, a SID, so that a task's
@@ -1689,6 +1889,7 @@ mod tests {
             }),
             environment: Vec::new(),
             runtime: (manager == Manager::Systemd).then_some(runtime),
+            loginctl: (manager == Manager::Systemd).then(|| PathBuf::from("/usr/bin/loginctl")),
         }
     }
 
@@ -2256,10 +2457,12 @@ mod tests {
             Counters::Launchd {
                 state: "running".to_owned(),
                 pid: Some(1_413),
-                runs: 2
+                runs: 2,
+                last_exit: None,
             }
         );
         assert!(read.running() && read.pid() == Some(1_413));
+        assert_eq!(read.ended_well(), None, "killed, and no exit read");
         let exited = "gui/501/noctua-dev-test = {\n\
                       \tstate = not running\n\
                       \truns = 1\n\
@@ -2271,10 +2474,20 @@ mod tests {
             Counters::Launchd {
                 state: "not running".to_owned(),
                 pid: None,
-                runs: 1
+                runs: 1,
+                last_exit: Some(0),
             }
         );
         assert!(!read.running() && read.pid().is_none());
+        assert_eq!(read.ended_well(), Some(true));
+        // **No code until one has exited**, which launchd writes as words.
+        let never = "gui/501/x = {\n\tstate = spawn scheduled\n\truns = 0\n\
+                     \tlast exit code = (never exited)\n}\n";
+        let read = Counters::read(Manager::Launchd, never, "x").expect("read");
+        assert_eq!(read.ended_well(), None, "{read:?}");
+        let failed = never.replace("(never exited)", "78");
+        let read = Counters::read(Manager::Launchd, &failed, "x").expect("read");
+        assert_eq!(read.ended_well(), Some(false), "{read:?}");
         for unreadable in [
             "gui/501/x = {\n\tstate = running\n}\n",
             "gui/501/x = {\n\truns = 1\n}\n",
@@ -2387,6 +2600,7 @@ mod tests {
             state: "running".to_owned(),
             pid: Some(7),
             runs,
+            last_exit: None,
         };
         let task = |last_run: &str| Counters::TaskScheduler {
             status: "Ready".to_owned(),
@@ -2421,10 +2635,124 @@ mod tests {
             !Counters::Launchd {
                 state: "running".to_owned(),
                 pid: None,
-                runs: 1
+                runs: 1,
+                last_exit: None,
             }
             .running()
         );
+    }
+
+    /// How the last instance ended is what its manager says of it, and
+    /// nothing where it keeps no word.
+    ///
+    /// For systemd that is only a unit that failed, since one that ended well is
+    /// forgotten with its counters; a task's last result is an end only once
+    /// no instance runs.
+    #[test]
+    fn how_the_last_instance_ended_is_its_managers_word_or_none() {
+        let systemd = |active_state: &str| Counters::Systemd {
+            active_state: active_state.to_owned(),
+            main_pid: 0,
+            restarts: 0,
+        };
+        assert_eq!(systemd("failed").ended_well(), Some(false));
+        for forgotten in ["inactive", "active", "activating"] {
+            assert_eq!(systemd(forgotten).ended_well(), None, "{forgotten}");
+        }
+        let task = |last_result| Counters::TaskScheduler {
+            status: "Ready".to_owned(),
+            last_run: "12:29:20".to_owned(),
+            last_result,
+        };
+        assert_eq!(task(0).ended_well(), Some(true));
+        assert_eq!(task(1).ended_well(), Some(false));
+        for running in [super::TASK_RUNNING, super::REFUSED_WHILE_RUNNING] {
+            assert_eq!(task(running).ended_well(), None, "{running}");
+        }
+        let launchd = |last_exit| Counters::Launchd {
+            state: "not running".to_owned(),
+            pid: None,
+            runs: 2,
+            last_exit,
+        };
+        assert_eq!(launchd(Some(0)).ended_well(), Some(true));
+        assert_eq!(launchd(Some(1)).ended_well(), Some(false));
+        assert_eq!(launchd(None).ended_well(), None);
+    }
+
+    /// What each manager reads at login is beside the user's configuration:
+    /// launchd's agents beside the Library's folder of preferences, systemd's
+    /// units under it; Task Scheduler keeps its own.
+    #[test]
+    fn what_each_manager_reads_at_login_is_beside_the_users_configuration() {
+        assert_eq!(
+            Manager::Systemd.loaded_at_login(Path::new("/home/u/.config")),
+            Some(PathBuf::from("/home/u/.config/systemd/user"))
+        );
+        assert_eq!(
+            Manager::Launchd.loaded_at_login(Path::new("/Users/u/Library/Preferences")),
+            Some(PathBuf::from("/Users/u/Library/LaunchAgents"))
+        );
+        assert_eq!(
+            Manager::TaskScheduler.loaded_at_login(Path::new("C:\\Users\\u\\AppData\\Roaming")),
+            None
+        );
+    }
+
+    /// Lingering is enabled only where logind does not keep the user's
+    /// manager already, and a refusal is answered in logind's words.
+    ///
+    /// A user logind knows nothing of, whose `show-user` is refused, is one it
+    /// does not keep. No test asks logind to enable it: these are its answers
+    /// as recorded.
+    #[test]
+    fn lingering_is_enabled_only_where_it_is_not_and_a_refusal_says_why() {
+        let answer = |succeeded: bool, out: &str, err: &str| super::Answer {
+            asked: "loginctl enable-linger 1000".to_owned(),
+            succeeded,
+            status: if succeeded {
+                "exit status: 0"
+            } else {
+                "exit status: 1"
+            }
+            .to_owned(),
+            out: out.to_owned(),
+            err: err.to_owned(),
+        };
+        let asked = std::cell::Cell::new(0);
+        let enable = |enabled: super::Answer| {
+            || {
+                asked.set(asked.get() + 1);
+                Ok(enabled)
+            }
+        };
+        let already = super::lingered(&answer(true, "yes\n", ""), enable(answer(true, "", "")))
+            .expect("asked");
+        assert_eq!((already, asked.get()), (Lingering::Already, 0));
+        for shown in [
+            answer(true, "no\n", ""),
+            answer(
+                false,
+                "",
+                "Failed to get user: User ID 1000 is not logged in or lingering",
+            ),
+        ] {
+            let enabled = super::lingered(&shown, enable(answer(true, "", ""))).expect("asked");
+            assert_eq!(enabled, Lingering::Enabled, "{shown:?}");
+        }
+        assert_eq!(asked.get(), 2);
+        let refused = super::lingered(
+            &answer(true, "no\n", ""),
+            enable(answer(false, "", "Could not enable linger: Access denied")),
+        )
+        .expect("asked");
+        assert!(
+            matches!(&refused, Lingering::Refused(said)
+                if said.contains("enable-linger") && said.contains("Access denied")),
+            "{refused:?}"
+        );
+        let registrar = registrar(Manager::Launchd);
+        assert_eq!(registrar.linger().expect("asked"), Lingering::NotApplicable);
     }
 
     /// What each manager lists of its services is read as their names.
@@ -2482,9 +2810,12 @@ mod tests {
         );
     }
 
-    /// `systemctl` is found in the first absolute entry of `PATH` that holds
-    /// it, never in a relative one, and `XDG_RUNTIME_DIR` is handed to it as
-    /// logind makes it wherever this process has none of its own to give.
+    /// `systemctl` is found in an absolute entry and handed a runtime directory.
+    ///
+    /// It is the first absolute entry of `PATH` that holds it, never a relative
+    /// one, and `XDG_RUNTIME_DIR` is handed to it as logind makes it wherever this
+    /// process has none of its own to give; `loginctl` is found the same way, in
+    /// whichever entry holds it.
     #[test]
     fn systemctl_is_found_in_an_absolute_entry_and_handed_a_runtime_directory() {
         let scratch = Scratch::new("tools");
@@ -2500,6 +2831,7 @@ mod tests {
             drop(crate::create_private(&directory.join("systemctl")).expect("a tool"));
             drop(crate::create_private(&directory.join("Cargo.toml")).expect("a file"));
         }
+        drop(crate::create_private(&second.join("loginctl")).expect("logind's tool"));
         let path = std::env::join_paths([&empty, &first, &second]).expect("a PATH");
         assert_eq!(
             in_an_absolute_entry(&path, "systemctl"),
@@ -2539,6 +2871,7 @@ mod tests {
             )
             .expect("found");
             assert_eq!(found.tool, first.join("systemctl"));
+            assert_eq!(found.loginctl, Some(second.join("loginctl")));
             let expected: Vec<(String, String)> = handed
                 .map(|runtime| ("XDG_RUNTIME_DIR".to_owned(), runtime.to_owned()))
                 .into_iter()
@@ -2634,7 +2967,6 @@ mod tests {
             [words(["--user", "start", unit])]
         );
         assert_eq!(systemd.to_start(unit), words(["--user", "start", unit]));
-        assert_eq!(systemd.to_stop(unit), [words(["--user", "stop", unit])]);
         assert_eq!(
             systemd.to_forget(unit),
             [words(["--user", "reset-failed", unit])]
@@ -2668,7 +3000,10 @@ mod tests {
             ]]
         );
         assert_eq!(launchd.to_start("x"), words(["kickstart", "gui/501/x"]));
-        assert_eq!(launchd.to_stop("x"), [words(["bootout", "gui/501/x"])]);
+        assert_eq!(
+            launchd.to_stop("x", file),
+            [words(["bootout", "gui/501/x"])]
+        );
         assert_eq!(launchd.to_forget("x"), Vec::<Vec<OsString>>::new());
         assert_eq!(launchd.to_count("x"), words(["print", "gui/501/x"]));
         assert_eq!(
@@ -2693,7 +3028,7 @@ mod tests {
         );
         assert_eq!(task.to_start("\\x"), words(["/Run", "/TN", "\\x"]));
         assert_eq!(
-            task.to_stop("\\x"),
+            task.to_stop("\\x", file),
             [
                 words(["/End", "/TN", "\\x"]),
                 words(["/Delete", "/TN", "\\x", "/F"])
@@ -2725,6 +3060,62 @@ mod tests {
             assert!(
                 matches!(listed, Err(Error::Described(_))),
                 "{manager}: {listed:?}"
+            );
+        }
+    }
+
+    /// A unit is linked to start at login without a reload.
+    ///
+    /// Its links are made and taken away so, in the runtime directory's own links
+    /// for a unit kept there; launchd and Task Scheduler are told nothing more,
+    /// and logind is asked of the user by its number.
+    #[test]
+    fn a_unit_is_linked_to_start_at_login_without_a_reload() {
+        let systemd = registrar(Manager::Systemd);
+        let unit = "x.service";
+        let volatile = systemd.volatile_units().expect("systemd's runtime units");
+        let persistent = Path::new("/home/u/.config/systemd/user");
+        // **Never a reload**, and the runtime directory's own links for a unit
+        // kept there.
+        assert_eq!(
+            systemd.to_enable(unit, persistent),
+            [words(["--user", "enable", "--no-reload", unit])]
+        );
+        assert_eq!(
+            systemd.to_enable(unit, &volatile),
+            [words([
+                "--user",
+                "enable",
+                "--no-reload",
+                "--runtime",
+                unit
+            ])]
+        );
+        assert_eq!(
+            systemd.to_stop(unit, persistent),
+            [
+                words(["--user", "disable", "--no-reload", unit]),
+                words(["--user", "stop", unit])
+            ]
+        );
+        assert_eq!(
+            systemd.to_stop(unit, &volatile),
+            [
+                words(["--user", "disable", "--no-reload", "--runtime", unit]),
+                words(["--user", "stop", unit])
+            ]
+        );
+        assert_eq!(
+            systemd.to_ask_lingering(),
+            words(["show-user", "501", "--property=Linger", "--value"])
+        );
+        assert_eq!(systemd.to_linger(), words(["enable-linger", "501"]));
+        let file = Path::new("/scratch/definition");
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            assert_eq!(
+                registrar(manager).to_enable("x", file),
+                Vec::<Vec<OsString>>::new(),
+                "{manager}"
             );
         }
     }
