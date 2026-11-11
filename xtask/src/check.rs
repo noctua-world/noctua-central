@@ -47156,7 +47156,7 @@ Options:
         (
             "cli_control",
             "start",
-            "a start removes the mark only once no daemon holds the profile",
+            "a start removes the mark only after its wait",
         ),
         (
             "cli_control",

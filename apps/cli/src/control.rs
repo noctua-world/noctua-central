@@ -38,24 +38,23 @@
 //!
 //! **It waits, with the mark still there, until a daemon answers or none holds
 //! the profile's instance lock** — `stop_within_ms` at most, the lock taken for
-//! a moment and let go at once — so it never starts one beside a daemon still
-//! ending, which the lock would refuse, or which a service manager still runs
-//! and so would not start again; one that holds the lock still by then is not
-//! signalled, and nothing is started (`NC-DMN-0008`, exit 11). A daemon that
-//! says it is stopping is waited for as a stop waits for one. Then it removes
-//! the mark, and answers at once when a daemon answers. Otherwise, **where this
-//! system's service manager holds the
-//! install's restorer** (`cargo xtask dev --install` registers one), it asks
-//! that manager to start it — `noctua-daemon --restored`, as every restorer
-//! starts it — so the daemon it starts is one the manager restores; where the
-//! manager holds none, or there is none to ask, it starts the install's own
-//! daemon, beside this CLI and never found on `PATH`, detached
-//! (`nc_platform::process::spawn_detached`) with its standard error written
-//! fresh into the profile's `daemon.err`. Either way it waits `start_within_ms`
-//! for that daemon to answer the handshake. One that does not answer by then,
-//! or that a detached start sees end first, is a start that failed
-//! (`NC-CLI-0007`), with what it wrote to its standard error, or what its
-//! manager says of it.
+//! a moment and let go at once — so it starts none beside a daemon that still
+//! holds the profile, which the lock would refuse and a service manager whose
+//! unit still runs it would not start again; one that holds the lock still by
+//! then is not signalled, and nothing is started (`NC-DMN-0008`, exit 11). A
+//! daemon that says it is stopping is waited for as a stop waits for one. Then
+//! it removes the mark, and answers at once when a daemon answers. Otherwise,
+//! **where this system's service manager holds the install's restorer**
+//! (`cargo xtask dev --install` registers one), it asks that manager to start
+//! it — `noctua-daemon --restored`, as every restorer starts it — so the
+//! daemon it starts is one the manager restores; where the manager holds none,
+//! or there is none to ask, it starts the install's own daemon, beside this CLI
+//! and never found on `PATH`, detached (`nc_platform::process::spawn_detached`)
+//! with its standard error written fresh into the profile's `daemon.err`.
+//! Either way it waits `start_within_ms` for that daemon to answer the
+//! handshake. One that does not answer by then, or that a detached start sees
+//! end first, is a start that failed (`NC-CLI-0007`), with what it wrote to its
+//! standard error, or what its manager says of it.
 //!
 //! `restart` is a stop and then a start, the mark written and removed between
 //! them; `status` is the daemon's own, or, when nothing answers, what the PID
@@ -67,9 +66,13 @@
 //! A process running as the same user, which can stop the daemon, remove the
 //! mark or rewrite the record; on macOS the moment between the last reading of
 //! the process and the signal, which a process id handed out again in it would
-//! be sent; and on Windows a terminate that is as hard as a kill, since no
-//! signal there is one a process can answer (`AGENTS.md`, What is deliberately
-//! not claimed).
+//! be sent; on Windows a terminate that is as hard as a kill, since no signal
+//! there is one a process can answer; commands run at once, each failing closed
+//! and none signalling; and, with nothing verifying the daemon, the moment
+//! between its instance lock let go, where a stop's wait ends, and its
+//! process's end, in which a start through a manager whose unit still runs it
+//! starts nothing and fails with `NC-CLI-0007` (`AGENTS.md`, What is
+//! deliberately not claimed).
 
 use core::time::Duration;
 use std::path::Path;
@@ -467,11 +470,12 @@ async fn ended_once_asked(
 /// account can reach, or a lock that could not be asked, is a failure, never
 /// a profile free. **Asked while the `stopped` mark is there, where the
 /// command has one** — a stop writes it before anything else, and a start
-/// removes it only once this has answered — so a restorer's start that meets
-/// the lock held here for a moment has ended at the mark before it reached
-/// the lock. Where there is none, a start with no stop before it, such a
-/// restorer's start reads that moment as a daemon already up and ends, and
-/// leaves no channel down: the start that asked goes on to start one itself.
+/// removes it only after its wait, after every time this was asked — so a
+/// restorer's start that meets the lock held here for a moment has ended at
+/// the mark before it reached the lock. Where there is none, a start with no
+/// stop before it, such a restorer's start reads that moment as a daemon
+/// already up and ends, and leaves no channel down: the start that asked goes
+/// on to start one itself.
 fn let_go(found: &Found) -> Result<bool, Failure> {
     let (layout, user) = (&found.layout, &found.user);
     let unasked = |judged| match judged {
@@ -585,8 +589,9 @@ fn signalled(cli: &str, process: &impl Ends) -> Result<String, Failure> {
 /// answers what was done.
 async fn start(found: &Found) -> Result<String, Failure> {
     let (layout, cli) = (&found.layout, &found.layout.cli);
-    // The mark goes only once the profile is free, so what the wait asks of
-    // its lock is asked while a restorer's start still ends at the mark.
+    // The mark goes only after the wait, a daemon answering or none holding
+    // the profile, so each time the wait takes the profile's lock is while a
+    // restorer's start still ends at the mark.
     let answering = free_to_start(found, stop_within()).await?;
     unmark(layout, &found.user)?;
     if let Some(connection) = answering {

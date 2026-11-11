@@ -2419,7 +2419,8 @@ is installed.
   persistent state directory, created private, synced and the directory synced, before it
   asks the daemon anything; a mark or a state directory another account can reach is
   refused and left as it was (`NC-DMN-0001`), and nothing is asked. `start` removes the
-  mark the same way, once judged, and only once no daemon holds the profile.
+  mark the same way, once judged, and only after its wait: once a daemon answers or none
+  holds the profile.
 - **The daemon is asked before it is signalled, and only a process held to its record is
   signalled** (invariant 25). The PID record is read through `nc_channel::record`, judged
   this user's alone and read only as the daemon writes it, and the process it names held

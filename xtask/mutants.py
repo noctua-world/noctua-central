@@ -7722,7 +7722,7 @@ WEAKENINGS = [
     ("cli_control", "free_to_start", "a start waits until no daemon holds the profile",
      "        if let_go(found)? {\n            return Ok(None);",
      "        if true {\n            return Ok(None);"),
-    ("cli_control", "start", "a start removes the mark only once no daemon holds the profile",
+    ("cli_control", "start", "a start removes the mark only after its wait",
      "    let answering = free_to_start(found, stop_within()).await?;\n    unmark(layout, &found.user)?;\n",
      "    unmark(layout, &found.user)?;\n    let answering = free_to_start(found, stop_within()).await?;\n"),
     ("cli_control", "free_to_start", "a start gives up on a profile still held as the lock refuses a second daemon",
