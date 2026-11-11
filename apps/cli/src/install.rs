@@ -39,8 +39,9 @@
 //!    none starts one half written. Then the daemon is started through it —
 //!    **unless the profile carried the `stopped` mark before this install
 //!    stopped an earlier daemon**: a person's stop, which an install keeps, and
-//!    the one an uninstall's stop or an install that did not finish left, which
-//!    it cannot tell from one.
+//!    the one an install or an uninstall that failed after its own stop left,
+//!    which it cannot tell from one — an uninstall that finishes removes the
+//!    mark its own stop wrote.
 //!
 //! **Where the restorer's definition is kept is the install's**: a real
 //! install's where its manager reads it at each login

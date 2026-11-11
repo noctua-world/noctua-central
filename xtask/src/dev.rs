@@ -542,8 +542,10 @@ fn stands_aside(runs_the_stack: bool) -> bool {
 /// this system keeps a user's profiles under, and `NC_INSTALL_NAMESPACE`,
 /// which relocates the install as a test's, are written into the manifest, so
 /// the binaries never read them (`NOCTUA.md §17.1`). The CLI and the daemon are
-/// built, and the plugins, then copied by `nc_cli::install` from where the
-/// build says it wrote them — the target directory cargo chose —
+/// built, and the plugins, then copied by `nc_cli::install`: the CLI and the
+/// daemon from where the build says it wrote them — the target directory cargo
+/// chose — and the plugins from the checkout's own `target/`, its `plugins`
+/// folder, where the plugin build writes them whatever the environment says;
 /// with the test world and its grant (`policy/world.json`); a daemon an earlier
 /// install runs is stopped first. **The daemon is registered with this
 /// system's service manager** as `noctua-daemon --restored`, restored when it

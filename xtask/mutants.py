@@ -7481,11 +7481,11 @@ WEAKENINGS = [
      "    stopped(&found)?;\n",
      ""),
     ("cli_control", "ended_once_asked", "with nothing verified a record still naming it holds the stop",
-     "        if !listening && !named {",
-     "        if !listening {"),
+     "        if !named && !listening && let_go(found)? {",
+     "        if !listening && let_go(found)? {"),
     ("cli_control", "ended_once_asked", "with nothing verified an endpoint still held holds the stop",
-     "        if !listening && !named {",
-     "        if !named {"),
+     "        if !named && !listening && let_go(found)? {",
+     "        if !named && let_go(found)? {"),
     ("cli_control", "running", "a start says it runs only once the status says so",
      "        if state.contains(&running) {",
      "        if true {"),
@@ -7649,9 +7649,9 @@ WEAKENINGS = [
     ("daemon_run", "opened", "the kernel mints behind the mark's ceiling",
      "        minter: Arc::clone(&minter),\n",
      "        minter: Arc::new(Mutex::new(nc_ids::Minter::new(flake, nc_ids::SystemClock))),\n"),
-    ("cli_control", "start", "a start waits for a daemon that is stopping",
-     "        if connection.welcome().state != nc_ipc::State::Stopping {",
-     "        if true {"),
+    ("cli_control", "free_to_start", "a start waits for a daemon that is stopping",
+     "            if connection.welcome().state != nc_ipc::State::Stopping {",
+     "            if true {"),
     ("platform_process", "no_handle", "a handle refused is a failure, never a process this user may not read",
      "    std::io::Error::other(format!(",
      "    std::io::Error::new(error.kind(), format!("),
@@ -7695,8 +7695,8 @@ WEAKENINGS = [
     # A start that finds a daemon stopping waits for it to end before it starts
     # one, and a stopped run removes its record before it lets its endpoint go,
     # which is the order a stop asked again reads.
-    ("cli_control", "start", "a start waits for a stopping daemon to end before it starts one",
-     "        ended_once_asked(found, recorded(found), pid, stop_within()).await?;\n",
+    ("cli_control", "free_to_start", "a start waits for a stopping daemon to end before it starts one",
+     "            ended_once_asked(found, recorded(found), pid, within).await?;\n",
      ""),
     ("daemon_run", "ended", "a stopped run's record goes before its endpoint",
      "    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);\n    server.let_go(accepting, deadline).await;\n",
@@ -7709,6 +7709,30 @@ WEAKENINGS = [
     ("cli_control", "stop", "a daemon whose record went once a stop read it is waited for",
      "        Recorded::Verified(verified, record) if unanswered == Unanswered::Wait => {",
      "        Recorded::Verified(verified, record) if false => {"),
+    # A wait for a daemon nothing verified knocks at its endpoint only once its
+    # record no longer names it, and ends only once no daemon holds its profile;
+    # a start waits for the profile to be free, the mark still there, before it
+    # starts one.
+    ("cli_control", "ended_once_asked", "with nothing verified the endpoint is knocked at only once the record has gone",
+     "        let listening = !named\n            && nc_platform::ipc::connect(&endpoint, &found.user)",
+     "        let listening = true\n            && nc_platform::ipc::connect(&endpoint, &found.user)"),
+    ("cli_control", "ended_once_asked", "with nothing verified a stop waits for the profile to be let go",
+     "        if !named && !listening && let_go(found)? {",
+     "        if !named && !listening {"),
+    ("cli_control", "free_to_start", "a start waits until no daemon holds the profile",
+     "        if let_go(found)? {\n            return Ok(None);",
+     "        if true {\n            return Ok(None);"),
+    ("cli_control", "start", "a start removes the mark only after its wait",
+     "    let answering = free_to_start(found, stop_within()).await?;\n    unmark(layout, &found.user)?;\n",
+     "    unmark(layout, &found.user)?;\n    let answering = free_to_start(found, stop_within()).await?;\n"),
+    ("cli_control", "free_to_start", "a start gives up on a profile still held as the lock refuses a second daemon",
+     "                ErrorCode::DaemonInstanceHeld,\n",
+     "                ErrorCode::CliDaemonDidNotStart,\n"),
+    # The newest unit a start reads is the larger of its journal's and its
+    # store's, whichever is newer.
+    ("daemon_environment", "newest_kept", "a start reads the journal's unit over an older one its store committed",
+     "    Ok(journaled.max(committed))\n",
+     "    Ok(committed.or(journaled))\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
