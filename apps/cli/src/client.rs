@@ -16,10 +16,14 @@
 //! 3. **The handshake**, `nc_ipc::connect`: the daemon proves it holds the
 //!    token, over both nonces, before the client sends anything past its own
 //!    proof.
-//! 4. **The welcome the proof covers**: the process it names must be the one
-//!    the system says is at the other end, and the channel the install's
+//! 4. **The welcome sent beside the proof**: the process it names must be the
+//!    one the system says is at the other end, and the channel the install's
 //!    (`NC-CLI-0004`) — so a daemon of another channel that somehow held this
-//!    token, or a relay between the two, is refused before a request is made.
+//!    token is refused before a request is made, and so is a relay between the
+//!    two that passes the daemon's own welcome on. **The daemon's proof binds
+//!    the two nonces and not the welcome**, so a relay that rewrites the
+//!    welcome to name itself is not refused by it; such a relay runs as this
+//!    user, as both ends' peer checks require, which is the process below.
 //!
 //! Only then is a request sent, one at a time; an answer of another kind than
 //! the request's is refused (`NC-CLI-0005`).
@@ -27,8 +31,9 @@
 //! # What this does not answer
 //!
 //! A process running as the same user, which can read the token and answer
-//! as the daemon, or connect as a client — authorization re-decides every
-//! dispatch (`§14`); and the PID record the daemon writes, which this does not
+//! as the daemon, connect as a client, or relay a connection rewriting the
+//! welcome — authorization re-decides every dispatch (`§14`); and the PID
+//! record the daemon writes, which this does not
 //! read: the welcome is held to the system's word for the other end, and not
 //! to the record process control reads ([`crate::control`]).
 
@@ -126,7 +131,9 @@ impl Unasked {
     /// **Nothing listening is a daemon that is not running**, and so is one
     /// that stopped answering a request; everything refused on the way to the
     /// first request is a connection refused; a request too long to send is
-    /// arguments refused.
+    /// arguments refused; and an answer the CLI cannot read — a frame that is
+    /// not one message, or one past the bound — from a daemon the handshake
+    /// proved is the daemon answering what the CLI does not read.
     #[must_use]
     pub fn exit(&self) -> Exit {
         match self {
@@ -134,6 +141,9 @@ impl Unasked {
                 Exit::Unreachable
             }
             Self::Asking(IpcError::Unsendable { .. }) => Exit::Invalid,
+            Self::Asking(IpcError::Malformed(_) | IpcError::TooLarge { .. }) | Self::Unread(_) => {
+                Exit::Internal
+            }
             Self::Asking(
                 IpcError::Lost(_) | IpcError::Silent | IpcError::Unread | IpcError::TurnedAway(_),
             ) => Exit::Unreachable,
@@ -143,7 +153,6 @@ impl Unasked {
             | Self::Handshake(_)
             | Self::Misnamed(_)
             | Self::Asking(_) => Exit::Refused,
-            Self::Unread(_) => Exit::Internal,
             Self::Refused(refusal) => Exit::of_refusal(refusal),
             Self::Runtime(_) => Exit::Failed,
         }
@@ -831,8 +840,12 @@ mod tests {
     }
 
     /// A request is answered or lost by how the connection ended: a daemon
-    /// gone is not running, a frame refused is a connection refused, and a
-    /// request too long to send is arguments refused.
+    /// gone is not running, an answer the CLI cannot read is the daemon's
+    /// failure, and a request too long to send is arguments refused.
+    ///
+    /// **Found by a review**: an answer refused as a frame after a proven
+    /// handshake ended in 10, whose meaning is a connection that did not show
+    /// both ends to be this install's, rather than in 8.
     #[test]
     fn a_request_not_answered_ends_by_how_the_connection_ended() {
         for (error, exit) in [
@@ -843,8 +856,9 @@ mod tests {
                 IpcError::TurnedAway(ErrorCode::IpcSilent),
                 Exit::Unreachable,
             ),
-            (IpcError::Malformed(String::new()), Exit::Refused),
-            (IpcError::TooLarge { length: 1 }, Exit::Refused),
+            (IpcError::Malformed(String::new()), Exit::Internal),
+            (IpcError::TooLarge { length: 1 }, Exit::Internal),
+            (IpcError::Protocol { theirs: 9 }, Exit::Refused),
             (IpcError::Unsendable { length: 1 }, Exit::Invalid),
         ] {
             assert_eq!(Unasked::Asking(error).exit(), exit);

@@ -1186,6 +1186,41 @@ async fn an_undo_and_the_mark_on_its_target_land_together() {
     store.close().await;
 }
 
+/// The newest unit is the largest the store holds, of any realm and kind.
+///
+/// A reversal's among them, committed before a smaller step, and one of
+/// thirteen digits beside ones of one: nothing in a new store.
+#[tokio::test]
+async fn the_newest_unit_is_the_largest_the_store_holds_of_any_realm_and_kind() {
+    let scratch = Scratch::new("newest");
+    let store = LocalStore::open(&scratch.profile()).await.expect("opens");
+    assert_eq!(store.newest_unit().await.expect("asked"), None);
+    store
+        .commit(&step(3, vec![put("p", "k", "1", Expect::Absent)]), &ROOMY)
+        .await
+        .expect("commits");
+    let large = 1_u64 << 61;
+    let reversal = UnitRecord {
+        unit: unit(large),
+        meta: UnitMeta {
+            realm: id("work"),
+            ..meta("ana", UnitKind::Undo { target: unit(3) }, 4)
+        },
+        writes: Vec::new(),
+        blobs: Vec::new(),
+        notes: Vec::new(),
+        unpinned: Vec::new(),
+        marks: Vec::new(),
+    };
+    store.commit(&reversal, &ROOMY).await.expect("commits");
+    store
+        .commit(&step(9, vec![put("p", "j", "1", Expect::Absent)]), &ROOMY)
+        .await
+        .expect("commits");
+    assert_eq!(store.newest_unit().await.expect("asked"), Some(unit(large)));
+    store.close().await;
+}
+
 /// A redo is read back as a redo of its undo, and an undo as an undo.
 ///
 /// **Each kind is its own row.** Measured, with the arm that records a redo

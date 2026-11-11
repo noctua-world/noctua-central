@@ -928,6 +928,27 @@ impl LocalStore {
         Ok(Some(UnitDetail { row, images, notes }))
     }
 
+    /// The largest unit the store holds, of any realm and any kind, or
+    /// nothing in a store that holds none.
+    ///
+    /// **Every unit a kernel committed, a reversal's among them**: a kernel
+    /// mints a reversal's unit itself and no journal entry names it, so this
+    /// is what a start resumes its identifiers above beside the journal's
+    /// newest unit. The column is an integer, so the largest is the largest
+    /// identifier.
+    ///
+    /// # Errors
+    ///
+    /// [`LocalError`] when SQLite cannot be asked, or holds a unit this crate
+    /// did not write.
+    pub async fn newest_unit(&self) -> Result<Option<Snowflake>, LocalError> {
+        let newest: Option<i64> = sqlx::query_scalar("SELECT max(unit) FROM main.store_units")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|error| said("asking for the newest unit", &error))?;
+        newest.map(snowflake).transpose()
+    }
+
     /// Sets a committed unit's state. `false` when the store does not hold it.
     ///
     /// # Errors

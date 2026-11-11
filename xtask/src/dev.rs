@@ -24,7 +24,7 @@
 //! with none set; a developer who wants different values exports them, and the
 //! example environment, `.env.example`, says how.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::ui;
@@ -542,7 +542,8 @@ fn stands_aside(runs_the_stack: bool) -> bool {
 /// this system keeps a user's profiles under, and `NC_INSTALL_NAMESPACE`,
 /// which relocates the install as a test's, are written into the manifest, so
 /// the binaries never read them (`NOCTUA.md §17.1`). The CLI and the daemon are
-/// built, and the plugins, then copied out of `target/` by `nc_cli::install`,
+/// built, and the plugins, then copied by `nc_cli::install` from where the
+/// build says it wrote them — the target directory cargo chose —
 /// with the test world and its grant (`policy/world.json`); a daemon an earlier
 /// install runs is stopped first. **The daemon is registered with this
 /// system's service manager** as `noctua-daemon --restored`, restored when it
@@ -573,11 +574,12 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
     if uninstall {
         return uninstalled(&install);
     }
-    crate::check::cargo(
+    let built = crate::check::cargo(
         root,
         &[
             "build",
             "--locked",
+            "--message-format=json-render-diagnostics",
             "--package",
             "nc-cli",
             "--package",
@@ -586,15 +588,14 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         ],
         false,
     )
+    .map_err(|output| without_messages(&output))
     .map_err(|said| format!("the CLI and the daemon did not build: {said}"))?;
+    let (cli, daemon) = (
+        built_at(&built, "noctua")?,
+        built_at(&built, "noctua-daemon")?,
+    );
     ui::ok("the CLI and the daemon are built");
     crate::plugins::run(root)?;
-    let built = root.join("target").join("debug");
-    let suffix = nc_platform::EXECUTABLE_SUFFIX;
-    let (cli, daemon) = (
-        built.join(format!("noctua{suffix}")),
-        built.join(format!("noctua-daemon{suffix}")),
-    );
     let world = std::fs::read_to_string(root.join("policy/world.json"))
         .map_err(|error| format!("`policy/world.json` could not be read: {error}"))?;
     let world = nc_cli::install::development_world(&world).map_err(|unmade| unmade.to_string())?;
@@ -624,6 +625,60 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
     );
     let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
     said_installed(&installed)
+}
+
+/// What a build that failed said, without the messages cargo writes for programs.
+///
+/// **A build asked for `--message-format=json-render-diagnostics` writes one
+/// JSON message for each unit it built** — fresh ones too, hundreds of lines —
+/// beside what cargo rendered of the failure, and the two come back as one
+/// output; so a line that is a message of cargo's, an object naming its
+/// `reason`, is left out, and the failure shows what a person reads. **Found by
+/// a review**: a failed install printed every unit's message before the
+/// compiler's errors.
+fn without_messages(said: &str) -> String {
+    said.lines()
+        .filter(|line| {
+            serde_json::from_str::<serde_json::Value>(line)
+                .ok()
+                .is_none_or(|message| message.get("reason").is_none())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Where the build whose output is `built` wrote the binary `name`: the
+/// executable its own artifact message names.
+///
+/// **The target directory is cargo's to choose** — `target/`, or wherever
+/// `CARGO_TARGET_DIR` or `build.target-dir` puts it — so the path is read from
+/// what the build says it made, never derived from the checkout. **Found by a
+/// review**: derived, an install copied whatever an earlier build had left in
+/// `target/debug`, or failed on nothing there once it had stopped the daemon.
+///
+/// # Errors
+///
+/// Returns that the build said it made no binary of that name, so there is
+/// nothing to install.
+fn built_at(built: &str, name: &str) -> Result<PathBuf, String> {
+    built
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|message| {
+            message["reason"] == "compiler-artifact"
+                && message["target"]["name"] == name
+                && message["target"]["kind"]
+                    .as_array()
+                    .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
+        })
+        .find_map(|message| message["executable"].as_str().map(PathBuf::from))
+        .ok_or_else(|| {
+            format!(
+                "the build said it made no binary `{name}`, so there is nothing to install: \
+                 build it with `cargo build --package nc-cli --package nc-daemon --bins` and \
+                 read what cargo says"
+            )
+        })
 }
 
 /// Removes this checkout's development install, `install`, and says what
@@ -1568,6 +1623,82 @@ fn unavailable(error: &std::io::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// The binaries installed are the ones the build says it made.
+    ///
+    /// Wherever its target directory is: each read off the artifact message of
+    /// the binary target of its name, past a library and an example of that
+    /// name and past what is not a message at all; a binary the build did not
+    /// name is refused, naming it.
+    #[test]
+    fn the_binaries_installed_are_the_ones_the_build_says_it_made() {
+        let artifact = |kind: &str, name: &str, executable: Option<&str>| {
+            serde_json::json!({
+                "reason": "compiler-artifact",
+                "target": { "kind": [kind], "name": name },
+                "executable": executable,
+                "fresh": true,
+            })
+            .to_string()
+        };
+        let built = [
+            "   Compiling nc-cli v0.1.0".to_owned(),
+            artifact("lib", "noctua", None),
+            artifact(
+                "example",
+                "noctua",
+                Some("/elsewhere/debug/examples/noctua"),
+            ),
+            artifact("bin", "noctua", Some("/elsewhere/debug/noctua")),
+            artifact(
+                "bin",
+                "noctua-daemon",
+                Some("/elsewhere/debug/noctua-daemon"),
+            ),
+            "    Finished `dev` profile".to_owned(),
+        ]
+        .join("\n");
+        assert_eq!(
+            super::built_at(&built, "noctua"),
+            Ok(std::path::PathBuf::from("/elsewhere/debug/noctua"))
+        );
+        assert_eq!(
+            super::built_at(&built, "noctua-daemon"),
+            Ok(std::path::PathBuf::from("/elsewhere/debug/noctua-daemon"))
+        );
+        let refused = super::built_at(&built, "noctua-helper").expect_err("never built");
+        assert!(refused.contains("no binary `noctua-helper`"), "{refused}");
+    }
+
+    /// A build that failed shows what cargo rendered of it, and none of the
+    /// messages it wrote for programs.
+    ///
+    /// A line that only looks like JSON, or a JSON object naming no reason, is
+    /// what was said and stays.
+    #[test]
+    fn a_build_that_failed_shows_what_cargo_rendered_and_none_of_its_messages() {
+        let said = [
+            r#"{"reason":"compiler-artifact","target":{"name":"nc-ids"},"fresh":true}"#,
+            "error[E0425]: cannot find value `minted` in this scope",
+            "  --> apps/daemon/src/run.rs:9:5",
+            r#"{"reason":"build-finished","success":false}"#,
+            r#"{"rendered":"not a message of cargo's"}"#,
+            "{ not json at all",
+            "error: could not compile `nc-daemon` (lib) due to 1 previous error",
+        ]
+        .join("\n");
+        assert_eq!(
+            super::without_messages(&said),
+            [
+                "error[E0425]: cannot find value `minted` in this scope",
+                "  --> apps/daemon/src/run.rs:9:5",
+                r#"{"rendered":"not a message of cargo's"}"#,
+                "{ not json at all",
+                "error: could not compile `nc-daemon` (lib) due to 1 previous error",
+            ]
+            .join("\n")
+        );
+    }
+
     /// Lingering is said as done where logind keeps it or enabled it, and
     /// otherwise as the exact command and the NixOS option that enable it;
     /// a system with no lingering says nothing of it.

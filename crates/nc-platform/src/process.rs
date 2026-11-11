@@ -285,6 +285,28 @@ pub(crate) fn unread(pid: u32, error: std::io::Error) -> Unverified {
     Unverified::Failed(error)
 }
 
+/// What the system's refusal `error` to hand this process a handle on
+/// process `pid` is: a failure to ask, never a process this user may not
+/// read.
+///
+/// **A Linux pidfd is opened for any process there is**: `pidfd_open` checks
+/// no permission, so a refusal of it — a seccomp filter's, a security
+/// module's — says nothing of whose process it is. Only a refusal to read
+/// `/proc/<pid>`, the `hidepid` case, is one this user may not read
+/// ([`unread`]); this one is read as a failure, never as a daemon stopped.
+#[cfg_attr(
+    all(not(target_os = "linux"), not(test)),
+    expect(
+        dead_code,
+        reason = "only Linux opens a handle on a process before it reads it"
+    )
+)]
+pub(crate) fn no_handle(pid: u32, error: &std::io::Error) -> std::io::Error {
+    std::io::Error::other(format!(
+        "the system refused a handle on process {pid}: {error}"
+    ))
+}
+
 /// The process `record` names, `held` for a signal, once what the system says
 /// of it is what the record names.
 ///
@@ -834,6 +856,37 @@ mod tests {
                 "{kind:?} was read as an answer about the process"
             );
         }
+    }
+
+    /// A refusal of a handle on a process is a failure to ask, whatever its kind.
+    ///
+    /// **Found by a review**: a pidfd a seccomp filter refused with `EPERM` was
+    /// read as a process this user may not read, so a daemon still running was
+    /// called stopped; a refusal to read the process stays one.
+    #[test]
+    fn a_refusal_of_a_handle_on_a_process_is_a_failure_to_ask() {
+        for kind in [
+            std::io::ErrorKind::PermissionDenied,
+            std::io::ErrorKind::Unsupported,
+        ] {
+            let refused = super::no_handle(4242, &std::io::Error::from(kind));
+            match unread(4242, refused) {
+                Unverified::Failed(error) => assert!(
+                    error
+                        .to_string()
+                        .contains("refused a handle on process 4242"),
+                    "{error}"
+                ),
+                answered => panic!("a handle refused ({kind:?}) was answered {answered:?}"),
+            }
+        }
+        assert!(matches!(
+            unread(
+                4242,
+                std::io::Error::from(std::io::ErrorKind::PermissionDenied)
+            ),
+            Unverified::Gone(_)
+        ));
     }
 
     /// A record of another start is gone whoever holds its id now.

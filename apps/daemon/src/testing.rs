@@ -188,6 +188,30 @@ impl Installed {
         }
     }
 
+    /// `program` started with `arguments` and `environment`, as its spawner
+    /// starts the daemon of this install: a child of a test binary told to
+    /// serve it, which a unit test the mutation runner judges starts.
+    ///
+    /// # Panics
+    ///
+    /// When it could not be started, or the file its standard error is
+    /// written to could not be opened.
+    #[must_use]
+    pub fn spawn_as(
+        &self,
+        program: &Path,
+        arguments: &[&str],
+        environment: &[(&str, &std::ffi::OsStr)],
+    ) -> Running {
+        Running {
+            child: start_with(program, arguments, environment, &self.layout.daemon_err),
+            installed: Reached {
+                layout: self.layout.clone(),
+                user: self.user.clone(),
+            },
+        }
+    }
+
     /// The scratch root the install is under, removed with it.
     #[must_use]
     pub fn root(&self) -> &Path {
@@ -285,12 +309,23 @@ fn written(path: &Path, text: &str) {
 ///
 /// When it could not be started.
 #[must_use]
+pub fn start(executable: &Path, standard_error: &Path) -> Child {
+    start_with(executable, &[], &[], standard_error)
+}
+
+/// `program` started with `arguments` and `environment`, as [`start`] starts
+/// the daemon's binary.
 #[expect(
     clippy::disallowed_methods,
     reason = "the daemon's binary started as its spawner starts it: its standard handles \
               null or a file in its profile, never this process's"
 )]
-pub fn start(executable: &Path, standard_error: &Path) -> Child {
+fn start_with(
+    program: &Path,
+    arguments: &[&str],
+    environment: &[(&str, &std::ffi::OsStr)],
+    standard_error: &Path,
+) -> Child {
     nc_platform::process::keep_standard_handles_from_children()
         .expect("this process's standard handles are kept from its children");
     let error = std::fs::OpenOptions::new()
@@ -298,7 +333,9 @@ pub fn start(executable: &Path, standard_error: &Path) -> Child {
         .append(true)
         .open(standard_error)
         .expect("the daemon's standard error");
-    std::process::Command::new(executable)
+    std::process::Command::new(program)
+        .args(arguments)
+        .envs(environment.iter().copied())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(error)

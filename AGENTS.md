@@ -162,8 +162,8 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
 
 It is one repository on purpose (`NOCTUA.md §10.1`): those parts share the command
 catalog, the policy pack, the generated types and the journal format. `NOCTUA.md §10.2`
-says which directories are absent until a stage fills them — every app but the daemon,
-and the services, among them.
+says which directories are absent until a stage fills them — every app but the daemon and
+the CLI, and the services, among them.
 
 `NOCTUA.md` is the authority on what this is and by what rules, and the plan
 (`NOCTUA-PLAN.md`) says what to build and in what order. Two files under `reference/` —
@@ -358,22 +358,23 @@ prints. `POSTGRES_PORT` and `LOGS_PORT` move a port.
 
 `cargo xtask dev --install` installs this checkout as its development channel, on every
 system and with or without the stack: it builds the CLI, the daemon and the plugins and
-copies them out of `target/` into the install the base directories name, with the
+copies them out of the target directory cargo built them in — wherever `CARGO_TARGET_DIR`
+or `build.target-dir` puts it — into the install the base directories name, with the
 manifest, the device, the test world and the plugins (`nc_cli::install`), stopping the
 daemon an earlier install runs first — once it has found the service manager and asked
 whether it holds the earlier restorer: from an environment that does not reach it, it stops
 nothing and installs nothing. It registers the daemon with the system's service
 manager as `noctua-daemon --restored` — a systemd user unit, a launch agent, a logon task
 — restored when it dies and started at each login, and starts it through that manager
-unless the profile carried the `stopped` mark, a person's stop or one an uninstall or an
-install that did not finish left; on Linux it enables lingering where logind
+unless the profile carried the `stopped` mark, a person's stop or one an install or an
+uninstall that did not finish left; on Linux it enables lingering where logind
 lets it, so the daemon starts at boot, and otherwise prints the command and the NixOS
 option that do. It leaves `PATH` as it is: the CLI is `noctua-dev-<checkout>` at the path
 it prints. `--uninstall` finds the service manager first — from an environment that does
 not reach it, it removes nothing — then stops the daemon, unregisters its restorer, with
 the one `systemctl --user daemon-reload` a unit the user's manager has read at a login or
-a boot needs before it goes, and removes the binaries and the manifest, and keeps the
-profile. The environment is read then and never by a binary — the base directories and
+a boot needs before it goes, and removes the binaries and the manifest, and the mark its
+own stop wrote, and keeps the profile — a person's stop with it. The environment is read then and never by a binary — the base directories and
 `NC_INSTALL_NAMESPACE`, which relocates the install as a test's, which never asks for
 lingering and whose restorer is kept where no login reads it on systemd and launchd — the
 runtime directory the next boot forgets, the profile an agent is bootstrapped from for
@@ -782,14 +783,19 @@ held by its tests, and by no gate over a signal sent another way.
 
 23. **The daemon has no network listener.** What a daemon serves, it serves at its
     endpoint — a socket or a pipe its user alone reaches (`nc_platform::ipc`) — and
-    nowhere a network can: no `TcpListener`, `TcpSocket` or `UdpSocket` is written in the
-    shipped sources of any app under `apps/`, of `crates/nc-ipc` or of
-    `crates/nc-platform`. **Gated** by `the_daemon_has_no_network_listener` in
-    `xtask/src/gates.rs`, over those sources with comments and strings blanked, and by
+    nowhere a network can: no `TcpListener`, `TcpSocket` or `UdpSocket` is written under
+    `apps/*/src`, `crates/nc-ipc/src` or `crates/nc-platform/src` — every app's sources,
+    their tests among them, and those of `nc-ipc` and `nc-platform`, which its endpoint and
+    protocol are built from. **Gated** by `the_daemon_has_no_network_listener` in `xtask/src/gates.rs`,
+    over those sources with comments and strings blanked, and by
     `the_listener_walk_goes_everywhere_inside_its_scope`, which plants a listener in every
     directory the tree has and holds the walk to finding each one in its scope and none
-    outside it. **Not held**: a listener a dependency opens on the daemon's behalf, which no
-    source here names — the kernel's transport dials out and listens nowhere.
+    outside it. **Not held**: a listener written in any other crate of this tree the daemon
+    is built from — `nc-kernel`, `nc-log`, `nc-local` and the rest its graph reaches, whose
+    sources this gate does not read, and whose own tests open listeners on this machine —
+    which only review keeps from the daemon's run; and a listener a dependency opens on the
+    daemon's behalf, which no source here names. The kernel's transport dials out and
+    listens nowhere.
 
 24. **No code outside `nc-platform` decides by the system it is built for**
     (`NOCTUA.md §2.7`): a `cfg`, `cfg!`, `cfg_attr` or `cfg_select!` arm naming `unix`, `windows`,
@@ -800,9 +806,12 @@ held by its tests, and by no gate over a signal sent another way.
     written down by its file and its text (`THE_GATES_OWN` in `xtask/src/gates.rs`):
     `check::RUNS_THE_STACK`, and two tests holding that answer to the system they run on.
     **Gated** by `no_system_is_asked_outside_the_platform`, over every Rust source of every
-    member tree with comments and strings blanked, the predicate read inside its
-    parentheses and each arm of a `cfg_select!` read before its `=>`, and by
-    `the_system_walk_goes_everywhere_outside_the_platform`, which plants both forms. **Not
+    member tree with comments and strings blanked, the predicate read inside the
+    parentheses an attribute takes or whichever delimiters a macro is called with —
+    `cfg!(…)`, `cfg![…]` and `cfg!{…}` alike, a path before it or none — and each arm of a
+    `cfg_select!` read before its `=>`, and by
+    `the_system_walk_goes_everywhere_outside_the_platform`, which plants the attribute,
+    the arm and `cfg!` in brackets. **Not
     held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today;
     a `cfg` by architecture or pointer width, which names no system — the reference
     plugin's `target_arch = "wasm32"` among them; `cfg!` or `cfg_select!` renamed by a
@@ -817,7 +826,9 @@ held by its tests, and by no gate over a signal sent another way.
     Linux, one process handle on Windows, the process read again just before it on macOS.
     A stop asks the daemon through its endpoint first and signals only one that does not
     answer: one that answers it is stopping is waited for and never signalled
-    (`NC-CLI-0008` when it outlasts the wait). A record naming a process that runs no
+    (`NC-CLI-0008` when it outlasts the wait), and so is one whose record, read again once
+    nothing answered, no longer names it — a daemon removes its record at the end of its
+    own stop, before its endpoint goes. A record naming a process that runs no
     more — judged before anything else, so whoever holds its id now — or a process this
     user may not read at all, which is not its daemon (on Windows, another account's, for
     an account that is not an elevated administrator), is a daemon already stopped while
@@ -829,7 +840,11 @@ held by its tests, and by no gate over a signal sent another way.
     `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` — four stale records, a
     sleeper still running after each, and the sleeper's own record the control a stop
     does end — by the tests of `crates/nc-platform/src/process.rs`, of
-    `apps/cli/src/control.rs` and of `crates/nc-channel/src/record.rs`, and by the
+    `apps/cli/src/control.rs` and of `crates/nc-channel/src/record.rs`, by
+    `a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go` in
+    `apps/daemon/src/run.rs`, which holds the order a stop asked again reads, by
+    `a_daemon_whose_record_went_while_a_stop_asked_it_is_waited_for_and_never_signalled`
+    in `apps/cli/src/control.rs`, which holds the stop's reading of it, and by the
     operators over those sources. **Not held**: macOS's moment between the last reading
     of a process and its signal; and a signal sent another way, which no gate reads the
     CLI's source for — every one this tree sends is a method of `Verified`, and
@@ -869,7 +884,7 @@ entry owns.
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
 | Another account reaching the daemon's endpoint, or standing in for it | a socket `0600` in a runtime directory judged `0700`, or a pipe made first with an access list naming the user alone and remote clients rejected; the user and the process at the other end read off the system both ways, before a frame crosses | "A daemon's endpoint lets in its user alone, and each end reads the other off the system" |
 | Something that never read the token speaking to the daemon, or answering for it | a proof keyed by the token at each end, over both nonces and a domain of its own, compared in constant time, with the token never sent | "Each end of a connection proves it holds the token, and neither sends it" |
-| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit its local journal holds, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
+| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit its local database keeps, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
 | Two daemons over one profile, a network reaching a daemon, or a request reaching the kernel unproven | an instance lock taken at once or refused, no listener a network can reach, and every connection proven before a request is read, each refusal logged | "A daemon serves its kernel to its user alone, one to a profile, and to nothing a network reaches" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 | Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
@@ -1868,9 +1883,13 @@ and on Windows the Administrators group, `SYSTEM` and a holder of the take-owner
 privilege; another account actually connecting, which no test can be (under **What is
 deliberately not claimed**); on Windows, the process at the other end read by its id, so
 one that exited may have handed its id to another process by the time its token is
-asked — of another user, refused, or of this one; and a Windows listener whose next
+asked — of another user, refused, or of this one; a Windows listener whose next
 instance could not be made, which makes it again as a first instance and so is refused
-while its own connections still hold the name.
+while its own connections still hold the name; and on Windows another account making the
+pipe's name first while the daemon is down — the name is the channel's and the user's,
+which any account can spell — which keeps the daemon from starting (`NC-IPC-0011`, at
+every start its restorer makes) though it is never joined or taken for the daemon, since
+the client holds the pipe to its owner and the process at its other end.
 
 ### Each end of a connection proves it holds the token, and neither sends it
 
@@ -1994,9 +2013,12 @@ with a code of the `CHAN` or `DMN` area at the first thing it cannot vouch for.
   synced, so a torn write spoils one and the other holds the ceiling nothing was minted
   past; with neither whole the start refuses (`NC-DMN-0007`). The lease is the catalog's,
   which the mark reads itself, so no caller chooses how far a raise reaches. A start
-  resumes above the larger of the mark and the newest unit its local journal holds
-  (`nc_local::LocalJournal::newest_unit`, the largest identifier any entry names, in
-  every realm), so a mark lost or rolled back is still above every unit kept; it waits for
+  resumes above the larger of the mark and the newest unit its local database keeps —
+  the largest identifier any journal entry names, in every realm
+  (`nc_local::LocalJournal::newest_unit`), or the largest unit the store committed
+  (`nc_local::LocalStore::newest_unit`), a reversal's among them, which the kernel mints
+  itself and no entry names — so a mark lost or rolled back is still above every unit
+  kept; it waits for
   a clock behind it — logging `ids.clock_backwards` past the lease — and refuses a mark
   more than a day ahead; and a clean stop settles the ceiling (`mark::settled`, through
   `nc_ids::Minter::settle_ceiling`) to the exact high-water mark, so a clean restart waits
@@ -2032,11 +2054,19 @@ than a day, which repeats nothing and refuses respectively, and the mark the res
 start leaves is above everything it minted, by the ceiling's tests in
 `crates/nc-ids/src/snowflake.rs`, by
 `the_newest_unit_is_the_largest_any_entry_names_in_any_realm` in
-`crates/nc-local/tests/the_local_journal.rs` and
-`a_start_reads_the_newest_unit_its_journal_holds` in `apps/daemon/src/environment.rs`, by
-`a_settled_mark_is_the_last_millisecond_handed_out` in `apps/daemon/src/mark.rs`, and by
-the operators over those sources in `xtask/mutants.py`, each judged by its own module's
-unit tests.
+`crates/nc-local/tests/the_local_journal.rs`,
+`the_newest_unit_is_the_largest_the_store_holds_of_any_realm_and_kind` in
+`crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` and
+`a_start_reads_the_newest_unit_its_journal_holds` in `apps/daemon/src/environment.rs` — a
+reversal's unit the store committed and no entry names among what it reads — by
+`a_settled_mark_is_the_last_millisecond_handed_out` in `apps/daemon/src/mark.rs`, by
+`a_run_resumes_above_the_newest_unit_kept_and_a_clean_stop_settles_its_mark` in
+`apps/daemon/src/run.rs` — the daemon's own run, in a child of its test binary, over a
+store holding a unit further ahead of the clock than the lease and no mark: the wait
+logged once, the unit a dispatch opens above the one kept, and the mark a clean stop
+leaves exactly that unit's millisecond, so the run's own wiring of the mark is held by the
+unit tests the operators run — and by the operators over those sources in
+`xtask/mutants.py`, each judged by its own module's unit tests.
 
 **Not answered:** a process running as the same user, which can rewrite the manifest, the
 world or the mark, or delete the mark so that a start resumes from the local journal alone;
@@ -2103,14 +2133,19 @@ header gives, the endpoint served, and a stop.
   `daemon.stopped`, with what a stop gave up on).
 - **A stop leaves nothing of the run but its effects.** New dispatches are refused — each
   counted as running before the state is read, so a stop either refuses one or waits for
-  it — no connection is taken, and no pump and no sweep begins. The stop then waits
-  `stop_drain_ms` at most — at least one call tree's whole deadline, which the compiler
-  holds — for the dispatches running, for a pump or a sweep it finds inside a run, and for
-  every connection to write its last answer, the stop's own among them, and close
-  (`nc_ipc::Served::close`): each connection is counted before it is served, and ended
-  between two requests. Then the mark is settled, the local database closed, the record and
-  the token removed, the socket with the listener, and the lock let go. A stop asked while
-  the start is under way waits for the connections alike.
+  it — and no pump and no sweep begins. The stop then waits `stop_drain_ms` at most — at
+  least one call tree's whole deadline, which the compiler holds — for the dispatches
+  running, for a pump or a sweep it finds inside a run, and for every connection to write
+  its last answer, the stop's own among them, and close (`nc_ipc::Served::close`): each
+  connection is counted before it is served, answered the first request it makes, and
+  ended between two requests. Then the mark is settled, the local database closed and the
+  record removed; then the socket goes with the listener, the token is removed, and the
+  lock let go. **Until the record is removed the endpoint answers**: a connection made
+  while the stop drains is told the daemon is stopping — a stop asked again answered
+  `stopping`, a status saying so, a dispatch refused (`NC-DMN-0010`) — so a stop asked
+  again, a restart's or a reinstall's, waits for the daemon as the first did and signals
+  nothing, and one asked once the record is gone finds a daemon stopped. A stop asked
+  while the start is under way waits for the connections alike.
 - **A restorer's start honours a stop.** `noctua-daemon --restored`, the entry every
   restorer starts it by, reads the `stopped` mark before anything else of the profile —
   the state directory and the mark judged this user's alone, one another account can
@@ -2144,10 +2179,16 @@ each decided by a rule of the realm's pack with the world's grant and epoch — 
 tests of `server` (among them `a_dispatch_is_counted_before_its_state_is_read` and
 `a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
 dropped as soon as the stop has wound down, and whose client takes one byte at a time),
-`pidfile`, `plugins`, `schedule`
+and `a_stop_asked_again_while_it_drains_is_answered_that_it_is_stopping`, through a real
+endpoint), `pidfile`, `plugins`, `schedule`
 (`a_stop_waits_for_the_run_it_finds_and_begins_none_after`, over thirty-two schedules,
 and `a_run_still_going_at_the_bound_is_given_up_on_and_counted`), `environment` and `run`
-(`a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up`), by
+(`a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up`,
+`a_run_resumes_above_the_newest_unit_kept_and_a_clean_stop_settles_its_mark`, where a
+stop asked again while a real daemon drains is answered that it is stopping and the
+daemon ends well, and `a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go`,
+where the record is gone while the end of the run still waits on a connection held
+open), by
 `a_connection_closed_has_sent_its_last_answer` in `crates/nc-ipc/tests/heartbeat.rs`, by
 `a_log_told_of_no_store_writes_every_line_to_stderr` in `crates/nc-log/src/lib.rs`, by
 `a_directory_held_is_not_held_again_at_once` and
@@ -2163,12 +2204,17 @@ token and its socket for the next start to replace; a daemon that leads its proc
 — started by hand as a job of a shell, or spawned as a group's leader — which cannot start
 a session and stays in the one it was started in, where that terminal's hangup reaches it;
 a stop asked while the start waits for its clock, which abandons the start and leaves the
-mark as the last raise wrote it; a dispatch, a pump or a sweep still running past
+mark as the last raise wrote it, and whose process ends only once that wait is given up —
+`stop_drain_ms` at most, its record and its endpoint already gone, so a start meanwhile is
+refused by the instance lock (`NC-DMN-0008`); a dispatch, a pump or a sweep still running past
 `stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
 the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
-the local database under, and whose unit the next start recovers; and a connection whose
+the local database under, and whose unit the next start recovers; a connection whose
 client has not taken its last answer by that bound, which goes with the daemon's runtime,
-the answer unwritten and uncounted. What the daemon leaves undone is under **What is deliberately not claimed**.
+the answer unwritten and uncounted; and a client running as the same user that connects and
+never sends its first request, which keeps every stop waiting `stop_drain_ms`, since each
+connection is owed an answer to its first request. What the daemon leaves undone is under
+**What is deliberately not claimed**.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -2178,12 +2224,15 @@ task's XML in UTF-16 — and asks the manager's own tool, named by an absolute p
 `systemctl` from the absolute entries of `PATH` alone, `/bin/launchctl`, and `schtasks.exe`
 under `%SystemRoot%`, so a relative entry of `PATH` never chooses what runs. Every value a
 definition carries is escaped for the format that reads it — systemd's `%`, `$`, `\` and
-`"` in each quoted word of `ExecStart`, XML's five characters in a plist and in a task, and a
-task's arguments first quoted as Windows splits a command line — and what no escape carries
-is refused when the service is described: a control character anywhere, a program that is
-not an absolute path, a name outside letters, digits, `.`, `_` and `-` or not opening with a
-letter or a digit, so no name is read by a tool as one of its options, and a `%` in what a
-task runs, which Task Scheduler expands and has no form for. A `SystemRoot` that is not an
+`"` in each quoted argument of `ExecStart`, and its `%` in the program, XML's five
+characters in a plist and in a task, and a task's arguments first quoted as Windows splits
+a command line — and what no escape carries is refused before anything is written: a
+control character anywhere, a program that is not an absolute path, a name outside
+letters, digits, `.`, `_` and `-` or not opening with a letter or a digit, so no name is
+read by a tool as one of its options, a `%` in what a task runs, which Task Scheduler
+expands and has no form for, and a `$`, `\`, `"` or `'` in a unit's program — systemd
+undoes no `$$` there, and refuses a program's path holding any of the other three, as
+systemd 260's `systemd-analyze verify` measured. A `SystemRoot` that is not an
 absolute path is refused rather than read from the current directory. A definition file is
 created new and private, never through a link and never over one already there. **A
 registration never replaces a service**, whoever registered it: a name the manager already
@@ -2303,8 +2352,9 @@ program reach a channel's daemon through.
   (`NC-CLI-0002`), and only as the 64 lower-case hexadecimal digits a daemon writes
   (`NC-CLI-0003`); it is never printed or sent, and the text it was read from is
   overwritten. The handshake proves the daemon holds it before the client sends anything
-  past its own proof, and the proven welcome must name the process the system shows at
-  the other end and this install's channel (`NC-CLI-0004`). Each of these is exit 10.
+  past its own proof, and the welcome the daemon sends beside that proof — which binds the
+  two nonces, not the welcome — must name the process the system shows at the other end
+  and this install's channel (`NC-CLI-0004`). Each of these is exit 10.
 - **What reaches the kernel was read and held first.** A command line is read against the
   schema the daemon's registry lists for its command — a flag is a property's name, a
   value is read as its type, a list's flag is repeated once for each item, a scalar's
@@ -2312,7 +2362,9 @@ program reach a channel's daemon through.
   schema by the call the kernel makes (`NC-VAL-0002`, exit 2). A command line the CLI
   cannot read (`NC-CLI-0001`), a command the registry does not hold (`NC-KERN-0001`, exit
   5) and arguments the schema refuses reach no kernel; an answer of another kind than the
-  request's is refused (`NC-CLI-0005`, exit 8).
+  request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
+  protocol reads — not one message, or past the bound — from a daemon the handshake proved
+  (exit 8).
 - **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
   every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
   code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
@@ -2343,8 +2395,9 @@ tests of `crates/nc-channel/src/found.rs`, by
 `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can read the token and answer
-as the daemon, or ask the daemon anything the CLI can — authorization re-decides every
-dispatch (`§14`); a command's welcome held to the system's word and not to the PID record,
+as the daemon, relay a connection and rewrite the welcome sent beside the daemon's proof,
+or ask the daemon anything the CLI can — authorization re-decides every dispatch (`§14`);
+a command's welcome held to the system's word and not to the PID record,
 which process control reads, and the `--json` document printed raw to a terminal (both
 under **What is deliberately not claimed**).
 
@@ -2371,7 +2424,10 @@ is installed.
   `stop_within_ms` through what verified it, or, with nothing verified, until its endpoint
   answers no more and its record no longer names it, and never signalled: one still there
   then is a stop that did not finish (`NC-CLI-0008`, exit 11). One that does not answer is
-  asked to end and then killed, `kill_within_ms` each, through the verification alone. A
+  asked to end and then killed, `kill_within_ms` each, through the verification alone —
+  once its record, read again, still names it: a daemon removes its record at the end of
+  its own stop and lets its endpoint go only after, so one whose record went since it was
+  read is ending a stop asked before, and is waited for as one that answered. A
   record missing or naming a process that runs no more is a daemon stopped (exit 0) while
   nothing holds its endpoint; something that holds it and does not answer, with no record
   to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and a record naming
@@ -2384,8 +2440,11 @@ is installed.
   query any — is read through a handle that may only query it, never held, so a record a
   reboot left stale whose id such a process now holds is a daemon stopped, not a refusal.
   **A process this user may not even read is not its daemon**
-  (`nc_platform::process::unread`), which runs as this user: its record is read as one
-  whose process runs no more, never signalled, and the next start writes its own — on
+  (`nc_platform::process::unread`), which runs as this user — a refusal to read it, never
+  a refusal to hand this process a handle on it, which on Linux a filter can make of any
+  pidfd and which is a failure to ask (`nc_platform::process::no_handle`): its record is
+  read as one whose process runs no more, never signalled, and the next start writes its
+  own — on
   Windows, for an account that is not an elevated administrator, that is every process of
   another account, as the hosted runner measured under a filtered token. A daemon read so
   wrongly still holds its profile's instance lock, which refuses a second.
@@ -2396,16 +2455,24 @@ is installed.
   error a file in the profile's judged log directory written fresh and private, none of
   this process's handles, a process group of its own on Unix and no console on Windows.
   The start waits `start_within_ms` for that daemon to answer the handshake and to run; one
-  that ends first or does not answer is a start that failed (`NC-CLI-0007`, exit 11), its
-  standard error shown escaped.
+  that ends first or does not answer is a start that failed (`NC-CLI-0007`, exit 11), shown
+  with the last lines of its standard error, escaped, for a detached start, and with what
+  the manager counts of it for a start through the manager, whose daemon's standard error
+  goes nowhere. A daemon found answering that it is stopping is waited for as a stop waits
+  for one, and then started; one found answering otherwise runs already.
 - **The development install is copied, never linked, and named once.** `nc_cli::install`
   makes a missing base directory one private level at a time, and writes the binaries out
-  of `target/` under the layout's names — each into a private file beside its name,
+  of the target directory cargo built them in — the paths `cargo xtask dev --install` reads
+  off the build's own messages, never derived from the checkout — under the layout's names
+  — each into a private file beside its name,
   synced and renamed over it, runnable by its owner alone — then the manifest the same
   way, and reads the install back through `nc_channel::found` as its binaries will; the
   daemon's own `--initialize` draws the device and copies the world; each plugin is
   written into a private directory of its own. A daemon an earlier install runs is
-  stopped first, through the same stop. The environment — the base directories and
+  stopped first, through the same stop, and an earlier install whose manifest this build
+  cannot read — of another format, or one another account can reach — refuses the install
+  before anything is stopped or replaced: only a manifest missing is no earlier install.
+  The environment — the base directories and
   `NC_INSTALL_NAMESPACE` — is read by the installer alone, so a relocated install is a
   test's, with no central log and no stack. `PATH` is not changed.
 - **The development daemon has a restorer, and every restorer honours the mark.**
@@ -2427,8 +2494,9 @@ is installed.
   reads it on systemd and launchd, while on Windows its task starts at each logon as a
   real one does (`nc_cli::install::kept_in`). The install then starts the daemon through
   the manager, **unless the profile carried the `stopped` mark before the install**: a
-  person's stop, which an install keeps, or the mark an uninstall's stop or an install that
-  did not finish left, which it cannot tell from one. A `start` with the restorer
+  person's stop, which an install keeps, or the mark an install or an uninstall that did not
+  finish left after its own stop, which it cannot tell from one — an uninstall that finishes
+  removes the mark its own stop wrote, and keeps one that was there before it. A `start` with the restorer
   registered goes through the manager too, so the daemon it starts is one the manager
   restores; one the manager does not hold, or a manager that does not answer, is a
   detached start. **An uninstall reaches the manager before anything else**, as an
@@ -2457,7 +2525,8 @@ the start's decisions (the name each manager knows a restorer by, where a real i
 and a test's definitions are kept, a person's stop kept, the development plan's
 restorer, a reinstall's order recorded by a stand-in restorer — its manager asked before
 the install's own stop, the earlier one let go while the earlier binaries are there, the
-mark read before that stop — an install and an uninstall that cannot reach their manager,
+mark read before that stop — a reinstall over an install it cannot read stopping and
+replacing nothing, an install and an uninstall that cannot reach their manager,
 or whose manager cannot say whether it holds the restorer, stopping nothing, a start
 through the manager only where it holds the restorer), of `nc_platform::service`'s links,
 the reload that lets an enabled unit go, lingering and counters, and of what
@@ -2470,20 +2539,24 @@ started, held apart on disk, each stopped while the other three answer, and one 
 three untouched (acceptance 3), by `process_control_that_does_not_finish_is_exit_11` and
 `a_start_whose_daemon_ends_before_it_answers_is_exit_11_with_what_it_wrote` in
 `apps/daemon/tests/exit_codes.rs`, by the unit tests of `apps/cli/src/control.rs` — the
-decision that signals only a verified process, the mark written, kept, removed and
+decision that signals only a verified process, and only while its record still names
+it, the mark written, kept, removed and
 refused, a stop nothing answers ending well over a record of a process gone and refusing
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
-over, and one nothing verified waited for until its endpoint and its record let it go, a
-stop something answers otherwise refused with no record or a record of a process gone, an
+over, and one nothing verified waited for until its endpoint and its record let it go, one
+whose record went while a stop asked it waited for through what verified it and never
+signalled, a stop something answers otherwise refused with no record or a record of a process gone, an
 endpoint no socket can have taken for nothing there, a stop and a status the daemon
 answers, a status with nothing answering, a start with no daemon beside it and one with a
 daemon running, a start that says its daemon runs only once its status says so, one that
-gives up at once on a daemon that ended and shows the last lines it wrote, a daemon that
+waits for a daemon that says it is stopping before it starts one, one that gives up at
+once on a daemon that ended and shows the last lines it wrote, a daemon that
 does not answer asked to end first and killed only when it has not ended, and a restart
 that stops before it starts and starts nothing after a stop refused — of
-`apps/cli/src/install.rs`, whose copies of this test binary run and whose uninstall leaves
-every file of an install whose daemon did not stop, and of
+`apps/cli/src/install.rs`, whose copies of this test binary run, whose uninstall leaves
+every file of an install whose daemon did not stop, and whose uninstall removes the mark
+its own stop wrote and keeps a person's, and of
 `crates/nc-channel/src/record.rs`, by the
 `Verified` and `spawn_detached` tests of `crates/nc-platform/src/process.rs` — a child
 held to its record and refused for each part of one that is not its own, asked to end and
@@ -2491,7 +2564,8 @@ killed through what held it, a record of another start gone and one of the proce
 is another, never held, for a process this user may read and may not hold — process 1 on
 Unix, and on Windows a child whose access list lets this user query it alone, read on a
 thread holding no privilege — a process this user may not read gone for its record, a
-detached child leading a group of its own, and the decision for every system's reading —
+handle on a process the system refused a failure to ask and never that, a detached child
+leading a group of its own, and the decision for every system's reading —
 and by the operators over those sources in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can stop the daemon, remove
@@ -2503,10 +2577,10 @@ account that is not an elevated administrator, a record a reboot left whose id a
 account's process now holds, which is read as a daemon stopped without that process being
 read; a start that gave up, which leaves the daemon it started running; what a daemon a
 manager started writes to its standard error, which goes nowhere; an uninstall from an
-environment that does not reach the manager, which removes nothing; the mark an
-uninstall's stop or an install that did not finish left, which the next install reads as
-a person's stop; and lingering, which is the machine's (each under **What is deliberately
-not claimed**).
+environment that does not reach the manager, which removes nothing; the mark an install
+or an uninstall that did not finish left after its own stop, which the next install reads
+as a person's stop; and lingering, which is the machine's (each under **What is
+deliberately not claimed**).
 
 ### The stack binds to loopback and nothing else
 
@@ -3292,13 +3366,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **An install keeps a person's stop by the mark alone**: the mark is what tells a stop
   asked for from a daemon the install found stopped, so a profile whose mark someone
   removed by hand is started by the next install.
-- **An install reads every mark as a person's stop**: the one an uninstall's stop leaves
-  with the profile, and the one an install's own stop wrote before that install failed —
-  a binary not replaced, a restorer its manager would not let go or take, a profile the
-  daemon would not initialize — are read by the next install as a stop asked for, which
-  leaves the daemon down and says that `start` starts it. An install that cannot reach
-  its service manager, or whose manager cannot say whether it holds the earlier restorer,
-  stops nothing and writes no mark.
+- **An install reads every mark as a person's stop**: the one an install's own stop wrote
+  before that install failed — a binary not replaced, a restorer its manager would not let
+  go or take, a profile the daemon would not initialize — and the one an uninstall's stop
+  wrote before that uninstall failed are read by the next install as a stop asked for,
+  which leaves the daemon down and says that `start` starts it. An uninstall that finishes
+  removes the mark its own stop wrote and keeps one that was there before, so only a
+  person's stop, or an install or an uninstall that failed after its own stop, leaves the
+  mark then. An install that cannot reach its service manager, or whose manager cannot say
+  whether it holds the earlier restorer, stops nothing and writes no mark.
 - **An uninstall needs the service manager it registered with**: from an environment that
   names no tool for it — no absolute entry of `PATH` holding `systemctl`, or no absolute
   `SystemRoot` — `cargo xtask dev --uninstall` stops nothing and removes nothing, and says
@@ -3313,8 +3389,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A daemon that said it is stopping is never signalled**: `stop` waits `stop_within_ms`
   for it, and one still running then — draining a call that does not end, or hung after it
   answered — is a stop that did not finish (`NC-CLI-0008`, exit 11), left running with the
-  `stopped` mark written; a stop asked again waits for it again, and nothing in the CLI
-  ends it harder.
+  `stopped` mark written; a stop asked again waits for it again — a stopping daemon answers
+  at its endpoint until its record is removed, and a stop that finds the endpoint gone and
+  the record it read gone with it waits for it too — and nothing in the CLI ends it harder.
 - **On macOS a process is read, then signalled**: `ps` and the boot's session say what a
   process is, and are asked again just before each signal, but nothing holds the process
   between the two as a pidfd does on Linux and a handle on Windows, so an id handed out
@@ -3338,8 +3415,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `start_within_ms` is reported as a start that failed and is not ended, since what it is
   doing is its own to say; `stop` ends it.
 - **An uninstall keeps the profile**: `cargo xtask dev --uninstall` stops the daemon and
-  removes the binaries and the manifest, and leaves the device, the database, the world and
-  the mark, so an install made again is the same device; they are removed by hand.
+  removes the binaries and the manifest, and leaves the device, the database and the world
+  — and the `stopped` mark where it was there before the uninstall's own stop, a person's —
+  so an install made again is the same device; they are removed by hand.
 - **A daemon's grant is the one its world file names, and nothing revokes it.** The world
   file names the realm, the person every dispatch is decided as, the grant that person holds
   and the realm's epoch, and a daemon reads it at each start (`nc_authz::LocalWorld`): the

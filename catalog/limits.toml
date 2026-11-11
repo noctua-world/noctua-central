@@ -477,7 +477,8 @@ sweep_every_ms = 600_000
 stop_drain_ms = 30_000
 # How long `start` waits for the daemon it started to answer the handshake
 # (§17.1); one that ended first, or has not answered by then, is a start that
-# failed, and what it wrote to its standard error is shown. More than
+# failed, and what it wrote to its standard error is shown — or, for one the
+# service manager started, what the manager counts of it. More than
 # `ipc_handshake_ms`, which the compiler holds it to, so a handshake the daemon
 # is allowed is never cut short by the start that waits for it.
 start_within_ms = 30_000

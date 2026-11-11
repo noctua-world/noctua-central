@@ -7965,7 +7965,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1069] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1072] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8001,7 +8001,10 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1069] = [
     "publishes a release",
     "reads a secret",
     "reads a step's output",
+    "noctua",
+    "noctua-daemon",
     "the CLI and the daemon did not build: {said}",
+    "the build said it made no binary `{name}`, so there is nothing to install: build it with `cargo build --package nc-cli --package nc-daemon --bins` and read what cargo says",
     "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
     "the daemon the earlier install ran was stopped first: {}",
     "the release does not fire on a push",
@@ -19459,10 +19462,10 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 61, 13),
+        ("cli/control.rs", 65, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
-        ("cli/install.rs", 65, 18),
+        ("cli/install.rs", 68, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
@@ -19470,7 +19473,7 @@ mod the_frozen_path_rule {
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 12, 16),
+        ("daemon/environment.rs", 13, 16),
         ("daemon/every_command_from_the_cli.rs", 26, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
@@ -19480,11 +19483,11 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 10, 7),
         ("daemon/plugins.rs", 17, 6),
         ("daemon/profile.rs", 19, 5),
-        ("daemon/run.rs", 14, 1),
+        ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 44, 6),
+        ("daemon/server.rs", 47, 6),
         ("daemon/serves_its_kernel.rs", 19, 3),
-        ("daemon/testing.rs", 32, 8),
+        ("daemon/testing.rs", 34, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
@@ -19592,13 +19595,13 @@ mod the_frozen_path_rule {
         ("nc-kernel/units_and_history.rs", 144, 44),
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
-        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
+        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
         ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 9),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 83, 12),
+        ("nc-local/store.rs", 84, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 27, 135),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
@@ -19606,9 +19609,9 @@ mod the_frozen_path_rule {
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 93, 22),
-        ("nc-platform/process.rs", 44, 15),
-        ("nc-platform/service.rs", 178, 21),
+        ("nc-platform/lib.rs", 94, 22),
+        ("nc-platform/process.rs", 46, 15),
+        ("nc-platform/service.rs", 181, 21),
         ("nc-platform/testing.rs", 34, 4),
         ("nc-platform/unix.rs", 99, 4),
         ("nc-platform/windows.rs", 141, 13),
@@ -19637,7 +19640,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 81, 8),
+        ("xtask/dev.rs", 85, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 250, 33),
@@ -22440,8 +22443,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 708 scratches this tree
-    /// builds, 620 of the 708 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 715 scratches this tree
+    /// builds, 627 of the 715 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22509,8 +22512,8 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
         ("cli/client.rs", 7, 7),
-        ("cli/control.rs", 12, 12),
-        ("cli/install.rs", 13, 13),
+        ("cli/control.rs", 15, 15),
+        ("cli/install.rs", 15, 15),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -22539,11 +22542,11 @@ mod the_frozen_path_rule {
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
-        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
+        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 27, 27),
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 28, 28),
+        ("nc-platform/lib.rs", 29, 29),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
@@ -25509,7 +25512,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18180;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18253;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25528,7 +25531,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4685;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4700;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25545,7 +25548,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1578;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1582;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25579,7 +25582,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24772;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24923;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25633,7 +25636,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,772 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,923 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25666,7 +25669,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1578 of
+    /// this tree offers, **1582 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37527,7 +37530,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2120] = [
+    static OPERATORS: [(&str, &str, &str); 2147] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47003,6 +47006,137 @@ Options:
             "dev",
             "lingering_asked",
             "a real install asks for lingering",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg! in brackets or braces is read",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg predicate is read to its own closer",
+        ),
+        (
+            "local_store",
+            "newest_unit",
+            "the newest unit the store holds is its largest",
+        ),
+        (
+            "daemon_environment",
+            "newest_kept",
+            "a start reads the newest unit its store committed too",
+        ),
+        (
+            "daemon_server",
+            "accepting",
+            "the endpoint answers through a stop's drain",
+        ),
+        (
+            "daemon_server",
+            "connection",
+            "a connection is answered the first request it makes",
+        ),
+        (
+            "daemon_run",
+            "opened",
+            "a start resumes above the newest unit its profile keeps",
+        ),
+        (
+            "daemon_run",
+            "opened",
+            "a clock moved back is logged to the daemon's own log",
+        ),
+        ("daemon_run", "run", "a clean stop's run settles the mark"),
+        (
+            "daemon_run",
+            "opened",
+            "the kernel mints behind the mark's ceiling",
+        ),
+        (
+            "cli_control",
+            "start",
+            "a start waits for a daemon that is stopping",
+        ),
+        (
+            "platform_process",
+            "no_handle",
+            "a handle refused is a failure, never a process this user may not read",
+        ),
+        (
+            "cli_install",
+            "made_before",
+            "only a missing manifest is no earlier install",
+        ),
+        (
+            "dev",
+            "built_at",
+            "the binary installed is the build's binary target",
+        ),
+        (
+            "dev",
+            "built_at",
+            "the binary installed is the one of its name",
+        ),
+        (
+            "cli_client",
+            "exit",
+            "an answer the CLI cannot read after the handshake is exit 8",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall removes the mark its own stop wrote",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall reads the mark before its own stop",
+        ),
+        (
+            "platform_service",
+            "definition",
+            "a unit's program systemd does not read back is refused",
+        ),
+        (
+            "platform_unix",
+            "user_in",
+            "a directory is judged against its own owner before anything is made in it",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "a verified process whose record went is waited for",
+        ),
+        (
+            "cli_control",
+            "still_names",
+            "a record written over names another process",
+        ),
+        (
+            "dev",
+            "without_messages",
+            "a build that failed shows none of cargo's messages",
+        ),
+        (
+            "cli_control",
+            "start",
+            "a start waits for a stopping daemon to end before it starts one",
+        ),
+        (
+            "daemon_run",
+            "ended",
+            "a stopped run's record goes before its endpoint",
+        ),
+        (
+            "cli_control",
+            "stop",
+            "a stop reads the record again before it signals",
+        ),
+        (
+            "cli_control",
+            "stop",
+            "a daemon whose record went once a stop read it is waited for",
         ),
     ];
 

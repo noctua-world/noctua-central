@@ -18,7 +18,7 @@
 //!   derived from it. The daemon reads them and never creates them.
 //! - **The mark** ([`mark`]): the ceiling no identifier is minted past before
 //!   it is durable, which a start resumes above — with the newest unit the
-//!   local journal holds — and waits behind.
+//!   local database keeps — and waits behind.
 //!
 //! # What a run serves
 //!
@@ -44,10 +44,12 @@
 //! endpoint is `nc_platform::ipc`'s, proven by `nc_ipc`'s handshake before a
 //! request is read. An identifier handed out twice across a crash or a clock
 //! moved back: none is handed out past a ceiling that is not yet durable, and
-//! a start resumes above the ceiling and the newest unit its local journal
-//! holds, waiting for the clock rather than minting behind it. Two daemons over
+//! a start resumes above the ceiling and the newest unit its local database
+//! keeps, waiting for the clock rather than minting behind it. Two daemons over
 //! one profile: the second refuses at once. A network reaching the daemon: it
-//! binds nothing a network can reach, which a gate holds.
+//! binds nothing a network can reach, which a gate holds over its own sources
+//! and those of `nc-ipc` and `nc-platform`, which its endpoint and protocol are
+//! built from.
 //!
 //! # What it does not
 //!

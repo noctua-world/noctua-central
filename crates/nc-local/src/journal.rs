@@ -49,9 +49,10 @@
 //!   process left.
 //! - **The newest unit is the largest any entry names, in any realm**
 //!   ([`LocalJournal::newest_unit`]): what a daemon's start resumes its
-//!   identifiers above, beside its mark, so a mark lost or rolled back is
-//!   still above every unit kept. One column, every row: the realms share one
-//!   minter.
+//!   identifiers above, beside its mark and the newest unit the store
+//!   committed — a reversal's, which no entry names — so a mark lost or rolled
+//!   back is still above every unit kept. One column, every row: the realms
+//!   share one minter.
 //! - **A row lands only at the next sequence**, by the table's own trigger,
 //!   whoever writes it: a row planted at the top of the range would end the
 //!   history, and every `CHECK` is one `PRAGMA ignore_check_constraints` away

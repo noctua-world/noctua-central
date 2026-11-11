@@ -1498,9 +1498,11 @@ severity = "error"
 retryable = true
 
 [[error]]
-# `start` spawns the daemon detached and waits `start_within_ms` for its
-# handshake: a daemon that ended first, or never answered, is a start that
-# failed, and its standard error says why.
+# `start` spawns the daemon detached, or asks the service manager holding
+# its restorer to start it, and waits `start_within_ms` for its handshake: a
+# daemon that ended first, or never answered, is a start that failed, and
+# its standard error says why — or, started through the manager, whose
+# daemon writes its standard error nowhere, what the manager counts of it.
 code = "NC-CLI-0007"
 description = "The daemon was started and did not answer: it ended, or did not answer within its bound"
 message = "error.cli.daemon-did-not-start"

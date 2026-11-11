@@ -5615,28 +5615,38 @@ mod the_system_rules {
     /// names a system, as code.
     ///
     /// **The predicate is what is read**, inside the parentheses that follow
-    /// the attribute or the macro: `cfg(any(unix, windows))` and
-    /// `cfg_attr(not(windows), …)` name a system, and `cfg(test)` does not.
-    /// A `cfg_select!` asks once an arm, and an arm whose predicate names a
-    /// system is found at the line that predicate starts on.
+    /// the attribute, or the delimiters that follow the macro:
+    /// `cfg(any(unix, windows))`, `cfg_attr(not(windows), …)` and `cfg![unix]`
+    /// name a system, and `cfg(test)` does not. A `cfg_select!` asks once an
+    /// arm, and an arm whose predicate names a system is found at the line that
+    /// predicate starts on.
     pub(super) fn systems_asked(text: &str) -> Vec<usize> {
         let code: Vec<char> = blanked(text).chars().collect();
         let mut lines = Vec::new();
         for opens in ["cfg", "cfg_attr"] {
             for at in whole_words(&code, opens) {
                 let mut after = past_spaces(&code, at + opens.chars().count());
+                let mut delimiters: &[char] = &['('];
                 if code.get(after) == Some(&'!') {
                     after = past_spaces(&code, after + 1);
+                    // **A macro is called with any of the three**: `cfg![unix]`
+                    // and `cfg!{windows}` ask what `cfg!(unix)` does, and only
+                    // an attribute refuses the other two. Found by a review:
+                    // read after a `(` alone, both passed the gate.
+                    delimiters = &['(', '[', '{'];
                 }
-                if code.get(after) != Some(&'(') {
+                if !code
+                    .get(after)
+                    .is_some_and(|opening| delimiters.contains(opening))
+                {
                     continue;
                 }
                 let mut depth = 0_usize;
                 let mut end = after;
                 while let Some(character) = code.get(end) {
                     match character {
-                        '(' => depth += 1,
-                        ')' => {
+                        '(' | '[' | '{' => depth += 1,
+                        ')' | ']' | '}' => {
                             depth -= 1;
                             if depth == 0 {
                                 break;
@@ -5820,11 +5830,19 @@ mod the_system_rules {
             "let n = core::cfg_select!(target_arch = \"arm\" => 1, _ => 2);\n",
             "let m = std::cfg_select ! [target_env = \"gnu\" => 1, _ => 2];\n",
             "let cfg_select = unix;\n",
+            "let b = cfg![unix];\n",
+            "let c = cfg!{target_os = \"linux\"};\n",
+            "let d = ::core::cfg![windows];\n",
+            "let e = cfg![test];\n",
+            "let f = cfg! { all(test, any(feature = \"x\")) };\n",
+            "let g = cfg![any(test, target_env = \"gnu\")];\n",
+            "let h = cfg[unix];\n",
+            "#[cfg(test)] fn after() {}\n",
         ]
         .concat();
         assert_eq!(
             systems_asked(&text),
-            [2, 3, 4, 5, 6, 12, 13, 14, 17, 20, 22, 27]
+            [2, 3, 4, 5, 6, 12, 13, 14, 17, 20, 22, 27, 29, 30, 31, 34]
         );
     }
 
@@ -9850,16 +9868,15 @@ mod tests {
     #[test]
     fn the_system_walk_goes_everywhere_outside_the_platform() {
         let defect = "#[cfg(target_vendor = \"apple\")] pub fn f() {}";
-        // Every other directory asks through a `cfg_select!` arm instead, so
-        // the walk is held to finding both forms wherever they are written.
+        // A directory in three asks through a `cfg_select!` arm instead, and
+        // one in three through `cfg!` in brackets, so the walk is held to
+        // finding each form wherever it is written.
         let (_held, root, mut planted) = in_every_real_directory_each(
-            &|index| {
-                if index % 2 == 0 {
-                    defect.to_owned()
-                } else {
-                    "cfg_select! { target_arch = \"x86\" => {} windows => { pub fn f() {} } }"
-                        .to_owned()
-                }
+            &|index| match index % 3 {
+                0 => defect.to_owned(),
+                1 => "cfg_select! { target_arch = \"x86\" => {} windows => { pub fn f() {} } }"
+                    .to_owned(),
+                _ => "pub fn f() -> bool { ::core::cfg![target_os = \"linux\"] }".to_owned(),
             },
             "",
         );

@@ -47,7 +47,12 @@
 //! process holding the take-ownership privilege; and on Windows the process at
 //! the other end, which is read by its id and so may have exited and handed
 //! its id to another process by the time its token is asked — of another user,
-//! which is refused, or of this one.
+//! which is refused, or of this one; and on Windows another account making the
+//! pipe's name first while the daemon is down: the name is the channel's and
+//! the user's, which any account can spell, so that account keeps the daemon
+//! from binding — refused as taken, `NC-IPC-0011` — though it is never joined
+//! or taken for the daemon, since a client holds the pipe to its owner and the
+//! process at its other end.
 
 use std::io;
 use std::path::{Path, PathBuf};
