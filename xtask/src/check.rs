@@ -19462,7 +19462,7 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 64, 13),
+        ("cli/control.rs", 65, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
         ("cli/install.rs", 68, 18),
@@ -22443,8 +22443,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 714 scratches this tree
-    /// builds, 626 of the 714 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 715 scratches this tree
+    /// builds, 627 of the 715 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22512,7 +22512,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
         ("cli/client.rs", 7, 7),
-        ("cli/control.rs", 14, 14),
+        ("cli/control.rs", 15, 15),
         ("cli/install.rs", 15, 15),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
@@ -25512,7 +25512,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18251;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18253;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25582,7 +25582,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24918;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24923;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25636,7 +25636,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,918 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,923 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37530,7 +37530,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2145] = [
+    static OPERATORS: [(&str, &str, &str); 2147] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47127,6 +47127,16 @@ Options:
             "daemon_run",
             "ended",
             "a stopped run's record goes before its endpoint",
+        ),
+        (
+            "cli_control",
+            "stop",
+            "a stop reads the record again before it signals",
+        ),
+        (
+            "cli_control",
+            "stop",
+            "a daemon whose record went once a stop read it is waited for",
         ),
     ];
 

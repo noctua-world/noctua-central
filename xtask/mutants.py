@@ -7701,6 +7701,14 @@ WEAKENINGS = [
     ("daemon_run", "ended", "a stopped run's record goes before its endpoint",
      "    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);\n    server.let_go(accepting, deadline).await;\n",
      "    server.let_go(accepting, deadline).await;\n    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);\n"),
+    # A stop reads the record again once the daemon did not answer, and waits
+    # for a daemon whose record went since rather than signal it.
+    ("cli_control", "stop", "a stop reads the record again before it signals",
+     "        matches!(&recorded, Recorded::Verified(_, record) if still_names(found, record));",
+     "        matches!(&recorded, Recorded::Verified(..));"),
+    ("cli_control", "stop", "a daemon whose record went once a stop read it is waited for",
+     "        Recorded::Verified(verified, record) if unanswered == Unanswered::Wait => {",
+     "        Recorded::Verified(verified, record) if false => {"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

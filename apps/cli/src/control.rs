@@ -1026,6 +1026,86 @@ mod tests {
         );
     }
 
+    /// A daemon whose record went while a stop asked it is waited for, and
+    /// never signalled.
+    ///
+    /// It is one ending a stop asked before this one, which removes its record
+    /// while its endpoint still answers and lets the endpoint go only after. A
+    /// child of this test held to its record stands in for it; what answers at
+    /// the endpoint reads the stop, removes the record and goes unanswered, and
+    /// a while later lets the child end on its own. The stop, reading the
+    /// record again once nothing answered, finds it gone and waits for the
+    /// child through what verified it. **Found by a review**: no test went
+    /// through that second reading, so a stop that read the record once, and
+    /// signalled this daemon, passed every one.
+    #[test]
+    fn a_daemon_whose_record_went_while_a_stop_asked_it_is_waited_for_and_never_signalled() {
+        let installed = Scratch::new("went");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let (mut child, record) = a_sleeper();
+        recorded_as(&installed, &record);
+        let input = child.0.stdin.take().expect("piped");
+        let (found, welcome) = (installed.found.clone(), installed.welcome());
+        let within = core::time::Duration::from_secs(60);
+        let (bound, ready) = std::sync::mpsc::channel();
+        let ending = std::thread::spawn(move || {
+            let heard = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a runtime")
+                .block_on(async {
+                    let instance =
+                        nc_platform::hold(&found.layout.state, "instance.lock", &found.user)
+                            .expect("the lock");
+                    let endpoint = nc_platform::ipc::Endpoint::new(
+                        &found.layout.runtime,
+                        &found.layout.socket,
+                        found.layout.pipe.as_str(),
+                    );
+                    let mut listener =
+                        nc_ipc::listen(&endpoint, &found.user, &instance).expect("bound");
+                    bound.send(()).expect("the test waits for the bind");
+                    let accepted = tokio::time::timeout(within, listener.accept())
+                        .await
+                        .expect("the stop connects within the wait")
+                        .expect("accepted");
+                    let mut served = tokio::time::timeout(
+                        within,
+                        nc_ipc::serve(accepted.stream, &token, &welcome),
+                    )
+                    .await
+                    .expect("a handshake within the wait")
+                    .expect("the stop's handshake");
+                    let heard = tokio::time::timeout(within, served.next())
+                        .await
+                        .expect("a request within the wait")
+                        .expect("read");
+                    // The record goes while the connection is still held, and
+                    // the connection goes unanswered.
+                    std::fs::remove_file(&found.layout.pid_file).expect("the record is removed");
+                    heard
+                });
+            std::thread::sleep(core::time::Duration::from_millis(200));
+            let let_go = std::time::Instant::now();
+            drop(input);
+            (heard, let_go)
+        });
+        ready.recv_timeout(within).expect("the endpoint is bound");
+        let done = controlled(&installed, Control::Stop).expect("the daemon is waited for");
+        let stopped = std::time::Instant::now();
+        let (heard, let_go) = ending.join().expect("the stop was read");
+        assert_eq!(heard, Some(Request::Stop));
+        assert!(
+            matches!(&done, super::Done::Said(said) if said.contains("stopped when it was asked")),
+            "{done:?}"
+        );
+        assert!(
+            stopped >= let_go,
+            "the stop ended before the daemon it asked had"
+        );
+    }
+
     /// With nothing verified, a stop waits for the endpoint and the record to let go.
     ///
     /// A daemon that said it is stopping is stopped only once its endpoint
