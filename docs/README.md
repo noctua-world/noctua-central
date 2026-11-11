@@ -40,7 +40,8 @@ detects it and says so.
   it. On Linux, for the daemon to start at boot rather than at your first login,
   **lingering** for your user: `cargo xtask dev --install` enables it where logind lets
   you, and otherwise prints the command — `loginctl enable-linger <name>` — and, for
-  NixOS, the option `users.users.<name>.linger = true;`. No test enables it.
+  NixOS, the option `users.users.<name>.linger = true;`; a NixOS configuration that sets
+  it to `false` takes lingering away at each switch. No test enables it.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
 
@@ -80,10 +81,14 @@ stack: it builds the CLI, the daemon and the plugins, copies them out of `target
 the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
 `%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
 (`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
-install left running first. **Then it registers the daemon with your service manager** —
-a systemd user unit in your configuration directory's `systemd` folder, a launch agent in
-your Library's `LaunchAgents`, a logon task — which restores it when it dies and starts it at
-each login, and starts it, unless you had stopped it before the install. **It does not
+install left running first — once it has reached your service manager: run from an
+environment that does not, it stops nothing, installs nothing, and says so. **Then it
+registers the daemon with your service manager** — a systemd user unit in your
+configuration directory's `systemd` folder, a launch agent in your Library's
+`LaunchAgents`, a logon task — which restores it when it dies and starts it at each login,
+and starts it, unless the profile carries the stop mark — which your `stop` writes, and
+so do `dev --uninstall` and an install that failed after stopping the earlier daemon —
+and then the daemon stays down until `noctua-dev-<checkout> start`. **It does not
 change `PATH`**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
 it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
 `stop` stops it and keeps it down whatever restores it, until `start`, and `status` says

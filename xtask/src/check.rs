@@ -11993,7 +11993,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 738] = [
     // writes there when the environment names no user.
     "<your user name>",
     "`users.users.{name}.linger = true;`",
-    "lingering is enabled for {name}, so the daemon starts with the computer; on NixOS the configuration decides it at each switch, and {option} keeps it",
+    "lingering is enabled for {name}, so the daemon starts with the computer; a NixOS configuration that sets `users.users.{name}.linger = false;` takes it away at each switch, and {option} declares it",
     "lingering is not enabled, so the daemon starts at your first login and not at boot: run `loginctl enable-linger {name}`, or `sudo loginctl enable-linger {name}` where logind refuses you, or on NixOS set {option} — logind said {said}",
     "logind keeps your user manager from boot on (lingering), so the daemon starts with the computer",
     "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
@@ -19462,7 +19462,7 @@ mod the_frozen_path_rule {
         ("cli/control.rs", 61, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
-        ("cli/install.rs", 60, 13),
+        ("cli/install.rs", 65, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
@@ -19637,7 +19637,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 79, 8),
+        ("xtask/dev.rs", 81, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 250, 33),
@@ -22440,8 +22440,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 707 scratches this tree
-    /// builds, 619 of the 707 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 708 scratches this tree
+    /// builds, 620 of the 708 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22510,7 +22510,7 @@ mod the_frozen_path_rule {
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 12, 12),
-        ("cli/install.rs", 12, 12),
+        ("cli/install.rs", 13, 13),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -25509,7 +25509,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18169;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18180;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25528,7 +25528,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4682;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4685;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25545,7 +25545,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1577;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1578;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25579,7 +25579,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24756;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24772;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25633,7 +25633,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,756 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,772 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25666,7 +25666,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1577 of
+    /// this tree offers, **1578 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37527,7 +37527,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2116] = [
+    static OPERATORS: [(&str, &str, &str); 2120] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46983,6 +46983,26 @@ Options:
             "cli_install",
             "uninstall_restored_by",
             "an uninstall reaches its manager before it stops anything",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall asks its manager before it stops anything",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "an install reaches its manager before it stops anything",
+        ),
+        (
+            "dev",
+            "lingering_asked",
+            "a relocated install never asks for lingering",
+        ),
+        (
+            "dev",
+            "lingering_asked",
+            "a real install asks for lingering",
         ),
     ];
 

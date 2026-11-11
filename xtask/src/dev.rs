@@ -696,12 +696,12 @@ fn said_installed(installed: &nc_cli::install::Installed) -> Result<(), String> 
             )),
         }
     }
-    // **A relocated install is a test's**, whose restorer lasts this boot or
-    // this login alone, and lingering is the machine's: never asked for one.
-    if installed.found.install.namespace.is_none() {
-        let registrar = nc_platform::service::Registrar::for_user(&installed.found.user)
-            .map_err(|error| error.to_string())?;
-        let lingering = registrar.linger().map_err(|error| error.to_string())?;
+    let lingering = lingering_asked(&installed.found.install, || {
+        nc_platform::service::Registrar::for_user(&installed.found.user)
+            .and_then(|registrar| registrar.linger())
+            .map_err(|error| error.to_string())
+    })?;
+    if let Some(lingering) = lingering {
         let name = std::env::var("USER").unwrap_or_else(|_| "<your user name>".to_owned());
         match lingering_said(&lingering, &name) {
             Some(Said::Done(said)) => ui::ok(&said),
@@ -714,6 +714,22 @@ fn said_installed(installed: &nc_cli::install::Installed) -> Result<(), String> 
          `{cli} start`; `{cli} help` lists every command"
     ));
     Ok(())
+}
+
+/// What logind answers of lingering for `install`, asked through `ask`.
+///
+/// **Asked for a real install alone**: a relocated install is a test's, whose
+/// restorer lasts this boot or this login alone, and lingering is the
+/// machine's, so `ask` is never called for one.
+fn lingering_asked<E>(
+    install: &nc_channel::Install,
+    ask: impl FnOnce() -> Result<nc_platform::service::Lingering, E>,
+) -> Result<Option<nc_platform::service::Lingering>, E> {
+    if install.namespace.is_none() {
+        ask().map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 /// What `dev --install` says of lingering: done, or for its user to do.
@@ -742,8 +758,9 @@ fn lingering_said(lingering: &nc_platform::service::Lingering, name: &str) -> Op
                 .to_owned(),
         )),
         Lingering::Enabled => Some(Said::Done(format!(
-            "lingering is enabled for {name}, so the daemon starts with the computer; on NixOS \
-             the configuration decides it at each switch, and {option} keeps it"
+            "lingering is enabled for {name}, so the daemon starts with the computer; a NixOS \
+             configuration that sets `users.users.{name}.linger = false;` takes it away at each \
+             switch, and {option} declares it"
         ))),
         Lingering::Refused(said) => Some(Said::ToDo(format!(
             "lingering is not enabled, so the daemon starts at your first login and not at \
@@ -1577,10 +1594,12 @@ mod tests {
         else {
             panic!("enabled lingering is not done");
         };
-        assert!(
-            enabled.contains("`users.users.ana.linger = true;`"),
-            "{enabled}"
-        );
+        for named in [
+            "`users.users.ana.linger = true;`",
+            "`users.users.ana.linger = false;`",
+        ] {
+            assert!(enabled.contains(named), "{named} is not said: {enabled}");
+        }
         let refused = Lingering::Refused("`loginctl enable-linger 1000` refused".to_owned());
         let Some(super::Said::ToDo(said)) = super::lingering_said(&refused, "ana") else {
             panic!("refused lingering is not left to its user");
@@ -1593,6 +1612,55 @@ mod tests {
         ] {
             assert!(said.contains(named), "{named} is not said: {said}");
         }
+    }
+
+    /// Lingering is asked for a real install, and never for a relocated one.
+    ///
+    /// A relocated install is a test's, and lingering is the machine's: logind
+    /// is not asked, so nothing a test installs can enable it.
+    #[test]
+    fn lingering_is_asked_for_a_real_install_and_never_for_a_relocated_one() {
+        use nc_platform::service::Lingering;
+        // Nothing is written: the bases are only named.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let base = |name: &str| root.join("home").join(name);
+        let relocated = nc_channel::Install {
+            channel: nc_channel::Channel::Development(nc_channel::Checkout::of(root)),
+            bases: nc_channel::Bases::new(base("d"), base("c"), base("k"), base("s"))
+                .expect("plain absolute bases"),
+            namespace: Some(nc_channel::Namespace::parse("tl1").expect("a namespace")),
+            log_endpoint: None,
+        };
+        let real = nc_channel::Install {
+            namespace: None,
+            ..relocated.clone()
+        };
+        let asked = std::cell::Cell::new(0_u8);
+        assert_eq!(
+            super::lingering_asked(&real, || {
+                asked.set(asked.get() + 1);
+                Ok::<_, String>(Lingering::Already)
+            }),
+            Ok(Some(Lingering::Already))
+        );
+        assert_eq!(asked.get(), 1, "a real install did not ask logind once");
+        assert_eq!(
+            super::lingering_asked(&relocated, || {
+                asked.set(asked.get() + 1);
+                Ok::<_, String>(Lingering::Enabled)
+            }),
+            Ok(None)
+        );
+        assert_eq!(
+            asked.get(),
+            1,
+            "a test's install asked logind for lingering"
+        );
+        assert_eq!(
+            super::lingering_asked(&real, || Err::<Lingering, _>("no `loginctl`".to_owned())),
+            Err("no `loginctl`".to_owned()),
+            "logind's refusal to answer was not the install's"
+        );
     }
 
     /// Where no stack runs, the verb says so and goes no further; where one

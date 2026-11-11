@@ -360,10 +360,13 @@ prints. `POSTGRES_PORT` and `LOGS_PORT` move a port.
 system and with or without the stack: it builds the CLI, the daemon and the plugins and
 copies them out of `target/` into the install the base directories name, with the
 manifest, the device, the test world and the plugins (`nc_cli::install`), stopping the
-daemon an earlier install runs first. It registers the daemon with the system's service
+daemon an earlier install runs first — once it has found the service manager and asked
+whether it holds the earlier restorer: from an environment that does not reach it, it stops
+nothing and installs nothing. It registers the daemon with the system's service
 manager as `noctua-daemon --restored` — a systemd user unit, a launch agent, a logon task
 — restored when it dies and started at each login, and starts it through that manager
-unless the profile carried the `stopped` mark; on Linux it enables lingering where logind
+unless the profile carried the `stopped` mark, a person's stop or one an uninstall or an
+install that did not finish left; on Linux it enables lingering where logind
 lets it, so the daemon starts at boot, and otherwise prints the command and the NixOS
 option that do. It leaves `PATH` as it is: the CLI is `noctua-dev-<checkout>` at the path
 it prints. `--uninstall` finds the service manager first — from an environment that does
@@ -2411,8 +2414,10 @@ is installed.
   argument `--restored` (`nc_cli::install::Registered`): a restorer starts the daemon only
   through that entry, which ends at once, and well, while the `stopped` mark is there, so
   no manager has to know of a stop. The plan is `nc_cli::install::development_plan`'s,
-  the one place a development install asks for its restorer. A restorer an earlier
-  install registered is unregistered before any binary is replaced, and the mark is read
+  the one place a development install asks for its restorer. **The manager is found, and
+  asked whether it holds the restorer an earlier install registered, before an earlier
+  daemon is stopped**, so an install that cannot reach it stops nothing and writes no
+  mark. That restorer is unregistered before any binary is replaced, and the mark is read
   before the install stops an earlier daemon, whose stop writes one. Its definition is
   kept where the manager reads it at each login — systemd's user-unit folder under the
   configuration base the manifest holds, enabled there without the reload `enable` asks
@@ -2422,16 +2427,20 @@ is installed.
   reads it on systemd and launchd, while on Windows its task starts at each logon as a
   real one does (`nc_cli::install::kept_in`). The install then starts the daemon through
   the manager, **unless the profile carried the `stopped` mark before the install**: a
-  person's stop, which an install keeps. A `start` with the restorer registered goes
-  through the manager too, so the daemon it starts is one the manager restores; one the
-  manager does not hold, or a manager that does not answer, is a detached start. **An
-  uninstall reaches the manager before anything else**: from an environment that names no
-  tool for it — no absolute entry of `PATH` holding `systemctl`, no absolute `SystemRoot`
-  — it stops nothing and removes nothing, since that manager may hold the restorer; it
-  then stops the daemon and unregisters its restorer — its links and its definition with
-  it, and the one reload a unit the user's manager has read needs to go.
+  person's stop, which an install keeps, or the mark an uninstall's stop or an install that
+  did not finish left, which it cannot tell from one. A `start` with the restorer
+  registered goes through the manager too, so the daemon it starts is one the manager
+  restores; one the manager does not hold, or a manager that does not answer, is a
+  detached start. **An uninstall reaches the manager before anything else**, as an
+  install does: from an environment that names no tool for it — no absolute entry of
+  `PATH` holding `systemctl`, no absolute `SystemRoot` — or of a manager that cannot say
+  whether it holds the restorer, it stops nothing and removes nothing, since that manager
+  may hold the restorer; it then stops the daemon and unregisters its restorer — its
+  links and its definition with it, and the one reload a unit the user's manager has read
+  needs to go.
   Lingering, which starts a user's manager at boot, is enabled only by
-  `cargo xtask dev --install` for a real install, where logind lets this user, and is
+  `cargo xtask dev --install` for a real install, where logind lets this user — logind is
+  never asked for a relocated one (`lingering_asked` in `xtask/src/dev.rs`) — and is
   otherwise printed as `loginctl enable-linger <name>` and NixOS's
   `users.users.<name>.linger`; no test asks for it.
 
@@ -2446,12 +2455,13 @@ marked and killed and restored once to end well and stay down, and unregistered 
 uninstall, on Linux, macOS and Windows in CI — by the unit tests of the installer's and
 the start's decisions (the name each manager knows a restorer by, where a real install's
 and a test's definitions are kept, a person's stop kept, the development plan's
-restorer, a reinstall's order recorded by a stand-in restorer — the earlier one let go
-while the earlier binaries are there, the mark read before the install's own stop — an
-uninstall that cannot reach its manager stopping and removing nothing, a start through
-the manager only where it holds the restorer), of `nc_platform::service`'s links, the
-reload that lets an enabled unit go, lingering and counters, and of what `dev --install`
-says of lingering, by
+restorer, a reinstall's order recorded by a stand-in restorer — its manager asked before
+the install's own stop, the earlier one let go while the earlier binaries are there, the
+mark read before that stop — an install and an uninstall that cannot reach their manager,
+or whose manager cannot say whether it holds the restorer, stopping nothing, a start
+through the manager only where it holds the restorer), of `nc_platform::service`'s links,
+the reload that lets an enabled unit go, lingering and counters, and of what
+`dev --install` says of lingering and that it asks logind for a real install alone, by
 `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` (acceptance 4),
 by `apps/daemon/tests/channels_side_by_side.rs`, where production, staging and two
 development checkouts are installed through the installer from one scratch environment,
@@ -2493,8 +2503,10 @@ account that is not an elevated administrator, a record a reboot left whose id a
 account's process now holds, which is read as a daemon stopped without that process being
 read; a start that gave up, which leaves the daemon it started running; what a daemon a
 manager started writes to its standard error, which goes nowhere; an uninstall from an
-environment that does not reach the manager, which removes nothing; and lingering, which
-is the machine's (each under **What is deliberately not claimed**).
+environment that does not reach the manager, which removes nothing; the mark an
+uninstall's stop or an install that did not finish left, which the next install reads as
+a person's stop; and lingering, which is the machine's (each under **What is deliberately
+not claimed**).
 
 ### The stack binds to loopback and nothing else
 
@@ -3271,12 +3283,22 @@ rather than anything decided for the project, and each is a maintainer's to reop
   what the manager counts and not what the daemon wrote, and a refusal of a daemon a
   restorer started is read in the central log or by starting it by hand.
 - **Lingering is the machine's**: `cargo xtask dev --install` enables it where logind lets
-  this user and prints the command and the NixOS option otherwise, and a NixOS
-  configuration that does not set `users.users.<name>.linger` takes it away again at the
-  next switch, after which the daemon starts at the first login and not at boot.
+  this user and prints the command and the NixOS option otherwise. A NixOS configuration
+  that sets `users.users.<name>.linger = false;` takes it away again at each switch — and
+  so does one that leaves it unset on a release whose option is a plain `bool`, false by
+  default — after which the daemon starts at the first login and not at boot; where the
+  option is `null` by default, a configuration that leaves it unset keeps lingering as
+  `loginctl` left it.
 - **An install keeps a person's stop by the mark alone**: the mark is what tells a stop
   asked for from a daemon the install found stopped, so a profile whose mark someone
   removed by hand is started by the next install.
+- **An install reads every mark as a person's stop**: the one an uninstall's stop leaves
+  with the profile, and the one an install's own stop wrote before that install failed —
+  a binary not replaced, a restorer its manager would not let go or take, a profile the
+  daemon would not initialize — are read by the next install as a stop asked for, which
+  leaves the daemon down and says that `start` starts it. An install that cannot reach
+  its service manager, or whose manager cannot say whether it holds the earlier restorer,
+  stops nothing and writes no mark.
 - **An uninstall needs the service manager it registered with**: from an environment that
   names no tool for it — no absolute entry of `PATH` holding `systemctl`, or no absolute
   `SystemRoot` — `cargo xtask dev --uninstall` stops nothing and removes nothing, and says
