@@ -773,12 +773,15 @@ impl Store for Postgres {
     }
 
     async fn open_units(&self, realm: &OpaqueId) -> Result<Vec<Snowflake>, Error> {
-        // **One statement, over the columns that cannot fail to decode.** The
-        // opening brackets of the realm, each held to the absence of a closing
-        // one for its unit, by the same four columns `unit_opened` and
-        // `unit_closing` ask. The rest of a row is never read, so a row whose
-        // resource or chain this code cannot decode hides no unit opened after
-        // it, which a read of the history from its first entry does.
+        // **One statement, over the columns that bracket a unit.** The opening
+        // brackets of the realm, each held to the absence of a closing one for
+        // its unit, by the same four columns `unit_opened` and `unit_closing`
+        // ask, and read back as each unit and the sequence of its first
+        // opening. Nothing else of a row is read, so a row whose resource or
+        // chain this code cannot decode hides no unit opened after it, which a
+        // read of the history from its first entry does; what is decoded is
+        // the unit each open one names, and one not spelled as this code writes
+        // it is refused below.
         //
         // **Which entries it visits is the planner's**, by the cost it
         // estimates, for the opening brackets and their closes apart, and the

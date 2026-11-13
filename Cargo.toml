@@ -403,6 +403,17 @@ nc-ipc = { path = "crates/nc-ipc" }
 # either builds.
 nc-cli = { path = "apps/cli" }
 
+# **One cargo lint is allowed, for the reason the dependency table gives.**
+# Since Rust 1.100 cargo warns by default about a workspace dependency no
+# member takes (`unused_workspace_dependencies`), and `noctua-design` is one on
+# purpose: Stage 16's, declared so the crate taking it writes one line, and
+# read by `cargo xtask check` to find the design system. The table above
+# already says "every entry is used" is not a claim it makes; this says the
+# same to cargo. The allow goes when a member takes `noctua-design`, so that
+# the lint holds every entry again.
+[workspace.lints.cargo]
+unused_workspace_dependencies = "allow"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

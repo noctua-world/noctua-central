@@ -87,6 +87,9 @@ nc-channel.workspace = true
 # on that `mod` line. Every other line is the workspace's own, and
 # `every_member_takes_the_workspace_lints` holds this table to that one, entry
 # for entry, so the two cannot drift apart.
+[lints.cargo]
+unused_workspace_dependencies = "allow"
+
 [lints.rust]
 unsafe_code = "deny"
 missing_docs = "warn"

@@ -6318,10 +6318,10 @@ pub(crate) fn the_workspace_lints(root: &Path) -> Result<Vec<(String, String)>, 
     // warning: unrecognized lint tool `lints.rustfmt` … supported tools: cargo, clippy, rust, rustdoc
     // ```
     //
-    // `[workspace.lints.cargo]` is inert on stable today (`-Zcargo-lints` is
-    // nightly), so nothing is switched off through it yet; it is pinned because
-    // a pin over a set enumerates the set, and the stable release that lights
-    // it up is not a release anybody will re-derive this list for. Leaving out
+    // `[workspace.lints.cargo]` is live on stable since Rust 1.100, which warns
+    // by default about a workspace dependency no member takes; the one cargo
+    // lint switched off through it is pinned with the others, so a second
+    // allow there is seen like any other. Leaving out
     // `rustdoc` is not inert: two lines in the root manifest,
     //
     // ```toml
@@ -8507,6 +8507,10 @@ mod tests {
         assert_eq!(
             declared,
             [
+                (
+                    "cargo::unused_workspace_dependencies".to_owned(),
+                    "allow".to_owned()
+                ),
                 ("clippy::all".to_owned(), "warn".to_owned()),
                 ("clippy::pedantic".to_owned(), "warn".to_owned()),
                 (
@@ -8518,7 +8522,7 @@ mod tests {
                 ("rust::unsafe_code".to_owned(), "forbid".to_owned()),
             ],
             "`[workspace.lints]` moved. Every gate in this crate that reasons about lints \
-             rests on these six, and a member opting in to nothing is a member with no \
+             rests on these seven, and a member opting in to nothing is a member with no \
              lints at all — `unsafe_code = \"forbid\"` cannot be overridden at crate \
              level, so its absence is the one nothing else can see"
         );
