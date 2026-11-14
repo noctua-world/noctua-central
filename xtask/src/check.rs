@@ -25525,7 +25525,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18488;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18490;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -37566,7 +37566,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2198] = [
+    static OPERATORS: [(&str, &str, &str); 2201] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47398,6 +47398,21 @@ Options:
             "fuzzy_rank",
             "matched",
             "a match scores the sum of its words",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "an item keeps no positions the item before it matched",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "an item keeps no word the item before it matched",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "each word's hit holds its own positions and no earlier word's",
         ),
         ("fuzzy_rank", "ranked", "a higher score ranks first"),
         (

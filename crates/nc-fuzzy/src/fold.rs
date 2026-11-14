@@ -39,9 +39,9 @@ pub fn fold(c: char) -> char {
 
 /// Whether `c` splits a query into words.
 ///
-/// What JavaScript's `\s` matches, so the interface splits as this crate does:
 /// Unicode's white space, which includes the no-break space, and the
-/// byte-order mark, which is not white space to Rust.
+/// byte-order mark, which is not white space to Rust: what JavaScript's `\s`
+/// matches, and the next-line control U+0085, which `\s` does not.
 #[must_use]
 pub fn is_space(c: char) -> bool {
     c.is_whitespace() || c == '\u{FEFF}'
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[test]
-    fn every_separator_is_one_the_javascript_matcher_also_skips() {
+    fn every_space_splits_a_query_every_joiner_is_skipped_and_nothing_else_is() {
         for space in [
             ' ', '\t', '\n', '\u{A0}', '\u{2003}', '\u{3000}', '\u{FEFF}', '\u{85}',
         ] {

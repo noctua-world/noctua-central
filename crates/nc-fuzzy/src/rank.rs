@@ -6,9 +6,10 @@ use crate::score::Score;
 
 /// The matcher, holding the scratch it reuses from one item to the next.
 ///
-/// Make one and keep it: the table a scattered word is laid with grows to the
-/// largest it has needed and stays there, so matching a list allocates nothing
-/// for an item that is not found.
+/// Make one and keep it: the scratch it lays words in grows to the largest it
+/// has needed and stays there, and an item's hits are built only once every
+/// word has matched, so beyond that growth an item that is not found
+/// allocates nothing.
 #[derive(Clone, Debug, Default)]
 pub struct Matcher {
     /// The dynamic program's table, filled per word and field.
@@ -17,6 +18,10 @@ pub struct Matcher {
     trial: Vec<usize>,
     /// The tight positions of the best alignment so far, for the word at hand.
     best: Vec<usize>,
+    /// The tight positions of every word the item has matched so far, one word after another.
+    kept: Vec<usize>,
+    /// Each word the item has matched so far: its field, and where its positions end in `kept`.
+    words: Vec<(usize, usize)>,
 }
 
 impl Matcher {
@@ -34,7 +39,8 @@ impl Matcher {
     /// [`Score::ZERO`] and no hit.
     pub fn matched(&mut self, query: &Query, item: &Item) -> Option<Match> {
         let mut score = Score::ZERO;
-        let mut hits = Vec::new();
+        self.kept.clear();
+        self.words.clear();
         for word in query.words() {
             let mut chosen: Option<(Score, usize)> = None;
             for (index, field) in item.fields().iter().enumerate() {
@@ -48,10 +54,19 @@ impl Matcher {
             }
             let (fit, field) = chosen?;
             score = score.plus(fit);
+            self.kept.extend_from_slice(&self.best);
+            self.words.push((field, self.kept.len()));
+        }
+        // Built only now that every word has matched: an item a later word
+        // misses never allocated a hit for an earlier one.
+        let mut hits = Vec::with_capacity(self.words.len());
+        let mut start = 0;
+        for &(field, end) in &self.words {
             hits.push(Hit {
                 field,
-                positions: item.fields()[field].original(&self.best),
+                positions: item.fields()[field].original(&self.kept[start..end]),
             });
+            start = end;
         }
         Some(Match { score, hits })
     }
