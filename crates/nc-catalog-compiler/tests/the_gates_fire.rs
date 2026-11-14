@@ -104,6 +104,23 @@ impl Scratch {
         std::fs::write(&path, text).expect("the copy is writable");
     }
 
+    /// Writes a file the catalog did not have, with the directories above it.
+    ///
+    /// [`Scratch::add`] for a tree the catalog may not hold yet — a wiki text
+    /// under a locale or a registry no text is in — refusing, as it does, a
+    /// path that would overwrite.
+    fn place(&self, relative: &str, text: &str) {
+        let path = self.root.join(relative);
+        assert!(
+            !path.exists(),
+            "{relative} already exists, so this would be an edit with no check that it \
+             changed anything"
+        );
+        std::fs::create_dir_all(path.parent().expect("a placed file is under the root"))
+            .expect("the scratch is writable");
+        std::fs::write(&path, text).expect("the copy is writable");
+    }
+
     fn problems(&self) -> Vec<Problem> {
         match compile(&self.root, Bootstrap::Refuse) {
             Ok(_) => Vec::new(),
@@ -626,20 +643,25 @@ fn an_email_subject_is_checked_too() {
 
 #[test]
 fn a_command_message_may_not_interpolate_anything() {
-    // A command has no `params` field at all, so a placeholder in its title is
-    // one nobody can ever fill in — there is no caller, only a palette and the
-    // generated developer surfaces. Declaring the empty set is what makes that a
-    // build failure rather than braces on a screen.
-    let scratch = Scratch::new("params-command");
-    for locale in ["en", "pt-BR"] {
-        scratch.edit(&format!("catalog/i18n/{locale}.toml"), |text| {
-            text.replace(
-                "\"command.journal.verify.title\" = \"",
-                "\"command.journal.verify.title\" = \"{who} ",
-            )
-        });
+    // A command has no `params` field at all, so a placeholder in any of its
+    // sentences is one nobody can ever fill in — there is no caller, only a
+    // palette and the generated developer surfaces. Declaring the empty set is
+    // what makes that a build failure rather than braces on a screen, and it is
+    // the only thing that does: the entry judge's own placeholder problem is
+    // dropped because this one is said. So each sentence is broken alone, in
+    // both locales, and one left out of the declaration fails here.
+    for slot in ["title", "description", "paragraph"] {
+        let key = format!("command.journal.verify.{slot}");
+        let scratch = Scratch::new(&format!("params-command-{slot}"));
+        for locale in ["en", "pt-BR"] {
+            scratch.replacing(
+                &format!("catalog/i18n/{locale}.toml"),
+                &format!("\"{key}\" = \""),
+                &format!("\"{key}\" = \"{{who}} "),
+            );
+        }
+        scratch.must_fail("param-not-declared", &key);
     }
-    scratch.must_fail("param-not-declared", "command.journal.verify.title");
 }
 
 #[test]
@@ -1335,7 +1357,7 @@ fn two_names_that_differ_only_in_a_hyphen_collide() {
 /// one per nested table crosses the hundred-line budget `clippy.toml` sets, and
 /// a budget met by *reaching fewer structs* is the defect this table exists to
 /// close.
-const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
+const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
     (
         "lockout-typo",
         "catalog/limits.toml",
@@ -1384,6 +1406,24 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
         "resource_selector = \"realm\"",
         "resource_selecter = \"realm\"",
         "resource_selecter",
+    ),
+    // A command's entry is read through the same struct, and a glyph written
+    // under a misspelt key would be a glyph silently dropped.
+    (
+        "glyph-typo",
+        "catalog/commands.toml",
+        "glyph = \"U+F0E2\"",
+        "glyf = \"U+F0E2\"",
+        "glyf",
+    ),
+    // And a locale file's tag table, beside its messages: misspelt, every tag
+    // list in it would be a table nothing reads.
+    (
+        "tags-table-typo",
+        "catalog/i18n/pt-BR.toml",
+        "[tags]\n",
+        "[tagz]\n",
+        "tagz",
     ),
     (
         "email-typo",
@@ -4108,7 +4148,9 @@ fn a_duplicate_name_in_every_registry_that_has_one_fails_the_build() {
             "dup-command",
             "catalog/commands.toml",
             "\n[[command]]\nname = \"journal.verify\"\ntitle = \"command.journal.verify.title\"\n\
-             description = \"command.journal.verify.description\"\naction = \"Read\"\n\
+             description = \"command.journal.verify.description\"\n\
+             paragraph = \"command.journal.verify.paragraph\"\ntags = \"command.journal.verify.tags\"\n\
+             action = \"Read\"\n\
              resource_selector = \"realm\"\nreversibility = \"read\"\nmutating = false\n\
              args_schema = \"\"\"\n{\"type\":\"object\"}\"\"\"\n",
             "duplicate-command",
@@ -4870,4 +4912,530 @@ fn the_scratch_is_gone_when_the_guard_is() {
          sites as guarded reads the type's name rather than what it does",
         root.display()
     );
+}
+
+/// Removes one line from a locale file: the one declaring `key`.
+fn without_the_line_of(text: &str, key: &str) -> String {
+    let needle = format!("\"{key}\" =");
+    assert!(
+        text.lines().any(|line| line.starts_with(&needle)),
+        "the locale file no longer declares {key}, which this test removes"
+    );
+    let kept: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.starts_with(&needle))
+        .collect();
+    format!("{}\n", kept.join("\n"))
+}
+
+/// A command's text missing from a locale fails the build naming the command
+/// and the text, for each of its four texts.
+///
+/// **The entry, not the key alone**: the key is a string a reader searches the
+/// registries for, and *command kernel.undo's display name has no pt-BR text*
+/// is what they were looking for.
+#[test]
+fn a_display_name_missing_from_a_locale_fails_naming_the_command() {
+    let scratch = Scratch::new("display-name-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "command.kernel.undo.title")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "command kernel.undo's display name has no pt-BR text",
+    );
+    // Reported once: the judge's own missing text is the message rule's.
+    let missing = scratch
+        .problems()
+        .into_iter()
+        .filter(|problem| problem.what.contains("kernel.undo"))
+        .count();
+    assert_eq!(missing, 1, "{}", render(&scratch.problems()));
+}
+
+#[test]
+fn a_line_description_missing_from_a_locale_fails_naming_the_command() {
+    let scratch = Scratch::new("line-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "command.journal.verify.description")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "command journal.verify's line description has no pt-BR text",
+    );
+}
+
+#[test]
+fn a_paragraph_missing_from_a_locale_fails_naming_the_command() {
+    let scratch = Scratch::new("paragraph-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "command.limits.prune.paragraph")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "command limits.prune's paragraph has no pt-BR text",
+    );
+    // And from the source locale, where nothing declares it at all.
+    let source = Scratch::new("paragraph-dangling");
+    source.edit("catalog/i18n/en.toml", |text| {
+        without_the_line_of(&text, "command.limits.prune.paragraph")
+    });
+    source.must_fail_saying("dangling-message-key", "command limits.prune's paragraph");
+}
+
+#[test]
+fn tags_missing_from_a_locale_fail_naming_the_entry() {
+    let scratch = Scratch::new("tags-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "command.kernel.redo.tags")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "command kernel.redo's tags has no pt-BR text",
+    );
+    // Filed in `[tags]`, where the list has to be written, not among the
+    // command's sentences that share its prefix.
+    let (_, at, _) = scratch.reported("missing-key");
+    let text =
+        std::fs::read_to_string(scratch.root.join("catalog/i18n/pt-BR.toml")).expect("readable");
+    let lines: Vec<&str> = text.lines().collect();
+    let tags = lines
+        .iter()
+        .position(|line| *line == "[tags]")
+        .expect("a tags table");
+    let message = lines
+        .iter()
+        .position(|line| *line == "[message]")
+        .expect("a message table");
+    assert!(
+        at > tags && at <= message,
+        "the missing tags were filed at line {at}, outside `[tags]` ({}..{message})",
+        tags + 1
+    );
+}
+
+#[test]
+fn a_tags_key_no_list_answers_or_a_list_nothing_points_at_fails_the_build() {
+    let dangling = Scratch::new("tags-dangling");
+    dangling.replacing(
+        "catalog/commands.toml",
+        "tags = \"command.kernel.redo.tags\"",
+        "tags = \"command.kernel.redo.words\"",
+    );
+    dangling.must_fail_saying("dangling-message-key", "command kernel.redo's tags");
+    dangling.must_fail_saying("unreferenced-key", "command.kernel.redo.tags");
+    // A list in one locale only.
+    let orphan = Scratch::new("tags-orphan");
+    orphan.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "[tags]\n",
+        "[tags]\n\"command.kernel.nothing.tags\" = [\"nada\"]\n",
+    );
+    orphan.must_fail("orphan-key", "command.kernel.nothing.tags");
+    // One list for two commands is one key two entries hold.
+    let shared = Scratch::new("tags-owned-twice");
+    shared.replacing(
+        "catalog/commands.toml",
+        "tags = \"command.kernel.redo.tags\"",
+        "tags = \"command.kernel.undo.tags\"",
+    );
+    shared.must_fail_saying("key-owned-twice", "command.kernel.undo.tags");
+    // A sentence where a list belongs is a shape the file refuses.
+    let sentence = Scratch::new("tags-as-a-sentence");
+    sentence.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"command.kernel.redo.tags\" = [\"refazer\", ",
+        "\"command.kernel.redo.tags\" = \"refazer\"\n\"command.kernel.redo.others\" = [",
+    );
+    sentence.must_fail("registry-malformed", "catalog/i18n/pt-BR.toml");
+}
+
+#[test]
+fn a_tag_list_the_judge_refuses_fails_the_build_naming_the_command() {
+    for (name, from, to, check) in [
+        (
+            "no-tag",
+            "\"command.kernel.undo.tags\" = [\"desfazer\", \"voltar atrás\", \"reverter\", \"anular\"]",
+            "\"command.kernel.undo.tags\" = []",
+            "no-tag",
+        ),
+        (
+            "tag-twice",
+            "[\"desfazer\", \"voltar atrás\"",
+            "[\"desfazer\", \"Desfazer\"",
+            "tag-twice",
+        ),
+        (
+            "tag-malformed",
+            "[\"desfazer\", \"voltar atrás\"",
+            "[\"desfazer, voltar atrás\"",
+            "tag-malformed",
+        ),
+        (
+            "tag-brace",
+            "[\"desfazer\", \"voltar atrás\"",
+            "[\"desfazer\", \"{quem}\"",
+            "tag-malformed",
+        ),
+        (
+            "tag-blank",
+            "[\"desfazer\", \"voltar atrás\"",
+            "[\"desfazer\", \"\u{3164}\"",
+            "tag-blank",
+        ),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing("catalog/i18n/pt-BR.toml", from, to);
+        scratch.must_fail_saying(check, "`kernel.undo`");
+        scratch.must_fail_saying(check, "pt-BR");
+        // Filed at the list the locale wrote, where the fix is made, not at
+        // the command's declaration.
+        scratch.points_at_the_line_declaring(check, "command.kernel.undo.tags");
+    }
+}
+
+#[test]
+fn a_line_description_longer_than_a_line_fails_naming_the_command_and_the_locale() {
+    let scratch = Scratch::new("line-too-long");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"Desfazer o seu último passo: o que ele mudou no Noctua e os arquivos que criou.\"",
+        "\"Desfazer o seu último passo: tudo o que ele mudou no Noctua e os arquivos que ele criou.\"",
+    );
+    scratch.must_fail_saying("entry-text-too-long", "`kernel.undo`");
+    scratch.must_fail_saying(
+        "entry-text-too-long",
+        "`pt-BR` line description of 88 characters",
+    );
+    scratch.points_at_the_line_declaring("entry-text-too-long", "command.kernel.undo.description");
+}
+
+#[test]
+fn a_paragraph_that_repeats_the_line_fails() {
+    let scratch = Scratch::new("paragraph-repeats-line");
+    scratch.edit("catalog/i18n/en.toml", |text| {
+        text.lines()
+            .map(|line| {
+                if line.starts_with("\"command.kernel.redo.paragraph\"") {
+                    "\"command.kernel.redo.paragraph\" = \"Make again the last step you took back\""
+                        .to_owned()
+                } else {
+                    line.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n"
+    });
+    scratch.must_fail_saying("paragraph-repeats-line", "`kernel.redo`");
+    scratch.points_at_the_line_declaring("paragraph-repeats-line", "command.kernel.redo.paragraph");
+}
+
+#[test]
+fn a_character_a_reader_sees_nothing_of_in_a_commands_text_fails_the_build() {
+    let scratch = Scratch::new("entry-unseen");
+    scratch.replacing("catalog/i18n/en.toml", "\"Redo\"", "\"Re\u{202e}do\"");
+    scratch.must_fail_saying("entry-invisible-character", "`kernel.redo`");
+    scratch.must_fail_saying("entry-invisible-character", "`U+202E`");
+}
+
+#[test]
+fn two_commands_shown_by_one_display_name_fail() {
+    let scratch = Scratch::new("display-name-twice");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"command.kernel.redo.title\" = \"Refazer\"",
+        "\"command.kernel.redo.title\" = \"desfazer.\"",
+    );
+    scratch.must_fail_saying("display-name-twice", "`kernel.undo` and `kernel.redo`");
+    scratch.must_fail_saying("display-name-twice", "pt-BR");
+}
+
+#[test]
+fn a_glyph_outside_the_symbols_only_font_fails_the_build() {
+    // `U+F382` is the point after the font's `U+F000`–`U+F381` range, inside
+    // the Private Use Area a looser rule would accept whole.
+    let scratch = Scratch::new("glyph-outside");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "glyph = \"U+F0E2\"",
+        "glyph = \"U+F382\"",
+    );
+    scratch.must_fail_saying("glyph-not-in-the-font", "`kernel.undo`");
+    scratch.must_fail_saying("glyph-not-in-the-font", "`U+F382`");
+}
+
+#[test]
+fn a_glyph_in_plane_fifteen_is_accepted() {
+    // A Material Design icon: plane 15, past what a `u16` holds.
+    let scratch = Scratch::new("glyph-plane-fifteen");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "glyph = \"U+F0E2\"",
+        "glyph = \"U+F0001\"",
+    );
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let commands = compiled
+        .files
+        .iter()
+        .find(|file| file.path == "crates/nc-catalog/src/commands.rs")
+        .expect("the commands module is emitted");
+    assert!(
+        commands.contents.contains("glyph: Some('\\u{f0001}')"),
+        "the plane-fifteen glyph did not reach the generated crate as its escape"
+    );
+}
+
+#[test]
+fn a_glyph_written_any_other_way_fails_the_build() {
+    for (name, written) in [
+        ("glyph-bare", "f0e2"),
+        ("glyph-lower", "U+f0e2"),
+        ("glyph-padded", "U+0F0E2"),
+        ("glyph-raw", "\u{f0e2}"),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing(
+            "catalog/commands.toml",
+            "glyph = \"U+F0E2\"",
+            &format!("glyph = \"{written}\""),
+        );
+        scratch.must_fail_saying("glyph-malformed", "`kernel.undo`");
+    }
+}
+
+#[test]
+fn a_category_the_registry_does_not_hold_fails_the_build() {
+    let scratch = Scratch::new("category-unknown");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "glyph = \"U+F0E2\"",
+        "glyph = \"U+F0E2\"\ncategories = [\"noctua.everything\"]",
+    );
+    scratch.must_fail_saying("unknown-category", "`noctua.everything`");
+}
+
+/// The format a wiki text is recorded in is the one its extension names, and
+/// it reaches the generated crate.
+#[test]
+fn a_wiki_texts_format_is_recorded_from_its_extension() {
+    let scratch = Scratch::new("wiki-formats");
+    for (locale, words) in [
+        ("en", "Old records go."),
+        ("pt-BR", "Registros antigos saem."),
+    ] {
+        scratch.place(
+            &format!("catalog/wiki/{locale}/commands/limits.prune.txt"),
+            &format!("{words}\n"),
+        );
+    }
+    for (locale, words) in [
+        ("en", "= Redo\n\nPuts a step back.\n"),
+        ("pt-BR", "= Refazer\n\nTraz um passo de volta.\n"),
+    ] {
+        scratch.place(
+            &format!("catalog/wiki/{locale}/commands/kernel.redo.typ"),
+            words,
+        );
+    }
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let formats: Vec<(&str, nc_schema::entry::WikiFormat)> = compiled
+        .catalog
+        .wiki
+        .iter()
+        .map(|text| (text.name.as_str(), text.format))
+        .collect();
+    assert_eq!(
+        formats,
+        [
+            ("journal.verify", nc_schema::entry::WikiFormat::Markdown),
+            ("kernel.redo", nc_schema::entry::WikiFormat::Typst),
+            ("kernel.undo", nc_schema::entry::WikiFormat::Markdown),
+            ("limits.prune", nc_schema::entry::WikiFormat::PlainText),
+        ]
+    );
+    let commands = compiled
+        .files
+        .iter()
+        .find(|file| file.path == "crates/nc-catalog/src/commands.rs")
+        .expect("the commands module is emitted");
+    for (name, variant) in [
+        ("kernel.redo", "Typst"),
+        ("limits.prune", "PlainText"),
+        ("kernel.undo", "Markdown"),
+    ] {
+        let row = commands
+            .contents
+            .split("Command {")
+            .find(|row| row.contains(&format!("name: \"{name}\"")))
+            .expect("every command has a row");
+        assert!(
+            row.contains(&format!("wiki: Some(crate::WikiFormat::{variant})")),
+            "`{name}`'s row does not carry its {variant} wiki text: {row}"
+        );
+    }
+}
+
+#[test]
+fn a_wiki_text_with_an_unknown_extension_fails_the_build_naming_the_file() {
+    let scratch = Scratch::new("wiki-rst");
+    scratch.place("catalog/wiki/en/commands/kernel.redo.rst", "Redo.\n");
+    scratch.must_fail(
+        "wiki-format-unknown",
+        "catalog/wiki/en/commands/kernel.redo.rst",
+    );
+}
+
+#[test]
+fn an_extension_written_in_capitals_is_unknown() {
+    let scratch = Scratch::new("wiki-capitals");
+    scratch.place("catalog/wiki/en/commands/kernel.redo.MD", "Redo.\n");
+    scratch.place("catalog/wiki/pt-BR/commands/kernel.redo.MD", "Refazer.\n");
+    scratch.must_fail(
+        "wiki-format-unknown",
+        "catalog/wiki/en/commands/kernel.redo.MD",
+    );
+}
+
+#[test]
+fn a_wiki_text_missing_from_a_locale_fails_naming_the_entry() {
+    let scratch = Scratch::new("wiki-locale-missing");
+    scratch.place("catalog/wiki/en/commands/kernel.redo.md", "# Redo\n");
+    scratch.must_fail_saying("wiki-locale-missing", "`kernel.redo`");
+    let source = Scratch::new("wiki-source-missing");
+    std::fs::remove_file(source.root.join("catalog/wiki/en/commands/kernel.undo.md"))
+        .expect("the shipped wiki text is there to remove");
+    source.must_fail("wiki-locale-missing", "catalog/wiki/en/commands");
+}
+
+#[test]
+fn two_locales_writing_one_wiki_in_two_formats_fail_the_build() {
+    let scratch = Scratch::new("wiki-formats-differ");
+    scratch.place("catalog/wiki/en/commands/kernel.redo.md", "# Redo\n");
+    scratch.place("catalog/wiki/pt-BR/commands/kernel.redo.txt", "Refazer\n");
+    scratch.must_fail_saying("wiki-formats-differ", "`kernel.redo`");
+    let twice = Scratch::new("wiki-twice");
+    twice.place("catalog/wiki/en/commands/kernel.undo.txt", "Undo\n");
+    twice.must_fail_saying("wiki-twice", "`kernel.undo`");
+}
+
+#[test]
+fn a_wiki_text_naming_no_entry_fails_the_build() {
+    let scratch = Scratch::new("wiki-orphan");
+    scratch.place("catalog/wiki/en/commands/kernel.nothing.md", "# Nothing\n");
+    scratch.place("catalog/wiki/pt-BR/commands/kernel.nothing.md", "# Nada\n");
+    scratch.must_fail_saying("wiki-orphan", "`kernel.nothing`");
+}
+
+#[test]
+fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
+    for (name, placed, naming) in [
+        (
+            "wiki-file-for-a-locale",
+            "catalog/wiki/fr",
+            "catalog/wiki/fr",
+        ),
+        (
+            "wiki-unknown-locale",
+            "catalog/wiki/fr/commands/kernel.undo.md",
+            "catalog/wiki/fr",
+        ),
+        (
+            "wiki-unknown-registry",
+            "catalog/wiki/en/rules/kernel.undo.md",
+            "catalog/wiki/en/rules",
+        ),
+        (
+            "wiki-file-for-a-registry",
+            "catalog/wiki/en/notes.md",
+            "catalog/wiki/en/notes.md",
+        ),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.place(placed, "# Undo\n");
+        scratch.must_fail("wiki-misplaced", naming);
+    }
+    // And the tree itself: a file where it belongs is no tree of texts.
+    let flat = Scratch::new("wiki-file-for-the-tree");
+    std::fs::remove_dir_all(flat.root.join("catalog/wiki")).expect("the scratch is writable");
+    flat.place("catalog/wiki", "# Undo\n");
+    flat.must_fail("wiki-misplaced", "catalog/wiki");
+    let nested = Scratch::new("wiki-directory-for-a-text");
+    std::fs::create_dir_all(nested.root.join("catalog/wiki/en/commands/kernel.redo.md"))
+        .expect("the scratch is writable");
+    nested.must_fail("wiki-misplaced", "catalog/wiki/en/commands/kernel.redo.md");
+}
+
+/// A link anywhere in the wiki tree is refused, never read through.
+///
+/// Each link points at the shipped texts moved aside inside the scratch, a
+/// tree that builds green when read through the link — so only a walk that
+/// asks each path what it is itself fails here. A directory is linked by both
+/// doors: on Windows a junction and a directory's symbolic link are reparse
+/// points of two tags, and on Unix the two doors make one link.
+#[test]
+fn a_link_where_a_wiki_path_belongs_fails_the_build() {
+    /// A door that makes a link at its second path to the directory at its first.
+    type Door = fn(&Path, &Path) -> std::io::Result<()>;
+
+    let doors: [(&str, Door); 2] = [
+        ("linked", nc_platform::testing::link_directory),
+        ("symlinked", nc_platform::testing::symlink_directory),
+    ];
+    for (door, link) in doors {
+        for (level, at) in [
+            ("tree", "catalog/wiki"),
+            ("locale", "catalog/wiki/pt-BR"),
+            ("registry", "catalog/wiki/en/commands"),
+        ] {
+            let scratch = Scratch::new(&format!("wiki-{door}-{level}"));
+            let aside = scratch.root.join("aside");
+            std::fs::rename(scratch.root.join(at), &aside).expect("the scratch is writable");
+            link(&aside, &scratch.root.join(at)).expect("a link");
+            scratch.must_fail("wiki-misplaced", at);
+        }
+    }
+    let text = Scratch::new("wiki-linked-text");
+    let at = "catalog/wiki/pt-BR/commands/kernel.undo.md";
+    let aside = text.root.join("kernel.undo.md");
+    std::fs::rename(text.root.join(at), &aside).expect("the scratch is writable");
+    nc_platform::testing::link_file(&aside, &text.root.join(at)).expect("a link");
+    text.must_fail("wiki-misplaced", at);
+}
+
+#[test]
+fn a_wiki_text_the_judge_refuses_or_one_left_untranslated_fails_the_build() {
+    for (name, written, check) in [
+        ("wiki-blank", "\n \n", "wiki-text-refused"),
+        ("wiki-unseen", "# Desfazer\u{202e}\n", "wiki-text-refused"),
+        (
+            "wiki-carriage-return",
+            "# Desfazer\r\n",
+            "wiki-text-refused",
+        ),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.edit("catalog/wiki/pt-BR/commands/kernel.undo.md", |_| {
+            written.to_owned()
+        });
+        scratch.must_fail(check, "catalog/wiki/pt-BR/commands/kernel.undo.md");
+    }
+    let large = Scratch::new("wiki-large");
+    large.edit("catalog/wiki/pt-BR/commands/kernel.undo.md", |_| {
+        "a".repeat(nc_schema::entry::WIKI_BYTES_MAX + 1)
+    });
+    large.must_fail_saying("wiki-text-refused", "65537 bytes");
+    let untranslated = Scratch::new("wiki-untranslated");
+    let english = std::fs::read_to_string(
+        untranslated
+            .root
+            .join("catalog/wiki/en/commands/kernel.undo.md"),
+    )
+    .expect("the shipped wiki text");
+    untranslated.edit("catalog/wiki/pt-BR/commands/kernel.undo.md", |_| {
+        english.clone()
+    });
+    untranslated.must_fail_saying("untranslated", "`kernel.undo`");
 }

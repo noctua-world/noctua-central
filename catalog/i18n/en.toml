@@ -2,8 +2,14 @@
 #
 # Every key in this file must exist in every other locale, and every key in
 # another locale must exist here. A key missing from either side **fails the
-# build**, naming the key (`NOCTUA.md §10.9`): a lookup that quietly fell back to
-# English would ship a page in two languages and report nothing.
+# build**, naming the entry and the text it is (`NOCTUA.md §10.9`): a lookup
+# that quietly fell back to English would ship a page in two languages and
+# report nothing.
+#
+# Two tables. `[tags]` holds the lists of words a search finds an entry by — a
+# command's tags (`§20.4`) — each list this locale's own words, as long as it
+# needs to be; `[message]`, after it and to the end of the file, holds the
+# sentences.
 #
 # Conventions:
 #
@@ -23,6 +29,17 @@
 name  = "English"
 bcp47 = "en"
 dir   = "ltr"
+
+# The words a search finds each entry by, one list per entry. A list is this
+# locale's own words: it need not be a translation of another locale's, nor be
+# as long, and a word may be the same in both.
+[tags]
+
+# --- Commands ---
+"command.journal.verify.tags" = ["verify", "check", "history", "activity", "integrity", "audit"]
+"command.limits.prune.tags" = ["prune", "clean up", "old records", "limit", "free space"]
+"command.kernel.undo.tags" = ["undo", "take back", "revert", "go back"]
+"command.kernel.redo.tags" = ["redo", "do again", "repeat", "restore"]
 
 [message]
 
@@ -206,12 +223,16 @@ dir   = "ltr"
 # --- Commands ---
 "command.journal.verify.title" = "Verify activity history"
 "command.journal.verify.description" = "Check that every recorded action is intact and in order."
+"command.journal.verify.paragraph" = "Reads the activity history from its start, or from the entry you name, and checks that each recorded action is still linked to the one before it. It changes nothing, and answers how many entries it checked, or the first one that does not hold and why."
 "command.limits.prune.title" = "Clear old records"
 "command.limits.prune.description" = "Remove the oldest records from any table that has passed its limit."
+"command.limits.prune.paragraph" = "Deletes the oldest records from each table of this device's database that has passed its declared limit, or only from the table you name. A dry run counts what it would remove and removes nothing. What it removes cannot be brought back, so undo stops at the step that ran it."
 "command.kernel.undo.title" = "Undo"
-"command.kernel.undo.description" = "Take back your last step: everything it changed in Noctua, and the files it made."
+"command.kernel.undo.description" = "Take back your last step: what it changed in Noctua, and the files it made."
+"command.kernel.undo.paragraph" = "Finds your newest step that can still be taken back and puts back every value it changed and the files it made, after checking again that you may do each thing it did. It stops at a step whose effects left this device, and at one whose values changed since."
 "command.kernel.redo.title" = "Redo"
 "command.kernel.redo.description" = "Make again the last step you took back."
+"command.kernel.redo.paragraph" = "Puts back the newest step you took back, as long as you have done nothing new since, after checking again that you may do each thing it did. A step whose undo needed corrections of its own cannot be redone."
 
 # --- Capabilities ---
 "capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."

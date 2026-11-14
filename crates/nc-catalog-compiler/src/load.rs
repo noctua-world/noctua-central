@@ -30,7 +30,7 @@ use serde::de::DeserializeOwned;
 use crate::model::{
     Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, DaemonLimits,
     Email, EmailFile, ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile,
-    Notification, NotificationFile, Reversibility, Strategy, UngatedEntry,
+    Notification, NotificationFile, Reversibility, Strategy, Table, UngatedEntry,
 };
 use crate::problem::{Problem, line_of};
 
@@ -129,7 +129,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
     check_events(&event_file.events, &events_text, &mut problems);
     check_capabilities(&capability_file, &capabilities_text, &mut problems);
 
-    let catalog = Catalog {
+    let mut catalog = Catalog {
         areas: error_file.areas,
         errors: error_file.errors,
         notifications: notification_file.notifications,
@@ -140,10 +140,13 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         capabilities: capability_file.capabilities,
         ungated: capability_file.ungated,
         locales,
+        wiki: Vec::new(),
     };
+    catalog.wiki = crate::metadata::wiki(root, &catalog, &mut problems);
 
     check_one_owner_per_key(&catalog, &mut problems);
     crate::messages::check(root, &catalog, &mut problems);
+    crate::metadata::check(root, &catalog, &commands_text, &mut problems);
 
     problems.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     (Some(catalog), problems)
@@ -2892,6 +2895,7 @@ fn locales(root: &Path, problems: &mut Vec<Problem>) -> Vec<Locale> {
         locales.push(Locale {
             meta: file.meta,
             message: file.message,
+            tags: file.tags,
         });
     }
 
@@ -2936,14 +2940,27 @@ fn push(
     });
 }
 
-/// Every message key any registry entry points at, and what points at it.
-pub(crate) fn referenced_keys(catalog: &Catalog) -> BTreeMap<String, String> {
+/// One registry entry's claim on a key.
+///
+/// **Whose it is and which of its texts**, so a key missing from a locale is
+/// reported as the text it is — *command kernel.undo's display name has no
+/// pt-BR text* — rather than as a key a reader has to search the registries
+/// for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Claim {
+    /// The entry, as a diagnostic names it: `command kernel.undo`.
+    pub(crate) owner: String,
+    /// Which of its texts the key is: `display name`.
+    pub(crate) slot: &'static str,
+    /// Where the key is looked up.
+    pub(crate) table: Table,
+}
+
+/// Every key any registry entry points at, and the first claim on it.
+pub(crate) fn referenced_keys(catalog: &Catalog) -> BTreeMap<String, Claim> {
     every_reference(catalog)
         .into_iter()
-        .map(|(key, owners)| {
-            let owner = owners.first().cloned().unwrap_or_default();
-            (key, owner)
-        })
+        .filter_map(|(key, claims)| claims.into_iter().next().map(|claim| (key, claim)))
         .collect()
 }
 
@@ -2975,41 +2992,59 @@ fn named(owners: &[String]) -> String {
 /// notification then owns the sentence `NC-DB-0001` resolves to. Editing it "for the
 /// notification" changes what the error says, and the ledger sees nothing,
 /// because the code's key and description never moved.
-pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<String>> {
-    let mut keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
+pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<Claim>> {
+    let mut keys: BTreeMap<String, Vec<Claim>> = BTreeMap::new();
     // **Every claim, including two from one entry.** Deduped on the owner's
     // *name*, a notification whose `title` and `body` are the same key would
     // have one owner and never trip `key-owned-twice` — while the gate's
     // own reasoning applies to it word for word: rewording that sentence for
     // the title silently rewords the body, and neither slot can be edited for
     // its own purpose. Two slots are two claims whoever holds them.
-    let mut claim = |key: &str, owner: String| {
-        keys.entry(key.to_owned()).or_default().push(owner);
+    //
+    // **One key, one owner, whichever table it is in**: a command's tags key
+    // spelled as another entry's sentence is still one key two entries hold.
+    let mut claim = |key: &str, owner: String, slot: &'static str, table: Table| {
+        keys.entry(key.to_owned())
+            .or_default()
+            .push(Claim { owner, slot, table });
     };
     for entry in &catalog.errors {
-        claim(&entry.message, format!("error {}", entry.code));
+        let owner = format!("error {}", entry.code);
+        claim(&entry.message, owner, "message", Table::Message);
     }
     for entry in &catalog.notifications {
-        claim(&entry.title, format!("notification {}", entry.id));
-        claim(&entry.body, format!("notification {}", entry.id));
+        let owner = format!("notification {}", entry.id);
+        claim(&entry.title, owner.clone(), "title", Table::Message);
+        claim(&entry.body, owner, "body", Table::Message);
     }
     for entry in &catalog.emails {
-        claim(&entry.subject, format!("email {}", entry.id));
-        claim(&entry.body, format!("email {}", entry.id));
+        let owner = format!("email {}", entry.id);
+        claim(&entry.subject, owner.clone(), "subject", Table::Message);
+        claim(&entry.body, owner, "body", Table::Message);
     }
     for entry in &catalog.commands {
-        claim(&entry.title, format!("command {}", entry.name));
-        claim(&entry.description, format!("command {}", entry.name));
+        let owner = format!("command {}", entry.name);
+        claim(&entry.title, owner.clone(), "display name", Table::Message);
+        claim(
+            &entry.description,
+            owner.clone(),
+            "line description",
+            Table::Message,
+        );
+        claim(&entry.paragraph, owner.clone(), "paragraph", Table::Message);
+        claim(&entry.tags, owner, "tags", Table::Tags);
     }
     for entry in &catalog.capabilities {
-        claim(&entry.description, format!("capability {}", entry.name));
+        let owner = format!("capability {}", entry.name);
+        claim(&entry.description, owner, "description", Table::Message);
     }
     keys
 }
 
 /// No message key is claimed by two registry entries.
 pub(crate) fn check_one_owner_per_key(catalog: &Catalog, problems: &mut Vec<Problem>) {
-    for (key, owners) in every_reference(catalog) {
+    for (key, claims) in every_reference(catalog) {
+        let owners: Vec<String> = claims.into_iter().map(|claim| claim.owner).collect();
         if owners.len() > 1 {
             problems.push(Problem::in_file(
                 "catalog/",
@@ -3072,17 +3107,22 @@ pub(crate) fn declared_params(catalog: &Catalog) -> Vec<Declaration> {
             keys: vec![entry.subject.clone(), entry.body.clone()],
         });
     }
-    // **A command's two messages take no parameters, and that is checked rather
-    // than assumed.** `CommandEntry` has no `params` field: a command's title and
-    // description are shown in a palette and in the generated developer surfaces
-    // (`§15.3`), where there is no caller to supply a value. Declaring the empty
-    // set here is what turns "there is nowhere to fill this in" into a build
-    // failure rather than an empty placeholder on a screen.
+    // **A command's three sentences take no parameters, and that is checked
+    // rather than assumed.** `CommandEntry` has no `params` field: a command's
+    // display name, line and paragraph are shown in a palette and in the
+    // generated developer surfaces (`§15.3`), where there is no caller to supply
+    // a value. Declaring the empty set here is what turns "there is nowhere to
+    // fill this in" into a build failure rather than an empty placeholder on a
+    // screen.
     for entry in &catalog.commands {
         declared.push(Declaration {
             owner: format!("command {}", entry.name),
             declared: BTreeSet::new(),
-            keys: vec![entry.title.clone(), entry.description.clone()],
+            keys: vec![
+                entry.title.clone(),
+                entry.description.clone(),
+                entry.paragraph.clone(),
+            ],
         });
     }
     // A capability's sentence is shown beside a manifest's grants, where there is

@@ -6,6 +6,7 @@
 //! instance built to fit any schema of the subset is accepted and any single
 //! change to it is refused, and the judge never refuses with nothing to say.
 
+use nc_schema::entry::{Entry, EntryProblem, InLocale, Rules, Text, Texts};
 use nc_schema::{Declared, Reversibility, Schema, judge};
 use proptest::prelude::*;
 use proptest::strategy::ValueTree as _;
@@ -354,4 +355,94 @@ fn the_declarations_judged_are_admitted_often_and_refused_often() {
         admitted >= 32 && refused >= 32,
         "{admitted} admitted and {refused} refused of 256"
     );
+}
+
+/// One locale's texts as a test owns them: a display name, a line, a
+/// paragraph and tags, each built inside its bound.
+#[derive(Debug, Clone)]
+struct Said {
+    /// The display name.
+    display_name: String,
+    /// The line description.
+    line: String,
+    /// The paragraph.
+    paragraph: String,
+    /// The tags.
+    tags: Vec<String>,
+}
+
+/// Texts that satisfy every rule.
+///
+/// Words of letters, each within its bound, the paragraph longer than the
+/// line so the two are never one sentence, and tags numbered so no two
+/// lower-case to one.
+fn said(prefix: &'static str) -> impl Strategy<Value = Said> {
+    (
+        "[A-Za-zÀ-ÿ]{1,12}( [a-zà-ÿ]{1,12}){0,3}",
+        "[A-Za-zÀ-ÿ]{1,10}( [a-zà-ÿ]{1,10}){0,5}",
+        "[A-Za-zÀ-ÿ]{1,10}( [a-zà-ÿ]{1,10}){6,40}",
+        proptest::collection::vec("[a-zà-ÿ]{1,12}", 1..8),
+    )
+        .prop_map(move |(display_name, line, paragraph, words)| Said {
+            display_name: format!("{prefix}{display_name}"),
+            line: format!("{prefix}{line}"),
+            paragraph: format!("{prefix}{paragraph}"),
+            tags: words
+                .into_iter()
+                .enumerate()
+                .map(|(at, word)| format!("{word} {at}"))
+                .collect(),
+        })
+}
+
+impl Said {
+    /// What the judge is handed of this locale.
+    fn lent<'a>(&'a self, locale: &'a str, emptied: Option<Text>) -> InLocale<'a> {
+        let unless = |text: Text, held: &'a str| (emptied != Some(text)).then_some(held);
+        InLocale {
+            locale,
+            texts: Texts {
+                display_name: unless(Text::DisplayName, &self.display_name),
+                line: unless(Text::Line, &self.line),
+                paragraph: unless(Text::Paragraph, &self.paragraph),
+                tags: (emptied != Some(Text::Tags)).then_some(self.tags.as_slice()),
+            },
+        }
+    }
+}
+
+proptest! {
+    /// An entry built to satisfy every rule is accepted, and emptying any one
+    /// of its texts in either locale is refused naming that locale and text.
+    ///
+    /// **The law the shared judge owes both of its callers** (`§19.2`): the
+    /// compiler hands it the catalog's texts and the kernel a plugin's, and a
+    /// rule that refused a sound entry, or let one empty text through, would
+    /// do so for both.
+    #[test]
+    fn an_entry_built_to_satisfy_every_rule_is_accepted_and_any_one_text_emptied_is_refused(
+        english in said("En "),
+        portuguese in said("Pt "),
+        which in 0..Text::ALL.len(),
+        in_portuguese in any::<bool>(),
+    ) {
+        let rules = Rules { requires: &Text::ALL, categories: &[] };
+        let whole = [english.lent("en", None), portuguese.lent("pt-BR", None)];
+        let entry = |locales| Entry { locales, categories: &[], glyph: None, same_in_both: &[] };
+        prop_assert_eq!(nc_schema::entry::judge(&entry(&whole), &rules), Ok(()));
+
+        let text = Text::ALL[which];
+        let emptied = if in_portuguese {
+            [english.lent("en", None), portuguese.lent("pt-BR", Some(text))]
+        } else {
+            [english.lent("en", Some(text)), portuguese.lent("pt-BR", None)]
+        };
+        let locale = if in_portuguese { "pt-BR" } else { "en" };
+        let problems = nc_schema::entry::judge(&entry(&emptied), &rules)
+            .expect_err("a text is emptied");
+        prop_assert!(
+            problems.contains(&EntryProblem::Missing { locale: locale.to_owned(), text }),
+            "emptying the {} {} was not reported missing: {:?}", locale, text, problems
+        );
+    }
 }

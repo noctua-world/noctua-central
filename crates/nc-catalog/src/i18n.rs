@@ -163,6 +163,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "command.journal.verify.paragraph",
+        [
+            "Reads the activity history from its start, or from the entry you name, and checks that each recorded action is still linked to the one before it. It changes nothing, and answers how many entries it checked, or the first one that does not hold and why.",
+            "Lê o histórico de atividades desde o início, ou desde a entrada que você indicar, e confere se cada ação registrada continua ligada à anterior. Não muda nada, e responde quantas entradas conferiu, ou a primeira que não confere e por quê.",
+        ],
+    ),
+    (
         "command.journal.verify.title",
         [
             "Verify activity history",
@@ -176,12 +183,26 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
             "Fazer de novo o último passo que você desfez.",
         ],
     ),
+    (
+        "command.kernel.redo.paragraph",
+        [
+            "Puts back the newest step you took back, as long as you have done nothing new since, after checking again that you may do each thing it did. A step whose undo needed corrections of its own cannot be redone.",
+            "Refaz o passo mais recente que você desfez, desde que você não tenha feito nada novo depois, conferindo de novo que você pode fazer cada coisa que ele fez. Um passo cujo desfazer precisou de correções próprias não pode ser refeito.",
+        ],
+    ),
     ("command.kernel.redo.title", ["Redo", "Refazer"]),
     (
         "command.kernel.undo.description",
         [
-            "Take back your last step: everything it changed in Noctua, and the files it made.",
-            "Desfazer o seu último passo: tudo o que ele mudou no Noctua e os arquivos que ele criou.",
+            "Take back your last step: what it changed in Noctua, and the files it made.",
+            "Desfazer o seu último passo: o que ele mudou no Noctua e os arquivos que criou.",
+        ],
+    ),
+    (
+        "command.kernel.undo.paragraph",
+        [
+            "Finds your newest step that can still be taken back and puts back every value it changed and the files it made, after checking again that you may do each thing it did. It stops at a step whose effects left this device, and at one whose values changed since.",
+            "Encontra o seu passo mais recente que ainda pode ser desfeito e devolve cada valor que ele mudou e os arquivos que criou, depois de conferir de novo que você pode fazer cada coisa que ele fez. Para em um passo cujos efeitos saíram deste aparelho, e em um cujos valores mudaram desde então.",
         ],
     ),
     ("command.kernel.undo.title", ["Undo", "Desfazer"]),
@@ -190,6 +211,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Remove the oldest records from any table that has passed its limit.",
             "Remover os registros mais antigos de qualquer tabela que passou do limite.",
+        ],
+    ),
+    (
+        "command.limits.prune.paragraph",
+        [
+            "Deletes the oldest records from each table of this device's database that has passed its declared limit, or only from the table you name. A dry run counts what it would remove and removes nothing. What it removes cannot be brought back, so undo stops at the step that ran it.",
+            "Apaga os registros mais antigos de cada tabela do banco de dados deste aparelho que passou do limite declarado, ou só da tabela que você indicar. Um ensaio conta o que removeria e não remove nada. O que ele remove não pode ser recuperado, então desfazer para no passo que o executou.",
         ],
     ),
     (
@@ -1243,12 +1271,16 @@ pub const KEYS: &[&str] = &[
     "capability.timers.description",
     "capability.ui.description",
     "command.journal.verify.description",
+    "command.journal.verify.paragraph",
     "command.journal.verify.title",
     "command.kernel.redo.description",
+    "command.kernel.redo.paragraph",
     "command.kernel.redo.title",
     "command.kernel.undo.description",
+    "command.kernel.undo.paragraph",
     "command.kernel.undo.title",
     "command.limits.prune.description",
+    "command.limits.prune.paragraph",
     "command.limits.prune.title",
     "email.catalog.mechanism.body",
     "email.catalog.mechanism.subject",
@@ -1540,4 +1572,67 @@ fn is_a_placeholder(name: &str) -> bool {
         && name
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+/// Every tag list, sorted by key. One row per key, one column per locale.
+const TAGS: &[(&str, [&[&str]; 2])] = &[
+    (
+        "command.journal.verify.tags",
+        [
+            &[
+                "verify",
+                "check",
+                "history",
+                "activity",
+                "integrity",
+                "audit",
+            ],
+            &[
+                "verificar",
+                "conferir",
+                "histórico",
+                "atividade",
+                "integridade",
+                "auditoria",
+            ],
+        ],
+    ),
+    (
+        "command.kernel.redo.tags",
+        [
+            &["redo", "do again", "repeat", "restore"],
+            &["refazer", "fazer de novo", "repetir", "restaurar"],
+        ],
+    ),
+    (
+        "command.kernel.undo.tags",
+        [
+            &["undo", "take back", "revert", "go back"],
+            &["desfazer", "voltar atrás", "reverter", "anular"],
+        ],
+    ),
+    (
+        "command.limits.prune.tags",
+        [
+            &["prune", "clean up", "old records", "limit", "free space"],
+            &[
+                "limpar",
+                "apagar",
+                "registros antigos",
+                "limite",
+                "liberar espaço",
+            ],
+        ],
+    ),
+];
+
+/// The tags a key resolves to in a locale, in the order written.
+///
+/// `None` means the key does not exist — never that this locale is missing
+/// it, because a key missing from one locale fails the build.
+#[must_use]
+pub fn tags(key: &str, locale: Locale) -> Option<&'static [&'static str]> {
+    TAGS.binary_search_by(|(candidate, _)| (*candidate).cmp(key))
+        .ok()
+        .map(|row| TAGS[row].1[locale.index()])
 }

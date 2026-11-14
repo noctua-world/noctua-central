@@ -1215,6 +1215,160 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
     );
 }
 
+/// The generated format a wiki file's extension names.
+///
+/// **Written out, not asked of the emitter**: a comparison that read the
+/// variant through the code it checks would agree with whatever it wrote.
+fn wiki_format(extension: &str) -> nc_catalog::WikiFormat {
+    match extension {
+        "txt" => nc_catalog::WikiFormat::PlainText,
+        "md" => nc_catalog::WikiFormat::Markdown,
+        "typ" => nc_catalog::WikiFormat::Typst,
+        other => panic!("`{other}` names no wiki format"),
+    }
+}
+
+/// Every command carries its entry's keys, categories, glyph and wiki format
+/// into the code, as the registry declares them.
+///
+/// **Each value against the registry, not the code against itself**: an
+/// emitter writing every glyph as `None`, every command's paragraph key as its
+/// line's, or every wiki format as `Markdown` would agree with the files it
+/// wrote and with nothing else.
+#[test]
+fn every_command_carries_its_metadata_into_the_code() {
+    let catalog = catalog();
+    assert!(!catalog.commands.is_empty(), "nothing was compared");
+    for entry in &catalog.commands {
+        let generated = nc_catalog::command(&entry.name)
+            .unwrap_or_else(|| panic!("`{}` never reached the code", entry.name));
+        assert_eq!(generated.paragraph_key, entry.paragraph, "{}", entry.name);
+        assert_eq!(generated.tags_key, entry.tags, "{}", entry.name);
+        assert_eq!(generated.categories, entry.categories, "{}", entry.name);
+        let glyph = entry.glyph.as_deref().map(|written| {
+            let point = u32::from_str_radix(
+                written.strip_prefix("U+").expect("a glyph is written `U+`"),
+                16,
+            )
+            .expect("a glyph is hex");
+            char::from_u32(point).expect("a glyph is a character")
+        });
+        assert_eq!(generated.glyph, glyph, "{}", entry.name);
+        let wiki = catalog
+            .wiki
+            .iter()
+            .find(|text| text.registry == "commands" && text.name == entry.name)
+            .map(|text| wiki_format(text.format.extension()));
+        assert_eq!(generated.wiki, wiki, "{}", entry.name);
+    }
+    // The registry has to hold more than one answer for each, or a constant
+    // would pass.
+    let glyphs: std::collections::BTreeSet<Option<&str>> = catalog
+        .commands
+        .iter()
+        .map(|entry| entry.glyph.as_deref())
+        .collect();
+    assert!(
+        glyphs.len() > 1,
+        "every command carries the glyph {glyphs:?}, so a constant would pass"
+    );
+    let with_a_wiki = catalog
+        .commands
+        .iter()
+        .filter(|entry| nc_catalog::command(&entry.name).is_some_and(|c| c.wiki.is_some()))
+        .count();
+    assert!(
+        with_a_wiki > 0 && with_a_wiki < catalog.commands.len(),
+        "{with_a_wiki} of {} command(s) carry a wiki text, so `None` or `Some` alone would \
+         pass",
+        catalog.commands.len()
+    );
+}
+
+/// Every tag list reaches the code in both locales, word for word and in the
+/// order written.
+#[test]
+fn every_tag_list_reaches_the_code_in_both_locales() {
+    let catalog = catalog();
+    let mut compared = 0_usize;
+    for (locale, generated_locale) in catalog.locales.iter().zip(nc_catalog::Locale::ALL) {
+        assert_eq!(locale.meta.bcp47, generated_locale.tag());
+        for (key, words) in &locale.tags {
+            let generated = nc_catalog::tags(key, *generated_locale)
+                .unwrap_or_else(|| panic!("`{key}` never reached the code"));
+            assert_eq!(
+                generated,
+                words.as_slice(),
+                "{key} in {}",
+                locale.meta.bcp47
+            );
+            compared += 1;
+        }
+    }
+    // Each command's own list, in each locale, is one the code answers.
+    for entry in &catalog.commands {
+        for locale in nc_catalog::Locale::ALL {
+            assert!(
+                nc_catalog::tags(&entry.tags, *locale).is_some_and(|words| !words.is_empty()),
+                "`{}` has no tags in {} in the code",
+                entry.name,
+                locale.tag()
+            );
+        }
+    }
+    assert!(
+        compared >= 2 * catalog.commands.len(),
+        "{compared} tag list(s) were compared"
+    );
+    assert_eq!(
+        nc_catalog::tags("command.nothing.tags", nc_catalog::Locale::En),
+        None
+    );
+}
+
+/// Every wiki text reaches the code with its format, in every locale.
+#[test]
+fn every_wiki_text_reaches_the_code_with_its_format() {
+    let catalog = catalog();
+    assert!(!catalog.wiki.is_empty(), "nothing was compared");
+    for text in &catalog.wiki {
+        let generated = nc_catalog::wiki(&text.registry, &text.name)
+            .unwrap_or_else(|| panic!("`{}` never reached the code", text.name));
+        assert_eq!(generated.registry, text.registry);
+        assert_eq!(generated.name, text.name);
+        assert_eq!(generated.format, wiki_format(text.format.extension()));
+        assert_eq!(generated.format.extension(), text.format.extension());
+        for (written, locale) in text.texts.iter().zip(nc_catalog::Locale::ALL) {
+            assert_eq!(
+                generated.text(*locale),
+                written,
+                "`{}` in {}",
+                text.name,
+                locale.tag()
+            );
+        }
+        // And the file it came from is there, under that extension.
+        for locale in nc_catalog::Locale::ALL {
+            let path = root().join(format!(
+                "catalog/wiki/{}/{}/{}.{}",
+                locale.tag(),
+                text.registry,
+                text.name,
+                generated.format.extension()
+            ));
+            assert!(path.is_file(), "{} is not there", path.display());
+        }
+    }
+    let in_order: Vec<(&str, &str)> = nc_catalog::WIKI
+        .iter()
+        .map(|text| (text.registry, text.name))
+        .collect();
+    let mut sorted = in_order.clone();
+    sorted.sort_unstable();
+    assert_eq!(in_order, sorted, "`WIKI` is not in registry and name order");
+    assert_eq!(nc_catalog::wiki("commands", "kernel.nothing"), None);
+}
+
 #[test]
 fn the_key_derivation_parameters_are_the_ones_the_registry_declares() {
     // **The one place where the value is the guarantee and not the shape**
@@ -2008,6 +2162,7 @@ fn every_generated_module_names_the_registry_it_came_from() {
         ("events.rs", "catalog/log-events.toml"),
         ("i18n.rs", "catalog/i18n/"),
         ("capabilities.rs", "catalog/capabilities.toml"),
+        ("wiki.rs", "catalog/wiki/"),
     ] {
         let path = root().join("crates/nc-catalog/src").join(module);
         let text = std::fs::read_to_string(&path)
@@ -2110,12 +2265,13 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
     // these already has a per-entry test walking the other way: the two together
     // are a bijection, and either alone is not.
     let catalog = catalog();
-    let counted: [(&str, usize, usize); 7] = [
+    let counted: [(&str, usize, usize); 8] = [
         (
             "commands",
             nc_catalog::COMMANDS.len(),
             catalog.commands.len(),
         ),
+        ("wiki texts", nc_catalog::WIKI.len(), catalog.wiki.len()),
         (
             "error codes",
             nc_catalog::ErrorCode::ALL.len(),
