@@ -1330,9 +1330,10 @@ says what each takes and answers):
 - **A person's text stays out of the chain and the log.** Titles and keywords are
   arguments, which no entry records: the entry holds the command and the entity. The kernel
   never turns caller text into an identifier: a kept `id` is read in `nc-ids`, which
-  cannot log, and comes back as text, which the log's type wall refuses as an identifier —
-  so `AWAY_FROM_A_CALL` holds no excuse for it and the census of public routes to an
-  identifier in `xtask/src/wall.rs` is unchanged.
+  cannot log, and comes back as text, which the log's type wall refuses as an identifier.
+  So no kernel file writes a needle of `AWAY_FROM_A_CALL`, and `nc_ids::naming::propose`
+  and `read` return no identifier type, which the census of public routes to one in
+  `xtask/src/wall.rs` would otherwise have to name.
 - **A name is one path component holding nothing a filesystem refuses**, at most
   `nc_ids::naming::MAX_BYTES` bytes, which `crates/nc-ids/tests/properties.rs` holds for
   every generated input, so an extension written as a path is cleaned of its separators

@@ -505,8 +505,8 @@ type Command<'a> = (&'a str, &'a str, &'a str, &'a str);
 /// — the coherent edit, since §4 outranks and moves first — every other line of
 /// the step stays `ok`, the §4 comparison agrees because both files moved
 /// together, and only this branch objects. With the narrowing in place the
-/// step objects to nothing, while every shipped command builds a request
-/// Cedar's own schema refuses; what fails then is
+/// step objects to nothing, while every shipped command selecting the realm
+/// builds a request Cedar's own schema refuses; what fails then is
 /// `a_command_whose_resource_its_action_cannot_reach_is_named`.
 fn the_commands_a_schema_cannot_apply(
     commands: &[Command],
@@ -3372,8 +3372,8 @@ mod tests {
         });
         assert_eq!(
             unread, 0,
-            "a shipped command's resource was not compared, and both of them name the \
-             realm outright"
+            "a shipped command's resource was not compared, and every one names its \
+             type outright"
         );
         assert!(
             real.is_empty(),
