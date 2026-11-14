@@ -3702,10 +3702,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 - **The browser's matcher does not follow the corpus yet.** `noctua-design`'s
   `search-match.js` is brought to `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` in Stage 16
-  (`NOCTUA-PLAN.md`), and until then it departs from rows of it: it folds a Hangul syllable
-  to its leading consonant, leaves a letter outside the basic plane as it is, matches U+0085
-  like a letter, reads a whole query as one word, lists nothing for the empty query, lays a
-  run at its first occurrence only, and ranks by a score of its own.
+  (`NOCTUA-PLAN.md`), and until then it departs from rows of it. Among its departures, it
+  folds a Hangul syllable to its leading consonant, leaves a letter outside the basic plane
+  as it is, matches U+0085 like a letter, reads a whole query as one word, reads one text
+  per item with no fields, tags or roles, lists nothing for the empty query, and ranks by a
+  score of its own. Where it lays a word, it takes a run's first occurrence only, and lays a
+  scattered word greedily from each occurrence of its first letter, keeping the tighter
+  span, where the core weighs every alignment by word starts, then adjacent characters,
+  then earliness: `ver` on `Vast Error Report` colours 0, 5 and 6 where the corpus says
+  0, 5 and 11.
 - **Even then, two implementations agree only on the corpus's letters.** The core folds by
   `unicode-normalization`'s tables and Rust's case mappings, and a browser by its own, so a
   letter newer than the oldest of them may fold differently in each. The corpus keeps to
