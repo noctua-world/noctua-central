@@ -14,7 +14,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CategorySet {
-    /// Lower-case words, which every category of the set is named under.
+    /// Lower-case letters and digits, in words joined by single hyphens, which every category of the set is named under.
     pub name: &'static str,
     /// The i18n key of its display name.
     pub title_key: &'static str,
@@ -32,7 +32,7 @@ pub struct CategorySet {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Category {
-    /// The set's name, a dot, and lower-case words joined by hyphens.
+    /// The set's name, a dot, and lower-case letters and digits in words joined by single hyphens.
     pub name: &'static str,
     /// The set it is in.
     pub set: &'static str,

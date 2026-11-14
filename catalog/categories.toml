@@ -9,7 +9,8 @@
 #
 # A set:
 #
-#   name          lower-case words, which every category of the set is named under
+#   name          lower-case letters and digits, in words joined by single
+#                 hyphens, which every category of the set is named under
 #   title         the key of its display name in `catalog/i18n/`
 #   description   the key of its line description, one line of at most 80
 #                 characters
@@ -48,8 +49,13 @@
 #   standard name in kebab case, split where a lower-case letter meets a capital
 #   and where a letter meets a digit, an acronym kept whole: `AudioVideo` is
 #   `audio-video`, `2DGraphics` is `2d-graphics`, `IRCClient` is `irc-client`.
-#   A line description is the specification's own, cut to one line where it is
-#   longer; `Construction` has none there, so its line is this catalog's own.
+#   A line description says what the specification's says, on one line, and
+#   is not a quotation of it: where the specification's fits on one line it is
+#   kept, or written as a plain sentence where it is not one — a slash, an
+#   abbreviation, an ellipsis, a quotation, a parenthesis or a slip of grammar
+#   — and where it is longer it is summarized. `Construction` has none there,
+#   and `Accessibility`, `IDE` and `Mixer` say little more than their names,
+#   so those four lines are this catalog's own words.
 # * `apple` — every value of Apple's `LSApplicationCategoryType`
 #   (https://developer.apple.com/documentation/bundleresources/information-property-list/lsapplicationcategorytype),
 #   in Apple's order, the games subcategories after `games`. The slug is what

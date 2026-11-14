@@ -151,16 +151,13 @@ pub fn categories(locale: Locale) -> String {
         .unwrap_or(0);
     let mut text = String::from("Categories, by set:\n");
     for set in nc_catalog::CATEGORY_SETS {
-        let _ = write!(
-            text,
-            "\n{} — {}\n  {}\n  Defined by {}{}\n\n",
-            escaped(set.name),
-            escaped(said(set.title_key)),
-            escaped(said(set.description_key)),
-            escaped(set.defined_by),
-            set.version
-                .map_or_else(String::new, |version| format!(" ({})", escaped(version)))
-        );
+        text.push_str(&set_heading(&Set {
+            name: set.name,
+            display_name: said(set.title_key),
+            line: said(set.description_key),
+            defined_by: set.defined_by,
+            version: set.version,
+        }));
         for category in nc_catalog::CATEGORIES
             .iter()
             .filter(|category| category.set == set.name)
@@ -178,6 +175,36 @@ pub fn categories(locale: Locale) -> String {
         }
     }
     text
+}
+
+/// One set of categories, as help heads it.
+struct Set<'a> {
+    /// Its name.
+    name: &'a str,
+    /// Its display name, in the reader's language.
+    display_name: &'a str,
+    /// Its line description, in the reader's language.
+    line: &'a str,
+    /// What defines it.
+    defined_by: &'a str,
+    /// The version of the standard it was read from, if it has one.
+    version: Option<&'a str>,
+}
+
+/// One set's heading, every text escaped.
+///
+/// Its name and display name, its line description beneath, then what
+/// defines it and the version that was read.
+fn set_heading(set: &Set<'_>) -> String {
+    format!(
+        "\n{} — {}\n  {}\n  Defined by {}{}\n\n",
+        escaped(set.name),
+        escaped(set.display_name),
+        escaped(set.line),
+        escaped(set.defined_by),
+        set.version
+            .map_or_else(String::new, |version| format!(" ({})", escaped(version)))
+    )
 }
 
 /// One category, as help lists it.
@@ -560,6 +587,45 @@ mod tests {
             assert!(shown.contains(written), "{written} is not in {shown:?}");
         }
         assert_eq!(shown.lines().count(), 2, "{shown:?}");
+    }
+
+    /// Every text a set is headed with is escaped as well.
+    ///
+    /// Its name, display name, line, what defines it and its version, each in
+    /// turn holding what moves a terminal: none comes out raw, and the heading
+    /// keeps its lines.
+    #[test]
+    fn every_text_a_set_is_headed_with_is_escaped() {
+        let hostile: &'static str = "a\u{1b}[2Jb\u{202e}c\u{7}d\u{2028}e";
+        let lines = super::set_heading(&super::Set {
+            name: "set",
+            display_name: "Shown",
+            line: "A line",
+            defined_by: "A standard",
+            version: Some("1.1"),
+        })
+        .lines()
+        .count();
+        for field in 0..5 {
+            let pick = |at: usize, plain: &'static str| if at == field { hostile } else { plain };
+            let shown = super::set_heading(&super::Set {
+                name: pick(0, "set"),
+                display_name: pick(1, "Shown"),
+                line: pick(2, "A line"),
+                defined_by: pick(3, "A standard"),
+                version: Some(pick(4, "1.1")),
+            });
+            for raw in ['\u{1b}', '\u{202e}', '\u{7}', '\u{2028}'] {
+                assert!(!shown.contains(raw), "field {field}: {shown:?}");
+            }
+            for written in ["\\u{1b}[2J", "\\u{202e}", "\\u{7}", "\\u{2028}"] {
+                assert!(
+                    shown.contains(written),
+                    "field {field}: {written} is not in {shown:?}"
+                );
+            }
+            assert_eq!(shown.lines().count(), lines, "field {field}: {shown:?}");
+        }
     }
 
     /// A catalog command is shown by the catalog's title and description in

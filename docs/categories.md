@@ -146,7 +146,7 @@ Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set 
 | `freedesktop.gtk` | `GTK` | additional | GTK | Application based on GTK+ libraries | GTK | Aplicativo baseado nas bibliotecas GTK+ |
 | `freedesktop.gui-designer` | `GUIDesigner` | additional | Interface designers | A GUI designer application | Designers de interface | Um aplicativo para desenhar interfaces gráficas |
 | `freedesktop.ham-radio` | `HamRadio` | additional | Amateur radio | HAM radio software | Radioamadorismo | Software de radioamador |
-| `freedesktop.hardware-settings` | `HardwareSettings` | additional | Hardware settings | A tool to manage hardware, like sound cards, video cards or printers | Configurações de hardware | Ferramenta para gerenciar hardware, como placas de som e vídeo ou impressoras |
+| `freedesktop.hardware-settings` | `HardwareSettings` | additional | Hardware settings | A tool to manage hardware components, like sound cards, video cards or printers | Configurações de hardware | Gerencia componentes de hardware, como placas de som e de vídeo ou impressoras |
 | `freedesktop.health-fitness` | `HealthFitness` | main | Health and fitness | Applications related to physical or mental health and fitness | Saúde e condicionamento | Aplicativos ligados à saúde física ou mental e ao condicionamento |
 | `freedesktop.history` | `History` | additional | History | History software | História | Software de história |
 | `freedesktop.humanities` | `Humanities` | additional | Humanities | Software for philosophy, psychology and other humanities | Ciências humanas | Software de filosofia, psicologia e outras ciências humanas |

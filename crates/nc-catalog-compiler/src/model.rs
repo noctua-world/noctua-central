@@ -1195,7 +1195,8 @@ pub(crate) struct CategoryFile {
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CategorySetEntry {
-    /// One lower-case word, which every category of the set is named under.
+    /// Lower-case letters and digits, in words joined by single hyphens, which
+    /// every category of the set is named under.
     pub name: String,
     /// The i18n key of its display name.
     pub title: String,
@@ -1239,8 +1240,8 @@ impl Role {
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CategoryEntry {
-    /// `<set>.<slug>`: the set's name, a dot, and lower-case words joined by
-    /// hyphens.
+    /// `<set>.<slug>`: the set's name, a dot, and lower-case letters and digits
+    /// in words joined by single hyphens.
     pub name: String,
     /// The set it is in.
     pub set: String,

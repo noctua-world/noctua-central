@@ -5591,6 +5591,44 @@ fn a_categorys_line_longer_than_a_line_fails_naming_it() {
     unseen.must_fail_saying("entry-invisible-character", "the category set `apple`");
 }
 
+/// A category's display name and a set's line are judged as well.
+///
+/// Each fails the build naming its owner, filed on the line that declares it:
+/// the judge is the only reader of either text, so one not handed to it is
+/// shown as written.
+#[test]
+fn a_categorys_display_name_and_a_sets_line_are_judged_naming_their_owner() {
+    let long = Scratch::new("category-display-name-long");
+    long.replacing(
+        "catalog/i18n/en.toml",
+        "\"category.apple.weather.title\" = \"",
+        &format!(
+            "\"category.apple.weather.title\" = \"{}",
+            "Weather ".repeat(8)
+        ),
+    );
+    long.must_fail_saying("entry-text-too-long", "the category `apple.weather`");
+    long.points_at_the_line_declaring("entry-text-too-long", "category.apple.weather.title");
+    let unseen = Scratch::new("category-display-name-unseen");
+    unseen.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.weather.title\" = \"",
+        "\"category.apple.weather.title\" = \"\u{202e}",
+    );
+    unseen.must_fail_saying("entry-invisible-character", "the category `apple.weather`");
+    let set_line = Scratch::new("category-set-line-long");
+    set_line.replacing(
+        "catalog/i18n/en.toml",
+        "\"category-set.apple.description\" = \"",
+        &format!(
+            "\"category-set.apple.description\" = \"{}",
+            "word ".repeat(10)
+        ),
+    );
+    set_line.must_fail_saying("entry-text-too-long", "the category set `apple`");
+    set_line.points_at_the_line_declaring("entry-text-too-long", "category-set.apple.description");
+}
+
 /// Two categories of one set shown by one display name fail the build, and
 /// two sets each naming one category alike do not.
 #[test]

@@ -20,10 +20,11 @@
 //! # What this answers (`§2.4`)
 //!
 //! A category's name, its standard's name and its role are each a closed
-//! shape: a name is lower-case words a list and a command line can carry, a
-//! standard name is printable ASCII with nothing a reader sees nothing of, and
-//! a role is one of the words its standard uses. Nothing here is read at run
-//! time from anywhere but the generated crate.
+//! shape: a name is lower-case letters and digits in words joined by single
+//! hyphens, which a list and a command line can carry, a standard name is
+//! printable ASCII with nothing a reader sees nothing of, and a role is one of
+//! the words its standard uses. Nothing here is read at run time from anywhere
+//! but the generated crate.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -350,7 +351,8 @@ fn a_standard_name(text: &str) -> bool {
 mod tests {
     use super::{a_slug, a_standard_name};
 
-    /// A slug is lower-case words joined by single hyphens, and nothing else.
+    /// A slug is lower-case letters and digits in words joined by single
+    /// hyphens, and nothing else.
     #[test]
     fn a_slug_is_lower_case_words_joined_by_single_hyphens() {
         for slug in ["web-browser", "2d-graphics", "kde", "p-2p", "action-games"] {

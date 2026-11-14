@@ -1397,7 +1397,7 @@ fn categories(catalog: &Catalog) -> String {
     out.push_str("/// One set of categories: a standard's, or the platform's own.\n");
     out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
     out.push_str("#[non_exhaustive]\npub struct CategorySet {\n");
-    out.push_str("    /// Lower-case words, which every category of the set is named under.\n    pub name: &'static str,\n");
+    out.push_str("    /// Lower-case letters and digits, in words joined by single hyphens, which every category of the set is named under.\n    pub name: &'static str,\n");
     out.push_str("    /// The i18n key of its display name.\n    pub title_key: &'static str,\n");
     out.push_str(
         "    /// The i18n key of its line description.\n    pub description_key: &'static str,\n",
@@ -1411,7 +1411,7 @@ fn categories(catalog: &Catalog) -> String {
     out.push_str("/// One category an entry may be listed under.\n");
     out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
     out.push_str("#[non_exhaustive]\npub struct Category {\n");
-    out.push_str("    /// The set's name, a dot, and lower-case words joined by hyphens.\n    pub name: &'static str,\n");
+    out.push_str("    /// The set's name, a dot, and lower-case letters and digits in words joined by single hyphens.\n    pub name: &'static str,\n");
     out.push_str("    /// The set it is in.\n    pub set: &'static str,\n");
     out.push_str("    /// What its standard calls it, as the standard writes it: a standard set's alone.\n    pub standard_name: Option<&'static str>,\n");
     out.push_str("    /// Where its standard ranks it — `main`, `additional` or `reserved` — for a standard that ranks its categories.\n    pub role: Option<&'static str>,\n");

@@ -1227,8 +1227,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "category.freedesktop.hardware-settings.description",
         [
-            "A tool to manage hardware, like sound cards, video cards or printers",
-            "Ferramenta para gerenciar hardware, como placas de som e vídeo ou impressoras",
+            "A tool to manage hardware components, like sound cards, video cards or printers",
+            "Gerencia componentes de hardware, como placas de som e de vídeo ou impressoras",
         ],
     ),
     (

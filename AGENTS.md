@@ -2399,8 +2399,8 @@ nothing listening, a handshake proving nobody, a token another account can reach
 in a directory it can reach, each left as it was, a token missing and each way one is
 malformed, a welcome naming another process and another channel, each answer of a
 dispatch to its row of the exit table and an answer of another kind, help on the exit
-codes and on the categories with no daemon, every text a category is listed with escaped,
-help on everything showing the grammar and the verbs with none,
+codes and on the categories with no daemon, every text a set is headed with and a category
+is listed with escaped, help on everything showing the grammar and the verbs with none,
 and a command line, a command and arguments refused with nothing dispatched — by
 `apps/cli/tests/arguments_from_schemas.rs`, by `apps/daemon/tests/exit_codes.rs` — one
 test for each way a run ends against a real daemon, `reference.irreversible.do` refused with
@@ -3722,10 +3722,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   each depicts, so a glyph that draws something other than its comment says is accepted.
 - **A category is what its standard said when it was read.** The `freedesktop` set is every
   category the Desktop Menu Specification 1.1 registers, main, additional and reserved, and
-  the `apple` set Apple's list as published on the day it was read; nothing reads either again, so a category a standard
-  adds or retires later is in neither until `catalog/categories.toml` is edited. Apple
-  describes none of its values, so every `apple` line description is this catalog's own
-  words, and so is `freedesktop.construction`'s, which the specification leaves blank.
+  the `apple` set Apple's list as published on the day it was read; nothing reads either
+  again, so a category a standard adds or retires later is in neither until
+  `catalog/categories.toml` is edited. Apple describes none of its values, so every `apple`
+  line description is this catalog's own words. A `freedesktop` line description says what
+  the specification's says, and is not its wording: one longer than a line is summarized,
+  one that is not a plain sentence is rewritten as one, and `freedesktop.construction`'s,
+  which the specification leaves blank, and those of `accessibility`, `ide` and `mixer`,
+  which say little more than their names there, are this catalog's own; the
+  specification's wording is at its address.
 
 **The policy packs**
 
