@@ -17,6 +17,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `realm` |
 | Mutating | no |
 | Can it be undone | nothing to undo — it changes nothing |
+| Categories | `noctua.history` |
 | Glyph | `U+F058` |
 | Wiki | Markdown (`.md`): [en](../catalog/wiki/en/commands/journal.verify.md), [pt-BR](../catalog/wiki/pt-BR/commands/journal.verify.md) |
 
@@ -39,6 +40,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `realm` |
 | Mutating | yes |
 | Can it be undone | yes, for what the kernel keeps — its `store` writes and the blobs it made — through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot be undone, with no compensation registered for it, is one undo stops at, and a timer it armed or an event it published stays as it is (§11.5) |
+| Categories | `noctua.history` |
 | Glyph | `U+F01E` |
 
 | | en | pt-BR |
@@ -60,6 +62,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `realm` |
 | Mutating | yes |
 | Can it be undone | yes, for what the kernel keeps — its `store` writes and the blobs it made — through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot be undone, with no compensation registered for it, is one undo stops at, and a timer it armed or an event it published stays as it is (§11.5) |
+| Categories | `noctua.history` |
 | Glyph | `U+F0E2` |
 | Wiki | Markdown (`.md`): [en](../catalog/wiki/en/commands/kernel.undo.md), [pt-BR](../catalog/wiki/pt-BR/commands/kernel.undo.md) |
 
@@ -82,6 +85,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `realm` |
 | Mutating | yes |
 | Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.maintenance` |
 | Glyph | `U+F1F8` |
 
 | | en | pt-BR |

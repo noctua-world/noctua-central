@@ -714,9 +714,9 @@ fn rendering_an_unknown_key_answers_nothing_rather_than_an_empty_sentence() {
 /// kernel's own sources are read for.
 #[test]
 fn a_registry_entry_is_sealed_against_construction() {
-    // The twelve, at the top of the body: clippy refuses an item after a
+    // The fourteen, at the top of the body: clippy refuses an item after a
     // statement, and this is the list the whole test is written around.
-    const SEALED: [&str; 12] = [
+    const SEALED: [&str; 14] = [
         // The registry entry a dispatcher checks an action against.
         "Command",
         "EventSpec",
@@ -742,6 +742,10 @@ fn a_registry_entry_is_sealed_against_construction() {
         // A wiki text, whose texts a surface shows as the entry's: one built
         // elsewhere would be a text the catalog never judged.
         "WikiText",
+        // A set of categories and a category: one built elsewhere would be a
+        // name an entry could be listed under that the catalog never held.
+        "CategorySet",
+        "Category",
     ];
 
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));

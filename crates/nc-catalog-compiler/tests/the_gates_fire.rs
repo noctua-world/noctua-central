@@ -1357,7 +1357,7 @@ fn two_names_that_differ_only_in_a_hyphen_collide() {
 /// one per nested table crosses the hundred-line budget `clippy.toml` sets, and
 /// a budget met by *reaching fewer structs* is the defect this table exists to
 /// close.
-const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
+const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 24] = [
     (
         "lockout-typo",
         "catalog/limits.toml",
@@ -1555,6 +1555,23 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
         "interface = \"types\"\nreasonz = \"extra\"",
         "reasonz",
     ),
+    // A set and a category, each a struct of its own: a standard name or a
+    // version written under a misspelt key would be a claim about a standard
+    // silently dropped.
+    (
+        "category-set-typo",
+        "catalog/categories.toml",
+        "version = \"1.1\"",
+        "versionn = \"1.1\"",
+        "versionn",
+    ),
+    (
+        "category-typo",
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"",
+        "standard_namez = \"WebBrowser\"",
+        "standard_namez",
+    ),
 ];
 
 /// The registry files, each of whose file-level struct no typo row reaches.
@@ -1570,7 +1587,7 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
 /// is missing. That is what this list is: one unknown key at the top of each
 /// registry, where the top is the file-level struct that no row above reaches,
 /// among them `LocaleFile`, the one `check.rs` delegates a rule to by name.
-const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
+const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 9] = [
     ("errors", "catalog/errors.toml"),
     ("notifications", "catalog/notifications.toml"),
     ("emails", "catalog/emails.toml"),
@@ -1579,6 +1596,7 @@ const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
     ("limits", "catalog/limits.toml"),
     ("locale", "catalog/i18n/en.toml"),
     ("capabilities", "catalog/capabilities.toml"),
+    ("categories", "catalog/categories.toml"),
 ];
 
 #[test]
@@ -4069,6 +4087,28 @@ fn an_empty_registry_fails_the_build() {
     }
 }
 
+/// The categories registry with nothing in it, or with sets and no category,
+/// fails the build saying what it lacks — each a floor of its own.
+#[test]
+fn an_empty_categories_registry_fails_the_build() {
+    let emptied = Scratch::new("empty-categories");
+    emptied.edit("catalog/categories.toml", |text| {
+        text.lines()
+            .filter(|line| line.trim_start().starts_with('#') || line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    emptied.must_fail_saying("empty-registry", "declares no set of categories");
+    let no_category = Scratch::new("empty-category-entries");
+    no_category.edit("catalog/categories.toml", |text| {
+        let first = text
+            .find("[[category]]")
+            .expect("the registry holds a category");
+        text[..first].to_owned()
+    });
+    no_category.must_fail_saying("empty-registry", "declares no category");
+}
+
 #[test]
 fn a_missing_registry_fails_the_build() {
     // **Every registry, each naming its own path.** Removing one file and
@@ -4091,6 +4131,7 @@ fn a_missing_registry_fails_the_build() {
         "catalog/commands.toml",
         "catalog/log-events.toml",
         "catalog/capabilities.toml",
+        "catalog/categories.toml",
     ] {
         let leaf = relative
             .rsplit('/')
@@ -4171,6 +4212,24 @@ fn a_duplicate_name_in_every_registry_that_has_one_fails_the_build() {
              description = \"capability.ui.description\"\n",
             "duplicate-capability",
             "`net` is declared twice",
+        ),
+        (
+            "dup-category",
+            "catalog/categories.toml",
+            "\n[[category]]\nname = \"noctua.files\"\nset = \"noctua\"\n\
+             title = \"category.noctua.files.title\"\n\
+             description = \"category.noctua.files.description\"\n",
+            "duplicate-category",
+            "`noctua.files` is declared twice",
+        ),
+        (
+            "dup-category-set",
+            "catalog/categories.toml",
+            "\n[[set]]\nname = \"noctua\"\ntitle = \"category-set.noctua.title\"\n\
+             description = \"category-set.noctua.description\"\nstandard = false\n\
+             defined_by = \"this catalog\"\n",
+            "duplicate-category-set",
+            "`noctua` is declared twice",
         ),
     ] {
         let scratch = Scratch::new(name);
@@ -5210,10 +5269,24 @@ fn a_category_the_registry_does_not_hold_fails_the_build() {
     let scratch = Scratch::new("category-unknown");
     scratch.replacing(
         "catalog/commands.toml",
-        "glyph = \"U+F0E2\"",
-        "glyph = \"U+F0E2\"\ncategories = [\"noctua.everything\"]",
+        "categories = [\"noctua.history\"]\nglyph = \"U+F0E2\"",
+        "categories = [\"noctua.everything\"]\nglyph = \"U+F0E2\"",
     );
     scratch.must_fail_saying("unknown-category", "`noctua.everything`");
+    scratch.must_fail_saying("unknown-category", "`kernel.undo`");
+}
+
+/// A category a command names twice fails the build, naming the command.
+#[test]
+fn a_category_a_command_names_twice_fails_the_build() {
+    let scratch = Scratch::new("category-twice");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "categories = [\"noctua.history\"]\nglyph = \"U+F0E2\"",
+        "categories = [\"noctua.history\", \"noctua.history\"]\nglyph = \"U+F0E2\"",
+    );
+    scratch.must_fail_saying("category-twice", "`noctua.history`");
+    scratch.must_fail_saying("category-twice", "`kernel.undo`");
 }
 
 /// The format a wiki text is recorded in is the one its extension names, and
@@ -5438,4 +5511,279 @@ fn a_wiki_text_the_judge_refuses_or_one_left_untranslated_fails_the_build() {
         english.clone()
     });
     untranslated.must_fail_saying("untranslated", "`kernel.undo`");
+}
+
+// --- the categories ---
+
+/// A category's display name missing from a locale fails the build naming
+/// the category and the text, and so does a set's line description.
+#[test]
+fn a_categorys_name_missing_from_a_locale_fails_naming_it() {
+    let scratch = Scratch::new("category-name-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "category.freedesktop.network.title")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "category freedesktop.network's display name has no pt-BR text",
+    );
+    // Reported once: the judge's own missing text is the message rule's.
+    let missing = scratch
+        .problems()
+        .into_iter()
+        .filter(|problem| problem.what.contains("freedesktop.network"))
+        .count();
+    assert_eq!(missing, 1, "{}", render(&scratch.problems()));
+    let set = Scratch::new("category-set-line-missing");
+    set.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "category-set.apple.description")
+    });
+    set.must_fail_saying(
+        "missing-key",
+        "category set apple's line description has no pt-BR text",
+    );
+}
+
+/// A set's and a category's texts take no parameter: each sentence is broken
+/// alone, in both locales, and one left out of the declaration passes here.
+#[test]
+fn a_categorys_texts_may_not_interpolate_anything() {
+    for key in [
+        "category.noctua.history.title",
+        "category.noctua.history.description",
+        "category-set.noctua.title",
+        "category-set.noctua.description",
+    ] {
+        let scratch = Scratch::new(&format!("params-{key}"));
+        for locale in ["en", "pt-BR"] {
+            scratch.replacing(
+                &format!("catalog/i18n/{locale}.toml"),
+                &format!("\"{key}\" = \""),
+                &format!("\"{key}\" = \"{{who}} "),
+            );
+        }
+        scratch.must_fail("param-not-declared", key);
+    }
+}
+
+/// A category's line longer than one terminal line fails the build naming the
+/// category, filed on the line that declares it.
+#[test]
+fn a_categorys_line_longer_than_a_line_fails_naming_it() {
+    let scratch = Scratch::new("category-line-long");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.weather.description\" = \"",
+        &format!(
+            "\"category.apple.weather.description\" = \"{} ",
+            "palavra ".repeat(10)
+        ),
+    );
+    scratch.must_fail_saying("entry-text-too-long", "the category `apple.weather`");
+    scratch
+        .points_at_the_line_declaring("entry-text-too-long", "category.apple.weather.description");
+    let unseen = Scratch::new("category-set-unseen");
+    unseen.replacing(
+        "catalog/i18n/en.toml",
+        "\"category-set.apple.title\" = \"Apple",
+        "\"category-set.apple.title\" = \"\u{202e}Apple",
+    );
+    unseen.must_fail_saying("entry-invisible-character", "the category set `apple`");
+}
+
+/// Two categories of one set shown by one display name fail the build, and
+/// two sets each naming one category alike do not.
+#[test]
+fn two_categories_of_one_set_shown_by_one_display_name_fail() {
+    let scratch = Scratch::new("category-display-name-twice");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.games.title\" = \"Jogos\"",
+        "\"category.apple.games.title\" = \"jogos de ação.\"",
+    );
+    scratch.must_fail_saying(
+        "display-name-twice",
+        "`apple.games` and `apple.action-games`",
+    );
+    scratch.must_fail_saying("display-name-twice", "the set `apple`");
+    // `apple.games` and `freedesktop.game` are both "Games" in the shipped
+    // catalog, under two sets.
+    let shipped = Scratch::new("category-display-name-across-sets");
+    shipped.edit("catalog/i18n/en.toml", |text| {
+        text.replace(
+            "\"category.freedesktop.game.title\" = \"Games\"",
+            "\"category.freedesktop.game.title\" = \"games.\"",
+        )
+    });
+    assert_eq!(
+        shipped.problems(),
+        Vec::new(),
+        "two sets each holding a category called Games were refused"
+    );
+}
+
+/// A category's name is its set's, a dot and a slug, under the set it is in,
+/// and the set is one the registry declares.
+#[test]
+fn a_category_named_outside_its_set_or_in_no_set_fails_the_build() {
+    let outside = Scratch::new("category-outside-its-set");
+    outside.replacing(
+        "catalog/categories.toml",
+        "name = \"freedesktop.web-browser\"",
+        "name = \"apple.web-browser\"",
+    );
+    outside.must_fail_saying("category-outside-its-set", "`apple.web-browser`");
+    for (name, written) in [
+        ("category-name-capital", "freedesktop.Web-browser"),
+        ("category-name-no-dot", "freedesktop-web-browser"),
+        ("category-name-double-hyphen", "freedesktop.web--browser"),
+        ("category-name-underscore", "freedesktop.web_browser"),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing(
+            "catalog/categories.toml",
+            "name = \"freedesktop.web-browser\"",
+            &format!("name = \"{written}\""),
+        );
+        scratch.must_fail_saying("category-name-malformed", written);
+    }
+    let unknown = Scratch::new("category-set-unknown");
+    unknown.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"kde-desktop\"",
+    );
+    unknown.must_fail_saying("unknown-category-set", "`kde-desktop`");
+}
+
+/// A standard set's category carries its standard name, one the standard
+/// writes and once in its set; the platform's own carries none.
+#[test]
+fn a_standard_name_is_required_if_and_only_if_the_set_is_a_standard() {
+    let missing = Scratch::new("standard-name-missing");
+    missing.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\n",
+        "",
+    );
+    missing.must_fail_saying("standard-name-missing", "`freedesktop.web-browser`");
+    let unexpected = Scratch::new("standard-name-unexpected");
+    unexpected.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"noctua\"\nstandard_name = \"Files\"",
+    );
+    unexpected.must_fail_saying("standard-name-unexpected", "`noctua.files`");
+    let twice = Scratch::new("standard-name-twice");
+    twice.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"Chat\"",
+        "standard_name = \"WebBrowser\"",
+    );
+    twice.must_fail_saying("standard-name-twice", "`WebBrowser`");
+    for (name, written) in [
+        ("standard-name-space", "Web Browser"),
+        ("standard-name-unseen", "Web\u{200b}Browser"),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing(
+            "catalog/categories.toml",
+            "standard_name = \"WebBrowser\"",
+            &format!("standard_name = \"{written}\""),
+        );
+        scratch.must_fail_saying("standard-name-malformed", "`freedesktop.web-browser`");
+    }
+}
+
+/// A set whose standard ranks its categories ranks every one, and the
+/// platform's own set ranks none.
+#[test]
+fn a_role_is_required_in_a_ranked_set_and_refused_in_the_platforms_own() {
+    let missing = Scratch::new("role-missing");
+    missing.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\nrole = \"additional\"\n",
+        "standard_name = \"WebBrowser\"\n",
+    );
+    missing.must_fail_saying("role-missing", "`freedesktop.web-browser`");
+    let unexpected = Scratch::new("role-unexpected");
+    unexpected.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"noctua\"\nrole = \"main\"",
+    );
+    unexpected.must_fail_saying("role-unexpected", "`noctua.files`");
+    let unknown = Scratch::new("role-unknown");
+    unknown.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\nrole = \"additional\"",
+        "standard_name = \"WebBrowser\"\nrole = \"secondary\"",
+    );
+    unknown.must_fail("registry-malformed", "secondary");
+}
+
+/// A set is named as a category's first part, and says what defines it.
+///
+/// It names its standard's version when it is a standard's and none when it
+/// is the platform's own, and holds a category.
+#[test]
+fn a_set_says_what_defines_it_and_holds_a_category() {
+    let malformed = Scratch::new("category-set-name-malformed");
+    malformed.edit("catalog/categories.toml", |text| {
+        format!(
+            "{text}\n[[set]]\nname = \"Kde Desktop\"\ntitle = \"category-set.noctua.title\"\n\
+             description = \"category-set.noctua.description\"\nstandard = false\n\
+             defined_by = \"this catalog\"\n"
+        )
+    });
+    malformed.must_fail_saying("category-set-name-malformed", "`Kde Desktop`");
+    malformed.must_fail_saying("category-set-empty", "`Kde Desktop`");
+    let undefined = Scratch::new("category-set-undefined");
+    undefined.replacing(
+        "catalog/categories.toml",
+        "defined_by = \"this catalog\"",
+        "defined_by = \" \"",
+    );
+    undefined.must_fail_saying("category-set-undefined", "`noctua`");
+    let no_version = Scratch::new("category-set-version-missing");
+    no_version.replacing("catalog/categories.toml", "version = \"1.1\"\n", "");
+    no_version.must_fail_saying("category-set-version-missing", "`freedesktop`");
+    let blank_version = Scratch::new("category-set-version-blank");
+    blank_version.replacing(
+        "catalog/categories.toml",
+        "version = \"1.1\"",
+        "version = \"\u{2063}\"",
+    );
+    blank_version.must_fail_saying("category-set-version-missing", "`freedesktop`");
+    let own_version = Scratch::new("category-set-version-unexpected");
+    own_version.replacing(
+        "catalog/categories.toml",
+        "defined_by = \"this catalog\"",
+        "defined_by = \"this catalog\"\nversion = \"1\"",
+    );
+    own_version.must_fail_saying("category-set-version-unexpected", "`noctua`");
+}
+
+/// An exemption over a name the locales no longer share fails the build.
+///
+/// And the shipped exemptions are what let the projects' names stand in
+/// both, while a name not exempt is untranslated.
+#[test]
+fn an_exemption_over_a_name_the_locales_no_longer_share_fails_the_build() {
+    let scratch = Scratch::new("exemption-unused");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.freedesktop.kde.title\" = \"KDE\"",
+        "\"category.freedesktop.kde.title\" = \"Projeto KDE\"",
+    );
+    scratch.must_fail_saying("exemption-unused", "category.freedesktop.kde.title");
+    scratch.points_at_the_line_declaring("exemption-unused", "category.freedesktop.kde.title");
+    // A name not exempt, written the same in both, is untranslated.
+    let untranslated = Scratch::new("category-untranslated");
+    untranslated.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.freedesktop.audio.title\" = \"Áudio\"",
+        "\"category.freedesktop.audio.title\" = \"Audio\"",
+    );
+    untranslated.must_fail_saying("untranslated", "category.freedesktop.audio.title");
 }

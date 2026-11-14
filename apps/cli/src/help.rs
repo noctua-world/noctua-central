@@ -1,7 +1,8 @@
 //! What help says (`NOCTUA.md §20.2`, `§20.5`): the CLI's own grammar and
-//! verbs, fixed and in English, shown whether a daemon answers or not, and
-//! every command the daemon's registry holds, with the arguments its schema
-//! declares.
+//! verbs, fixed and in English, shown whether a daemon answers or not; the
+//! registries the catalog holds, which this binary carries and no daemon is
+//! asked for; and every command the daemon's registry holds, with the
+//! arguments its schema declares.
 //!
 //! **The registry is the one list**: help names every command the daemon
 //! would run and none it would not, and a command's arguments are read from
@@ -11,14 +12,16 @@
 //! plugin's, by the label it declared. **Every text from the daemon is
 //! escaped** ([`crate::render::escaped`]) — a name, a label, a title, a
 //! description, an option, an entity type — so a plugin's schema prints
-//! nothing a terminal acts on.
+//! nothing a terminal acts on. **And every text of a registry the catalog
+//! holds**, which the compiler judged, is escaped the same way: one rule for
+//! every text help prints that it did not write.
 
 use core::fmt::Write as _;
 
 use nc_catalog::Locale;
 use nc_schema::{Argument, Schema, Shape};
 
-use crate::args::{EXIT_CODES, VERBS};
+use crate::args::{CATEGORIES, EXIT_CODES, VERBS};
 use crate::client::Listed;
 use crate::render::escaped;
 
@@ -27,7 +30,8 @@ use crate::render::escaped;
 pub const fn what_it_does(verb: &str) -> &'static str {
     match verb.as_bytes() {
         b"help" => {
-            "say what this CLI and each command take; `help exit-codes` lists the exit codes"
+            "say what this CLI and each command take; `help exit-codes` lists the exit codes, \
+             and `help categories` the categories"
         }
         b"start" => "start this channel's daemon, unless it runs, and wait for it to answer",
         b"stop" => {
@@ -45,7 +49,7 @@ pub const fn what_it_does(verb: &str) -> &'static str {
 pub fn usage(cli: &str) -> String {
     format!(
         "Usage:\n  {cli} [--json] <command> [arguments]\n  {cli} [--json] help [<command> | \
-         <verb> | {EXIT_CODES}]\n\nOptions, before the command:\n  --json   write the answer \
+         <verb> | {EXIT_CODES} | {CATEGORIES}]\n\nOptions, before the command:\n  --json   write the answer \
          as one JSON document on standard output\n  --help   ask for help\n\nArguments follow \
          a command's name: `--<name> <value>`, `--<name>=<value>`, `--<boolean>` or \
          `--<boolean>=false`, a list's flag once for each item, or `--` and one JSON object.\n"
@@ -112,8 +116,8 @@ pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
     }
     let _ = write!(
         text,
-        "\n`{cli} help <command>` says what a command takes, and `{cli} help {EXIT_CODES}` what \
-         each exit code means.\n"
+        "\n`{cli} help <command>` says what a command takes, `{cli} help {EXIT_CODES}` what each \
+         exit code means, and `{cli} help {CATEGORIES}` what a command is listed under.\n"
     );
     text
 }
@@ -129,6 +133,83 @@ pub fn unlisted(cli: &str) -> String {
          error says why, and `{cli} help` lists them once the daemon answers\n"
     );
     text
+}
+
+/// Help on the categories: every set the catalog holds, what defines it, and
+/// every category in it, each text in `locale` and escaped.
+///
+/// **From the catalog this binary was built with**, which is the registry
+/// itself — a category is the catalog's alone, and no daemon holds another —
+/// so it is shown with no daemon, as the exit codes are.
+#[must_use]
+pub fn categories(locale: Locale) -> String {
+    let said = |key: &str| nc_catalog::message(key, locale).unwrap_or_default();
+    let width = nc_catalog::CATEGORIES
+        .iter()
+        .map(|category| escaped(category.name).chars().count())
+        .max()
+        .unwrap_or(0);
+    let mut text = String::from("Categories, by set:\n");
+    for set in nc_catalog::CATEGORY_SETS {
+        let _ = write!(
+            text,
+            "\n{} — {}\n  {}\n  Defined by {}{}\n\n",
+            escaped(set.name),
+            escaped(said(set.title_key)),
+            escaped(said(set.description_key)),
+            escaped(set.defined_by),
+            set.version
+                .map_or_else(String::new, |version| format!(" ({})", escaped(version)))
+        );
+        for category in nc_catalog::CATEGORIES
+            .iter()
+            .filter(|category| category.set == set.name)
+        {
+            text.push_str(&category_lines(
+                &Category {
+                    name: category.name,
+                    display_name: said(category.title_key),
+                    standard_name: category.standard_name,
+                    role: category.role,
+                    line: said(category.description_key),
+                },
+                width,
+            ));
+        }
+    }
+    text
+}
+
+/// One category, as help lists it.
+struct Category<'a> {
+    /// Its name.
+    name: &'a str,
+    /// Its display name, in the reader's language.
+    display_name: &'a str,
+    /// What its standard calls it.
+    standard_name: Option<&'a str>,
+    /// Where its standard ranks it.
+    role: Option<&'a str>,
+    /// Its line description, in the reader's language.
+    line: &'a str,
+}
+
+/// One category's two lines: its name, its display name and what its
+/// standard calls it, then its line description beneath — every text escaped.
+fn category_lines(category: &Category<'_>, width: usize) -> String {
+    let name = escaped(category.name);
+    let standard = match (category.standard_name, category.role) {
+        (Some(named), Some(role)) => format!(" ({}, {})", escaped(named), escaped(role)),
+        (Some(named), None) => format!(" ({})", escaped(named)),
+        (None, Some(role)) => format!(" ({})", escaped(role)),
+        (None, None) => String::new(),
+    };
+    format!(
+        "  {name:<width$}   {}{standard}\n  {:width$}     {}\n",
+        escaped(category.display_name),
+        "",
+        escaped(category.line)
+    )
 }
 
 /// Help on one command: its name, its title and description, and each
@@ -390,6 +471,95 @@ mod tests {
         .map(|flag| text.find(flag).expect("listed"))
         .collect();
         assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{text}");
+    }
+
+    /// Help on the categories lists every category the catalog holds under its
+    /// set.
+    ///
+    /// By its name, and its display name and line in the environment's
+    /// language, with what its standard calls it.
+    #[test]
+    fn help_on_the_categories_lists_every_category_under_its_set_in_the_environments_language() {
+        for locale in [Locale::En, Locale::PtBR] {
+            let text = super::categories(locale);
+            let said = |key: &str| nc_catalog::message(key, locale).expect("a message");
+            let mut at = 0;
+            for set in nc_catalog::CATEGORY_SETS {
+                let heading = format!("\n{} — {}\n", set.name, said(set.title_key));
+                let opened = text[at..].find(&heading).unwrap_or_else(|| {
+                    panic!("`{}` is not listed after the set before it", set.name)
+                }) + at;
+                let closed = nc_catalog::CATEGORY_SETS
+                    .iter()
+                    .filter_map(|other| text.find(&format!("\n{} — ", other.name)))
+                    .filter(|other| *other > opened)
+                    .min()
+                    .unwrap_or(text.len());
+                let under = &text[opened..closed];
+                assert!(under.contains(said(set.description_key)), "{under}");
+                let mut listed = 0;
+                for category in nc_catalog::CATEGORIES
+                    .iter()
+                    .filter(|category| category.set == set.name)
+                {
+                    let row = format!("  {} ", category.name);
+                    let found = under
+                        .find(&row)
+                        .unwrap_or_else(|| panic!("`{}` is not under its set", category.name));
+                    let lines: Vec<&str> = under[found..].lines().take(2).collect();
+                    assert!(lines[0].contains(said(category.title_key)), "{lines:?}");
+                    assert!(
+                        lines[1].contains(said(category.description_key)),
+                        "{lines:?}"
+                    );
+                    if let Some(named) = category.standard_name {
+                        assert!(lines[0].contains(named), "{lines:?}");
+                    }
+                    if let Some(role) = category.role {
+                        assert!(lines[0].contains(role), "{lines:?}");
+                    }
+                    listed += 1;
+                }
+                assert!(listed > 0, "the set `{}` lists no category", set.name);
+                at = opened;
+            }
+            assert_eq!(
+                text.lines()
+                    .filter(|line| nc_catalog::CATEGORIES
+                        .iter()
+                        .any(|category| line.starts_with(&format!("  {} ", category.name))))
+                    .count(),
+                nc_catalog::CATEGORIES.len(),
+                "a category is listed twice or not at all"
+            );
+        }
+        assert_ne!(
+            super::categories(Locale::En),
+            super::categories(Locale::PtBR)
+        );
+    }
+
+    /// Every text a category is listed with is escaped: a name, a display
+    /// name, a standard name, a role and a line.
+    #[test]
+    fn every_text_a_category_is_listed_with_is_escaped() {
+        let shown = super::category_lines(
+            &super::Category {
+                name: "set.\u{1b}[2Jname",
+                display_name: "Shown\u{202e}",
+                standard_name: Some("Std\u{7}"),
+                role: Some("main\u{1b}"),
+                line: "A line\u{2028}broken",
+            },
+            12,
+        );
+        for raw in ['\u{1b}', '\u{202e}', '\u{7}', '\u{2028}'] {
+            assert!(!shown.contains(raw), "{shown:?}");
+        }
+        for written in ["\\u{1b}[2J", "\\u{202e}", "\\u{7}", "\\u{2028}"] {
+            assert!(shown.contains(written), "{written} is not in {shown:?}");
+        }
+        assert_eq!(shown.lines().count(), 2, "{shown:?}");
     }
 
     /// A catalog command is shown by the catalog's title and description in

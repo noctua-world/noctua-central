@@ -1,0 +1,1631 @@
+# The categories an entry is listed under (`NOCTUA.md §20.4`).
+#
+# A category is a name a list shows an entry under, and this file is the closed
+# set of them: a command's `categories` names categories written here, and the
+# build refuses any other. Categories come in sets — a standard's, or the
+# platform's own — and a category is named for its set, a dot, and a slug of
+# lower-case letters and digits in words joined by hyphens:
+# `freedesktop.web-browser`.
+#
+# A set:
+#
+#   name          lower-case words, which every category of the set is named under
+#   title         the key of its display name in `catalog/i18n/`
+#   description   the key of its line description, one line of at most 80
+#                 characters
+#   standard      whether a standard outside the platform defines it
+#   defined_by    what defines it: the standard, or this catalog
+#   version       the version of the standard it was read from, or the date it
+#                 was read where the standard has no version: a standard set's
+#                 alone, and required there
+#
+# A category:
+#
+#   name           `<set>.<slug>`, under the set it is in
+#   set            the set it is in
+#   standard_name  what its standard calls it, as the standard writes it:
+#                  required in a standard set and refused in the platform's own
+#   role           where its standard ranks it — `main`, `additional` or
+#                  `reserved` — for a standard that ranks its categories: every
+#                  category of such a set carries one, and no other category
+#                  does
+#   title          the key of its display name
+#   description    the key of its line description
+#
+# A category carries a display name and a line description in every locale,
+# held to the entry judge every command's texts are held to, and nothing else:
+# no paragraph and no tags. A name that is the same in both languages — a
+# desktop project's or a toolkit's — is exempt from the untranslated rule with
+# its reason, in `THE_SAME_IN_BOTH` in
+# `crates/nc-catalog-compiler/src/messages.rs`.
+#
+# **What a standard says is copied from it, never from memory.** The sets below
+# hold every row of the two sources Stage 14 saved, and nothing else:
+#
+# * `freedesktop` — every category the freedesktop.org Desktop Menu
+#   Specification 1.1 registers, main, additional and reserved, in its order
+#   (https://specifications.freedesktop.org/menu-spec/latest/). The slug is the
+#   standard name in kebab case, split where a lower-case letter meets a capital
+#   and where a letter meets a digit, an acronym kept whole: `AudioVideo` is
+#   `audio-video`, `2DGraphics` is `2d-graphics`, `IRCClient` is `irc-client`.
+#   A line description is the specification's own, cut to one line where it is
+#   longer; `Construction` has none there, so its line is this catalog's own.
+# * `apple` — every value of Apple's `LSApplicationCategoryType`
+#   (https://developer.apple.com/documentation/bundleresources/information-property-list/lsapplicationcategorytype),
+#   in Apple's order, the games subcategories after `games`. The slug is what
+#   follows `public.app-category.`. Apple describes none of them, so every line
+#   description is this catalog's own words.
+# * `noctua` — the platform's own: what its commands are listed under.
+
+[[set]]
+name = "freedesktop"
+title = "category-set.freedesktop.title"
+description = "category-set.freedesktop.description"
+standard = true
+defined_by = "freedesktop.org Desktop Menu Specification"
+version = "1.1"
+
+[[set]]
+name = "apple"
+title = "category-set.apple.title"
+description = "category-set.apple.description"
+standard = true
+defined_by = "Apple's Information Property List key LSApplicationCategoryType"
+version = "as published on 2026-11-14"
+
+[[set]]
+name = "noctua"
+title = "category-set.noctua.title"
+description = "category-set.noctua.description"
+standard = false
+defined_by = "this catalog"
+
+# --- freedesktop: every category the specification registers, in its order ---
+
+[[category]]
+name = "freedesktop.audio-video"
+set = "freedesktop"
+standard_name = "AudioVideo"
+role = "main"
+title = "category.freedesktop.audio-video.title"
+description = "category.freedesktop.audio-video.description"
+
+[[category]]
+name = "freedesktop.audio"
+set = "freedesktop"
+standard_name = "Audio"
+role = "main"
+title = "category.freedesktop.audio.title"
+description = "category.freedesktop.audio.description"
+
+[[category]]
+name = "freedesktop.video"
+set = "freedesktop"
+standard_name = "Video"
+role = "main"
+title = "category.freedesktop.video.title"
+description = "category.freedesktop.video.description"
+
+[[category]]
+name = "freedesktop.development"
+set = "freedesktop"
+standard_name = "Development"
+role = "main"
+title = "category.freedesktop.development.title"
+description = "category.freedesktop.development.description"
+
+[[category]]
+name = "freedesktop.education"
+set = "freedesktop"
+standard_name = "Education"
+role = "main"
+title = "category.freedesktop.education.title"
+description = "category.freedesktop.education.description"
+
+[[category]]
+name = "freedesktop.health-fitness"
+set = "freedesktop"
+standard_name = "HealthFitness"
+role = "main"
+title = "category.freedesktop.health-fitness.title"
+description = "category.freedesktop.health-fitness.description"
+
+[[category]]
+name = "freedesktop.game"
+set = "freedesktop"
+standard_name = "Game"
+role = "main"
+title = "category.freedesktop.game.title"
+description = "category.freedesktop.game.description"
+
+[[category]]
+name = "freedesktop.graphics"
+set = "freedesktop"
+standard_name = "Graphics"
+role = "main"
+title = "category.freedesktop.graphics.title"
+description = "category.freedesktop.graphics.description"
+
+[[category]]
+name = "freedesktop.network"
+set = "freedesktop"
+standard_name = "Network"
+role = "main"
+title = "category.freedesktop.network.title"
+description = "category.freedesktop.network.description"
+
+[[category]]
+name = "freedesktop.office"
+set = "freedesktop"
+standard_name = "Office"
+role = "main"
+title = "category.freedesktop.office.title"
+description = "category.freedesktop.office.description"
+
+[[category]]
+name = "freedesktop.science"
+set = "freedesktop"
+standard_name = "Science"
+role = "main"
+title = "category.freedesktop.science.title"
+description = "category.freedesktop.science.description"
+
+[[category]]
+name = "freedesktop.settings"
+set = "freedesktop"
+standard_name = "Settings"
+role = "main"
+title = "category.freedesktop.settings.title"
+description = "category.freedesktop.settings.description"
+
+[[category]]
+name = "freedesktop.system"
+set = "freedesktop"
+standard_name = "System"
+role = "main"
+title = "category.freedesktop.system.title"
+description = "category.freedesktop.system.description"
+
+[[category]]
+name = "freedesktop.utility"
+set = "freedesktop"
+standard_name = "Utility"
+role = "main"
+title = "category.freedesktop.utility.title"
+description = "category.freedesktop.utility.description"
+
+[[category]]
+name = "freedesktop.building"
+set = "freedesktop"
+standard_name = "Building"
+role = "additional"
+title = "category.freedesktop.building.title"
+description = "category.freedesktop.building.description"
+
+[[category]]
+name = "freedesktop.debugger"
+set = "freedesktop"
+standard_name = "Debugger"
+role = "additional"
+title = "category.freedesktop.debugger.title"
+description = "category.freedesktop.debugger.description"
+
+[[category]]
+name = "freedesktop.ide"
+set = "freedesktop"
+standard_name = "IDE"
+role = "additional"
+title = "category.freedesktop.ide.title"
+description = "category.freedesktop.ide.description"
+
+[[category]]
+name = "freedesktop.gui-designer"
+set = "freedesktop"
+standard_name = "GUIDesigner"
+role = "additional"
+title = "category.freedesktop.gui-designer.title"
+description = "category.freedesktop.gui-designer.description"
+
+[[category]]
+name = "freedesktop.profiling"
+set = "freedesktop"
+standard_name = "Profiling"
+role = "additional"
+title = "category.freedesktop.profiling.title"
+description = "category.freedesktop.profiling.description"
+
+[[category]]
+name = "freedesktop.revision-control"
+set = "freedesktop"
+standard_name = "RevisionControl"
+role = "additional"
+title = "category.freedesktop.revision-control.title"
+description = "category.freedesktop.revision-control.description"
+
+[[category]]
+name = "freedesktop.translation"
+set = "freedesktop"
+standard_name = "Translation"
+role = "additional"
+title = "category.freedesktop.translation.title"
+description = "category.freedesktop.translation.description"
+
+[[category]]
+name = "freedesktop.calendar"
+set = "freedesktop"
+standard_name = "Calendar"
+role = "additional"
+title = "category.freedesktop.calendar.title"
+description = "category.freedesktop.calendar.description"
+
+[[category]]
+name = "freedesktop.contact-management"
+set = "freedesktop"
+standard_name = "ContactManagement"
+role = "additional"
+title = "category.freedesktop.contact-management.title"
+description = "category.freedesktop.contact-management.description"
+
+[[category]]
+name = "freedesktop.database"
+set = "freedesktop"
+standard_name = "Database"
+role = "additional"
+title = "category.freedesktop.database.title"
+description = "category.freedesktop.database.description"
+
+[[category]]
+name = "freedesktop.dictionary"
+set = "freedesktop"
+standard_name = "Dictionary"
+role = "additional"
+title = "category.freedesktop.dictionary.title"
+description = "category.freedesktop.dictionary.description"
+
+[[category]]
+name = "freedesktop.chart"
+set = "freedesktop"
+standard_name = "Chart"
+role = "additional"
+title = "category.freedesktop.chart.title"
+description = "category.freedesktop.chart.description"
+
+[[category]]
+name = "freedesktop.email"
+set = "freedesktop"
+standard_name = "Email"
+role = "additional"
+title = "category.freedesktop.email.title"
+description = "category.freedesktop.email.description"
+
+[[category]]
+name = "freedesktop.finance"
+set = "freedesktop"
+standard_name = "Finance"
+role = "additional"
+title = "category.freedesktop.finance.title"
+description = "category.freedesktop.finance.description"
+
+[[category]]
+name = "freedesktop.flow-chart"
+set = "freedesktop"
+standard_name = "FlowChart"
+role = "additional"
+title = "category.freedesktop.flow-chart.title"
+description = "category.freedesktop.flow-chart.description"
+
+[[category]]
+name = "freedesktop.pda"
+set = "freedesktop"
+standard_name = "PDA"
+role = "additional"
+title = "category.freedesktop.pda.title"
+description = "category.freedesktop.pda.description"
+
+[[category]]
+name = "freedesktop.project-management"
+set = "freedesktop"
+standard_name = "ProjectManagement"
+role = "additional"
+title = "category.freedesktop.project-management.title"
+description = "category.freedesktop.project-management.description"
+
+[[category]]
+name = "freedesktop.presentation"
+set = "freedesktop"
+standard_name = "Presentation"
+role = "additional"
+title = "category.freedesktop.presentation.title"
+description = "category.freedesktop.presentation.description"
+
+[[category]]
+name = "freedesktop.spreadsheet"
+set = "freedesktop"
+standard_name = "Spreadsheet"
+role = "additional"
+title = "category.freedesktop.spreadsheet.title"
+description = "category.freedesktop.spreadsheet.description"
+
+[[category]]
+name = "freedesktop.word-processor"
+set = "freedesktop"
+standard_name = "WordProcessor"
+role = "additional"
+title = "category.freedesktop.word-processor.title"
+description = "category.freedesktop.word-processor.description"
+
+[[category]]
+name = "freedesktop.2d-graphics"
+set = "freedesktop"
+standard_name = "2DGraphics"
+role = "additional"
+title = "category.freedesktop.2d-graphics.title"
+description = "category.freedesktop.2d-graphics.description"
+
+[[category]]
+name = "freedesktop.vector-graphics"
+set = "freedesktop"
+standard_name = "VectorGraphics"
+role = "additional"
+title = "category.freedesktop.vector-graphics.title"
+description = "category.freedesktop.vector-graphics.description"
+
+[[category]]
+name = "freedesktop.raster-graphics"
+set = "freedesktop"
+standard_name = "RasterGraphics"
+role = "additional"
+title = "category.freedesktop.raster-graphics.title"
+description = "category.freedesktop.raster-graphics.description"
+
+[[category]]
+name = "freedesktop.3d-graphics"
+set = "freedesktop"
+standard_name = "3DGraphics"
+role = "additional"
+title = "category.freedesktop.3d-graphics.title"
+description = "category.freedesktop.3d-graphics.description"
+
+[[category]]
+name = "freedesktop.scanning"
+set = "freedesktop"
+standard_name = "Scanning"
+role = "additional"
+title = "category.freedesktop.scanning.title"
+description = "category.freedesktop.scanning.description"
+
+[[category]]
+name = "freedesktop.ocr"
+set = "freedesktop"
+standard_name = "OCR"
+role = "additional"
+title = "category.freedesktop.ocr.title"
+description = "category.freedesktop.ocr.description"
+
+[[category]]
+name = "freedesktop.photography"
+set = "freedesktop"
+standard_name = "Photography"
+role = "additional"
+title = "category.freedesktop.photography.title"
+description = "category.freedesktop.photography.description"
+
+[[category]]
+name = "freedesktop.publishing"
+set = "freedesktop"
+standard_name = "Publishing"
+role = "additional"
+title = "category.freedesktop.publishing.title"
+description = "category.freedesktop.publishing.description"
+
+[[category]]
+name = "freedesktop.viewer"
+set = "freedesktop"
+standard_name = "Viewer"
+role = "additional"
+title = "category.freedesktop.viewer.title"
+description = "category.freedesktop.viewer.description"
+
+[[category]]
+name = "freedesktop.text-tools"
+set = "freedesktop"
+standard_name = "TextTools"
+role = "additional"
+title = "category.freedesktop.text-tools.title"
+description = "category.freedesktop.text-tools.description"
+
+[[category]]
+name = "freedesktop.desktop-settings"
+set = "freedesktop"
+standard_name = "DesktopSettings"
+role = "additional"
+title = "category.freedesktop.desktop-settings.title"
+description = "category.freedesktop.desktop-settings.description"
+
+[[category]]
+name = "freedesktop.hardware-settings"
+set = "freedesktop"
+standard_name = "HardwareSettings"
+role = "additional"
+title = "category.freedesktop.hardware-settings.title"
+description = "category.freedesktop.hardware-settings.description"
+
+[[category]]
+name = "freedesktop.printing"
+set = "freedesktop"
+standard_name = "Printing"
+role = "additional"
+title = "category.freedesktop.printing.title"
+description = "category.freedesktop.printing.description"
+
+[[category]]
+name = "freedesktop.package-manager"
+set = "freedesktop"
+standard_name = "PackageManager"
+role = "additional"
+title = "category.freedesktop.package-manager.title"
+description = "category.freedesktop.package-manager.description"
+
+[[category]]
+name = "freedesktop.dialup"
+set = "freedesktop"
+standard_name = "Dialup"
+role = "additional"
+title = "category.freedesktop.dialup.title"
+description = "category.freedesktop.dialup.description"
+
+[[category]]
+name = "freedesktop.instant-messaging"
+set = "freedesktop"
+standard_name = "InstantMessaging"
+role = "additional"
+title = "category.freedesktop.instant-messaging.title"
+description = "category.freedesktop.instant-messaging.description"
+
+[[category]]
+name = "freedesktop.chat"
+set = "freedesktop"
+standard_name = "Chat"
+role = "additional"
+title = "category.freedesktop.chat.title"
+description = "category.freedesktop.chat.description"
+
+[[category]]
+name = "freedesktop.irc-client"
+set = "freedesktop"
+standard_name = "IRCClient"
+role = "additional"
+title = "category.freedesktop.irc-client.title"
+description = "category.freedesktop.irc-client.description"
+
+[[category]]
+name = "freedesktop.feed"
+set = "freedesktop"
+standard_name = "Feed"
+role = "additional"
+title = "category.freedesktop.feed.title"
+description = "category.freedesktop.feed.description"
+
+[[category]]
+name = "freedesktop.file-transfer"
+set = "freedesktop"
+standard_name = "FileTransfer"
+role = "additional"
+title = "category.freedesktop.file-transfer.title"
+description = "category.freedesktop.file-transfer.description"
+
+[[category]]
+name = "freedesktop.ham-radio"
+set = "freedesktop"
+standard_name = "HamRadio"
+role = "additional"
+title = "category.freedesktop.ham-radio.title"
+description = "category.freedesktop.ham-radio.description"
+
+[[category]]
+name = "freedesktop.news"
+set = "freedesktop"
+standard_name = "News"
+role = "additional"
+title = "category.freedesktop.news.title"
+description = "category.freedesktop.news.description"
+
+[[category]]
+name = "freedesktop.p-2p"
+set = "freedesktop"
+standard_name = "P2P"
+role = "additional"
+title = "category.freedesktop.p-2p.title"
+description = "category.freedesktop.p-2p.description"
+
+[[category]]
+name = "freedesktop.remote-access"
+set = "freedesktop"
+standard_name = "RemoteAccess"
+role = "additional"
+title = "category.freedesktop.remote-access.title"
+description = "category.freedesktop.remote-access.description"
+
+[[category]]
+name = "freedesktop.telephony"
+set = "freedesktop"
+standard_name = "Telephony"
+role = "additional"
+title = "category.freedesktop.telephony.title"
+description = "category.freedesktop.telephony.description"
+
+[[category]]
+name = "freedesktop.telephony-tools"
+set = "freedesktop"
+standard_name = "TelephonyTools"
+role = "additional"
+title = "category.freedesktop.telephony-tools.title"
+description = "category.freedesktop.telephony-tools.description"
+
+[[category]]
+name = "freedesktop.video-conference"
+set = "freedesktop"
+standard_name = "VideoConference"
+role = "additional"
+title = "category.freedesktop.video-conference.title"
+description = "category.freedesktop.video-conference.description"
+
+[[category]]
+name = "freedesktop.web-browser"
+set = "freedesktop"
+standard_name = "WebBrowser"
+role = "additional"
+title = "category.freedesktop.web-browser.title"
+description = "category.freedesktop.web-browser.description"
+
+[[category]]
+name = "freedesktop.web-development"
+set = "freedesktop"
+standard_name = "WebDevelopment"
+role = "additional"
+title = "category.freedesktop.web-development.title"
+description = "category.freedesktop.web-development.description"
+
+[[category]]
+name = "freedesktop.midi"
+set = "freedesktop"
+standard_name = "Midi"
+role = "additional"
+title = "category.freedesktop.midi.title"
+description = "category.freedesktop.midi.description"
+
+[[category]]
+name = "freedesktop.mixer"
+set = "freedesktop"
+standard_name = "Mixer"
+role = "additional"
+title = "category.freedesktop.mixer.title"
+description = "category.freedesktop.mixer.description"
+
+[[category]]
+name = "freedesktop.sequencer"
+set = "freedesktop"
+standard_name = "Sequencer"
+role = "additional"
+title = "category.freedesktop.sequencer.title"
+description = "category.freedesktop.sequencer.description"
+
+[[category]]
+name = "freedesktop.tuner"
+set = "freedesktop"
+standard_name = "Tuner"
+role = "additional"
+title = "category.freedesktop.tuner.title"
+description = "category.freedesktop.tuner.description"
+
+[[category]]
+name = "freedesktop.tv"
+set = "freedesktop"
+standard_name = "TV"
+role = "additional"
+title = "category.freedesktop.tv.title"
+description = "category.freedesktop.tv.description"
+
+[[category]]
+name = "freedesktop.audio-video-editing"
+set = "freedesktop"
+standard_name = "AudioVideoEditing"
+role = "additional"
+title = "category.freedesktop.audio-video-editing.title"
+description = "category.freedesktop.audio-video-editing.description"
+
+[[category]]
+name = "freedesktop.player"
+set = "freedesktop"
+standard_name = "Player"
+role = "additional"
+title = "category.freedesktop.player.title"
+description = "category.freedesktop.player.description"
+
+[[category]]
+name = "freedesktop.recorder"
+set = "freedesktop"
+standard_name = "Recorder"
+role = "additional"
+title = "category.freedesktop.recorder.title"
+description = "category.freedesktop.recorder.description"
+
+[[category]]
+name = "freedesktop.disc-burning"
+set = "freedesktop"
+standard_name = "DiscBurning"
+role = "additional"
+title = "category.freedesktop.disc-burning.title"
+description = "category.freedesktop.disc-burning.description"
+
+[[category]]
+name = "freedesktop.action-game"
+set = "freedesktop"
+standard_name = "ActionGame"
+role = "additional"
+title = "category.freedesktop.action-game.title"
+description = "category.freedesktop.action-game.description"
+
+[[category]]
+name = "freedesktop.adventure-game"
+set = "freedesktop"
+standard_name = "AdventureGame"
+role = "additional"
+title = "category.freedesktop.adventure-game.title"
+description = "category.freedesktop.adventure-game.description"
+
+[[category]]
+name = "freedesktop.arcade-game"
+set = "freedesktop"
+standard_name = "ArcadeGame"
+role = "additional"
+title = "category.freedesktop.arcade-game.title"
+description = "category.freedesktop.arcade-game.description"
+
+[[category]]
+name = "freedesktop.board-game"
+set = "freedesktop"
+standard_name = "BoardGame"
+role = "additional"
+title = "category.freedesktop.board-game.title"
+description = "category.freedesktop.board-game.description"
+
+[[category]]
+name = "freedesktop.blocks-game"
+set = "freedesktop"
+standard_name = "BlocksGame"
+role = "additional"
+title = "category.freedesktop.blocks-game.title"
+description = "category.freedesktop.blocks-game.description"
+
+[[category]]
+name = "freedesktop.card-game"
+set = "freedesktop"
+standard_name = "CardGame"
+role = "additional"
+title = "category.freedesktop.card-game.title"
+description = "category.freedesktop.card-game.description"
+
+[[category]]
+name = "freedesktop.kids-game"
+set = "freedesktop"
+standard_name = "KidsGame"
+role = "additional"
+title = "category.freedesktop.kids-game.title"
+description = "category.freedesktop.kids-game.description"
+
+[[category]]
+name = "freedesktop.logic-game"
+set = "freedesktop"
+standard_name = "LogicGame"
+role = "additional"
+title = "category.freedesktop.logic-game.title"
+description = "category.freedesktop.logic-game.description"
+
+[[category]]
+name = "freedesktop.role-playing"
+set = "freedesktop"
+standard_name = "RolePlaying"
+role = "additional"
+title = "category.freedesktop.role-playing.title"
+description = "category.freedesktop.role-playing.description"
+
+[[category]]
+name = "freedesktop.shooter"
+set = "freedesktop"
+standard_name = "Shooter"
+role = "additional"
+title = "category.freedesktop.shooter.title"
+description = "category.freedesktop.shooter.description"
+
+[[category]]
+name = "freedesktop.simulation"
+set = "freedesktop"
+standard_name = "Simulation"
+role = "additional"
+title = "category.freedesktop.simulation.title"
+description = "category.freedesktop.simulation.description"
+
+[[category]]
+name = "freedesktop.sports-game"
+set = "freedesktop"
+standard_name = "SportsGame"
+role = "additional"
+title = "category.freedesktop.sports-game.title"
+description = "category.freedesktop.sports-game.description"
+
+[[category]]
+name = "freedesktop.strategy-game"
+set = "freedesktop"
+standard_name = "StrategyGame"
+role = "additional"
+title = "category.freedesktop.strategy-game.title"
+description = "category.freedesktop.strategy-game.description"
+
+[[category]]
+name = "freedesktop.launcher-store"
+set = "freedesktop"
+standard_name = "LauncherStore"
+role = "additional"
+title = "category.freedesktop.launcher-store.title"
+description = "category.freedesktop.launcher-store.description"
+
+[[category]]
+name = "freedesktop.game-tool"
+set = "freedesktop"
+standard_name = "GameTool"
+role = "additional"
+title = "category.freedesktop.game-tool.title"
+description = "category.freedesktop.game-tool.description"
+
+[[category]]
+name = "freedesktop.exercise"
+set = "freedesktop"
+standard_name = "Exercise"
+role = "additional"
+title = "category.freedesktop.exercise.title"
+description = "category.freedesktop.exercise.description"
+
+[[category]]
+name = "freedesktop.medication"
+set = "freedesktop"
+standard_name = "Medication"
+role = "additional"
+title = "category.freedesktop.medication.title"
+description = "category.freedesktop.medication.description"
+
+[[category]]
+name = "freedesktop.mindfulness"
+set = "freedesktop"
+standard_name = "Mindfulness"
+role = "additional"
+title = "category.freedesktop.mindfulness.title"
+description = "category.freedesktop.mindfulness.description"
+
+[[category]]
+name = "freedesktop.nutrition"
+set = "freedesktop"
+standard_name = "Nutrition"
+role = "additional"
+title = "category.freedesktop.nutrition.title"
+description = "category.freedesktop.nutrition.description"
+
+[[category]]
+name = "freedesktop.care-provider"
+set = "freedesktop"
+standard_name = "CareProvider"
+role = "additional"
+title = "category.freedesktop.care-provider.title"
+description = "category.freedesktop.care-provider.description"
+
+[[category]]
+name = "freedesktop.sleep"
+set = "freedesktop"
+standard_name = "Sleep"
+role = "additional"
+title = "category.freedesktop.sleep.title"
+description = "category.freedesktop.sleep.description"
+
+[[category]]
+name = "freedesktop.art"
+set = "freedesktop"
+standard_name = "Art"
+role = "additional"
+title = "category.freedesktop.art.title"
+description = "category.freedesktop.art.description"
+
+[[category]]
+name = "freedesktop.construction"
+set = "freedesktop"
+standard_name = "Construction"
+role = "additional"
+title = "category.freedesktop.construction.title"
+description = "category.freedesktop.construction.description"
+
+[[category]]
+name = "freedesktop.music"
+set = "freedesktop"
+standard_name = "Music"
+role = "additional"
+title = "category.freedesktop.music.title"
+description = "category.freedesktop.music.description"
+
+[[category]]
+name = "freedesktop.languages"
+set = "freedesktop"
+standard_name = "Languages"
+role = "additional"
+title = "category.freedesktop.languages.title"
+description = "category.freedesktop.languages.description"
+
+[[category]]
+name = "freedesktop.artificial-intelligence"
+set = "freedesktop"
+standard_name = "ArtificialIntelligence"
+role = "additional"
+title = "category.freedesktop.artificial-intelligence.title"
+description = "category.freedesktop.artificial-intelligence.description"
+
+[[category]]
+name = "freedesktop.astronomy"
+set = "freedesktop"
+standard_name = "Astronomy"
+role = "additional"
+title = "category.freedesktop.astronomy.title"
+description = "category.freedesktop.astronomy.description"
+
+[[category]]
+name = "freedesktop.biology"
+set = "freedesktop"
+standard_name = "Biology"
+role = "additional"
+title = "category.freedesktop.biology.title"
+description = "category.freedesktop.biology.description"
+
+[[category]]
+name = "freedesktop.chemistry"
+set = "freedesktop"
+standard_name = "Chemistry"
+role = "additional"
+title = "category.freedesktop.chemistry.title"
+description = "category.freedesktop.chemistry.description"
+
+[[category]]
+name = "freedesktop.computer-science"
+set = "freedesktop"
+standard_name = "ComputerScience"
+role = "additional"
+title = "category.freedesktop.computer-science.title"
+description = "category.freedesktop.computer-science.description"
+
+[[category]]
+name = "freedesktop.data-visualization"
+set = "freedesktop"
+standard_name = "DataVisualization"
+role = "additional"
+title = "category.freedesktop.data-visualization.title"
+description = "category.freedesktop.data-visualization.description"
+
+[[category]]
+name = "freedesktop.economy"
+set = "freedesktop"
+standard_name = "Economy"
+role = "additional"
+title = "category.freedesktop.economy.title"
+description = "category.freedesktop.economy.description"
+
+[[category]]
+name = "freedesktop.electricity"
+set = "freedesktop"
+standard_name = "Electricity"
+role = "additional"
+title = "category.freedesktop.electricity.title"
+description = "category.freedesktop.electricity.description"
+
+[[category]]
+name = "freedesktop.geography"
+set = "freedesktop"
+standard_name = "Geography"
+role = "additional"
+title = "category.freedesktop.geography.title"
+description = "category.freedesktop.geography.description"
+
+[[category]]
+name = "freedesktop.geology"
+set = "freedesktop"
+standard_name = "Geology"
+role = "additional"
+title = "category.freedesktop.geology.title"
+description = "category.freedesktop.geology.description"
+
+[[category]]
+name = "freedesktop.geoscience"
+set = "freedesktop"
+standard_name = "Geoscience"
+role = "additional"
+title = "category.freedesktop.geoscience.title"
+description = "category.freedesktop.geoscience.description"
+
+[[category]]
+name = "freedesktop.history"
+set = "freedesktop"
+standard_name = "History"
+role = "additional"
+title = "category.freedesktop.history.title"
+description = "category.freedesktop.history.description"
+
+[[category]]
+name = "freedesktop.humanities"
+set = "freedesktop"
+standard_name = "Humanities"
+role = "additional"
+title = "category.freedesktop.humanities.title"
+description = "category.freedesktop.humanities.description"
+
+[[category]]
+name = "freedesktop.image-processing"
+set = "freedesktop"
+standard_name = "ImageProcessing"
+role = "additional"
+title = "category.freedesktop.image-processing.title"
+description = "category.freedesktop.image-processing.description"
+
+[[category]]
+name = "freedesktop.literature"
+set = "freedesktop"
+standard_name = "Literature"
+role = "additional"
+title = "category.freedesktop.literature.title"
+description = "category.freedesktop.literature.description"
+
+[[category]]
+name = "freedesktop.maps"
+set = "freedesktop"
+standard_name = "Maps"
+role = "additional"
+title = "category.freedesktop.maps.title"
+description = "category.freedesktop.maps.description"
+
+[[category]]
+name = "freedesktop.math"
+set = "freedesktop"
+standard_name = "Math"
+role = "additional"
+title = "category.freedesktop.math.title"
+description = "category.freedesktop.math.description"
+
+[[category]]
+name = "freedesktop.numerical-analysis"
+set = "freedesktop"
+standard_name = "NumericalAnalysis"
+role = "additional"
+title = "category.freedesktop.numerical-analysis.title"
+description = "category.freedesktop.numerical-analysis.description"
+
+[[category]]
+name = "freedesktop.medical-software"
+set = "freedesktop"
+standard_name = "MedicalSoftware"
+role = "additional"
+title = "category.freedesktop.medical-software.title"
+description = "category.freedesktop.medical-software.description"
+
+[[category]]
+name = "freedesktop.physics"
+set = "freedesktop"
+standard_name = "Physics"
+role = "additional"
+title = "category.freedesktop.physics.title"
+description = "category.freedesktop.physics.description"
+
+[[category]]
+name = "freedesktop.robotics"
+set = "freedesktop"
+standard_name = "Robotics"
+role = "additional"
+title = "category.freedesktop.robotics.title"
+description = "category.freedesktop.robotics.description"
+
+[[category]]
+name = "freedesktop.spirituality"
+set = "freedesktop"
+standard_name = "Spirituality"
+role = "additional"
+title = "category.freedesktop.spirituality.title"
+description = "category.freedesktop.spirituality.description"
+
+[[category]]
+name = "freedesktop.sports"
+set = "freedesktop"
+standard_name = "Sports"
+role = "additional"
+title = "category.freedesktop.sports.title"
+description = "category.freedesktop.sports.description"
+
+[[category]]
+name = "freedesktop.parallel-computing"
+set = "freedesktop"
+standard_name = "ParallelComputing"
+role = "additional"
+title = "category.freedesktop.parallel-computing.title"
+description = "category.freedesktop.parallel-computing.description"
+
+[[category]]
+name = "freedesktop.amusement"
+set = "freedesktop"
+standard_name = "Amusement"
+role = "additional"
+title = "category.freedesktop.amusement.title"
+description = "category.freedesktop.amusement.description"
+
+[[category]]
+name = "freedesktop.archiving"
+set = "freedesktop"
+standard_name = "Archiving"
+role = "additional"
+title = "category.freedesktop.archiving.title"
+description = "category.freedesktop.archiving.description"
+
+[[category]]
+name = "freedesktop.compression"
+set = "freedesktop"
+standard_name = "Compression"
+role = "additional"
+title = "category.freedesktop.compression.title"
+description = "category.freedesktop.compression.description"
+
+[[category]]
+name = "freedesktop.electronics"
+set = "freedesktop"
+standard_name = "Electronics"
+role = "additional"
+title = "category.freedesktop.electronics.title"
+description = "category.freedesktop.electronics.description"
+
+[[category]]
+name = "freedesktop.emulator"
+set = "freedesktop"
+standard_name = "Emulator"
+role = "additional"
+title = "category.freedesktop.emulator.title"
+description = "category.freedesktop.emulator.description"
+
+[[category]]
+name = "freedesktop.engineering"
+set = "freedesktop"
+standard_name = "Engineering"
+role = "additional"
+title = "category.freedesktop.engineering.title"
+description = "category.freedesktop.engineering.description"
+
+[[category]]
+name = "freedesktop.file-tools"
+set = "freedesktop"
+standard_name = "FileTools"
+role = "additional"
+title = "category.freedesktop.file-tools.title"
+description = "category.freedesktop.file-tools.description"
+
+[[category]]
+name = "freedesktop.file-manager"
+set = "freedesktop"
+standard_name = "FileManager"
+role = "additional"
+title = "category.freedesktop.file-manager.title"
+description = "category.freedesktop.file-manager.description"
+
+[[category]]
+name = "freedesktop.terminal-emulator"
+set = "freedesktop"
+standard_name = "TerminalEmulator"
+role = "additional"
+title = "category.freedesktop.terminal-emulator.title"
+description = "category.freedesktop.terminal-emulator.description"
+
+[[category]]
+name = "freedesktop.filesystem"
+set = "freedesktop"
+standard_name = "Filesystem"
+role = "additional"
+title = "category.freedesktop.filesystem.title"
+description = "category.freedesktop.filesystem.description"
+
+[[category]]
+name = "freedesktop.monitor"
+set = "freedesktop"
+standard_name = "Monitor"
+role = "additional"
+title = "category.freedesktop.monitor.title"
+description = "category.freedesktop.monitor.description"
+
+[[category]]
+name = "freedesktop.security"
+set = "freedesktop"
+standard_name = "Security"
+role = "additional"
+title = "category.freedesktop.security.title"
+description = "category.freedesktop.security.description"
+
+[[category]]
+name = "freedesktop.accessibility"
+set = "freedesktop"
+standard_name = "Accessibility"
+role = "additional"
+title = "category.freedesktop.accessibility.title"
+description = "category.freedesktop.accessibility.description"
+
+[[category]]
+name = "freedesktop.calculator"
+set = "freedesktop"
+standard_name = "Calculator"
+role = "additional"
+title = "category.freedesktop.calculator.title"
+description = "category.freedesktop.calculator.description"
+
+[[category]]
+name = "freedesktop.clock"
+set = "freedesktop"
+standard_name = "Clock"
+role = "additional"
+title = "category.freedesktop.clock.title"
+description = "category.freedesktop.clock.description"
+
+[[category]]
+name = "freedesktop.text-editor"
+set = "freedesktop"
+standard_name = "TextEditor"
+role = "additional"
+title = "category.freedesktop.text-editor.title"
+description = "category.freedesktop.text-editor.description"
+
+[[category]]
+name = "freedesktop.documentation"
+set = "freedesktop"
+standard_name = "Documentation"
+role = "additional"
+title = "category.freedesktop.documentation.title"
+description = "category.freedesktop.documentation.description"
+
+[[category]]
+name = "freedesktop.adult"
+set = "freedesktop"
+standard_name = "Adult"
+role = "additional"
+title = "category.freedesktop.adult.title"
+description = "category.freedesktop.adult.description"
+
+[[category]]
+name = "freedesktop.core"
+set = "freedesktop"
+standard_name = "Core"
+role = "additional"
+title = "category.freedesktop.core.title"
+description = "category.freedesktop.core.description"
+
+[[category]]
+name = "freedesktop.kde"
+set = "freedesktop"
+standard_name = "KDE"
+role = "additional"
+title = "category.freedesktop.kde.title"
+description = "category.freedesktop.kde.description"
+
+[[category]]
+name = "freedesktop.cosmic"
+set = "freedesktop"
+standard_name = "COSMIC"
+role = "additional"
+title = "category.freedesktop.cosmic.title"
+description = "category.freedesktop.cosmic.description"
+
+[[category]]
+name = "freedesktop.gnome"
+set = "freedesktop"
+standard_name = "GNOME"
+role = "additional"
+title = "category.freedesktop.gnome.title"
+description = "category.freedesktop.gnome.description"
+
+[[category]]
+name = "freedesktop.lx-qt"
+set = "freedesktop"
+standard_name = "LXQt"
+role = "additional"
+title = "category.freedesktop.lx-qt.title"
+description = "category.freedesktop.lx-qt.description"
+
+[[category]]
+name = "freedesktop.xfce"
+set = "freedesktop"
+standard_name = "XFCE"
+role = "additional"
+title = "category.freedesktop.xfce.title"
+description = "category.freedesktop.xfce.description"
+
+[[category]]
+name = "freedesktop.dde"
+set = "freedesktop"
+standard_name = "DDE"
+role = "additional"
+title = "category.freedesktop.dde.title"
+description = "category.freedesktop.dde.description"
+
+[[category]]
+name = "freedesktop.gtk"
+set = "freedesktop"
+standard_name = "GTK"
+role = "additional"
+title = "category.freedesktop.gtk.title"
+description = "category.freedesktop.gtk.description"
+
+[[category]]
+name = "freedesktop.qt"
+set = "freedesktop"
+standard_name = "Qt"
+role = "additional"
+title = "category.freedesktop.qt.title"
+description = "category.freedesktop.qt.description"
+
+[[category]]
+name = "freedesktop.motif"
+set = "freedesktop"
+standard_name = "Motif"
+role = "additional"
+title = "category.freedesktop.motif.title"
+description = "category.freedesktop.motif.description"
+
+[[category]]
+name = "freedesktop.java"
+set = "freedesktop"
+standard_name = "Java"
+role = "additional"
+title = "category.freedesktop.java.title"
+description = "category.freedesktop.java.description"
+
+[[category]]
+name = "freedesktop.console-only"
+set = "freedesktop"
+standard_name = "ConsoleOnly"
+role = "additional"
+title = "category.freedesktop.console-only.title"
+description = "category.freedesktop.console-only.description"
+
+[[category]]
+name = "freedesktop.screensaver"
+set = "freedesktop"
+standard_name = "Screensaver"
+role = "reserved"
+title = "category.freedesktop.screensaver.title"
+description = "category.freedesktop.screensaver.description"
+
+[[category]]
+name = "freedesktop.tray-icon"
+set = "freedesktop"
+standard_name = "TrayIcon"
+role = "reserved"
+title = "category.freedesktop.tray-icon.title"
+description = "category.freedesktop.tray-icon.description"
+
+[[category]]
+name = "freedesktop.applet"
+set = "freedesktop"
+standard_name = "Applet"
+role = "reserved"
+title = "category.freedesktop.applet.title"
+description = "category.freedesktop.applet.description"
+
+[[category]]
+name = "freedesktop.shell"
+set = "freedesktop"
+standard_name = "Shell"
+role = "reserved"
+title = "category.freedesktop.shell.title"
+description = "category.freedesktop.shell.description"
+
+# --- apple: every value Apple lists, in its order ---
+
+[[category]]
+name = "apple.business"
+set = "apple"
+standard_name = "public.app-category.business"
+title = "category.apple.business.title"
+description = "category.apple.business.description"
+
+[[category]]
+name = "apple.developer-tools"
+set = "apple"
+standard_name = "public.app-category.developer-tools"
+title = "category.apple.developer-tools.title"
+description = "category.apple.developer-tools.description"
+
+[[category]]
+name = "apple.education"
+set = "apple"
+standard_name = "public.app-category.education"
+title = "category.apple.education.title"
+description = "category.apple.education.description"
+
+[[category]]
+name = "apple.entertainment"
+set = "apple"
+standard_name = "public.app-category.entertainment"
+title = "category.apple.entertainment.title"
+description = "category.apple.entertainment.description"
+
+[[category]]
+name = "apple.finance"
+set = "apple"
+standard_name = "public.app-category.finance"
+title = "category.apple.finance.title"
+description = "category.apple.finance.description"
+
+[[category]]
+name = "apple.games"
+set = "apple"
+standard_name = "public.app-category.games"
+title = "category.apple.games.title"
+description = "category.apple.games.description"
+
+[[category]]
+name = "apple.action-games"
+set = "apple"
+standard_name = "public.app-category.action-games"
+title = "category.apple.action-games.title"
+description = "category.apple.action-games.description"
+
+[[category]]
+name = "apple.adventure-games"
+set = "apple"
+standard_name = "public.app-category.adventure-games"
+title = "category.apple.adventure-games.title"
+description = "category.apple.adventure-games.description"
+
+[[category]]
+name = "apple.arcade-games"
+set = "apple"
+standard_name = "public.app-category.arcade-games"
+title = "category.apple.arcade-games.title"
+description = "category.apple.arcade-games.description"
+
+[[category]]
+name = "apple.board-games"
+set = "apple"
+standard_name = "public.app-category.board-games"
+title = "category.apple.board-games.title"
+description = "category.apple.board-games.description"
+
+[[category]]
+name = "apple.card-games"
+set = "apple"
+standard_name = "public.app-category.card-games"
+title = "category.apple.card-games.title"
+description = "category.apple.card-games.description"
+
+[[category]]
+name = "apple.casino-games"
+set = "apple"
+standard_name = "public.app-category.casino-games"
+title = "category.apple.casino-games.title"
+description = "category.apple.casino-games.description"
+
+[[category]]
+name = "apple.dice-games"
+set = "apple"
+standard_name = "public.app-category.dice-games"
+title = "category.apple.dice-games.title"
+description = "category.apple.dice-games.description"
+
+[[category]]
+name = "apple.educational-games"
+set = "apple"
+standard_name = "public.app-category.educational-games"
+title = "category.apple.educational-games.title"
+description = "category.apple.educational-games.description"
+
+[[category]]
+name = "apple.family-games"
+set = "apple"
+standard_name = "public.app-category.family-games"
+title = "category.apple.family-games.title"
+description = "category.apple.family-games.description"
+
+[[category]]
+name = "apple.kids-games"
+set = "apple"
+standard_name = "public.app-category.kids-games"
+title = "category.apple.kids-games.title"
+description = "category.apple.kids-games.description"
+
+[[category]]
+name = "apple.music-games"
+set = "apple"
+standard_name = "public.app-category.music-games"
+title = "category.apple.music-games.title"
+description = "category.apple.music-games.description"
+
+[[category]]
+name = "apple.puzzle-games"
+set = "apple"
+standard_name = "public.app-category.puzzle-games"
+title = "category.apple.puzzle-games.title"
+description = "category.apple.puzzle-games.description"
+
+[[category]]
+name = "apple.racing-games"
+set = "apple"
+standard_name = "public.app-category.racing-games"
+title = "category.apple.racing-games.title"
+description = "category.apple.racing-games.description"
+
+[[category]]
+name = "apple.role-playing-games"
+set = "apple"
+standard_name = "public.app-category.role-playing-games"
+title = "category.apple.role-playing-games.title"
+description = "category.apple.role-playing-games.description"
+
+[[category]]
+name = "apple.simulation-games"
+set = "apple"
+standard_name = "public.app-category.simulation-games"
+title = "category.apple.simulation-games.title"
+description = "category.apple.simulation-games.description"
+
+[[category]]
+name = "apple.sports-games"
+set = "apple"
+standard_name = "public.app-category.sports-games"
+title = "category.apple.sports-games.title"
+description = "category.apple.sports-games.description"
+
+[[category]]
+name = "apple.strategy-games"
+set = "apple"
+standard_name = "public.app-category.strategy-games"
+title = "category.apple.strategy-games.title"
+description = "category.apple.strategy-games.description"
+
+[[category]]
+name = "apple.trivia-games"
+set = "apple"
+standard_name = "public.app-category.trivia-games"
+title = "category.apple.trivia-games.title"
+description = "category.apple.trivia-games.description"
+
+[[category]]
+name = "apple.word-games"
+set = "apple"
+standard_name = "public.app-category.word-games"
+title = "category.apple.word-games.title"
+description = "category.apple.word-games.description"
+
+[[category]]
+name = "apple.graphics-design"
+set = "apple"
+standard_name = "public.app-category.graphics-design"
+title = "category.apple.graphics-design.title"
+description = "category.apple.graphics-design.description"
+
+[[category]]
+name = "apple.healthcare-fitness"
+set = "apple"
+standard_name = "public.app-category.healthcare-fitness"
+title = "category.apple.healthcare-fitness.title"
+description = "category.apple.healthcare-fitness.description"
+
+[[category]]
+name = "apple.lifestyle"
+set = "apple"
+standard_name = "public.app-category.lifestyle"
+title = "category.apple.lifestyle.title"
+description = "category.apple.lifestyle.description"
+
+[[category]]
+name = "apple.medical"
+set = "apple"
+standard_name = "public.app-category.medical"
+title = "category.apple.medical.title"
+description = "category.apple.medical.description"
+
+[[category]]
+name = "apple.music"
+set = "apple"
+standard_name = "public.app-category.music"
+title = "category.apple.music.title"
+description = "category.apple.music.description"
+
+[[category]]
+name = "apple.news"
+set = "apple"
+standard_name = "public.app-category.news"
+title = "category.apple.news.title"
+description = "category.apple.news.description"
+
+[[category]]
+name = "apple.photography"
+set = "apple"
+standard_name = "public.app-category.photography"
+title = "category.apple.photography.title"
+description = "category.apple.photography.description"
+
+[[category]]
+name = "apple.productivity"
+set = "apple"
+standard_name = "public.app-category.productivity"
+title = "category.apple.productivity.title"
+description = "category.apple.productivity.description"
+
+[[category]]
+name = "apple.reference"
+set = "apple"
+standard_name = "public.app-category.reference"
+title = "category.apple.reference.title"
+description = "category.apple.reference.description"
+
+[[category]]
+name = "apple.social-networking"
+set = "apple"
+standard_name = "public.app-category.social-networking"
+title = "category.apple.social-networking.title"
+description = "category.apple.social-networking.description"
+
+[[category]]
+name = "apple.sports"
+set = "apple"
+standard_name = "public.app-category.sports"
+title = "category.apple.sports.title"
+description = "category.apple.sports.description"
+
+[[category]]
+name = "apple.travel"
+set = "apple"
+standard_name = "public.app-category.travel"
+title = "category.apple.travel.title"
+description = "category.apple.travel.description"
+
+[[category]]
+name = "apple.utilities"
+set = "apple"
+standard_name = "public.app-category.utilities"
+title = "category.apple.utilities.title"
+description = "category.apple.utilities.description"
+
+[[category]]
+name = "apple.video"
+set = "apple"
+standard_name = "public.app-category.video"
+title = "category.apple.video.title"
+description = "category.apple.video.description"
+
+[[category]]
+name = "apple.weather"
+set = "apple"
+standard_name = "public.app-category.weather"
+title = "category.apple.weather.title"
+description = "category.apple.weather.description"
+
+# --- noctua: the platform's own ---
+
+[[category]]
+name = "noctua.history"
+set = "noctua"
+title = "category.noctua.history.title"
+description = "category.noctua.history.description"
+
+[[category]]
+name = "noctua.maintenance"
+set = "noctua"
+title = "category.noctua.maintenance.title"
+description = "category.noctua.maintenance.description"
+
+[[category]]
+name = "noctua.files"
+set = "noctua"
+title = "category.noctua.files.title"
+description = "category.noctua.files.description"
+
+[[category]]
+name = "noctua.reference"
+set = "noctua"
+title = "category.noctua.reference.title"
+description = "category.noctua.reference.description"

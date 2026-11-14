@@ -358,6 +358,9 @@ SOURCES = {
     # **What hands the judge the catalog's texts**, and the wiki walk: the
     # compiler's own gates are what decide them.
     "compiler_metadata": os.path.join(ROOT, "crates/nc-catalog-compiler/src/metadata.rs"),
+    # **What a set and a category are**: the categories registry's own rules,
+    # decided by the compiler's suite, which breaks each of them alone.
+    "compiler_registries": os.path.join(ROOT, "crates/nc-catalog-compiler/src/registries.rs"),
     # **What a pack's version is, and what a realm pins against it.** The
     # manifest gate decides whether a realm running a pack it was not reviewed
     # against is refused, and a decision point reads the same `Manifest` — so a
@@ -3221,9 +3224,9 @@ WEAKENINGS = [
     ("compiler_metadata", "wiki", "a wiki text is a regular file",
      "                if !kind.is_file() {",
      "                if kind.is_symlink() {"),
-    ("compiler_metadata", "one_command_per_display_name", "two display names are compared as a reader reads them",
-     "                .find(|(_, earlier)| entry::the_same_sentence(earlier, display_name))",
-     "                .find(|(_, earlier)| earlier == display_name)"),
+    ("compiler_metadata", "one_entry_per_display_name", "two display names are compared as a reader reads them",
+     "                .find(|(_, _, earlier)| entry::the_same_sentence(earlier, display_name))",
+     "                .find(|(_, _, earlier)| earlier == display_name)"),
     # A link is asked what it is, never what it points at: followed, a link
     # carries the walk out of the catalog and reads whatever it names.
     ("compiler_metadata", "wiki", "the wiki tree is not read through a link standing for it",
@@ -3234,8 +3237,99 @@ WEAKENINGS = [
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
     # A tag list's problem is fixed in the list, so it is filed there.
     ("compiler_metadata", "located", "a tag list's problem is filed at the list",
-     "        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, &command.tags),",
+     "        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, owner.key(Text::Tags)),",
      "        | EntryProblem::TagTwice { locale, .. } => {\n            let _ = locale;\n            None\n        }"),
+    # A set's and a category's texts are handed to the judge, and the
+    # categories a command names are held to the registry's.
+    ("compiler_metadata", "category", "a category's line description is judged",
+     "                Some(&category.description),",
+     "                None,"),
+    ("compiler_metadata", "set", "a set's display name is judged",
+     "            keys: [Some(&set.title), Some(&set.description), None, None],",
+     "            keys: [None, Some(&set.description), None, None],"),
+    ("compiler_metadata", "check", "a command's categories are the registry's",
+     "            categories: &held,",
+     "            categories: &[],"),
+    ("compiler_metadata", "check", "each set's categories are a list of their own",
+     "            .filter(|category| category.set == set.name)",
+     "            .filter(|_| false)"),
+    # -- compiler_registries: the shape of a set and of a category -----------
+    ("compiler_registries", "check_categories", "a set declared twice is refused",
+     "        if sets.insert(set.name.as_str(), set).is_some() {",
+     "        if sets.insert(set.name.as_str(), set).is_some() && sets.is_empty() {"),
+    ("compiler_registries", "check_categories", "a category declared twice is refused",
+     "        if *count > 1 {",
+     "        if *count > 2 {"),
+    ("compiler_registries", "check_categories", "a standard name is counted once per set",
+     "            && !standard_names.insert((category.set.as_str(), standard_name))",
+     "            && !standard_names.insert((category.name.as_str(), standard_name))"),
+    ("compiler_registries", "check_one_set", "a set's name is a slug",
+     "    if !a_slug(&set.name) {",
+     "    if set.name.is_empty() {"),
+    ("compiler_registries", "check_one_set", "what defines a set says something a reader sees",
+     "    if says_nothing(&set.defined_by) {",
+     "    if set.defined_by.is_empty() {"),
+    ("compiler_registries", "check_one_set", "a standard's version says something a reader sees",
+     "    if set.standard && version.is_none_or(says_nothing) {",
+     "    if set.standard && version.is_none() {"),
+    ("compiler_registries", "check_one_set", "the platform's own set names no version",
+     "    if !set.standard && version.is_some() {",
+     "    if false {"),
+    ("compiler_registries", "check_the_name", "a category's slug is lower-case words",
+     "        Some((set, slug)) if set == category.set && a_slug(slug) => {}",
+     "        Some((set, _)) if set == category.set => {}"),
+    ("compiler_registries", "check_what_the_standard_says", "a standard name is printable ASCII",
+     "        (true, Some(written)) if !a_standard_name(written) => push(",
+     "        (true, Some(written)) if written.is_empty() => push("),
+    ("compiler_registries", "check_what_the_standard_says", "the platform's own category carries no role",
+     "    if !set.standard && category.role.is_some() {",
+     "    if false {"),
+    ("compiler_registries", "every_set_holds_a_category_and_ranks_all_or_none", "a ranked set ranks every category",
+     "        if !set.standard || ranked == 0 || ranked == held.len() {",
+     "        if !set.standard || ranked == 0 || ranked > 0 {"),
+    ("compiler_registries", "every_set_holds_a_category_and_ranks_all_or_none", "a set holds a category",
+     "        if held.is_empty() {",
+     "        if false {"),
+    ("compiler_registries", "a_slug", "a slug has no empty word",
+     "            !word.is_empty()",
+     "            true"),
+    ("compiler_registries", "a_slug", "a slug is lower case",
+     "                    .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())",
+     "                    .all(|character| character.is_ascii_alphanumeric())"),
+    ("compiler_registries", "a_standard_name", "a standard name holds no space",
+     "    !text.is_empty() && text.chars().all(|character| character.is_ascii_graphic())",
+     "    !text.is_empty() && text.is_ascii()"),
+    # An exemption is a reason a sentence is the same in both locales; one over a
+    # sentence that differs exempts whatever is written there next.
+    ("compiler_messages", "no_value_is_the_source_sentence_except", "an exemption over a sentence the locales do not share is reported",
+     "        if !repeated {",
+     "        if false {"),
+    ("compiler_messages", "no_value_is_the_source_sentence_except", "an exemption is used only by a sentence the locales share",
+     "            .is_some_and(|(ours, theirs)| the_same_sentence(ours, theirs));",
+     "            .is_some();"),
+    # A set's and a category's sentences take no parameter either.
+    ("loader", "declared_params", "a category's line description takes no placeholder",
+     "            keys: vec![category.title.clone(), category.description.clone()],",
+     "            keys: vec![category.title.clone()],"),
+    ("loader", "declared_params", "a set's display name takes no placeholder",
+     "            keys: vec![set.title.clone(), set.description.clone()],",
+     "            keys: vec![set.description.clone()],"),
+    ("compiler_model", "word", "a role is published as the word its registry writes",
+     "            Self::Additional => \"additional\",",
+     "            Self::Additional => \"main\","),
+    # -- the CLI's help on the categories, which asks no daemon ---------------
+    ("cli_args", "topic", "help on the categories is a topic of its own",
+     "        [word] if word == CATEGORIES => Ok(Topic::Categories),\n",
+     ""),
+    ("cli_help", "categories", "help lists a set's categories under it alone",
+     "        for category in nc_catalog::CATEGORIES\n            .iter()\n            .filter(|category| category.set == set.name)",
+     "        for category in nc_catalog::CATEGORIES\n            .iter()\n            .filter(|_| true)"),
+    ("cli_help", "category_lines", "a category's display name is escaped",
+     "        escaped(category.display_name),",
+     "        category.display_name,"),
+    ("cli_run", "run", "help on the categories needs no daemon",
+     "        Asked::Help(Topic::Categories) => Ok(render::shown(line.json, help::categories(locale))),\n",
+     ""),
 
     # -- packs: what a policy may be called, and what a realm pins -------------
     # The decision point's prefix is refused where an id begins, and only there.
@@ -8044,6 +8138,7 @@ ELSEWHERE = {
     "descriptor": ["cargo", "test", "-q", "-p", "nc-schema"],
     "schema_entry": ["cargo", "test", "-q", "-p", "nc-schema"],
     "compiler_metadata": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
+    "compiler_registries": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
     # An integration test is a target of its own, and `--bin xtask` cannot
     # reach one.
     "registry": [

@@ -42,6 +42,7 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
         EmittedFile::new(page("commands"), commands(catalog)),
         EmittedFile::new(page("log-events"), log_events(catalog)),
         EmittedFile::new(page("capabilities"), capabilities(catalog)),
+        EmittedFile::new(page("categories"), categories(catalog)),
     ]
 }
 
@@ -1196,6 +1197,123 @@ fn what_a_person_is_shown(
         })
         .collect();
     let _ = writeln!(out, "| Tags | {} |\n", listed.join(" | "));
+}
+
+/// The categories page: every set, what defines it, and one table of its
+/// categories with their texts in every locale.
+fn categories(catalog: &Catalog) -> String {
+    let mut out = header(
+        "Categories",
+        "catalog/categories.toml and catalog/i18n/",
+        "Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set is \
+         a standard's — its categories carry the names the standard gives them, and the \
+         rank it gives them where it ranks them — or the platform's own. A category is \
+         named for its set, a dot and a slug, and what a command's `categories` name are \
+         categories on this page: the build refuses any other. `noctua help categories` \
+         lists them with no daemon, in the reader's language.",
+    );
+    let tags = tags(catalog);
+    // **Sorted, like the generated crate**, sets and categories both by name.
+    let mut sets: Vec<_> = catalog.category_sets.iter().collect();
+    sets.sort_by(|a, b| a.name.cmp(&b.name));
+    for set in sets {
+        let _ = writeln!(out, "## `{}`\n", set.name);
+        let _ = writeln!(
+            out,
+            "| | |\n|---|---|\n| Standard | {} |\n| Defined by | {} |{}\n",
+            if set.standard {
+                "yes — a standard outside the platform"
+            } else {
+                "no — the platform's own"
+            },
+            cell(set.defined_by.trim()),
+            set.version
+                .as_deref()
+                .map_or_else(String::new, |version| format!(
+                    "\n| Version | {} |",
+                    cell(version)
+                ))
+        );
+        let _ = writeln!(
+            out,
+            "| | {} |\n|---|{}",
+            tags.join(" | "),
+            "---|".repeat(tags.len())
+        );
+        for (row, key) in [
+            ("Display name", &set.title),
+            ("Line description", &set.description),
+        ] {
+            let cells: Vec<String> = tags.iter().map(|tag| sentence(catalog, key, tag)).collect();
+            let _ = writeln!(out, "| {row} | {} |", cells.join(" | "));
+        }
+        out.push('\n');
+        a_sets_categories(catalog, set, &tags, &mut out);
+    }
+    out
+}
+
+/// One set's categories, one row each: the name, what the standard says of it
+/// where a standard defines the set, and its texts in every locale.
+///
+/// **A column only where the set has it**: the platform's own set has no
+/// standard name and no rank, and a column of em-dashes would be one a reader
+/// looks at twice to learn it says nothing.
+fn a_sets_categories(
+    catalog: &Catalog,
+    set: &crate::model::CategorySetEntry,
+    tags: &[&str],
+    out: &mut String,
+) {
+    let mut held: Vec<_> = catalog
+        .categories
+        .iter()
+        .filter(|category| category.set == set.name)
+        .collect();
+    held.sort_by(|a, b| a.name.cmp(&b.name));
+    let named = held.iter().any(|category| category.standard_name.is_some());
+    let ranked = held.iter().any(|category| category.role.is_some());
+    let mut heading = vec!["Category".to_owned()];
+    if named {
+        heading.push("Standard name".to_owned());
+    }
+    if ranked {
+        heading.push("Role".to_owned());
+    }
+    for tag in tags {
+        heading.push(format!("Display name ({tag})"));
+        heading.push(format!("Line description ({tag})"));
+    }
+    let _ = writeln!(
+        out,
+        "| {} |\n|{}",
+        heading.join(" | "),
+        "---|".repeat(heading.len())
+    );
+    for category in held {
+        let mut cells = vec![format!("`{}`", cell(&category.name))];
+        if named {
+            cells.push(
+                category
+                    .standard_name
+                    .as_deref()
+                    .map_or_else(|| "—".to_owned(), |name| format!("`{}`", cell(name))),
+            );
+        }
+        if ranked {
+            cells.push(
+                category
+                    .role
+                    .map_or_else(|| "—".to_owned(), |role| role.word().to_owned()),
+            );
+        }
+        for tag in tags {
+            cells.push(sentence(catalog, &category.title, tag));
+            cells.push(sentence(catalog, &category.description, tag));
+        }
+        let _ = writeln!(out, "| {} |", cells.join(" | "));
+    }
+    out.push('\n');
 }
 
 fn log_events(catalog: &Catalog) -> String {

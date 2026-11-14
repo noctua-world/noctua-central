@@ -31,6 +31,7 @@ pub mod load;
 mod metadata;
 pub mod model;
 pub mod problem;
+mod registries;
 
 mod emit;
 

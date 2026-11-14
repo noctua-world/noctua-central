@@ -93,6 +93,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         &capabilities_text,
         &mut problems,
     );
+    let categories = crate::registries::categories(root, &mut problems);
 
     let locales = locales(root, &mut problems);
 
@@ -104,6 +105,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         Some(command_file),
         Some(event_file),
         Some(capability_file),
+        Some((categories_text, category_file)),
     ) = (
         error_file,
         notification_file,
@@ -112,6 +114,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         command_file,
         event_file,
         capability_file,
+        categories,
     )
     else {
         return (None, problems);
@@ -139,20 +142,42 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         events: event_file.events,
         capabilities: capability_file.capabilities,
         ungated: capability_file.ungated,
+        category_sets: category_file.sets,
+        categories: category_file.categories,
         locales,
         wiki: Vec::new(),
     };
-    catalog.wiki = crate::metadata::wiki(root, &catalog, &mut problems);
-
-    check_one_owner_per_key(&catalog, &mut problems);
-    crate::messages::check(root, &catalog, &mut problems);
-    crate::metadata::check(root, &catalog, &commands_text, &mut problems);
+    let texts = (commands_text.as_str(), categories_text.as_str());
+    across_the_registries(root, &mut catalog, texts, &mut problems);
 
     problems.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     (Some(catalog), problems)
 }
 
-fn read(root: &Path, relative: &str, problems: &mut Vec<Problem>) -> Option<String> {
+/// What reads the catalog as one: the wiki tree, one owner per key, the
+/// message rules over every locale, and every entry's texts.
+///
+/// Split out of `load` for its line budget; the order is the one it had
+/// there, the wiki first because the message rules and the entries read it.
+/// `texts` are `catalog/commands.toml` and `catalog/categories.toml` as read,
+/// for the line an entry's problem is filed at.
+fn across_the_registries(
+    root: &Path,
+    catalog: &mut Catalog,
+    (commands, categories): (&str, &str),
+    problems: &mut Vec<Problem>,
+) {
+    catalog.wiki = crate::metadata::wiki(root, catalog, problems);
+    check_one_owner_per_key(catalog, problems);
+    crate::messages::check(root, catalog, problems);
+    let registries = crate::metadata::Registries {
+        commands,
+        categories,
+    };
+    crate::metadata::check(root, catalog, &registries, problems);
+}
+
+pub(crate) fn read(root: &Path, relative: &str, problems: &mut Vec<Problem>) -> Option<String> {
     match std::fs::read_to_string(root.join(relative)) {
         Ok(text) => Some(text),
         Err(error) => {
@@ -169,7 +194,7 @@ fn read(root: &Path, relative: &str, problems: &mut Vec<Problem>) -> Option<Stri
     }
 }
 
-fn parse<T: DeserializeOwned>(
+pub(crate) fn parse<T: DeserializeOwned>(
     relative: &str,
     text: &str,
     problems: &mut Vec<Problem>,
@@ -309,7 +334,7 @@ struct Names<'a> {
 /// `tells_two_sentences_apart` gives: the characters in `BLANK_RANGES` sit
 /// inside ordinary words, so a rule built on the wider set would refuse values
 /// this catalog legitimately holds.
-fn says_nothing(value: &str) -> bool {
+pub(crate) fn says_nothing(value: &str) -> bool {
     !value
         .chars()
         .any(|shown| !shown.is_whitespace() && crate::tells_two_sentences_apart(shown))
@@ -498,7 +523,7 @@ fn every_area_is_one_a_code_could_name(file: &ErrorFile, text: &str, problems: &
 /// `NOCTUA.md §19.3`'s first rule: assert that every gate's count of things
 /// checked is non-zero. Without it, emptying four registries leaves the catalog
 /// step green at "0 notification(s), 0 email(s), 0 command(s), 0 log event(s)".
-fn floor(count: usize, file: &str, what: &str, problems: &mut Vec<Problem>) {
+pub(crate) fn floor(count: usize, file: &str, what: &str, problems: &mut Vec<Problem>) {
     if count == 0 {
         problems.push(Problem::in_file(
             file,
@@ -2923,7 +2948,7 @@ fn locales(root: &Path, problems: &mut Vec<Problem>) -> Vec<Locale> {
     locales
 }
 
-fn push(
+pub(crate) fn push(
     problems: &mut Vec<Problem>,
     file: &str,
     line: Option<usize>,
@@ -3038,6 +3063,28 @@ pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<Claim>>
         let owner = format!("capability {}", entry.name);
         claim(&entry.description, owner, "description", Table::Message);
     }
+    // A set and a category carry the two texts a list of them shows, under
+    // the names every entry's texts are called by.
+    for set in &catalog.category_sets {
+        let owner = format!("category set {}", set.name);
+        claim(&set.title, owner.clone(), "display name", Table::Message);
+        claim(&set.description, owner, "line description", Table::Message);
+    }
+    for category in &catalog.categories {
+        let owner = format!("category {}", category.name);
+        claim(
+            &category.title,
+            owner.clone(),
+            "display name",
+            Table::Message,
+        );
+        claim(
+            &category.description,
+            owner,
+            "line description",
+            Table::Message,
+        );
+    }
     keys
 }
 
@@ -3132,6 +3179,23 @@ pub(crate) fn declared_params(catalog: &Catalog) -> Vec<Declaration> {
             owner: format!("capability {}", entry.name),
             declared: BTreeSet::new(),
             keys: vec![entry.description.clone()],
+        });
+    }
+    // A set's and a category's texts are a list's rows and a page's cells,
+    // where there is no caller either; the entry judge's own placeholder
+    // problem is dropped for every catalog entry, so this is what refuses one.
+    for set in &catalog.category_sets {
+        declared.push(Declaration {
+            owner: format!("category set {}", set.name),
+            declared: BTreeSet::new(),
+            keys: vec![set.title.clone(), set.description.clone()],
+        });
+    }
+    for category in &catalog.categories {
+        declared.push(Declaration {
+            owner: format!("category {}", category.name),
+            declared: BTreeSet::new(),
+            keys: vec![category.title.clone(), category.description.clone()],
         });
     }
     declared

@@ -1,10 +1,10 @@
 //! Regenerates the self-documentation surfaces (`NOCTUA.md §15.3`).
 //!
 //! Generated, committed and drift-checked Markdown under `docs/`: every error
-//! code, notification, email, limit, command, log event and capability, in both
-//! locales, from the same source the code consumes — so the documentation cannot drift
-//! from the behaviour. `§15.3` asks for documentation that is "as automated as
-//! possible", and the catalog is the instrument.
+//! code, notification, email, limit, command, log event, capability and
+//! category, in both locales, from the same source the code consumes — so the
+//! documentation cannot drift from the behaviour. `§15.3` asks for documentation
+//! that is "as automated as possible", and the catalog is the instrument.
 //!
 //! **They are emitted through the same list as the generated Rust**, which is
 //! what makes them drift-checked, stale-checked and deterministic without any of

@@ -156,6 +156,1889 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "category-set.apple.description",
+        [
+            "The categories an Apple app declares as its LSApplicationCategoryType",
+            "As categorias que um app da Apple declara em LSApplicationCategoryType",
+        ],
+    ),
+    (
+        "category-set.apple.title",
+        ["Apple app categories", "Categorias de apps da Apple"],
+    ),
+    (
+        "category-set.freedesktop.description",
+        [
+            "The categories of the freedesktop.org Desktop Menu Specification",
+            "As categorias da especificação de menus do freedesktop.org",
+        ],
+    ),
+    (
+        "category-set.freedesktop.title",
+        [
+            "Freedesktop menu categories",
+            "Categorias de menu do freedesktop",
+        ],
+    ),
+    (
+        "category-set.noctua.description",
+        [
+            "The platform's own categories, for its commands",
+            "As categorias da própria plataforma, para os seus comandos",
+        ],
+    ),
+    (
+        "category-set.noctua.title",
+        ["Noctua categories", "Categorias do Noctua"],
+    ),
+    (
+        "category.apple.action-games.description",
+        [
+            "Games of speed, reflexes and combat",
+            "Jogos de velocidade, reflexos e combate",
+        ],
+    ),
+    (
+        "category.apple.action-games.title",
+        ["Action games", "Jogos de ação"],
+    ),
+    (
+        "category.apple.adventure-games.description",
+        [
+            "Games of exploration and story",
+            "Jogos de exploração e história",
+        ],
+    ),
+    (
+        "category.apple.adventure-games.title",
+        ["Adventure games", "Jogos de aventura"],
+    ),
+    (
+        "category.apple.arcade-games.description",
+        [
+            "Games in the style of the arcade",
+            "Jogos no estilo dos fliperamas",
+        ],
+    ),
+    (
+        "category.apple.arcade-games.title",
+        ["Arcade games", "Jogos de fliperama"],
+    ),
+    (
+        "category.apple.board-games.description",
+        ["Games played on a board", "Jogos jogados em um tabuleiro"],
+    ),
+    (
+        "category.apple.board-games.title",
+        ["Board games", "Jogos de tabuleiro"],
+    ),
+    (
+        "category.apple.business.description",
+        [
+            "Apps for running a business or working in one",
+            "Aplicativos para administrar um negócio ou trabalhar nele",
+        ],
+    ),
+    ("category.apple.business.title", ["Business", "Negócios"]),
+    (
+        "category.apple.card-games.description",
+        ["Games played with cards", "Jogos jogados com cartas"],
+    ),
+    (
+        "category.apple.card-games.title",
+        ["Card games", "Jogos de cartas"],
+    ),
+    (
+        "category.apple.casino-games.description",
+        [
+            "Games of chance in the style of a casino",
+            "Jogos de azar no estilo de um cassino",
+        ],
+    ),
+    (
+        "category.apple.casino-games.title",
+        ["Casino games", "Jogos de cassino"],
+    ),
+    (
+        "category.apple.developer-tools.description",
+        [
+            "Apps for writing, building and testing software",
+            "Aplicativos para escrever, compilar e testar software",
+        ],
+    ),
+    (
+        "category.apple.developer-tools.title",
+        ["Developer tools", "Ferramentas de desenvolvimento"],
+    ),
+    (
+        "category.apple.dice-games.description",
+        ["Games played with dice", "Jogos jogados com dados"],
+    ),
+    (
+        "category.apple.dice-games.title",
+        ["Dice games", "Jogos de dados"],
+    ),
+    (
+        "category.apple.education.description",
+        [
+            "Apps for teaching and learning",
+            "Aplicativos para ensinar e aprender",
+        ],
+    ),
+    ("category.apple.education.title", ["Education", "Educação"]),
+    (
+        "category.apple.educational-games.description",
+        [
+            "Games that teach as they are played",
+            "Jogos que ensinam enquanto se joga",
+        ],
+    ),
+    (
+        "category.apple.educational-games.title",
+        ["Educational games", "Jogos educativos"],
+    ),
+    (
+        "category.apple.entertainment.description",
+        [
+            "Apps for watching, listening and having fun",
+            "Aplicativos para assistir, ouvir e se divertir",
+        ],
+    ),
+    (
+        "category.apple.entertainment.title",
+        ["Entertainment", "Entretenimento"],
+    ),
+    (
+        "category.apple.family-games.description",
+        [
+            "Games for players of every age together",
+            "Jogos para pessoas de todas as idades jogarem juntas",
+        ],
+    ),
+    (
+        "category.apple.family-games.title",
+        ["Family games", "Jogos em família"],
+    ),
+    (
+        "category.apple.finance.description",
+        [
+            "Apps for money, banking and budgets",
+            "Aplicativos para dinheiro, bancos e orçamentos",
+        ],
+    ),
+    ("category.apple.finance.title", ["Finance", "Finanças"]),
+    (
+        "category.apple.games.description",
+        ["Games of every kind", "Jogos de todos os tipos"],
+    ),
+    ("category.apple.games.title", ["Games", "Jogos"]),
+    (
+        "category.apple.graphics-design.description",
+        [
+            "Apps for drawing, illustration and design",
+            "Aplicativos de desenho, ilustração e design",
+        ],
+    ),
+    (
+        "category.apple.graphics-design.title",
+        ["Graphics and design", "Gráficos e design"],
+    ),
+    (
+        "category.apple.healthcare-fitness.description",
+        [
+            "Apps for health, exercise and well-being",
+            "Aplicativos de saúde, exercício e bem-estar",
+        ],
+    ),
+    (
+        "category.apple.healthcare-fitness.title",
+        ["Health and fitness", "Saúde e condicionamento"],
+    ),
+    (
+        "category.apple.kids-games.description",
+        ["Games made for children", "Jogos feitos para crianças"],
+    ),
+    (
+        "category.apple.kids-games.title",
+        ["Kids games", "Jogos infantis"],
+    ),
+    (
+        "category.apple.lifestyle.description",
+        [
+            "Apps for home, hobbies and everyday life",
+            "Aplicativos para a casa, os passatempos e o dia a dia",
+        ],
+    ),
+    (
+        "category.apple.lifestyle.title",
+        ["Lifestyle", "Estilo de vida"],
+    ),
+    (
+        "category.apple.medical.description",
+        [
+            "Apps for medical care and for medical professionals",
+            "Aplicativos de cuidados médicos e para profissionais de saúde",
+        ],
+    ),
+    ("category.apple.medical.title", ["Medical", "Medicina"]),
+    (
+        "category.apple.music-games.description",
+        [
+            "Games played to music or with music",
+            "Jogos jogados com música ou ao som dela",
+        ],
+    ),
+    (
+        "category.apple.music-games.title",
+        ["Music games", "Jogos musicais"],
+    ),
+    (
+        "category.apple.music.description",
+        [
+            "Apps for listening to, playing and making music",
+            "Aplicativos para ouvir, tocar e fazer música",
+        ],
+    ),
+    ("category.apple.music.title", ["Music", "Música"]),
+    (
+        "category.apple.news.description",
+        [
+            "Apps for news and current events",
+            "Aplicativos de notícias e atualidades",
+        ],
+    ),
+    ("category.apple.news.title", ["News", "Notícias"]),
+    (
+        "category.apple.photography.description",
+        [
+            "Apps for taking, editing and sharing photos",
+            "Aplicativos para tirar, editar e compartilhar fotos",
+        ],
+    ),
+    (
+        "category.apple.photography.title",
+        ["Photography", "Fotografia"],
+    ),
+    (
+        "category.apple.productivity.description",
+        [
+            "Apps for getting work done: tasks, notes and documents",
+            "Aplicativos para dar conta do trabalho: tarefas, notas e documentos",
+        ],
+    ),
+    (
+        "category.apple.productivity.title",
+        ["Productivity", "Produtividade"],
+    ),
+    (
+        "category.apple.puzzle-games.description",
+        [
+            "Games of puzzles and problems to solve",
+            "Jogos de enigmas e problemas para resolver",
+        ],
+    ),
+    (
+        "category.apple.puzzle-games.title",
+        ["Puzzle games", "Jogos de quebra-cabeça"],
+    ),
+    (
+        "category.apple.racing-games.description",
+        ["Games of driving and racing", "Jogos de direção e corrida"],
+    ),
+    (
+        "category.apple.racing-games.title",
+        ["Racing games", "Jogos de corrida"],
+    ),
+    (
+        "category.apple.reference.description",
+        [
+            "Apps for looking things up: dictionaries, guides and manuals",
+            "Aplicativos de consulta: dicionários, guias e manuais",
+        ],
+    ),
+    (
+        "category.apple.reference.title",
+        ["Reference", "Referência"],
+    ),
+    (
+        "category.apple.role-playing-games.description",
+        [
+            "Games in which a player takes on a character's role",
+            "Jogos em que quem joga assume o papel de um personagem",
+        ],
+    ),
+    (
+        "category.apple.role-playing-games.title",
+        ["Role-playing games", "Jogos de interpretação de papéis"],
+    ),
+    (
+        "category.apple.simulation-games.description",
+        [
+            "Games that simulate a real activity",
+            "Jogos que simulam uma atividade real",
+        ],
+    ),
+    (
+        "category.apple.simulation-games.title",
+        ["Simulation games", "Jogos de simulação"],
+    ),
+    (
+        "category.apple.social-networking.description",
+        [
+            "Apps for keeping in touch with people",
+            "Aplicativos para manter contato com outras pessoas",
+        ],
+    ),
+    (
+        "category.apple.social-networking.title",
+        ["Social networking", "Redes sociais"],
+    ),
+    (
+        "category.apple.sports-games.description",
+        [
+            "Games of real or imagined sports",
+            "Jogos de esportes reais ou imaginários",
+        ],
+    ),
+    (
+        "category.apple.sports-games.title",
+        ["Sports games", "Jogos de esporte"],
+    ),
+    (
+        "category.apple.sports.description",
+        [
+            "Apps for following and practising sports",
+            "Aplicativos para acompanhar e praticar esportes",
+        ],
+    ),
+    ("category.apple.sports.title", ["Sports", "Esportes"]),
+    (
+        "category.apple.strategy-games.description",
+        [
+            "Games of planning and tactics",
+            "Jogos de planejamento e tática",
+        ],
+    ),
+    (
+        "category.apple.strategy-games.title",
+        ["Strategy games", "Jogos de estratégia"],
+    ),
+    (
+        "category.apple.travel.description",
+        [
+            "Apps for planning and taking trips",
+            "Aplicativos para planejar e fazer viagens",
+        ],
+    ),
+    ("category.apple.travel.title", ["Travel", "Viagens"]),
+    (
+        "category.apple.trivia-games.description",
+        [
+            "Games of questions and general knowledge",
+            "Jogos de perguntas e conhecimentos gerais",
+        ],
+    ),
+    (
+        "category.apple.trivia-games.title",
+        ["Trivia games", "Jogos de perguntas"],
+    ),
+    (
+        "category.apple.utilities.description",
+        [
+            "Small apps for everyday tasks on the device",
+            "Pequenos aplicativos para tarefas do dia a dia no aparelho",
+        ],
+    ),
+    (
+        "category.apple.utilities.title",
+        ["Utilities", "Utilitários"],
+    ),
+    (
+        "category.apple.video.description",
+        [
+            "Apps for watching, recording and editing video",
+            "Aplicativos para assistir, gravar e editar vídeos",
+        ],
+    ),
+    ("category.apple.video.title", ["Video", "Vídeo"]),
+    (
+        "category.apple.weather.description",
+        [
+            "Apps for forecasts and weather conditions",
+            "Aplicativos de previsão do tempo e condições climáticas",
+        ],
+    ),
+    ("category.apple.weather.title", ["Weather", "Clima"]),
+    (
+        "category.apple.word-games.description",
+        [
+            "Games played with words and letters",
+            "Jogos jogados com palavras e letras",
+        ],
+    ),
+    (
+        "category.apple.word-games.title",
+        ["Word games", "Jogos de palavras"],
+    ),
+    (
+        "category.freedesktop.2d-graphics.description",
+        [
+            "2D based graphical application",
+            "Aplicativo gráfico em duas dimensões",
+        ],
+    ),
+    (
+        "category.freedesktop.2d-graphics.title",
+        ["2D graphics", "Gráficos 2D"],
+    ),
+    (
+        "category.freedesktop.3d-graphics.description",
+        [
+            "Application for viewing, creating, or processing 3-D graphics",
+            "Aplicativo para ver, criar ou processar gráficos 3D",
+        ],
+    ),
+    (
+        "category.freedesktop.3d-graphics.title",
+        ["3D graphics", "Gráficos 3D"],
+    ),
+    (
+        "category.freedesktop.accessibility.description",
+        ["Accessibility tools", "Ferramentas de acessibilidade"],
+    ),
+    (
+        "category.freedesktop.accessibility.title",
+        ["Accessibility", "Acessibilidade"],
+    ),
+    (
+        "category.freedesktop.action-game.description",
+        ["An action game", "Um jogo de ação"],
+    ),
+    (
+        "category.freedesktop.action-game.title",
+        ["Action games", "Jogos de ação"],
+    ),
+    (
+        "category.freedesktop.adult.description",
+        [
+            "An application that handles adult or explicit material",
+            "Um aplicativo que lida com material adulto ou explícito",
+        ],
+    ),
+    (
+        "category.freedesktop.adult.title",
+        ["Adult content", "Conteúdo adulto"],
+    ),
+    (
+        "category.freedesktop.adventure-game.description",
+        ["Adventure style game", "Jogo no estilo aventura"],
+    ),
+    (
+        "category.freedesktop.adventure-game.title",
+        ["Adventure games", "Jogos de aventura"],
+    ),
+    (
+        "category.freedesktop.amusement.description",
+        ["A simple amusement", "Um passatempo simples"],
+    ),
+    (
+        "category.freedesktop.amusement.title",
+        ["Amusements", "Passatempos"],
+    ),
+    (
+        "category.freedesktop.applet.description",
+        [
+            "An applet that runs inside a panel or another such application",
+            "Um miniaplicativo que roda dentro de um painel ou aplicativo parecido",
+        ],
+    ),
+    (
+        "category.freedesktop.applet.title",
+        ["Applets", "Miniaplicativos"],
+    ),
+    (
+        "category.freedesktop.arcade-game.description",
+        ["Arcade style game", "Jogo no estilo fliperama"],
+    ),
+    (
+        "category.freedesktop.arcade-game.title",
+        ["Arcade games", "Jogos de fliperama"],
+    ),
+    (
+        "category.freedesktop.archiving.description",
+        [
+            "A tool to archive or back up data",
+            "Uma ferramenta para arquivar dados ou fazer cópias de segurança",
+        ],
+    ),
+    (
+        "category.freedesktop.archiving.title",
+        ["Archiving", "Arquivamento"],
+    ),
+    (
+        "category.freedesktop.art.description",
+        ["Software to teach arts", "Software para ensinar artes"],
+    ),
+    ("category.freedesktop.art.title", ["Art", "Arte"]),
+    (
+        "category.freedesktop.artificial-intelligence.description",
+        [
+            "Artificial Intelligence software",
+            "Software de inteligência artificial",
+        ],
+    ),
+    (
+        "category.freedesktop.artificial-intelligence.title",
+        ["Artificial intelligence", "Inteligência artificial"],
+    ),
+    (
+        "category.freedesktop.astronomy.description",
+        ["Astronomy software", "Software de astronomia"],
+    ),
+    (
+        "category.freedesktop.astronomy.title",
+        ["Astronomy", "Astronomia"],
+    ),
+    (
+        "category.freedesktop.audio-video-editing.description",
+        [
+            "Application to edit audio or video files",
+            "Aplicativo para editar arquivos de áudio ou vídeo",
+        ],
+    ),
+    (
+        "category.freedesktop.audio-video-editing.title",
+        ["Audio and video editing", "Edição de áudio e vídeo"],
+    ),
+    (
+        "category.freedesktop.audio-video.description",
+        [
+            "Application for presenting, creating, or processing multimedia (audio/video)",
+            "Aplicativo para apresentar, criar ou processar multimídia (áudio e vídeo)",
+        ],
+    ),
+    (
+        "category.freedesktop.audio-video.title",
+        ["Audio and video", "Áudio e vídeo"],
+    ),
+    (
+        "category.freedesktop.audio.description",
+        ["An audio application", "Um aplicativo de áudio"],
+    ),
+    ("category.freedesktop.audio.title", ["Audio", "Áudio"]),
+    (
+        "category.freedesktop.biology.description",
+        ["Biology software", "Software de biologia"],
+    ),
+    (
+        "category.freedesktop.biology.title",
+        ["Biology", "Biologia"],
+    ),
+    (
+        "category.freedesktop.blocks-game.description",
+        ["Falling blocks game", "Jogo de blocos que caem"],
+    ),
+    (
+        "category.freedesktop.blocks-game.title",
+        ["Block games", "Jogos de blocos"],
+    ),
+    (
+        "category.freedesktop.board-game.description",
+        ["A board game", "Um jogo de tabuleiro"],
+    ),
+    (
+        "category.freedesktop.board-game.title",
+        ["Board games", "Jogos de tabuleiro"],
+    ),
+    (
+        "category.freedesktop.building.description",
+        [
+            "A tool to build applications",
+            "Uma ferramenta para compilar aplicativos",
+        ],
+    ),
+    (
+        "category.freedesktop.building.title",
+        ["Build tools", "Ferramentas de compilação"],
+    ),
+    (
+        "category.freedesktop.calculator.description",
+        ["A calculator", "Uma calculadora"],
+    ),
+    (
+        "category.freedesktop.calculator.title",
+        ["Calculators", "Calculadoras"],
+    ),
+    (
+        "category.freedesktop.calendar.description",
+        ["Calendar application", "Aplicativo de calendário"],
+    ),
+    (
+        "category.freedesktop.calendar.title",
+        ["Calendars", "Calendários"],
+    ),
+    (
+        "category.freedesktop.card-game.description",
+        ["A card game", "Um jogo de cartas"],
+    ),
+    (
+        "category.freedesktop.card-game.title",
+        ["Card games", "Jogos de cartas"],
+    ),
+    (
+        "category.freedesktop.care-provider.description",
+        [
+            "Talking to your doctor, booking an appointment or viewing test results",
+            "Falar com seu médico, marcar consultas ou ver resultados de exames",
+        ],
+    ),
+    (
+        "category.freedesktop.care-provider.title",
+        ["Care providers", "Atendimento médico"],
+    ),
+    (
+        "category.freedesktop.chart.description",
+        ["Chart application", "Aplicativo de gráficos de dados"],
+    ),
+    (
+        "category.freedesktop.chart.title",
+        ["Charts", "Gráficos de dados"],
+    ),
+    (
+        "category.freedesktop.chat.description",
+        ["A chat client", "Um cliente de bate-papo"],
+    ),
+    ("category.freedesktop.chat.title", ["Chat", "Bate-papo"]),
+    (
+        "category.freedesktop.chemistry.description",
+        ["Chemistry software", "Software de química"],
+    ),
+    (
+        "category.freedesktop.chemistry.title",
+        ["Chemistry", "Química"],
+    ),
+    (
+        "category.freedesktop.clock.description",
+        [
+            "A clock application or applet",
+            "Um relógio, como aplicativo ou miniaplicativo",
+        ],
+    ),
+    ("category.freedesktop.clock.title", ["Clocks", "Relógios"]),
+    (
+        "category.freedesktop.compression.description",
+        [
+            "A tool to manage compressed data or archives",
+            "Uma ferramenta para gerenciar dados ou arquivos compactados",
+        ],
+    ),
+    (
+        "category.freedesktop.compression.title",
+        ["Compression", "Compressão"],
+    ),
+    (
+        "category.freedesktop.computer-science.description",
+        [
+            "Computer Science software",
+            "Software de ciência da computação",
+        ],
+    ),
+    (
+        "category.freedesktop.computer-science.title",
+        ["Computer science", "Ciência da computação"],
+    ),
+    (
+        "category.freedesktop.console-only.description",
+        [
+            "An application that only works inside a terminal",
+            "Um aplicativo que só funciona dentro de um terminal",
+        ],
+    ),
+    (
+        "category.freedesktop.console-only.title",
+        ["Terminal only", "Somente no terminal"],
+    ),
+    (
+        "category.freedesktop.construction.description",
+        ["Construction software", "Software de construção"],
+    ),
+    (
+        "category.freedesktop.construction.title",
+        ["Construction", "Construção"],
+    ),
+    (
+        "category.freedesktop.contact-management.description",
+        [
+            "An address book, for example",
+            "Um catálogo de endereços, por exemplo",
+        ],
+    ),
+    (
+        "category.freedesktop.contact-management.title",
+        ["Contact management", "Gestão de contatos"],
+    ),
+    (
+        "category.freedesktop.core.description",
+        [
+            "An application core to the desktop, such as a file manager",
+            "Aplicativo essencial ao ambiente, como um gerenciador de arquivos",
+        ],
+    ),
+    (
+        "category.freedesktop.core.title",
+        ["Core applications", "Aplicativos essenciais"],
+    ),
+    (
+        "category.freedesktop.cosmic.description",
+        [
+            "Application based on COSMIC libraries",
+            "Aplicativo baseado nas bibliotecas do COSMIC",
+        ],
+    ),
+    ("category.freedesktop.cosmic.title", ["COSMIC", "COSMIC"]),
+    (
+        "category.freedesktop.data-visualization.description",
+        [
+            "Data visualization software",
+            "Software de visualização de dados",
+        ],
+    ),
+    (
+        "category.freedesktop.data-visualization.title",
+        ["Data visualization", "Visualização de dados"],
+    ),
+    (
+        "category.freedesktop.database.description",
+        [
+            "Application to manage a database",
+            "Aplicativo para gerenciar um banco de dados",
+        ],
+    ),
+    (
+        "category.freedesktop.database.title",
+        ["Databases", "Bancos de dados"],
+    ),
+    (
+        "category.freedesktop.dde.description",
+        [
+            "Application based on DDE libraries",
+            "Aplicativo baseado nas bibliotecas do DDE",
+        ],
+    ),
+    ("category.freedesktop.dde.title", ["DDE", "DDE"]),
+    (
+        "category.freedesktop.debugger.description",
+        [
+            "A tool to debug applications",
+            "Uma ferramenta para depurar aplicativos",
+        ],
+    ),
+    (
+        "category.freedesktop.debugger.title",
+        ["Debuggers", "Depuradores"],
+    ),
+    (
+        "category.freedesktop.desktop-settings.description",
+        [
+            "Configuration tool for the GUI",
+            "Ferramenta de configuração da interface gráfica",
+        ],
+    ),
+    (
+        "category.freedesktop.desktop-settings.title",
+        ["Desktop settings", "Configurações da área de trabalho"],
+    ),
+    (
+        "category.freedesktop.development.description",
+        [
+            "An application for development",
+            "Um aplicativo para desenvolver software",
+        ],
+    ),
+    (
+        "category.freedesktop.development.title",
+        ["Development", "Desenvolvimento"],
+    ),
+    (
+        "category.freedesktop.dialup.description",
+        ["A dial-up program", "Um programa de conexão discada"],
+    ),
+    (
+        "category.freedesktop.dialup.title",
+        ["Dial-up", "Conexão discada"],
+    ),
+    (
+        "category.freedesktop.dictionary.description",
+        ["A dictionary", "Um dicionário"],
+    ),
+    (
+        "category.freedesktop.dictionary.title",
+        ["Dictionaries", "Dicionários"],
+    ),
+    (
+        "category.freedesktop.disc-burning.description",
+        [
+            "Application to burn a disc",
+            "Aplicativo para gravar um disco",
+        ],
+    ),
+    (
+        "category.freedesktop.disc-burning.title",
+        ["Disc burning", "Gravação de discos"],
+    ),
+    (
+        "category.freedesktop.documentation.description",
+        ["Help or documentation", "Ajuda ou documentação"],
+    ),
+    (
+        "category.freedesktop.documentation.title",
+        ["Documentation", "Documentação"],
+    ),
+    (
+        "category.freedesktop.economy.description",
+        ["Economy software", "Software de economia"],
+    ),
+    (
+        "category.freedesktop.economy.title",
+        ["Economics", "Economia"],
+    ),
+    (
+        "category.freedesktop.education.description",
+        ["Educational software", "Software educacional"],
+    ),
+    (
+        "category.freedesktop.education.title",
+        ["Education", "Educação"],
+    ),
+    (
+        "category.freedesktop.electricity.description",
+        ["Electricity software", "Software de eletricidade"],
+    ),
+    (
+        "category.freedesktop.electricity.title",
+        ["Electricity", "Eletricidade"],
+    ),
+    (
+        "category.freedesktop.electronics.description",
+        [
+            "Electronics software, such as a circuit designer",
+            "Software de eletrônica, como um projetista de circuitos",
+        ],
+    ),
+    (
+        "category.freedesktop.electronics.title",
+        ["Electronics", "Eletrônica"],
+    ),
+    (
+        "category.freedesktop.email.description",
+        ["Email application", "Aplicativo de e-mail"],
+    ),
+    ("category.freedesktop.email.title", ["Email", "E-mail"]),
+    (
+        "category.freedesktop.emulator.description",
+        [
+            "Emulator of another platform, such as a DOS emulator",
+            "Emulador de outra plataforma, como um emulador de DOS",
+        ],
+    ),
+    (
+        "category.freedesktop.emulator.title",
+        ["Emulators", "Emuladores"],
+    ),
+    (
+        "category.freedesktop.engineering.description",
+        [
+            "Engineering software, such as CAD programs",
+            "Software de engenharia, como programas de CAD",
+        ],
+    ),
+    (
+        "category.freedesktop.engineering.title",
+        ["Engineering", "Engenharia"],
+    ),
+    (
+        "category.freedesktop.exercise.description",
+        [
+            "Tracking exercise, showing exercise videos, or syncing with gym equipment",
+            "Acompanhar exercícios, mostrar vídeos de treino ou sincronizar aparelhos",
+        ],
+    ),
+    (
+        "category.freedesktop.exercise.title",
+        ["Exercise", "Exercícios"],
+    ),
+    (
+        "category.freedesktop.feed.description",
+        [
+            "RSS, podcast and other subscription based contents",
+            "RSS, podcasts e outros conteúdos por assinatura",
+        ],
+    ),
+    (
+        "category.freedesktop.feed.title",
+        ["Feeds", "Assinaturas de conteúdo"],
+    ),
+    (
+        "category.freedesktop.file-manager.description",
+        ["A file manager", "Um gerenciador de arquivos"],
+    ),
+    (
+        "category.freedesktop.file-manager.title",
+        ["File managers", "Gerenciadores de arquivos"],
+    ),
+    (
+        "category.freedesktop.file-tools.description",
+        [
+            "A file tool utility",
+            "Um utilitário para trabalhar com arquivos",
+        ],
+    ),
+    (
+        "category.freedesktop.file-tools.title",
+        ["File tools", "Ferramentas de arquivos"],
+    ),
+    (
+        "category.freedesktop.file-transfer.description",
+        [
+            "Tools like FTP or P2P programs",
+            "Ferramentas como programas de FTP ou P2P",
+        ],
+    ),
+    (
+        "category.freedesktop.file-transfer.title",
+        ["File transfer", "Transferência de arquivos"],
+    ),
+    (
+        "category.freedesktop.filesystem.description",
+        [
+            "A file system tool",
+            "Uma ferramenta de sistema de arquivos",
+        ],
+    ),
+    (
+        "category.freedesktop.filesystem.title",
+        ["File systems", "Sistemas de arquivos"],
+    ),
+    (
+        "category.freedesktop.finance.description",
+        [
+            "Application to manage your finances",
+            "Aplicativo para gerenciar suas finanças",
+        ],
+    ),
+    (
+        "category.freedesktop.finance.title",
+        ["Finance", "Finanças"],
+    ),
+    (
+        "category.freedesktop.flow-chart.description",
+        ["A flowchart application", "Um aplicativo de fluxogramas"],
+    ),
+    (
+        "category.freedesktop.flow-chart.title",
+        ["Flowcharts", "Fluxogramas"],
+    ),
+    (
+        "category.freedesktop.game-tool.description",
+        [
+            "Companion apps for games, such as addon managers or remote play clients",
+            "Aplicativos que acompanham jogos, como gerenciadores de extensões",
+        ],
+    ),
+    (
+        "category.freedesktop.game-tool.title",
+        ["Game tools", "Ferramentas para jogos"],
+    ),
+    (
+        "category.freedesktop.game.description",
+        ["A game", "Um jogo"],
+    ),
+    ("category.freedesktop.game.title", ["Games", "Jogos"]),
+    (
+        "category.freedesktop.geography.description",
+        ["Geography software", "Software de geografia"],
+    ),
+    (
+        "category.freedesktop.geography.title",
+        ["Geography", "Geografia"],
+    ),
+    (
+        "category.freedesktop.geology.description",
+        ["Geology software", "Software de geologia"],
+    ),
+    (
+        "category.freedesktop.geology.title",
+        ["Geology", "Geologia"],
+    ),
+    (
+        "category.freedesktop.geoscience.description",
+        ["Geoscience software, GIS", "Software de geociências e SIG"],
+    ),
+    (
+        "category.freedesktop.geoscience.title",
+        ["Geoscience", "Geociências"],
+    ),
+    (
+        "category.freedesktop.gnome.description",
+        [
+            "Application based on GNOME libraries",
+            "Aplicativo baseado nas bibliotecas do GNOME",
+        ],
+    ),
+    ("category.freedesktop.gnome.title", ["GNOME", "GNOME"]),
+    (
+        "category.freedesktop.graphics.description",
+        [
+            "Application for viewing, creating, or processing graphics",
+            "Aplicativo para ver, criar ou processar imagens",
+        ],
+    ),
+    (
+        "category.freedesktop.graphics.title",
+        ["Graphics", "Gráficos"],
+    ),
+    (
+        "category.freedesktop.gtk.description",
+        [
+            "Application based on GTK+ libraries",
+            "Aplicativo baseado nas bibliotecas GTK+",
+        ],
+    ),
+    ("category.freedesktop.gtk.title", ["GTK", "GTK"]),
+    (
+        "category.freedesktop.gui-designer.description",
+        [
+            "A GUI designer application",
+            "Um aplicativo para desenhar interfaces gráficas",
+        ],
+    ),
+    (
+        "category.freedesktop.gui-designer.title",
+        ["Interface designers", "Designers de interface"],
+    ),
+    (
+        "category.freedesktop.ham-radio.description",
+        ["HAM radio software", "Software de radioamador"],
+    ),
+    (
+        "category.freedesktop.ham-radio.title",
+        ["Amateur radio", "Radioamadorismo"],
+    ),
+    (
+        "category.freedesktop.hardware-settings.description",
+        [
+            "A tool to manage hardware, like sound cards, video cards or printers",
+            "Ferramenta para gerenciar hardware, como placas de som e vídeo ou impressoras",
+        ],
+    ),
+    (
+        "category.freedesktop.hardware-settings.title",
+        ["Hardware settings", "Configurações de hardware"],
+    ),
+    (
+        "category.freedesktop.health-fitness.description",
+        [
+            "Applications related to physical or mental health and fitness",
+            "Aplicativos ligados à saúde física ou mental e ao condicionamento",
+        ],
+    ),
+    (
+        "category.freedesktop.health-fitness.title",
+        ["Health and fitness", "Saúde e condicionamento"],
+    ),
+    (
+        "category.freedesktop.history.description",
+        ["History software", "Software de história"],
+    ),
+    (
+        "category.freedesktop.history.title",
+        ["History", "História"],
+    ),
+    (
+        "category.freedesktop.humanities.description",
+        [
+            "Software for philosophy, psychology and other humanities",
+            "Software de filosofia, psicologia e outras ciências humanas",
+        ],
+    ),
+    (
+        "category.freedesktop.humanities.title",
+        ["Humanities", "Ciências humanas"],
+    ),
+    (
+        "category.freedesktop.ide.description",
+        [
+            "An integrated development environment (IDE)",
+            "Um ambiente de desenvolvimento integrado (IDE)",
+        ],
+    ),
+    (
+        "category.freedesktop.ide.title",
+        ["Development environments", "Ambientes de desenvolvimento"],
+    ),
+    (
+        "category.freedesktop.image-processing.description",
+        [
+            "Image Processing software",
+            "Software de processamento de imagens",
+        ],
+    ),
+    (
+        "category.freedesktop.image-processing.title",
+        ["Image processing", "Processamento de imagens"],
+    ),
+    (
+        "category.freedesktop.instant-messaging.description",
+        [
+            "An instant messaging client",
+            "Um cliente de mensagens instantâneas",
+        ],
+    ),
+    (
+        "category.freedesktop.instant-messaging.title",
+        ["Instant messaging", "Mensagens instantâneas"],
+    ),
+    (
+        "category.freedesktop.irc-client.description",
+        ["An IRC client", "Um cliente de IRC"],
+    ),
+    (
+        "category.freedesktop.irc-client.title",
+        ["IRC clients", "Clientes de IRC"],
+    ),
+    (
+        "category.freedesktop.java.description",
+        [
+            "Application based on Java GUI libraries, such as AWT or Swing",
+            "Aplicativo baseado em bibliotecas gráficas Java, como AWT ou Swing",
+        ],
+    ),
+    ("category.freedesktop.java.title", ["Java", "Java"]),
+    (
+        "category.freedesktop.kde.description",
+        [
+            "Application based on KDE libraries",
+            "Aplicativo baseado nas bibliotecas do KDE",
+        ],
+    ),
+    ("category.freedesktop.kde.title", ["KDE", "KDE"]),
+    (
+        "category.freedesktop.kids-game.description",
+        ["A game for kids", "Um jogo para crianças"],
+    ),
+    (
+        "category.freedesktop.kids-game.title",
+        ["Games for kids", "Jogos infantis"],
+    ),
+    (
+        "category.freedesktop.languages.description",
+        [
+            "Software to learn foreign languages",
+            "Software para aprender línguas estrangeiras",
+        ],
+    ),
+    (
+        "category.freedesktop.languages.title",
+        ["Languages", "Idiomas"],
+    ),
+    (
+        "category.freedesktop.launcher-store.description",
+        [
+            "A place to browse and install games or a launcher for a game or games",
+            "Um lugar para conhecer e instalar jogos, ou um lançador de jogos",
+        ],
+    ),
+    (
+        "category.freedesktop.launcher-store.title",
+        ["Game stores and launchers", "Lojas e lançadores de jogos"],
+    ),
+    (
+        "category.freedesktop.literature.description",
+        ["Literature software", "Software de literatura"],
+    ),
+    (
+        "category.freedesktop.literature.title",
+        ["Literature", "Literatura"],
+    ),
+    (
+        "category.freedesktop.logic-game.description",
+        [
+            "A logic game, such as a puzzle",
+            "Um jogo de lógica, como um quebra-cabeça",
+        ],
+    ),
+    (
+        "category.freedesktop.logic-game.title",
+        ["Logic games", "Jogos de lógica"],
+    ),
+    (
+        "category.freedesktop.lx-qt.description",
+        [
+            "Application based on LXQt libraries",
+            "Aplicativo baseado nas bibliotecas do LXQt",
+        ],
+    ),
+    ("category.freedesktop.lx-qt.title", ["LXQt", "LXQt"]),
+    (
+        "category.freedesktop.maps.description",
+        [
+            "Software for viewing maps, navigation, mapping, GPS",
+            "Software para ver mapas, navegar, mapear e usar GPS",
+        ],
+    ),
+    ("category.freedesktop.maps.title", ["Maps", "Mapas"]),
+    (
+        "category.freedesktop.math.description",
+        ["Math software", "Software de matemática"],
+    ),
+    (
+        "category.freedesktop.math.title",
+        ["Mathematics", "Matemática"],
+    ),
+    (
+        "category.freedesktop.medical-software.description",
+        ["Medical software", "Software médico"],
+    ),
+    (
+        "category.freedesktop.medical-software.title",
+        ["Medicine", "Medicina"],
+    ),
+    (
+        "category.freedesktop.medication.description",
+        [
+            "Understanding or tracking medication",
+            "Entender ou acompanhar o uso de medicamentos",
+        ],
+    ),
+    (
+        "category.freedesktop.medication.title",
+        ["Medication", "Medicamentos"],
+    ),
+    (
+        "category.freedesktop.midi.description",
+        ["An app related to MIDI", "Um aplicativo ligado a MIDI"],
+    ),
+    (
+        "category.freedesktop.midi.title",
+        ["MIDI tools", "Ferramentas MIDI"],
+    ),
+    (
+        "category.freedesktop.mindfulness.description",
+        [
+            "Meditation, journaling, digital-wellbeing, therapy, or other mental health",
+            "Meditação, diário, bem-estar digital, terapia ou outro cuidado com a mente",
+        ],
+    ),
+    (
+        "category.freedesktop.mindfulness.title",
+        ["Mindfulness", "Atenção plena"],
+    ),
+    (
+        "category.freedesktop.mixer.description",
+        ["An audio mixer", "Uma mesa de mixagem de áudio"],
+    ),
+    (
+        "category.freedesktop.mixer.title",
+        ["Mixers", "Mesas de mixagem"],
+    ),
+    (
+        "category.freedesktop.monitor.description",
+        [
+            "An application or applet that monitors a resource or an activity",
+            "Aplicativo ou miniaplicativo que monitora um recurso ou uma atividade",
+        ],
+    ),
+    (
+        "category.freedesktop.monitor.title",
+        ["Monitoring", "Monitoramento"],
+    ),
+    (
+        "category.freedesktop.motif.description",
+        [
+            "Application based on Motif libraries",
+            "Aplicativo baseado nas bibliotecas Motif",
+        ],
+    ),
+    ("category.freedesktop.motif.title", ["Motif", "Motif"]),
+    (
+        "category.freedesktop.music.description",
+        ["Musical software", "Software musical"],
+    ),
+    ("category.freedesktop.music.title", ["Music", "Música"]),
+    (
+        "category.freedesktop.network.description",
+        [
+            "Network application such as a web browser",
+            "Aplicativo de rede, como um navegador web",
+        ],
+    ),
+    ("category.freedesktop.network.title", ["Network", "Rede"]),
+    (
+        "category.freedesktop.news.description",
+        [
+            "A news reader or a news ticker",
+            "Um leitor de notícias ou um painel de manchetes",
+        ],
+    ),
+    ("category.freedesktop.news.title", ["News", "Notícias"]),
+    (
+        "category.freedesktop.numerical-analysis.description",
+        [
+            "Numerical analysis software",
+            "Software de análise numérica",
+        ],
+    ),
+    (
+        "category.freedesktop.numerical-analysis.title",
+        ["Numerical analysis", "Análise numérica"],
+    ),
+    (
+        "category.freedesktop.nutrition.description",
+        [
+            "Nutrition or hydration tracking, weight control, or meal planning",
+            "Acompanhar nutrição ou hidratação, controlar o peso ou planejar refeições",
+        ],
+    ),
+    (
+        "category.freedesktop.nutrition.title",
+        ["Nutrition", "Nutrição"],
+    ),
+    (
+        "category.freedesktop.ocr.description",
+        [
+            "Optical character recognition application",
+            "Aplicativo de reconhecimento óptico de caracteres",
+        ],
+    ),
+    (
+        "category.freedesktop.ocr.title",
+        ["Text recognition", "Reconhecimento de texto"],
+    ),
+    (
+        "category.freedesktop.office.description",
+        ["An office type application", "Um aplicativo de escritório"],
+    ),
+    (
+        "category.freedesktop.office.title",
+        ["Office", "Escritório"],
+    ),
+    (
+        "category.freedesktop.p-2p.description",
+        ["A P2P program", "Um programa P2P"],
+    ),
+    (
+        "category.freedesktop.p-2p.title",
+        ["Peer-to-peer", "Ponto a ponto"],
+    ),
+    (
+        "category.freedesktop.package-manager.description",
+        ["A package manager application", "Um gerenciador de pacotes"],
+    ),
+    (
+        "category.freedesktop.package-manager.title",
+        ["Package managers", "Gerenciadores de pacotes"],
+    ),
+    (
+        "category.freedesktop.parallel-computing.description",
+        [
+            "Parallel computing software",
+            "Software de computação paralela",
+        ],
+    ),
+    (
+        "category.freedesktop.parallel-computing.title",
+        ["Parallel computing", "Computação paralela"],
+    ),
+    (
+        "category.freedesktop.pda.description",
+        [
+            "Tool to manage your PDA",
+            "Ferramenta para gerenciar seu PDA",
+        ],
+    ),
+    (
+        "category.freedesktop.pda.title",
+        ["PDA tools", "Ferramentas de PDA"],
+    ),
+    (
+        "category.freedesktop.photography.description",
+        [
+            "Camera tools, and the like",
+            "Ferramentas para câmeras e afins",
+        ],
+    ),
+    (
+        "category.freedesktop.photography.title",
+        ["Photography", "Fotografia"],
+    ),
+    (
+        "category.freedesktop.physics.description",
+        ["Physics software", "Software de física"],
+    ),
+    ("category.freedesktop.physics.title", ["Physics", "Física"]),
+    (
+        "category.freedesktop.player.description",
+        [
+            "Application to play audio or video files",
+            "Aplicativo para reproduzir arquivos de áudio ou vídeo",
+        ],
+    ),
+    (
+        "category.freedesktop.player.title",
+        ["Players", "Reprodutores"],
+    ),
+    (
+        "category.freedesktop.presentation.description",
+        ["Presentation software", "Software de apresentações"],
+    ),
+    (
+        "category.freedesktop.presentation.title",
+        ["Presentations", "Apresentações"],
+    ),
+    (
+        "category.freedesktop.printing.description",
+        [
+            "A tool to manage printers",
+            "Uma ferramenta para gerenciar impressoras",
+        ],
+    ),
+    (
+        "category.freedesktop.printing.title",
+        ["Printing", "Impressão"],
+    ),
+    (
+        "category.freedesktop.profiling.description",
+        [
+            "A profiling tool",
+            "Uma ferramenta de análise de desempenho",
+        ],
+    ),
+    (
+        "category.freedesktop.profiling.title",
+        ["Profiling", "Análise de desempenho"],
+    ),
+    (
+        "category.freedesktop.project-management.description",
+        [
+            "Project management application",
+            "Aplicativo de gestão de projetos",
+        ],
+    ),
+    (
+        "category.freedesktop.project-management.title",
+        ["Project management", "Gestão de projetos"],
+    ),
+    (
+        "category.freedesktop.publishing.description",
+        [
+            "Desktop Publishing applications and Color Management tools",
+            "Aplicativos de editoração eletrônica e de gestão de cores",
+        ],
+    ),
+    (
+        "category.freedesktop.publishing.title",
+        ["Publishing", "Editoração"],
+    ),
+    (
+        "category.freedesktop.qt.description",
+        [
+            "Application based on Qt libraries",
+            "Aplicativo baseado nas bibliotecas Qt",
+        ],
+    ),
+    ("category.freedesktop.qt.title", ["Qt", "Qt"]),
+    (
+        "category.freedesktop.raster-graphics.description",
+        [
+            "Application for viewing, creating, or processing raster (bitmap) graphics",
+            "Aplicativo para ver, criar ou processar imagens rasterizadas (bitmap)",
+        ],
+    ),
+    (
+        "category.freedesktop.raster-graphics.title",
+        ["Raster graphics", "Gráficos rasterizados"],
+    ),
+    (
+        "category.freedesktop.recorder.description",
+        [
+            "Application to record audio or video files",
+            "Aplicativo para gravar arquivos de áudio ou vídeo",
+        ],
+    ),
+    (
+        "category.freedesktop.recorder.title",
+        ["Recorders", "Gravadores"],
+    ),
+    (
+        "category.freedesktop.remote-access.description",
+        [
+            "A tool to remotely manage your PC",
+            "Uma ferramenta para gerenciar seu computador a distância",
+        ],
+    ),
+    (
+        "category.freedesktop.remote-access.title",
+        ["Remote access", "Acesso remoto"],
+    ),
+    (
+        "category.freedesktop.revision-control.description",
+        [
+            "Applications like cvs or subversion",
+            "Aplicativos como cvs ou subversion",
+        ],
+    ),
+    (
+        "category.freedesktop.revision-control.title",
+        ["Revision control", "Controle de versões"],
+    ),
+    (
+        "category.freedesktop.robotics.description",
+        ["Robotics software", "Software de robótica"],
+    ),
+    (
+        "category.freedesktop.robotics.title",
+        ["Robotics", "Robótica"],
+    ),
+    (
+        "category.freedesktop.role-playing.description",
+        [
+            "A role playing game",
+            "Um jogo de interpretação de papéis (RPG)",
+        ],
+    ),
+    (
+        "category.freedesktop.role-playing.title",
+        ["Role-playing games", "Jogos de interpretação de papéis"],
+    ),
+    (
+        "category.freedesktop.scanning.description",
+        [
+            "Tool to scan a file or a text",
+            "Ferramenta para digitalizar um arquivo ou um texto",
+        ],
+    ),
+    (
+        "category.freedesktop.scanning.title",
+        ["Scanning", "Digitalização"],
+    ),
+    (
+        "category.freedesktop.science.description",
+        ["Scientific software", "Software científico"],
+    ),
+    ("category.freedesktop.science.title", ["Science", "Ciência"]),
+    (
+        "category.freedesktop.screensaver.description",
+        [
+            "A screen saver: launching its entry starts the screen saver",
+            "Um protetor de tela: abrir sua entrada ativa o protetor de tela",
+        ],
+    ),
+    (
+        "category.freedesktop.screensaver.title",
+        ["Screen savers", "Protetores de tela"],
+    ),
+    (
+        "category.freedesktop.security.description",
+        ["A security tool", "Uma ferramenta de segurança"],
+    ),
+    (
+        "category.freedesktop.security.title",
+        ["Security", "Segurança"],
+    ),
+    (
+        "category.freedesktop.sequencer.description",
+        ["A sequencer", "Um sequenciador"],
+    ),
+    (
+        "category.freedesktop.sequencer.title",
+        ["Sequencers", "Sequenciadores"],
+    ),
+    (
+        "category.freedesktop.settings.description",
+        ["Settings applications", "Aplicativos de configuração"],
+    ),
+    (
+        "category.freedesktop.settings.title",
+        ["Settings", "Configurações"],
+    ),
+    (
+        "category.freedesktop.shell.description",
+        [
+            "A shell such as bash or tcsh, not a terminal emulator",
+            "Um interpretador de comandos, como bash ou tcsh, não um terminal",
+        ],
+    ),
+    (
+        "category.freedesktop.shell.title",
+        ["Shells", "Interpretadores de comandos"],
+    ),
+    (
+        "category.freedesktop.shooter.description",
+        ["A shooter game", "Um jogo de tiro"],
+    ),
+    (
+        "category.freedesktop.shooter.title",
+        ["Shooters", "Jogos de tiro"],
+    ),
+    (
+        "category.freedesktop.simulation.description",
+        ["A simulation game", "Um jogo de simulação"],
+    ),
+    (
+        "category.freedesktop.simulation.title",
+        ["Simulation games", "Jogos de simulação"],
+    ),
+    (
+        "category.freedesktop.sleep.description",
+        [
+            "Sleep monitoring or tracking, or help with sleeping",
+            "Monitorar ou acompanhar o sono, ou ajudar a dormir",
+        ],
+    ),
+    ("category.freedesktop.sleep.title", ["Sleep", "Sono"]),
+    (
+        "category.freedesktop.spirituality.description",
+        [
+            "Religious and spiritual software, theology",
+            "Software religioso e espiritual, teologia",
+        ],
+    ),
+    (
+        "category.freedesktop.spirituality.title",
+        ["Spirituality", "Espiritualidade"],
+    ),
+    (
+        "category.freedesktop.sports-game.description",
+        ["A sports game", "Um jogo de esporte"],
+    ),
+    (
+        "category.freedesktop.sports-game.title",
+        ["Sports games", "Jogos de esporte"],
+    ),
+    (
+        "category.freedesktop.sports.description",
+        ["Sports software", "Software de esportes"],
+    ),
+    ("category.freedesktop.sports.title", ["Sports", "Esportes"]),
+    (
+        "category.freedesktop.spreadsheet.description",
+        ["A spreadsheet", "Uma planilha"],
+    ),
+    (
+        "category.freedesktop.spreadsheet.title",
+        ["Spreadsheets", "Planilhas"],
+    ),
+    (
+        "category.freedesktop.strategy-game.description",
+        ["A strategy game", "Um jogo de estratégia"],
+    ),
+    (
+        "category.freedesktop.strategy-game.title",
+        ["Strategy games", "Jogos de estratégia"],
+    ),
+    (
+        "category.freedesktop.system.description",
+        [
+            "System application, such as a log viewer or a network monitor",
+            "Aplicativo de sistema, como um visualizador de registros ou um monitor de rede",
+        ],
+    ),
+    ("category.freedesktop.system.title", ["System", "Sistema"]),
+    (
+        "category.freedesktop.telephony-tools.description",
+        [
+            "Telephony tools, to dial a number or manage a PBX",
+            "Ferramentas de telefonia, para discar um número ou gerenciar um PABX",
+        ],
+    ),
+    (
+        "category.freedesktop.telephony-tools.title",
+        ["Telephony tools", "Ferramentas de telefonia"],
+    ),
+    (
+        "category.freedesktop.telephony.description",
+        ["Telephony via PC", "Telefonia pelo computador"],
+    ),
+    (
+        "category.freedesktop.telephony.title",
+        ["Telephony", "Telefonia"],
+    ),
+    (
+        "category.freedesktop.terminal-emulator.description",
+        ["A terminal emulator application", "Um emulador de terminal"],
+    ),
+    (
+        "category.freedesktop.terminal-emulator.title",
+        ["Terminal emulators", "Emuladores de terminal"],
+    ),
+    (
+        "category.freedesktop.text-editor.description",
+        ["A text editor", "Um editor de texto"],
+    ),
+    (
+        "category.freedesktop.text-editor.title",
+        ["Text editors", "Editores de texto"],
+    ),
+    (
+        "category.freedesktop.text-tools.description",
+        [
+            "A text tool utility",
+            "Um utilitário para trabalhar com texto",
+        ],
+    ),
+    (
+        "category.freedesktop.text-tools.title",
+        ["Text tools", "Ferramentas de texto"],
+    ),
+    (
+        "category.freedesktop.translation.description",
+        ["A translation tool", "Uma ferramenta de tradução"],
+    ),
+    (
+        "category.freedesktop.translation.title",
+        ["Translation", "Tradução"],
+    ),
+    (
+        "category.freedesktop.tray-icon.description",
+        [
+            "An application that is mainly an icon in the system tray",
+            "Um aplicativo que é sobretudo um ícone na bandeja do sistema",
+        ],
+    ),
+    (
+        "category.freedesktop.tray-icon.title",
+        ["Tray icons", "Ícones da bandeja"],
+    ),
+    (
+        "category.freedesktop.tuner.description",
+        ["A tuner", "Um afinador"],
+    ),
+    ("category.freedesktop.tuner.title", ["Tuners", "Afinadores"]),
+    (
+        "category.freedesktop.tv.description",
+        ["A TV application", "Um aplicativo de TV"],
+    ),
+    ("category.freedesktop.tv.title", ["Television", "Televisão"]),
+    (
+        "category.freedesktop.utility.description",
+        [
+            "A small utility application, an accessory",
+            "Um pequeno aplicativo utilitário, um acessório",
+        ],
+    ),
+    (
+        "category.freedesktop.utility.title",
+        ["Utilities", "Utilitários"],
+    ),
+    (
+        "category.freedesktop.vector-graphics.description",
+        [
+            "Application for viewing, creating, or processing vector graphics",
+            "Aplicativo para ver, criar ou processar gráficos vetoriais",
+        ],
+    ),
+    (
+        "category.freedesktop.vector-graphics.title",
+        ["Vector graphics", "Gráficos vetoriais"],
+    ),
+    (
+        "category.freedesktop.video-conference.description",
+        ["Video Conference software", "Software de videoconferência"],
+    ),
+    (
+        "category.freedesktop.video-conference.title",
+        ["Video conferencing", "Videoconferência"],
+    ),
+    (
+        "category.freedesktop.video.description",
+        ["A video application", "Um aplicativo de vídeo"],
+    ),
+    ("category.freedesktop.video.title", ["Video", "Vídeo"]),
+    (
+        "category.freedesktop.viewer.description",
+        [
+            "Tool to view a file, such as an image or a PDF",
+            "Ferramenta para ver um arquivo, como uma imagem ou um PDF",
+        ],
+    ),
+    (
+        "category.freedesktop.viewer.title",
+        ["Viewers", "Visualizadores"],
+    ),
+    (
+        "category.freedesktop.web-browser.description",
+        ["A web browser", "Um navegador web"],
+    ),
+    (
+        "category.freedesktop.web-browser.title",
+        ["Web browsers", "Navegadores web"],
+    ),
+    (
+        "category.freedesktop.web-development.description",
+        [
+            "A tool for web developers",
+            "Uma ferramenta para quem desenvolve para a web",
+        ],
+    ),
+    (
+        "category.freedesktop.web-development.title",
+        ["Web development", "Desenvolvimento web"],
+    ),
+    (
+        "category.freedesktop.word-processor.description",
+        ["A word processor", "Um processador de texto"],
+    ),
+    (
+        "category.freedesktop.word-processor.title",
+        ["Word processors", "Processadores de texto"],
+    ),
+    (
+        "category.freedesktop.xfce.description",
+        [
+            "Application based on XFCE libraries",
+            "Aplicativo baseado nas bibliotecas do XFCE",
+        ],
+    ),
+    ("category.freedesktop.xfce.title", ["XFCE", "XFCE"]),
+    (
+        "category.noctua.files.description",
+        [
+            "Naming, finding and arranging a person's files",
+            "Nomear, encontrar e organizar os arquivos de uma pessoa",
+        ],
+    ),
+    ("category.noctua.files.title", ["Files", "Arquivos"]),
+    (
+        "category.noctua.history.description",
+        [
+            "Reading, verifying and stepping through the record of what was done",
+            "Ler, verificar e percorrer o registro do que foi feito",
+        ],
+    ),
+    ("category.noctua.history.title", ["History", "Histórico"]),
+    (
+        "category.noctua.maintenance.description",
+        [
+            "Keeping the platform's own stores within their bounds",
+            "Manter os armazenamentos da própria plataforma dentro dos limites",
+        ],
+    ),
+    (
+        "category.noctua.maintenance.title",
+        ["Maintenance", "Manutenção"],
+    ),
+    (
+        "category.noctua.reference.description",
+        [
+            "Commands of the reference plugin, which the platform is proven with",
+            "Comandos do plugin de referência, com o qual a plataforma é testada",
+        ],
+    ),
+    (
+        "category.noctua.reference.title",
+        ["Reference", "Referência"],
+    ),
+    (
         "command.journal.verify.description",
         [
             "Check that every recorded action is intact and in order.",
@@ -1270,6 +3153,410 @@ pub const KEYS: &[&str] = &[
     "capability.store.description",
     "capability.timers.description",
     "capability.ui.description",
+    "category-set.apple.description",
+    "category-set.apple.title",
+    "category-set.freedesktop.description",
+    "category-set.freedesktop.title",
+    "category-set.noctua.description",
+    "category-set.noctua.title",
+    "category.apple.action-games.description",
+    "category.apple.action-games.title",
+    "category.apple.adventure-games.description",
+    "category.apple.adventure-games.title",
+    "category.apple.arcade-games.description",
+    "category.apple.arcade-games.title",
+    "category.apple.board-games.description",
+    "category.apple.board-games.title",
+    "category.apple.business.description",
+    "category.apple.business.title",
+    "category.apple.card-games.description",
+    "category.apple.card-games.title",
+    "category.apple.casino-games.description",
+    "category.apple.casino-games.title",
+    "category.apple.developer-tools.description",
+    "category.apple.developer-tools.title",
+    "category.apple.dice-games.description",
+    "category.apple.dice-games.title",
+    "category.apple.education.description",
+    "category.apple.education.title",
+    "category.apple.educational-games.description",
+    "category.apple.educational-games.title",
+    "category.apple.entertainment.description",
+    "category.apple.entertainment.title",
+    "category.apple.family-games.description",
+    "category.apple.family-games.title",
+    "category.apple.finance.description",
+    "category.apple.finance.title",
+    "category.apple.games.description",
+    "category.apple.games.title",
+    "category.apple.graphics-design.description",
+    "category.apple.graphics-design.title",
+    "category.apple.healthcare-fitness.description",
+    "category.apple.healthcare-fitness.title",
+    "category.apple.kids-games.description",
+    "category.apple.kids-games.title",
+    "category.apple.lifestyle.description",
+    "category.apple.lifestyle.title",
+    "category.apple.medical.description",
+    "category.apple.medical.title",
+    "category.apple.music-games.description",
+    "category.apple.music-games.title",
+    "category.apple.music.description",
+    "category.apple.music.title",
+    "category.apple.news.description",
+    "category.apple.news.title",
+    "category.apple.photography.description",
+    "category.apple.photography.title",
+    "category.apple.productivity.description",
+    "category.apple.productivity.title",
+    "category.apple.puzzle-games.description",
+    "category.apple.puzzle-games.title",
+    "category.apple.racing-games.description",
+    "category.apple.racing-games.title",
+    "category.apple.reference.description",
+    "category.apple.reference.title",
+    "category.apple.role-playing-games.description",
+    "category.apple.role-playing-games.title",
+    "category.apple.simulation-games.description",
+    "category.apple.simulation-games.title",
+    "category.apple.social-networking.description",
+    "category.apple.social-networking.title",
+    "category.apple.sports-games.description",
+    "category.apple.sports-games.title",
+    "category.apple.sports.description",
+    "category.apple.sports.title",
+    "category.apple.strategy-games.description",
+    "category.apple.strategy-games.title",
+    "category.apple.travel.description",
+    "category.apple.travel.title",
+    "category.apple.trivia-games.description",
+    "category.apple.trivia-games.title",
+    "category.apple.utilities.description",
+    "category.apple.utilities.title",
+    "category.apple.video.description",
+    "category.apple.video.title",
+    "category.apple.weather.description",
+    "category.apple.weather.title",
+    "category.apple.word-games.description",
+    "category.apple.word-games.title",
+    "category.freedesktop.2d-graphics.description",
+    "category.freedesktop.2d-graphics.title",
+    "category.freedesktop.3d-graphics.description",
+    "category.freedesktop.3d-graphics.title",
+    "category.freedesktop.accessibility.description",
+    "category.freedesktop.accessibility.title",
+    "category.freedesktop.action-game.description",
+    "category.freedesktop.action-game.title",
+    "category.freedesktop.adult.description",
+    "category.freedesktop.adult.title",
+    "category.freedesktop.adventure-game.description",
+    "category.freedesktop.adventure-game.title",
+    "category.freedesktop.amusement.description",
+    "category.freedesktop.amusement.title",
+    "category.freedesktop.applet.description",
+    "category.freedesktop.applet.title",
+    "category.freedesktop.arcade-game.description",
+    "category.freedesktop.arcade-game.title",
+    "category.freedesktop.archiving.description",
+    "category.freedesktop.archiving.title",
+    "category.freedesktop.art.description",
+    "category.freedesktop.art.title",
+    "category.freedesktop.artificial-intelligence.description",
+    "category.freedesktop.artificial-intelligence.title",
+    "category.freedesktop.astronomy.description",
+    "category.freedesktop.astronomy.title",
+    "category.freedesktop.audio-video-editing.description",
+    "category.freedesktop.audio-video-editing.title",
+    "category.freedesktop.audio-video.description",
+    "category.freedesktop.audio-video.title",
+    "category.freedesktop.audio.description",
+    "category.freedesktop.audio.title",
+    "category.freedesktop.biology.description",
+    "category.freedesktop.biology.title",
+    "category.freedesktop.blocks-game.description",
+    "category.freedesktop.blocks-game.title",
+    "category.freedesktop.board-game.description",
+    "category.freedesktop.board-game.title",
+    "category.freedesktop.building.description",
+    "category.freedesktop.building.title",
+    "category.freedesktop.calculator.description",
+    "category.freedesktop.calculator.title",
+    "category.freedesktop.calendar.description",
+    "category.freedesktop.calendar.title",
+    "category.freedesktop.card-game.description",
+    "category.freedesktop.card-game.title",
+    "category.freedesktop.care-provider.description",
+    "category.freedesktop.care-provider.title",
+    "category.freedesktop.chart.description",
+    "category.freedesktop.chart.title",
+    "category.freedesktop.chat.description",
+    "category.freedesktop.chat.title",
+    "category.freedesktop.chemistry.description",
+    "category.freedesktop.chemistry.title",
+    "category.freedesktop.clock.description",
+    "category.freedesktop.clock.title",
+    "category.freedesktop.compression.description",
+    "category.freedesktop.compression.title",
+    "category.freedesktop.computer-science.description",
+    "category.freedesktop.computer-science.title",
+    "category.freedesktop.console-only.description",
+    "category.freedesktop.console-only.title",
+    "category.freedesktop.construction.description",
+    "category.freedesktop.construction.title",
+    "category.freedesktop.contact-management.description",
+    "category.freedesktop.contact-management.title",
+    "category.freedesktop.core.description",
+    "category.freedesktop.core.title",
+    "category.freedesktop.cosmic.description",
+    "category.freedesktop.cosmic.title",
+    "category.freedesktop.data-visualization.description",
+    "category.freedesktop.data-visualization.title",
+    "category.freedesktop.database.description",
+    "category.freedesktop.database.title",
+    "category.freedesktop.dde.description",
+    "category.freedesktop.dde.title",
+    "category.freedesktop.debugger.description",
+    "category.freedesktop.debugger.title",
+    "category.freedesktop.desktop-settings.description",
+    "category.freedesktop.desktop-settings.title",
+    "category.freedesktop.development.description",
+    "category.freedesktop.development.title",
+    "category.freedesktop.dialup.description",
+    "category.freedesktop.dialup.title",
+    "category.freedesktop.dictionary.description",
+    "category.freedesktop.dictionary.title",
+    "category.freedesktop.disc-burning.description",
+    "category.freedesktop.disc-burning.title",
+    "category.freedesktop.documentation.description",
+    "category.freedesktop.documentation.title",
+    "category.freedesktop.economy.description",
+    "category.freedesktop.economy.title",
+    "category.freedesktop.education.description",
+    "category.freedesktop.education.title",
+    "category.freedesktop.electricity.description",
+    "category.freedesktop.electricity.title",
+    "category.freedesktop.electronics.description",
+    "category.freedesktop.electronics.title",
+    "category.freedesktop.email.description",
+    "category.freedesktop.email.title",
+    "category.freedesktop.emulator.description",
+    "category.freedesktop.emulator.title",
+    "category.freedesktop.engineering.description",
+    "category.freedesktop.engineering.title",
+    "category.freedesktop.exercise.description",
+    "category.freedesktop.exercise.title",
+    "category.freedesktop.feed.description",
+    "category.freedesktop.feed.title",
+    "category.freedesktop.file-manager.description",
+    "category.freedesktop.file-manager.title",
+    "category.freedesktop.file-tools.description",
+    "category.freedesktop.file-tools.title",
+    "category.freedesktop.file-transfer.description",
+    "category.freedesktop.file-transfer.title",
+    "category.freedesktop.filesystem.description",
+    "category.freedesktop.filesystem.title",
+    "category.freedesktop.finance.description",
+    "category.freedesktop.finance.title",
+    "category.freedesktop.flow-chart.description",
+    "category.freedesktop.flow-chart.title",
+    "category.freedesktop.game-tool.description",
+    "category.freedesktop.game-tool.title",
+    "category.freedesktop.game.description",
+    "category.freedesktop.game.title",
+    "category.freedesktop.geography.description",
+    "category.freedesktop.geography.title",
+    "category.freedesktop.geology.description",
+    "category.freedesktop.geology.title",
+    "category.freedesktop.geoscience.description",
+    "category.freedesktop.geoscience.title",
+    "category.freedesktop.gnome.description",
+    "category.freedesktop.gnome.title",
+    "category.freedesktop.graphics.description",
+    "category.freedesktop.graphics.title",
+    "category.freedesktop.gtk.description",
+    "category.freedesktop.gtk.title",
+    "category.freedesktop.gui-designer.description",
+    "category.freedesktop.gui-designer.title",
+    "category.freedesktop.ham-radio.description",
+    "category.freedesktop.ham-radio.title",
+    "category.freedesktop.hardware-settings.description",
+    "category.freedesktop.hardware-settings.title",
+    "category.freedesktop.health-fitness.description",
+    "category.freedesktop.health-fitness.title",
+    "category.freedesktop.history.description",
+    "category.freedesktop.history.title",
+    "category.freedesktop.humanities.description",
+    "category.freedesktop.humanities.title",
+    "category.freedesktop.ide.description",
+    "category.freedesktop.ide.title",
+    "category.freedesktop.image-processing.description",
+    "category.freedesktop.image-processing.title",
+    "category.freedesktop.instant-messaging.description",
+    "category.freedesktop.instant-messaging.title",
+    "category.freedesktop.irc-client.description",
+    "category.freedesktop.irc-client.title",
+    "category.freedesktop.java.description",
+    "category.freedesktop.java.title",
+    "category.freedesktop.kde.description",
+    "category.freedesktop.kde.title",
+    "category.freedesktop.kids-game.description",
+    "category.freedesktop.kids-game.title",
+    "category.freedesktop.languages.description",
+    "category.freedesktop.languages.title",
+    "category.freedesktop.launcher-store.description",
+    "category.freedesktop.launcher-store.title",
+    "category.freedesktop.literature.description",
+    "category.freedesktop.literature.title",
+    "category.freedesktop.logic-game.description",
+    "category.freedesktop.logic-game.title",
+    "category.freedesktop.lx-qt.description",
+    "category.freedesktop.lx-qt.title",
+    "category.freedesktop.maps.description",
+    "category.freedesktop.maps.title",
+    "category.freedesktop.math.description",
+    "category.freedesktop.math.title",
+    "category.freedesktop.medical-software.description",
+    "category.freedesktop.medical-software.title",
+    "category.freedesktop.medication.description",
+    "category.freedesktop.medication.title",
+    "category.freedesktop.midi.description",
+    "category.freedesktop.midi.title",
+    "category.freedesktop.mindfulness.description",
+    "category.freedesktop.mindfulness.title",
+    "category.freedesktop.mixer.description",
+    "category.freedesktop.mixer.title",
+    "category.freedesktop.monitor.description",
+    "category.freedesktop.monitor.title",
+    "category.freedesktop.motif.description",
+    "category.freedesktop.motif.title",
+    "category.freedesktop.music.description",
+    "category.freedesktop.music.title",
+    "category.freedesktop.network.description",
+    "category.freedesktop.network.title",
+    "category.freedesktop.news.description",
+    "category.freedesktop.news.title",
+    "category.freedesktop.numerical-analysis.description",
+    "category.freedesktop.numerical-analysis.title",
+    "category.freedesktop.nutrition.description",
+    "category.freedesktop.nutrition.title",
+    "category.freedesktop.ocr.description",
+    "category.freedesktop.ocr.title",
+    "category.freedesktop.office.description",
+    "category.freedesktop.office.title",
+    "category.freedesktop.p-2p.description",
+    "category.freedesktop.p-2p.title",
+    "category.freedesktop.package-manager.description",
+    "category.freedesktop.package-manager.title",
+    "category.freedesktop.parallel-computing.description",
+    "category.freedesktop.parallel-computing.title",
+    "category.freedesktop.pda.description",
+    "category.freedesktop.pda.title",
+    "category.freedesktop.photography.description",
+    "category.freedesktop.photography.title",
+    "category.freedesktop.physics.description",
+    "category.freedesktop.physics.title",
+    "category.freedesktop.player.description",
+    "category.freedesktop.player.title",
+    "category.freedesktop.presentation.description",
+    "category.freedesktop.presentation.title",
+    "category.freedesktop.printing.description",
+    "category.freedesktop.printing.title",
+    "category.freedesktop.profiling.description",
+    "category.freedesktop.profiling.title",
+    "category.freedesktop.project-management.description",
+    "category.freedesktop.project-management.title",
+    "category.freedesktop.publishing.description",
+    "category.freedesktop.publishing.title",
+    "category.freedesktop.qt.description",
+    "category.freedesktop.qt.title",
+    "category.freedesktop.raster-graphics.description",
+    "category.freedesktop.raster-graphics.title",
+    "category.freedesktop.recorder.description",
+    "category.freedesktop.recorder.title",
+    "category.freedesktop.remote-access.description",
+    "category.freedesktop.remote-access.title",
+    "category.freedesktop.revision-control.description",
+    "category.freedesktop.revision-control.title",
+    "category.freedesktop.robotics.description",
+    "category.freedesktop.robotics.title",
+    "category.freedesktop.role-playing.description",
+    "category.freedesktop.role-playing.title",
+    "category.freedesktop.scanning.description",
+    "category.freedesktop.scanning.title",
+    "category.freedesktop.science.description",
+    "category.freedesktop.science.title",
+    "category.freedesktop.screensaver.description",
+    "category.freedesktop.screensaver.title",
+    "category.freedesktop.security.description",
+    "category.freedesktop.security.title",
+    "category.freedesktop.sequencer.description",
+    "category.freedesktop.sequencer.title",
+    "category.freedesktop.settings.description",
+    "category.freedesktop.settings.title",
+    "category.freedesktop.shell.description",
+    "category.freedesktop.shell.title",
+    "category.freedesktop.shooter.description",
+    "category.freedesktop.shooter.title",
+    "category.freedesktop.simulation.description",
+    "category.freedesktop.simulation.title",
+    "category.freedesktop.sleep.description",
+    "category.freedesktop.sleep.title",
+    "category.freedesktop.spirituality.description",
+    "category.freedesktop.spirituality.title",
+    "category.freedesktop.sports-game.description",
+    "category.freedesktop.sports-game.title",
+    "category.freedesktop.sports.description",
+    "category.freedesktop.sports.title",
+    "category.freedesktop.spreadsheet.description",
+    "category.freedesktop.spreadsheet.title",
+    "category.freedesktop.strategy-game.description",
+    "category.freedesktop.strategy-game.title",
+    "category.freedesktop.system.description",
+    "category.freedesktop.system.title",
+    "category.freedesktop.telephony-tools.description",
+    "category.freedesktop.telephony-tools.title",
+    "category.freedesktop.telephony.description",
+    "category.freedesktop.telephony.title",
+    "category.freedesktop.terminal-emulator.description",
+    "category.freedesktop.terminal-emulator.title",
+    "category.freedesktop.text-editor.description",
+    "category.freedesktop.text-editor.title",
+    "category.freedesktop.text-tools.description",
+    "category.freedesktop.text-tools.title",
+    "category.freedesktop.translation.description",
+    "category.freedesktop.translation.title",
+    "category.freedesktop.tray-icon.description",
+    "category.freedesktop.tray-icon.title",
+    "category.freedesktop.tuner.description",
+    "category.freedesktop.tuner.title",
+    "category.freedesktop.tv.description",
+    "category.freedesktop.tv.title",
+    "category.freedesktop.utility.description",
+    "category.freedesktop.utility.title",
+    "category.freedesktop.vector-graphics.description",
+    "category.freedesktop.vector-graphics.title",
+    "category.freedesktop.video-conference.description",
+    "category.freedesktop.video-conference.title",
+    "category.freedesktop.video.description",
+    "category.freedesktop.video.title",
+    "category.freedesktop.viewer.description",
+    "category.freedesktop.viewer.title",
+    "category.freedesktop.web-browser.description",
+    "category.freedesktop.web-browser.title",
+    "category.freedesktop.web-development.description",
+    "category.freedesktop.web-development.title",
+    "category.freedesktop.word-processor.description",
+    "category.freedesktop.word-processor.title",
+    "category.freedesktop.xfce.description",
+    "category.freedesktop.xfce.title",
+    "category.noctua.files.description",
+    "category.noctua.files.title",
+    "category.noctua.history.description",
+    "category.noctua.history.title",
+    "category.noctua.maintenance.description",
+    "category.noctua.maintenance.title",
+    "category.noctua.reference.description",
+    "category.noctua.reference.title",
     "command.journal.verify.description",
     "command.journal.verify.paragraph",
     "command.journal.verify.title",

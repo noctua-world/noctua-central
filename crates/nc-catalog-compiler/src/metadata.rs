@@ -3,11 +3,12 @@
 //!
 //! **The rules are not written here.** `nc_schema::entry` holds them, once,
 //! for the catalog and for every plugin the kernel admits; this module hands
-//! that judge each command's texts as the locales resolve them, and reports
-//! what it finds against the line a reader has to edit.
+//! that judge the texts of each command, each set of categories and each
+//! category as the locales resolve them, and reports what it finds against the
+//! line a reader has to edit.
 //!
 //! **Nothing is reported twice.** A key absent from a locale, a sentence that
-//! is the English one again and a placeholder in a command's sentence are
+//! is the English one again and a placeholder in an entry's sentence are
 //! already the catalog's own message rules — `missing-key`,
 //! `dangling-message-key`, `blank-message`, `untranslated` and
 //! `param-not-declared`, over every key of every registry — so the judge is
@@ -29,7 +30,7 @@
 //!
 //! # What this answers (`§2.4`)
 //!
-//! What a list, a page or an agent is shown of a command is a text the judge
+//! What a list, a page or an agent is shown of an entry is a text the judge
 //! read whole: bounded, holding nothing a reader cannot see, and translated.
 //! A file under `catalog/wiki/` that is not a regular file — a directory where
 //! a text belongs, or a link — is refused rather than followed, so the walk
@@ -41,7 +42,7 @@ use std::path::{Path, PathBuf};
 use nc_schema::entry::{self, EntryProblem, InLocale, Rules, Text, Texts, WikiFormat};
 
 use crate::load::SOURCE_LOCALE;
-use crate::model::{Catalog, CommandEntry, WikiText};
+use crate::model::{Catalog, CategoryEntry, CategorySetEntry, CommandEntry, WikiText};
 use crate::problem::{Problem, line_of};
 
 /// Where the wiki texts live.
@@ -50,19 +51,109 @@ const WIKI: &str = "catalog/wiki";
 /// The registries a wiki text may belong to, as their directories are named.
 const REGISTRIES: [&str; 1] = ["commands"];
 
-/// The categories a command may name.
-///
-/// **None yet.** The categories registry is what a name is held to, and until
-/// it is in this catalog every category a command names is one no list can
-/// show it under, which the judge refuses.
-const CATEGORIES: [&str; 0] = [];
+/// The texts a set of categories and a category carry: the two a list of
+/// them shows, a heading or a row.
+const WHAT_A_LIST_SHOWS: [Text; 2] = [Text::DisplayName, Text::Line];
 
-/// Every command's texts, held to the one judge, and every display name to
-/// being one command's.
+/// The registries' files as read, for the line a problem is filed at.
+pub(crate) struct Registries<'a> {
+    /// `catalog/commands.toml`.
+    pub(crate) commands: &'a str,
+    /// `catalog/categories.toml`.
+    pub(crate) categories: &'a str,
+}
+
+/// One entry the judge is handed: how a diagnostic names it, where it is
+/// written, and the key of each text it carries.
+struct Owner<'a> {
+    /// How a diagnostic names it.
+    named: String,
+    /// Its name, as its registry writes it.
+    name: &'a str,
+    /// The registry it is written in.
+    file: &'static str,
+    /// That registry's text, for the line its entry is on.
+    text: &'a str,
+    /// The key of each text, in [`Text::ALL`]'s order; `None` for a text its
+    /// registry does not carry.
+    keys: [Option<&'a str>; 4],
+    /// The categories it names.
+    categories: &'a [String],
+    /// Its glyph, as written.
+    glyph: Option<&'a str>,
+}
+
+impl<'a> Owner<'a> {
+    /// A command: every text, its categories and its glyph.
+    fn command(command: &'a CommandEntry, text: &'a str) -> Self {
+        Self {
+            named: format!("`{}`", command.name),
+            name: &command.name,
+            file: "catalog/commands.toml",
+            text,
+            keys: [
+                Some(&command.title),
+                Some(&command.description),
+                Some(&command.paragraph),
+                Some(&command.tags),
+            ],
+            categories: &command.categories,
+            glyph: command.glyph.as_deref(),
+        }
+    }
+
+    /// A set of categories: its display name and its line.
+    fn set(set: &'a CategorySetEntry, text: &'a str) -> Self {
+        Self {
+            named: format!("the category set `{}`", set.name),
+            name: &set.name,
+            file: crate::registries::CATEGORIES,
+            text,
+            keys: [Some(&set.title), Some(&set.description), None, None],
+            categories: &[],
+            glyph: None,
+        }
+    }
+
+    /// A category: its display name and its line.
+    fn category(category: &'a CategoryEntry, text: &'a str) -> Self {
+        Self {
+            named: format!("the category `{}`", category.name),
+            name: &category.name,
+            file: crate::registries::CATEGORIES,
+            text,
+            keys: [
+                Some(&category.title),
+                Some(&category.description),
+                None,
+                None,
+            ],
+            categories: &[],
+            glyph: None,
+        }
+    }
+
+    /// The key of one of its texts, if its registry carries it.
+    const fn key(&self, text: Text) -> Option<&'a str> {
+        self.keys[match text {
+            Text::DisplayName => 0,
+            Text::Line => 1,
+            Text::Paragraph => 2,
+            Text::Tags => 3,
+        }]
+    }
+}
+
+/// Every entry's texts, held to the one judge, and every display name to
+/// being one entry's.
+///
+/// **Each registry chooses its texts**: a command carries all four, a set of
+/// categories and a category the two a list shows. A command's categories are
+/// the ones the categories registry holds.
 pub(crate) fn check(
     root: &Path,
     catalog: &Catalog,
-    commands_text: &str,
+    registries: &Registries<'_>,
     problems: &mut Vec<Problem>,
 ) {
     let locale_texts: Vec<(String, String)> = catalog
@@ -74,62 +165,116 @@ pub(crate) fn check(
             (file, text)
         })
         .collect();
+    let held: Vec<&str> = catalog
+        .categories
+        .iter()
+        .map(|category| category.name.as_str())
+        .collect();
     for command in &catalog.commands {
-        let in_locales: Vec<InLocale<'_>> = catalog
-            .locales
+        let rules = Rules {
+            requires: &Text::ALL,
+            categories: &held,
+        };
+        let owner = Owner::command(command, registries.commands);
+        judged(&owner, &rules, catalog, &locale_texts, problems);
+    }
+    let a_list_row = Rules {
+        requires: &WHAT_A_LIST_SHOWS,
+        categories: &[],
+    };
+    for set in &catalog.category_sets {
+        let owner = Owner::set(set, registries.categories);
+        judged(&owner, &a_list_row, catalog, &locale_texts, problems);
+    }
+    for category in &catalog.categories {
+        let owner = Owner::category(category, registries.categories);
+        judged(&owner, &a_list_row, catalog, &locale_texts, problems);
+    }
+    let commands: Vec<(&str, &str)> = catalog
+        .commands
+        .iter()
+        .map(|command| (command.name.as_str(), command.title.as_str()))
+        .collect();
+    one_entry_per_display_name(catalog, &commands, "the commands", &locale_texts, problems);
+    for set in &catalog.category_sets {
+        let listed: Vec<(&str, &str)> = catalog
+            .categories
             .iter()
-            .map(|locale| InLocale {
-                locale: &locale.meta.bcp47,
-                texts: Texts {
-                    display_name: locale.message.get(&command.title).map(String::as_str),
-                    line: locale.message.get(&command.description).map(String::as_str),
-                    paragraph: locale.message.get(&command.paragraph).map(String::as_str),
-                    tags: locale.tags.get(&command.tags).map(Vec::as_slice),
-                },
-            })
+            .filter(|category| category.set == set.name)
+            .map(|category| (category.name.as_str(), category.title.as_str()))
             .collect();
-        let judged = entry::judge(
-            &entry::Entry {
-                locales: &in_locales,
-                categories: &command.categories,
-                glyph: command.glyph.as_deref(),
-                same_in_both: &[],
+        let under = format!("the categories of the set `{}`", set.name);
+        one_entry_per_display_name(catalog, &listed, &under, &locale_texts, problems);
+    }
+}
+
+/// One entry's texts in every locale, held to the judge, and what it finds
+/// reported against the line a reader edits.
+fn judged(
+    owner: &Owner<'_>,
+    rules: &Rules<'_>,
+    catalog: &Catalog,
+    locale_texts: &[(String, String)],
+    problems: &mut Vec<Problem>,
+) {
+    let in_locales: Vec<InLocale<'_>> = catalog
+        .locales
+        .iter()
+        .map(|locale| {
+            (locale, |text: Text| {
+                owner.key(text).and_then(|key| locale.message.get(key))
+            })
+        })
+        .map(|(locale, sentence)| InLocale {
+            locale: &locale.meta.bcp47,
+            texts: Texts {
+                display_name: sentence(Text::DisplayName).map(String::as_str),
+                line: sentence(Text::Line).map(String::as_str),
+                paragraph: sentence(Text::Paragraph).map(String::as_str),
+                tags: owner
+                    .key(Text::Tags)
+                    .and_then(|key| locale.tags.get(key))
+                    .map(Vec::as_slice),
             },
-            &Rules {
-                requires: &Text::ALL,
-                categories: &CATEGORIES,
-            },
-        );
-        let Err(found) = judged else {
+        })
+        .collect();
+    let judged = entry::judge(
+        &entry::Entry {
+            locales: &in_locales,
+            categories: owner.categories,
+            glyph: owner.glyph,
+            same_in_both: &[],
+        },
+        rules,
+    );
+    let Err(found) = judged else {
+        return;
+    };
+    for problem in found {
+        let Some((check, fix)) = the_check_for(&problem) else {
             continue;
         };
-        for problem in found {
-            let Some((check, fix)) = the_check_for(&problem) else {
-                continue;
-            };
-            let (file, line) = located(command, &problem, catalog, &locale_texts, commands_text);
-            problems.push(Problem {
-                file,
-                line,
-                what: format!("`{}` {problem}", command.name),
-                fix: fix.to_owned(),
-                check,
-            });
-        }
+        let (file, line) = located(owner, &problem, catalog, locale_texts);
+        problems.push(Problem {
+            file,
+            line,
+            what: format!("{} {problem}", owner.named),
+            fix: fix.to_owned(),
+            check,
+        });
     }
-    one_command_per_display_name(catalog, &locale_texts, problems);
 }
 
 /// Where a reader edits what a problem is about: the locale file's key for a
-/// text, the command's own entry for the rest.
+/// text, the entry itself in its registry for the rest.
 fn located(
-    command: &CommandEntry,
+    owner: &Owner<'_>,
     problem: &EntryProblem,
     catalog: &Catalog,
     locale_texts: &[(String, String)],
-    commands_text: &str,
 ) -> (String, Option<usize>) {
-    let in_locale = |locale: &str, key: &str| {
+    let in_locale = |locale: &str, key: Option<&str>| {
+        let key = key?;
         catalog
             .locales
             .iter()
@@ -137,28 +282,24 @@ fn located(
             .and_then(|at| locale_texts.get(at))
             .map(|(file, text)| (file.clone(), line_of(text, &format!("\"{key}\""), 1)))
     };
-    let key_of = |text: Text| match text {
-        Text::DisplayName => &command.title,
-        Text::Line => &command.description,
-        Text::Paragraph => &command.paragraph,
-        Text::Tags => &command.tags,
-    };
     let at_the_text = match problem {
         EntryProblem::TooLong { locale, text, .. }
         | EntryProblem::Unseen { locale, text, .. }
-        | EntryProblem::NotCarried { locale, text } => in_locale(locale, key_of(*text)),
-        EntryProblem::ParagraphRepeatsLine { locale } => in_locale(locale, &command.paragraph),
+        | EntryProblem::NotCarried { locale, text } => in_locale(locale, owner.key(*text)),
+        EntryProblem::ParagraphRepeatsLine { locale } => {
+            in_locale(locale, owner.key(Text::Paragraph))
+        }
         EntryProblem::NoTag { locale }
         | EntryProblem::TooManyTags { locale, .. }
         | EntryProblem::TagBlank { locale }
         | EntryProblem::TagMalformed { locale, .. }
-        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, &command.tags),
+        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, owner.key(Text::Tags)),
         _ => None,
     };
     at_the_text.unwrap_or_else(|| {
         (
-            "catalog/commands.toml".to_owned(),
-            line_of(commands_text, &format!("name = \"{}\"", command.name), 1),
+            owner.file.to_owned(),
+            line_of(owner.text, &format!("name = \"{}\"", owner.name), 1),
         )
     })
 }
@@ -174,8 +315,9 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         // key absent or blank, under the key and the line it belongs on;
         // `untranslated` reports a sentence that is the English one, under the
         // exemptions `THE_SAME_IN_BOTH` holds with their reasons; and
-        // `param-not-declared` a placeholder, since `declared_params` gives a
-        // command's sentences the empty set. The catalog hands the judge no
+        // `param-not-declared` a placeholder, since `declared_params` gives the
+        // sentences of a command, a set of categories and a category the empty
+        // set. The catalog hands the judge no
         // exemption, so it can find none unused or unreasoned.
         EntryProblem::LocaleMissing { .. }
         | EntryProblem::Missing { .. }
@@ -192,7 +334,7 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
             "entry-text-too-long",
             "every text is bounded where it is shown: a line description is one terminal \
              line, a display name a list row, a tag a word a search matches. Say it in \
-             fewer words, and move the detail to the paragraph",
+             fewer words; an entry that carries a paragraph says the detail there",
         )),
         EntryProblem::Unseen { .. } => Some((
             "entry-invisible-character",
@@ -263,51 +405,50 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
     }
 }
 
-/// No two commands are shown by one display name in one locale.
+/// No two entries of one list are shown by one display name in one locale:
+/// the commands, and each set's categories.
 ///
 /// **Compared as the untranslated rule compares**, by
 /// `nc_schema::entry::the_same_sentence`: `Undo` and `undo.` are one name to a
 /// person reading a list, and a list holding both shows two rows a reader
-/// cannot tell apart.
-fn one_command_per_display_name(
+/// cannot tell apart. **Within one list, not across them**: a set is a list of
+/// its own, and two standards each naming a category "Games" are two headings'
+/// rows a reader tells apart by the heading.
+fn one_entry_per_display_name(
     catalog: &Catalog,
+    listed: &[(&str, &str)],
+    under: &str,
     locale_texts: &[(String, String)],
     problems: &mut Vec<Problem>,
 ) {
     for (locale, (file, text)) in catalog.locales.iter().zip(locale_texts) {
-        let shown: Vec<(&str, &str)> = catalog
-            .commands
+        let shown: Vec<(&str, &str, &str)> = listed
             .iter()
-            .filter_map(|command| {
+            .filter_map(|(name, key)| {
                 locale
                     .message
-                    .get(&command.title)
-                    .map(|name| (command.name.as_str(), name.as_str()))
+                    .get(*key)
+                    .map(|display_name| (*name, *key, display_name.as_str()))
             })
             .collect();
-        for (at, (name, display_name)) in shown.iter().enumerate() {
-            let Some((first, _)) = shown[..at]
+        for (at, (name, key, display_name)) in shown.iter().enumerate() {
+            let Some((first, _, _)) = shown[..at]
                 .iter()
-                .find(|(_, earlier)| entry::the_same_sentence(earlier, display_name))
+                .find(|(_, _, earlier)| entry::the_same_sentence(earlier, display_name))
             else {
                 continue;
             };
-            let key = catalog
-                .commands
-                .iter()
-                .find(|command| command.name == *name)
-                .map_or_else(String::new, |command| command.title.clone());
             problems.push(Problem {
                 file: file.clone(),
                 line: line_of(text, &format!("\"{key}\""), 1),
                 what: format!(
-                    "`{first}` and `{name}` are both shown as \"{}\" in {}",
+                    "`{first}` and `{name}` are both shown as \"{}\" in {}, among {under}",
                     crate::printable(display_name),
                     locale.meta.bcp47
                 ),
-                fix: "a display name is how a person tells one command from another in a \
-                      list, and two commands under one name are two rows nobody can choose \
-                      between. Name each for what it does"
+                fix: "a display name is how a person tells one entry of a list from another, \
+                      and two under one name are two rows nobody can choose between. Name \
+                      each for what it is"
                     .to_owned(),
                 check: "display-name-twice",
             });

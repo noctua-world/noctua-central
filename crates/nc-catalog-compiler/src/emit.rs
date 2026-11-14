@@ -40,6 +40,7 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
             capabilities(catalog),
         ),
         EmittedFile::new("crates/nc-catalog/src/wiki.rs", wiki(catalog)),
+        EmittedFile::new("crates/nc-catalog/src/categories.rs", categories(catalog)),
         EmittedFile::new("crates/nc-log/src/events.rs", typed_events(catalog)),
     ]
 }
@@ -176,8 +177,8 @@ fn lib() -> String {
         "//!\n\
          //! The shared core of the platform, compiled from `catalog/`. Every error\n\
          //! code, notification, email, limit, command, log event, capability,\n\
-         //! message, tag list and wiki text lives here, and nothing outside\n\
-         //! `catalog/` may add one.\n\
+         //! category, message, tag list and wiki text lives here, and nothing\n\
+         //! outside `catalog/` may add one.\n\
          \n\
          // One lint fights generated code specifically. `match_same_arms` fires on\n\
          // every exhaustive match where two variants share a value — every error\n\
@@ -203,6 +204,7 @@ fn lib() -> String {
          #![doc(test(attr(forbid(unsafe_code))))]\n\
          \n\
          pub mod capabilities;\n\
+         pub mod categories;\n\
          pub mod commands;\n\
          pub mod emails;\n\
          pub mod errors;\n\
@@ -213,6 +215,7 @@ fn lib() -> String {
          pub mod wiki;\n\
          \n\
          pub use capabilities::{capability, Capability, CapabilitySpec, Ungated, CAPABILITIES, UNGATED};\n\
+         pub use categories::{category, category_set, Category, CategorySet, CATEGORIES, CATEGORY_SETS};\n\
          pub use commands::{command, Command, Reversibility, COMMANDS};\n\
          pub use emails::Email;\n\
          pub use errors::{ErrorCode, Severity, AREAS};\n\
@@ -1373,6 +1376,107 @@ fn capabilities(catalog: &Catalog) -> String {
     }
     out.push_str("];\n");
     out
+}
+
+/// Every set of categories and every category, and the lookups over them.
+///
+/// **The texts are keys, as a command's are**: a list resolves them in the
+/// reader's locale through the generated `message`, so the generated crate
+/// carries each sentence once.
+fn categories(catalog: &Catalog) -> String {
+    let mut out = header(CommentStyle::Line("//!"), "catalog/categories.toml");
+    out.push_str(
+        "//!\n\
+         //! Every set of categories and every category in it (`NOCTUA.md §20.4`):\n\
+         //! the names a list shows an entry under. A set is a standard's or the\n\
+         //! platform's own, and a category is named for its set, a dot and a\n\
+         //! slug. An entry names its categories from here, and the compiler\n\
+         //! refuses any other.\n\
+         \n",
+    );
+    out.push_str("/// One set of categories: a standard's, or the platform's own.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct CategorySet {\n");
+    out.push_str("    /// Lower-case words, which every category of the set is named under.\n    pub name: &'static str,\n");
+    out.push_str("    /// The i18n key of its display name.\n    pub title_key: &'static str,\n");
+    out.push_str(
+        "    /// The i18n key of its line description.\n    pub description_key: &'static str,\n",
+    );
+    out.push_str(
+        "    /// Whether a standard outside the platform defines it.\n    pub standard: bool,\n",
+    );
+    out.push_str("    /// What defines it: the standard, or the catalog itself.\n    pub defined_by: &'static str,\n");
+    out.push_str("    /// The version of the standard it was taken from: a standard set's alone.\n    pub version: Option<&'static str>,\n");
+    out.push_str("}\n\n");
+    out.push_str("/// One category an entry may be listed under.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct Category {\n");
+    out.push_str("    /// The set's name, a dot, and lower-case words joined by hyphens.\n    pub name: &'static str,\n");
+    out.push_str("    /// The set it is in.\n    pub set: &'static str,\n");
+    out.push_str("    /// What its standard calls it, as the standard writes it: a standard set's alone.\n    pub standard_name: Option<&'static str>,\n");
+    out.push_str("    /// Where its standard ranks it — `main`, `additional` or `reserved` — for a standard that ranks its categories.\n    pub role: Option<&'static str>,\n");
+    out.push_str("    /// The i18n key of its display name.\n    pub title_key: &'static str,\n");
+    out.push_str(
+        "    /// The i18n key of its line description.\n    pub description_key: &'static str,\n",
+    );
+    out.push_str("}\n\n");
+
+    let mut sets = catalog.category_sets.clone();
+    sets.sort_by(|a, b| a.name.cmp(&b.name));
+    out.push_str("/// Every set of categories, in name order.\n");
+    out.push_str("pub const CATEGORY_SETS: &[CategorySet] = &[\n");
+    for set in &sets {
+        let _ = writeln!(
+            out,
+            "    CategorySet {{ name: {}, title_key: {}, description_key: {}, standard: {}, defined_by: {}, version: {} }},",
+            quoted(&set.name),
+            quoted(&set.title),
+            quoted(&set.description),
+            set.standard,
+            quoted(set.defined_by.trim()),
+            some_text(set.version.as_deref())
+        );
+    }
+    out.push_str("];\n\n");
+
+    let mut categories = catalog.categories.clone();
+    categories.sort_by(|a, b| a.name.cmp(&b.name));
+    out.push_str("/// Every category, in name order — so by set, and in each set by name.\n");
+    out.push_str("pub const CATEGORIES: &[Category] = &[\n");
+    for category in &categories {
+        let _ = writeln!(
+            out,
+            "    Category {{ name: {}, set: {}, standard_name: {}, role: {}, title_key: {}, description_key: {} }},",
+            quoted(&category.name),
+            quoted(&category.set),
+            some_text(category.standard_name.as_deref()),
+            some_text(category.role.map(crate::model::Role::word)),
+            quoted(&category.title),
+            quoted(&category.description)
+        );
+    }
+    out.push_str("];\n\n");
+    out.push_str(
+        "/// The set of categories a name refers to, if any.\n\
+         #[must_use]\n\
+         pub fn category_set(name: &str) -> Option<&'static CategorySet> {\n\
+         \x20   CATEGORY_SETS.iter().find(|candidate| candidate.name == name)\n\
+         }\n\n\
+         /// The category a name refers to, if any.\n\
+         #[must_use]\n\
+         pub fn category(name: &str) -> Option<&'static Category> {\n\
+         \x20   CATEGORIES.iter().find(|candidate| candidate.name == name)\n\
+         }\n",
+    );
+    out
+}
+
+/// A text the registry may leave out, as an `Option<&str>` literal.
+fn some_text(text: Option<&str>) -> String {
+    text.map_or_else(
+        || "None".to_owned(),
+        |text| format!("Some({})", quoted(text)),
+    )
 }
 
 fn i18n(catalog: &Catalog) -> String {

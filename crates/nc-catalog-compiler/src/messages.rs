@@ -224,10 +224,10 @@ fn params(
 /// floors phrased as fractions ("more than half differ", "more than 20 of
 /// 28") are satisfied comfortably by a handful of untranslated strings.
 ///
-/// Nothing in this catalog legitimately coincides today, so the rule is absolute
-/// and the exception list starts empty. A word that is the same in both
-/// languages — a product name, an identifier — goes in it with the reason, which
-/// is a two-place edit somebody reads.
+/// The rule is absolute but for a name that is the same in both languages — a
+/// desktop project's or a toolkit's, which a category is named for — and each
+/// such key goes in the exception list with its reason, which is a two-place
+/// edit somebody reads.
 fn no_value_is_the_source_sentence(
     file: &str,
     tag: &str,
@@ -251,9 +251,11 @@ fn no_value_is_the_source_sentence(
 ///
 /// **The diagnostic names this, so it has to exist.** The refusal tells a
 /// translator to "add it to `THE_SAME_IN_BOTH` with the reason", and with the
-/// list only a parameter there would be nothing to add it to. Empty is the
-/// honest state of this catalog; a product name or an identifier that coincides
-/// goes here with the reason, which is the two-place edit somebody reads.
+/// list only a parameter there would be nothing to add it to. What it holds are
+/// the display names of categories named for a project — a desktop's or a
+/// toolkit's — whose name no language translates; a product name or an
+/// identifier that coincides goes here the same way, with the reason, which is
+/// the two-place edit somebody reads.
 ///
 /// **And the reason is a field.** As `&[&str]` this would be a bare exclusion
 /// list: the diagnostic promises "add it to `THE_SAME_IN_BOTH` with the reason
@@ -263,7 +265,48 @@ fn no_value_is_the_source_sentence(
 /// and an exemption whose reason is unwritten is indistinguishable from a
 /// translation somebody gave up on. `every_exemption_names_the_reason_it_is_one`
 /// is what makes the second column load-bearing rather than decorative.
-pub(crate) const THE_SAME_IN_BOTH: &[(&str, &str)] = &[];
+pub(crate) const THE_SAME_IN_BOTH: &[(&str, &str)] = &[
+    (
+        "category.freedesktop.kde.title",
+        "KDE is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.cosmic.title",
+        "COSMIC is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.gnome.title",
+        "GNOME is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.lx-qt.title",
+        "LXQt is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.xfce.title",
+        "XFCE is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.dde.title",
+        "DDE is the name of a desktop project, which no language translates",
+    ),
+    (
+        "category.freedesktop.gtk.title",
+        "GTK is the name of a toolkit for building interfaces, which no language translates",
+    ),
+    (
+        "category.freedesktop.qt.title",
+        "Qt is the name of a toolkit for building interfaces, which no language translates",
+    ),
+    (
+        "category.freedesktop.motif.title",
+        "Motif is the name of a toolkit for building interfaces, which no language translates",
+    ),
+    (
+        "category.freedesktop.java.title",
+        "Java is the name of a programming platform, which no language translates",
+    ),
+];
 
 /// The exemption list a caller may hand the untranslated rule.
 ///
@@ -311,17 +354,16 @@ mod exemptions {
 
 /// The same, with the exception list handed in.
 ///
-/// **`THE_SAME_IN_BOTH` is empty, so with it alone the clause that reads it is
-/// a branch no input can reach.** The whole mechanism — the constant, the
-/// `.contains`, and the diagnostic telling a developer to "add it to
-/// `THE_SAME_IN_BOTH` with the reason" — could then be deleted with every test
-/// green. An exclusion list nobody has ever exercised is a list nobody knows
-/// works, and the first entry would be added by someone trusting a hole that
-/// had never been opened.
+/// **The shipped list can show that the clause silences its keys, and never
+/// that it silences nothing else.** Every key it names is one the locales
+/// repeat, so a clause widened to exempt every key would leave the shipped
+/// catalog exactly as green — and while the list was empty, the whole
+/// mechanism, the constant, the `.contains` and the diagnostic telling a
+/// developer to "add it to `THE_SAME_IN_BOTH` with the reason", could be
+/// deleted with every test green.
 ///
-/// The list is a parameter so a test can pass one. The shipped caller passes
-/// the empty constant, which is the honest state of this catalog: nothing in it
-/// legitimately coincides.
+/// The list is a parameter so a test can pass one of its own, and drive the
+/// clause in both directions. The shipped caller passes the constant.
 fn no_value_is_the_source_sentence_except(
     file: &str,
     tag: &str,
@@ -351,6 +393,33 @@ fn no_value_is_the_source_sentence_except(
                       it to `THE_SAME_IN_BOTH` with the reason it is the same in both"
                     .to_owned(),
                 check: "untranslated",
+            });
+        }
+    }
+    // **And every exemption exempts a sentence this locale repeats.** One whose
+    // key is gone, or whose sentence was translated since, exempts nothing
+    // today and whatever is written under that key next — an untranslated
+    // sentence a reader is told is meant, with no reason anybody wrote for it.
+    for (excused, _) in the_same_in_both.rows() {
+        let repeated = locale
+            .message
+            .get(*excused)
+            .zip(source.message.get(*excused))
+            .is_some_and(|(ours, theirs)| the_same_sentence(ours, theirs));
+        if !repeated {
+            problems.push(Problem {
+                file: file.to_owned(),
+                line: line_of(text, &format!("\"{excused}\""), 1),
+                what: format!(
+                    "`THE_SAME_IN_BOTH` exempts \"{excused}\", which {tag} does not write as \
+                     the {SOURCE_LOCALE} sentence"
+                ),
+                fix: "an exemption says why a sentence is the same in both locales, and one over \
+                      a sentence that differs, or a key that is gone, would exempt whatever is \
+                      written there next with nobody reading it. Remove it from \
+                      `THE_SAME_IN_BOTH` in crates/nc-catalog-compiler/src/messages.rs"
+                    .to_owned(),
+                check: "exemption-unused",
             });
         }
     }
@@ -477,8 +546,9 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
                     "\"{key}\" in `{}` is a text no registry entry points at",
                     table.header()
                 ),
-                "every message key is reached through an error, notification, email or \
-                 command, and one reached through none is shown nowhere — while every \
+                "every message key is reached through an error, notification, email, \
+                 command, capability, category or set of categories, and one reached through \
+                 none is shown nowhere — while every \
                  locale is still asked to carry it. Point an entry at it, or delete it \
                  from every locale",
                 "unreferenced-key",
@@ -602,12 +672,12 @@ mod tests {
     /// The exemption silences the key it names, and only that key.
     ///
     /// **The hole, not just the rule** — the `SKIP`/`COVERED` pattern
-    /// `NOCTUA.md §19.4` states and `nc-log` already follows. `THE_SAME_IN_BOTH`
-    /// is empty, so `.contains(…)` over it is constant-false and the exemption
-    /// arm a branch no input reaches: without this, the constant, the clause and
-    /// the diagnostic naming it could all be deleted with every test green, and
-    /// the first person to use the list would be trusting a hole nobody had
-    /// opened.
+    /// `NOCTUA.md §19.4` states and `nc-log` already follows. Every key
+    /// `THE_SAME_IN_BOTH` names is one the shipped locales repeat, so the
+    /// shipped catalog cannot tell a clause that silences those keys from one
+    /// that silences every key: this drives both, and an exemption over a
+    /// sentence the locales do not share, which is reported rather than
+    /// trusted.
     #[test]
     fn the_exemption_silences_the_key_it_names_and_no_other() {
         let locale = |pairs: &[(&str, &str)]| crate::model::Locale {
@@ -658,6 +728,46 @@ mod tests {
             one[0].contains("limit.reached"),
             "the exemption silenced the wrong key: {one:?}"
         );
+
+        // **And an exemption over a sentence the locales do not share is
+        // reported**: a key that is gone, and one this locale translates.
+        let stale = said(&[
+            ("brand.name", "the product name, which is not translated"),
+            (
+                "gone.key",
+                "a key no locale holds any more, so nothing repeats",
+            ),
+        ]);
+        assert_eq!(stale.len(), 2, "{stale:?}");
+        assert!(
+            stale
+                .iter()
+                .any(|what| what.contains("exempts \"gone.key\"")),
+            "an exemption over a key that is gone was trusted: {stale:?}"
+        );
+        let translated = locale(&[
+            ("brand.name", "Marca"),
+            ("limit.reached", "Limite atingido"),
+        ]);
+        let mut problems = Vec::new();
+        super::no_value_is_the_source_sentence_except(
+            "catalog/i18n/pt-BR.toml",
+            "pt-BR",
+            "\"brand.name\"\n\"limit.reached\"\n",
+            &translated,
+            &both,
+            &super::exemptions::TheSameInBoth::of(&[(
+                "brand.name",
+                "the product name, which is not translated",
+            )]),
+            &mut problems,
+        );
+        let checks: Vec<&str> = problems.iter().map(|problem| problem.check).collect();
+        assert_eq!(
+            checks,
+            ["exemption-unused"],
+            "an exemption over a sentence this locale translates was trusted"
+        );
     }
 
     /// Whether an exemption's reason says why the sentence is the same in both.
@@ -668,14 +778,14 @@ mod tests {
     /// restated is refused whatever its length.
     ///
     /// A function rather than three assertions inside the loop, so the rule can
-    /// be driven over inputs — which, over an empty list, is the only way it can
-    /// be driven at all.
+    /// be driven over inputs written to sit on each side of its floors, which
+    /// the shipped list does not.
     fn a_reason_is_prose(key: &str, reason: &str) -> bool {
         let words = reason.split_whitespace().count();
         reason.trim().len() >= 20 && words >= 4 && reason.trim() != key
     }
 
-    /// Every exemption names the reason it is one, or there are none.
+    /// Every exemption names the reason it is one.
     ///
     /// **A list with no floor, no count and no field for a reason.** As
     /// `&[&str]` a key would be exempted from the untranslated check by adding
@@ -685,10 +795,9 @@ mod tests {
     /// sentence in two language columns with nothing in the tree saying it was
     /// meant.
     ///
-    /// So the reason is asserted to be prose rather than a placeholder. Empty is
-    /// the honest state of this catalog and this test says so: it passes over an
-    /// empty list, and the moment a first entry is added it has something to
-    /// hold.
+    /// So the reason is asserted to be prose rather than a placeholder, over a
+    /// written-out table on both sides of its floors and over every row the
+    /// shipped list holds.
     #[test]
     fn every_exemption_names_the_reason_it_is_one() {
         // **The list the shipped rule is handed, not the constant beside it.**
@@ -700,18 +809,15 @@ mod tests {
         // this catalog calls absolute. The naive form is caught only by
         // `-D dead-code` noticing an unreferenced constant, which is the
         // compiler objecting to tidiness rather than a gate objecting to a hole.
-        // **A loop that cannot iterate.** `THE_SAME_IN_BOTH` is `&[]`, so
-        // assertions inside a `for` over it alone would sit over an empty
-        // slice: the reason predicate would run on no input, and the rule that
-        // makes the second column load-bearing would itself be the unexercised
-        // hole `the_exemption_silences_the_key_it_names_and_no_other` exists to
-        // refuse one level down. Every clause of it could be deleted, or
-        // weakened to `len() >= 1`, with the suite green — and the first person
-        // to add an exemption would be trusting it.
+        // **A loop over the shipped list alone runs the predicate on reasons
+        // that all pass.** Its rows are written to be read, so each clause of
+        // the predicate could be deleted, or weakened to `len() >= 1`, with
+        // every row still accepted and the suite green — the unexercised hole
+        // `the_exemption_silences_the_key_it_names_and_no_other` exists to
+        // refuse one level down.
         //
-        // So it is driven over a written-out table, and the list is checked
-        // with the same predicate. Empty is the honest state of this catalog,
-        // and the rule works before there is anything for it to work on.
+        // So it is driven over a written-out table on both sides of each floor
+        // first, and the list is then checked with the same predicate.
         for (key, reason) in [
             ("brand.name", "the product name, which is not translated"),
             (
