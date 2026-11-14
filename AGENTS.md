@@ -279,6 +279,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-canon/                   canonical JSON and hashing (§16.4)
 │   │   └── canaries/               NOT COMPILED — a code the §15.1 walk must report
 │   ├── nc-ids/                     Snowflake, the machine flake, Denote naming (§16)
+│   ├── nc-fuzzy/                   the one fuzzy matcher: every word a subsequence of a name or a tag, positions per word, the ranking (§12.4)
 │   ├── nc-journal/                 the hash-chained journal (§14.9)
 │   │   └── postgres.rs            in src/ — the store that runs
 │   ├── nc-log/                     the central log's type wall (§15.4)
@@ -456,6 +457,8 @@ fails a gate a minute or two later.
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
+| a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
+| a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher is brought to in Stage 16 (`NOCTUA-PLAN.md`), so a rule changed without a row is one that implementation will not learn. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, and `docs/commands.md` links it. Only `md` ships, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry other than `commands` is a row of `REGISTRIES` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
 | a capability | `catalog/capabilities.toml`, both locales | its functions are the world's, written as the world's parser names them — `[method]<resource>.<name>` for a resource's method — and every function of the world sits in exactly one capability or in the `functions` of an `[[ungated]]` interface, beside the reason that covers it: an interface given to every plugin gives only what it lists, so a function the world gains there is refused by the coverage test until someone writes it in, rather than reaching every plugin under a reason written before it. `crates/nc-kernel/tests/capabilities.rs` holds the registry to the world, to the reference plugin's probe (`PROBED` in `plugins/reference/src/behaviour.rs`) and to the capability each host function asks for, so a function the world gains is also a host function in `crates/nc-kernel/src/host/` whose first statement asks for it — or, in an `[[ungated]]` interface, records it with `HostState::ungated` — a row of `PROBED` and an arm of the probe in `plugins/reference/src/adapter.rs`, and, under a capability, a call in `every_gated_function` in `crates/nc-kernel/src/host.rs`, whose test grants one capability at a time and holds what each function asked for, and under which name, to the catalog — the probe cannot, because a method is out of its reach until its constructor is built |
 | a rule a plugin's command is held to at `activate` | `crates/nc-kernel/src/registry.rs` | a refusal with the code of its kind — `[NC-PLUG-0008]` for a field left empty, `[NC-PLUG-0009]` for anything else wrong with the declaration, `[NC-KERN-0015]` for a name the plugin may not have — and a unit test in that file; and, where the reference plugin can declare it, a `Variant` in `plugins/reference/src/behaviour.rs`, which the plugin reads from its own store's `activation` key, and a test in `crates/nc-kernel/tests/activation.rs` loading the real component that way. A rule the judge in `crates/nc-schema` can state belongs there instead, where the catalog compiler holds every built-in to it too |
@@ -2613,6 +2616,34 @@ or an uninstall that did not finish left after its own stop, which the next inst
 as a person's stop; and lingering, which is the machine's (each under **What is
 deliberately not claimed**).
 
+### A query is matched in bounded work, and an item's text is read up to its bound
+
+**Guaranteed.** Matching a query against a list costs work bounded by the query and the
+fields, whatever either holds. A query holds at most `nc_fuzzy::QUERY_CHARS_MAX`
+characters, separators included, and is refused past that by `Query::parse` before
+anything is matched, counting no further than the bound — and so holds at most
+`nc_fuzzy::WORDS_MAX` words. Each field is read to `nc_fuzzy::FIELD_CHARS_MAX` characters
+and no further, and a field cut there is never matched whole. A word laid scattered costs
+one table of at most the product of the two bounds, which the `Matcher` keeps and reuses.
+The matcher is a pure function of what it is handed: no I/O, no regular expression, no
+`unsafe`, no system `cfg`, and no panic on any character. Its score is packed into widths
+derived in `const` from the same bounds and kept below `2^53`, so a JSON client reads it
+exactly and no count of word starts lifts a match past a higher tier.
+
+**Enforced by** the bounds in `crates/nc-fuzzy/src/lib.rs` and the `const` assertions in
+`crates/nc-fuzzy/src/score.rs`; the unit tests beside them —
+`a_query_longer_than_its_bound_is_refused`, `a_field_is_read_to_its_bound`,
+`a_field_cut_at_its_bound_is_never_matched_whole`,
+`the_widest_score_a_query_can_reach_is_a_safe_json_integer`; and
+`crates/nc-fuzzy/tests/properties.rs`, whose laws run over arbitrary characters and
+fields past the bound (`no_text_and_no_query_makes_the_matcher_panic`) and whose last law
+holds every alignment chosen to an exhaustive search.
+
+**Not answered:** how many items a caller hands it — a list of a million costs a million
+matches, and a surface that matches a registry bounds the list and its answer itself —
+and which characters look alike, and a text's graphemes, which **What is deliberately not
+claimed** says the core does not read.
+
 ### The stack binds to loopback and nothing else
 
 `docker-compose.yml` publishes both of its ports on `127.0.0.1` and nowhere else, never on
@@ -3716,6 +3747,33 @@ rather than anything decided for the project, and each is a maintainer's to reop
   under `policy/core/`, `policy(ies) parse and validate` the `@id` policies in them and in
   `family`.
 
+**The fuzzy core**
+
+- **The browser's matcher does not follow the corpus yet.** `noctua-design`'s
+  `search-match.js` is brought to `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` in Stage 16
+  (`NOCTUA-PLAN.md`), and until then it departs from rows of it. Among its departures, it
+  folds a Hangul syllable to its leading consonant, leaves a letter outside the basic plane
+  as it is, matches U+0085 like a letter, reads a whole query as one word, reads one text
+  per item with no fields, tags or roles, lists nothing for the empty query, and ranks by a
+  score of its own. Where it lays a word, it takes a run's first occurrence only, and lays a
+  scattered word greedily from each occurrence of its first letter and keeps the one with
+  more word starts, then the tighter span, then the earlier, where the core weighs every
+  alignment by word starts, then adjacent characters, then earliness: `ver` on
+  `Vast Error Report` colours 0, 5 and 6 where the corpus says 0, 5 and 11.
+- **Even then, two implementations agree only on the corpus's letters.** The core folds by
+  `unicode-normalization`'s tables and Rust's case mappings, and a browser by its own, so a
+  letter newer than the oldest of them may fold differently in each. The corpus keeps to
+  letters they all agree on; once both replay it, a disagreement there is a defect, and
+  anywhere else it is not claimed.
+- **A match is not aware of graphemes.** A position is a character, so in an `e` written
+  with a combining accent only the `e` is matched and coloured; drawing a cluster whole is
+  the interface's (Stage 16).
+- **No lookalike is folded.** A Cyrillic `а` does not find a Latin `a`, on purpose: a name
+  that only looks like another is not found by it.
+- **The ranking reads text alone.** Whoever writes an item's names and tags decides what
+  finds it and how high, within the bounds its registry holds those texts to.
+- **Matching is not constant-time.** It handles nothing secret.
+
 **The gate and its run**
 
 - **`cargo xtask check` passes on a checkout of this repository alone, and says what it
@@ -4698,6 +4756,8 @@ entry is already a dependency of `noctua-colors` or `noctua-design`, or named by
 decision — `NOCTUA.md §4` is where `wit-component`, `wit-parser` and `ureq` were decided —
 and none was chosen by preference. `ureq-proto` and `url` are in the graph under `ureq`
 and `sqlx`, and are named because the kernel matches on a type of each.
+`unicode-normalization` was the developer's choice on 2026-11-14, over a table written
+here.
 
 | Crate | Why it is not written here |
 |---|---|
@@ -4712,6 +4772,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `ureq-proto` | `ureq`'s own HTTP/1.1 protocol, already in the graph under it at the version `ureq` requires, so it adds no package (`cargo tree -i ureq-proto`). Taken directly only because the kernel matches on its `Error`, which `ureq::Error::Protocol` carries and `ureq` does not re-export: an answer with more headers than its parser holds is told as an answer too large (`[NC-PLUG-0014]`), not as a network that did not answer. A `ureq` moving to another release line of it carries an `Error` that match does not name, and the kernel fails to compile |
 | `url` | The WHATWG parser a plugin's URL is held to before anything is sent, as a browser reads one, so every spelling of an address parses as an address the kernel refuses rather than as a name. Already in the graph under `sqlx`; taken directly because the kernel matches on its `Host` |
 | `blake3` | The journal's chain and the machine flake both hash (`§14.9`, `§16.2`), a confirmation is bound to its dispatch's arguments by their digest, a blob is named by the hash of its bytes (`§13`), computed in `nc-kernel` as they are written, and each end of an IPC connection proves it holds the channel's token by a hash keyed by it, compared in constant time (`crates/nc-ipc`). Already `noctua-colors`' |
+| `unicode-normalization` | The canonical decomposition `crates/nc-fuzzy` folds a letter to its base letter by (`NOCTUA.md §12.4`): `é` to `e`, `ç` to `c` — the rule `noctua-design`'s matcher asks the browser for as `normalize("NFD")[0]`. Not written here because the table is Unicode's data, and a transcription of it is a defect this tree has measured once: `crates/nc-ids/src/naming.rs` records a hand-written table two entries out of step. A direct dependency of `nc-fuzzy` alone, `default-features = false`, since the decomposition it calls needs nothing of `std`. Already in the graph at this version under `stringprep` and `unicode-security`, with `tinyvec`, so it adds no package (`cargo tree -i unicode-normalization`). Its Hangul path holds `unsafe` of its own, which this workspace's `forbid` does not reach, as for every dependency |
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate — and the arguments the CLI holds to it, read back from their canonical text as the kernel reads them |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
