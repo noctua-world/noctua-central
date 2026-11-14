@@ -5072,6 +5072,12 @@ fn a_tag_list_the_judge_refuses_fails_the_build_naming_the_command() {
             "tag-malformed",
         ),
         (
+            "tag-brace",
+            "[\"desfazer\", \"voltar atrás\"",
+            "[\"desfazer\", \"{quem}\"",
+            "tag-malformed",
+        ),
+        (
             "tag-blank",
             "[\"desfazer\", \"voltar atrás\"",
             "[\"desfazer\", \"\u{3164}\"",
@@ -5082,6 +5088,9 @@ fn a_tag_list_the_judge_refuses_fails_the_build_naming_the_command() {
         scratch.replacing("catalog/i18n/pt-BR.toml", from, to);
         scratch.must_fail_saying(check, "`kernel.undo`");
         scratch.must_fail_saying(check, "pt-BR");
+        // Filed at the list the locale wrote, where the fix is made, not at
+        // the command's declaration.
+        scratch.points_at_the_line_declaring(check, "command.kernel.undo.tags");
     }
 }
 

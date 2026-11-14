@@ -3165,6 +3165,9 @@ WEAKENINGS = [
     ("schema_entry", "judge_tags", "an empty tag list is refused",
      "    if tags.is_empty() {",
      "    if false {"),
+    ("schema_entry", "judge_tags", "a tag holds no brace",
+     "        if tag.contains([',', '{', '}']) {",
+     "        if tag.contains(',') {"),
     ("schema_entry", "judge_categories", "a category the registry does not hold is refused",
      "        if !held.contains(&name.as_str()) {",
      "        if false {"),
@@ -3177,6 +3180,9 @@ WEAKENINGS = [
     ("schema_entry", "judge_wiki", "a wiki text holds no control but its line breaks",
      "    if let Some(character) = text.chars().find(|held| *held != '\\n' && unseen(*held)) {",
      "    if let Some(character) = text.chars().find(|held| *held != '\\n' && *held != '\\r' && unseen(*held)) {"),
+    ("schema_entry", "judge_wiki", "a wiki text is bounded in bytes",
+     "    if text.len() > WIKI_BYTES_MAX {",
+     "    if text.chars().count() > WIKI_BYTES_MAX {"),
     ("schema_entry", "from_extension", "an extension names a format in lower case only",
      "            .find(|format| format.extension() == extension)",
      "            .find(|format| format.extension().eq_ignore_ascii_case(extension))"),
@@ -3226,6 +3232,10 @@ WEAKENINGS = [
     ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
      "            let kind = entry.file_type().ok()?;",
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
+    # A tag list's problem is fixed in the list, so it is filed there.
+    ("compiler_metadata", "located", "a tag list's problem is filed at the list",
+     "        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, &command.tags),",
+     "        | EntryProblem::TagTwice { locale, .. } => {\n            let _ = locale;\n            None\n        }"),
 
     # -- packs: what a policy may be called, and what a realm pins -------------
     # The decision point's prefix is refused where an id begins, and only there.

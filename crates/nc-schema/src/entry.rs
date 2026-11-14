@@ -279,7 +279,7 @@ pub enum EntryProblem {
         /// The locale.
         locale: String,
     },
-    /// A tag holding a comma, which a list joined by commas reads as two.
+    /// A tag holding a comma, which a list reads as two, or a brace, which writes a placeholder.
     TagMalformed {
         /// The locale.
         locale: String,
@@ -365,7 +365,7 @@ impl fmt::Display for EntryProblem {
             }
             Self::TagMalformed { locale, tag } => write!(
                 formatter,
-                "has the `{locale}` tag `{tag}`, holding a comma a list of tags reads as two"
+                "has the `{locale}` tag `{tag}`, holding a comma or a brace, which no tag holds"
             ),
             Self::TagTwice { locale, tag } => {
                 write!(formatter, "has the `{locale}` tag `{tag}` twice")
@@ -538,7 +538,10 @@ fn judge_tags(locale: &str, tags: Option<&[String]>, problems: &mut Vec<EntryPro
                 character,
             });
         }
-        if tag.contains(',') {
+        // **A brace is refused outright, not parsed as a placeholder**: a tag
+        // is a word a search matches and a list shows, never a sentence with a
+        // slot in it, so no tag holds even half of one.
+        if tag.contains([',', '{', '}']) {
             problems.push(EntryProblem::TagMalformed {
                 locale: locale.to_owned(),
                 tag: excerpt(tag),
@@ -1161,14 +1164,17 @@ mod tests {
                 locale: "en".to_owned()
             }])
         );
-        locales[0].tags = Some(vec!["undo, redo".to_owned()]);
-        assert_eq!(
-            judged(&locales),
-            Err(vec![EntryProblem::TagMalformed {
-                locale: "en".to_owned(),
-                tag: "undo, redo".to_owned()
-            }])
-        );
+        for malformed in ["undo, redo", "{who}", "who}", "{who"] {
+            locales[0].tags = Some(vec!["undo".to_owned(), malformed.to_owned()]);
+            assert_eq!(
+                judged(&locales),
+                Err(vec![EntryProblem::TagMalformed {
+                    locale: "en".to_owned(),
+                    tag: malformed.to_owned()
+                }]),
+                "the tag `{malformed}` was not refused as malformed"
+            );
+        }
     }
 
     #[test]
@@ -1436,6 +1442,14 @@ mod tests {
         assert_eq!(
             judge_wiki(&past),
             Err(WikiProblem::TooLarge(WIKI_BYTES_MAX + 1))
+        );
+        // **Counted in bytes, not characters**: `é` is two bytes, so this text
+        // is half the bound in characters and one character past it in bytes.
+        let wide = "\u{e9}".repeat(WIKI_BYTES_MAX / 2);
+        assert_eq!(judge_wiki(&wide), Ok(()));
+        assert_eq!(
+            judge_wiki(&format!("{wide}\u{e9}")),
+            Err(WikiProblem::TooLarge(WIKI_BYTES_MAX + 2))
         );
         for character in ['\r', '\t', '\u{202e}', '\u{1b}', '\u{fe0f}'] {
             assert_eq!(

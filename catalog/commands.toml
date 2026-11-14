@@ -22,7 +22,8 @@
 #                      never the line again
 #   tags               the key of a list under `[tags]`: at least one word a
 #                      search finds the command by, at most 32 of at most 40
-#                      characters each, none twice
+#                      characters each, none twice, and none holding a comma
+#                      or a brace, so no tag holds a placeholder either
 #   categories         optional: the names of the categories it is listed under,
 #                      at most four, each one the categories registry holds
 #   glyph              optional: the code point it is shown with, written

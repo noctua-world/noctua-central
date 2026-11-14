@@ -223,8 +223,9 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         )),
         EntryProblem::TagMalformed { .. } => Some((
             "tag-malformed",
-            "tags are shown joined by commas, so a tag holding one reads as two. Split it \
-             into two tags, or write it without the comma",
+            "tags are shown joined by commas, so a tag holding one reads as two, and a \
+             brace is what a placeholder is written with, which no tag holds. Split it into \
+             two tags, or write it without the comma or the brace",
         )),
         EntryProblem::TagTwice { .. } => Some((
             "tag-twice",

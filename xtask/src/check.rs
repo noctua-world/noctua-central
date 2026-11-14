@@ -37549,7 +37549,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2182] = [
+    static OPERATORS: [(&str, &str, &str); 2185] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40577,6 +40577,7 @@ Options:
         ),
         ("schema_entry", "judge_tags", "the tags bound is a bound"),
         ("schema_entry", "judge_tags", "an empty tag list is refused"),
+        ("schema_entry", "judge_tags", "a tag holds no brace"),
         (
             "schema_entry",
             "judge_categories",
@@ -40592,6 +40593,11 @@ Options:
             "schema_entry",
             "judge_wiki",
             "a wiki text holds no control but its line breaks",
+        ),
+        (
+            "schema_entry",
+            "judge_wiki",
+            "a wiki text is bounded in bytes",
         ),
         (
             "schema_entry",
@@ -40659,6 +40665,11 @@ Options:
             "compiler_metadata",
             "listed",
             "no path under the wiki tree is read through a link",
+        ),
+        (
+            "compiler_metadata",
+            "located",
+            "a tag list's problem is filed at the list",
         ),
         (
             "pack",
