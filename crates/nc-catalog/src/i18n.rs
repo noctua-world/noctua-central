@@ -3128,6 +3128,39 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "external-identifier.chromium.description",
+        [
+            "Open-source web browser",
+            "Navegador da web de código aberto",
+        ],
+    ),
+    (
+        "external-identifier.chromium.paragraph",
+        [
+            "The open-source web browser project. Each system's distributions package it under names of their own, so this entry names only what was measured on a system or is written in the project's own sources: the commands that start it on Linux, its bundle identifier and executable on macOS, and its executable on Windows.",
+            "O projeto de navegador da web de código aberto. As distribuições de cada sistema o empacotam com nomes próprios, por isso esta entrada só nomeia o que foi medido em um sistema ou está escrito nas fontes do próprio projeto: os comandos que o iniciam no Linux, o identificador e o executável do pacote no macOS, e o executável no Windows.",
+        ],
+    ),
+    (
+        "external-identifier.chromium.title",
+        ["Chromium", "Chromium"],
+    ),
+    (
+        "external-identifier.google-chrome.description",
+        ["Web browser", "Navegador da web"],
+    ),
+    (
+        "external-identifier.google-chrome.paragraph",
+        [
+            "The web browser Google distributes. This entry names it on Linux, macOS and Windows by what its own installers leave on each system, as measured there: the commands that start it, its desktop files, its application bundle and the paths it is installed at.",
+            "O navegador da web que o Google distribui. Esta entrada o identifica no Linux, no macOS e no Windows pelo que os próprios instaladores dele deixam em cada sistema, como medido lá: os comandos que o iniciam, os arquivos de desktop, o pacote do aplicativo e os caminhos em que fica instalado.",
+        ],
+    ),
+    (
+        "external-identifier.google-chrome.title",
+        ["Google Chrome", "Google Chrome"],
+    ),
+    (
         "notification.catalog.mechanism.body",
         [
             "Hello {name}. This message exists so that Noctua can check its own notifications reach you correctly.",
@@ -3716,6 +3749,12 @@ pub const KEYS: &[&str] = &[
     "error.validation.arguments-invalid",
     "error.validation.out-of-range",
     "error.validation.resource-id-malformed",
+    "external-identifier.chromium.description",
+    "external-identifier.chromium.paragraph",
+    "external-identifier.chromium.title",
+    "external-identifier.google-chrome.description",
+    "external-identifier.google-chrome.paragraph",
+    "external-identifier.google-chrome.title",
     "notification.catalog.mechanism.body",
     "notification.catalog.mechanism.title",
 ];
@@ -3909,6 +3948,26 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "limite",
                 "liberar espaço",
             ],
+        ],
+    ),
+    (
+        "external-identifier.chromium.tags",
+        [
+            &["browser", "web browser", "web", "internet", "open source"],
+            &[
+                "navegador",
+                "navegador da web",
+                "web",
+                "internet",
+                "código aberto",
+            ],
+        ],
+    ),
+    (
+        "external-identifier.google-chrome.tags",
+        [
+            &["browser", "web browser", "web", "internet", "google"],
+            &["navegador", "navegador da web", "web", "internet", "google"],
         ],
     ),
 ];

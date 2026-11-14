@@ -681,6 +681,13 @@ fn every_constant_that_claims_an_order_is_in_it() {
             .collect(),
         "CATEGORIES",
     );
+    sorted(
+        nc_catalog::EXTERNAL_IDENTIFIERS
+            .iter()
+            .map(|identifier| identifier.name)
+            .collect(),
+        "EXTERNAL_IDENTIFIERS",
+    );
 }
 
 /// `ErrorCode`'s variants are in code order, and `ALL` says so.
@@ -1775,6 +1782,214 @@ fn every_row_of_the_sources_is_a_category_and_no_other() {
     );
 }
 
+/// What identifies one external identifier on each system, as one shape.
+///
+/// A system's fields, each with its values, or `None` where it is not
+/// identified there.
+type Identified<'a> = [Option<Vec<(&'a str, Vec<&'a str>)>>; 3];
+
+/// What the generated crate holds of an entry's identification, field by field.
+fn identified_in_the_code(identifier: &nc_catalog::ExternalIdentifier) -> Identified<'static> {
+    [
+        identifier.linux.map(|on| {
+            vec![
+                ("executables", on.executables.to_vec()),
+                ("desktop_ids", on.desktop_ids.to_vec()),
+                ("flatpak_ids", on.flatpak_ids.to_vec()),
+                ("snap_names", on.snap_names.to_vec()),
+                ("paths", on.paths.to_vec()),
+            ]
+        }),
+        identifier.macos.map(|on| {
+            vec![
+                ("bundle_ids", on.bundle_ids.to_vec()),
+                ("app_paths", on.app_paths.to_vec()),
+                ("executables", on.executables.to_vec()),
+            ]
+        }),
+        identifier.windows.map(|on| {
+            vec![
+                ("executables", on.executables.to_vec()),
+                ("app_paths_keys", on.app_paths_keys.to_vec()),
+                ("paths", on.paths.to_vec()),
+            ]
+        }),
+    ]
+}
+
+/// Every external identifier reaches the code as the registry declares it.
+///
+/// **Each value against the registry**, every text key, category, glyph and
+/// value of every field of every system: an emitter writing one system's table
+/// as another's, or dropping a field to an empty list, would agree with the
+/// file it wrote and with nothing else.
+#[test]
+fn every_external_identifier_reaches_the_code() {
+    let catalog = catalog();
+    let mut compared = 0_usize;
+    for entry in &catalog.external_identifiers {
+        let named = entry.name.as_str();
+        let generated = nc_catalog::external_identifier(named)
+            .unwrap_or_else(|| panic!("`{named}` never reached the code"));
+        assert_eq!(generated.name, named);
+        assert_eq!(generated.title_key, entry.title, "{named}");
+        assert_eq!(generated.description_key, entry.description, "{named}");
+        assert_eq!(generated.paragraph_key, entry.paragraph, "{named}");
+        assert_eq!(generated.tags_key, entry.tags, "{named}");
+        assert_eq!(generated.categories, entry.categories, "{named}");
+        assert_eq!(
+            generated
+                .glyph
+                .map(|glyph| format!("U+{:04X}", u32::from(glyph))),
+            entry.glyph,
+            "{named}"
+        );
+        // A system the registry identifies the entry on is one the code holds
+        // a table for, and only those.
+        assert_eq!(
+            Option::is_some(&generated.linux),
+            entry.linux.is_some(),
+            "{named}"
+        );
+        assert_eq!(
+            Option::is_some(&generated.macos),
+            entry.macos.is_some(),
+            "{named}"
+        );
+        assert_eq!(
+            Option::is_some(&generated.windows),
+            entry.windows.is_some(),
+            "{named}"
+        );
+        let on_linux: Option<nc_catalog::OnLinux> = generated.linux;
+        if let (Some(on), Some(declared)) = (on_linux, &entry.linux) {
+            assert_eq!(on.executables, declared.executables, "{named}");
+            assert_eq!(on.desktop_ids, declared.desktop_ids, "{named}");
+            assert_eq!(on.flatpak_ids, declared.flatpak_ids, "{named}");
+            assert_eq!(on.snap_names, declared.snap_names, "{named}");
+            assert_eq!(on.paths, declared.paths, "{named}");
+        }
+        let on_macos: Option<nc_catalog::OnMacOs> = generated.macos;
+        if let (Some(on), Some(declared)) = (on_macos, &entry.macos) {
+            assert_eq!(on.bundle_ids, declared.bundle_ids, "{named}");
+            assert_eq!(on.app_paths, declared.app_paths, "{named}");
+            assert_eq!(on.executables, declared.executables, "{named}");
+        }
+        let on_windows: Option<nc_catalog::OnWindows> = generated.windows;
+        if let (Some(on), Some(declared)) = (on_windows, &entry.windows) {
+            assert_eq!(on.executables, declared.executables, "{named}");
+            assert_eq!(on.app_paths_keys, declared.app_paths_keys, "{named}");
+            assert_eq!(on.paths, declared.paths, "{named}");
+        }
+        compared += 1;
+    }
+    assert!(
+        compared > 1,
+        "{compared} external identifier(s) were compared"
+    );
+    assert_eq!(nc_catalog::external_identifier("nothing"), None);
+}
+
+/// The external-identifier registry holds Google Chrome and Chromium, each
+/// identified on Linux, macOS and Windows.
+///
+/// **Written out, value by value**, as measured on GitHub's hosted runners or
+/// read from Chromium's own sources when the registry was seeded, which this
+/// test cannot read: a value added, dropped, moved or misspelt is a difference
+/// here, and so is a system left out.
+#[test]
+fn the_external_identifiers_hold_chrome_and_chromium_on_every_system() {
+    let names: Vec<&str> = nc_catalog::EXTERNAL_IDENTIFIERS
+        .iter()
+        .map(|identifier| identifier.name)
+        .collect();
+    assert_eq!(names, ["chromium", "google-chrome"]);
+    let none: Vec<&str> = Vec::new();
+
+    let chrome = nc_catalog::external_identifier("google-chrome").expect("Google Chrome");
+    assert_eq!(
+        chrome.categories,
+        ["freedesktop.network", "freedesktop.web-browser"],
+        "what Google Chrome's own desktop file declares, and no `apple` category: its \
+         Info.plist declares none"
+    );
+    assert_eq!(
+        identified_in_the_code(chrome),
+        [
+            Some(vec![
+                ("executables", vec!["google-chrome-stable", "google-chrome"]),
+                (
+                    "desktop_ids",
+                    vec!["google-chrome.desktop", "com.google.Chrome.desktop"],
+                ),
+                ("flatpak_ids", none.clone()),
+                ("snap_names", none.clone()),
+                (
+                    "paths",
+                    vec![
+                        "/opt/google/chrome/google-chrome",
+                        "/usr/bin/google-chrome-stable",
+                        "/usr/bin/google-chrome",
+                    ],
+                ),
+            ]),
+            Some(vec![
+                ("bundle_ids", vec!["com.google.Chrome"]),
+                ("app_paths", vec!["/Applications/Google Chrome.app"]),
+                ("executables", vec!["Google Chrome"]),
+            ]),
+            Some(vec![
+                ("executables", vec!["chrome.exe"]),
+                ("app_paths_keys", vec!["chrome.exe"]),
+                (
+                    "paths",
+                    vec![r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"],
+                ),
+            ]),
+        ]
+    );
+    // `NOCTUA.md §20.4`'s own example.
+    assert_eq!(
+        nc_catalog::message(chrome.title_key, nc_catalog::Locale::En),
+        Some("Google Chrome")
+    );
+    assert_eq!(
+        nc_catalog::message(chrome.description_key, nc_catalog::Locale::En),
+        Some("Web browser")
+    );
+
+    let chromium = nc_catalog::external_identifier("chromium").expect("Chromium");
+    assert_eq!(
+        chromium.categories,
+        ["freedesktop.network", "freedesktop.web-browser"]
+    );
+    assert_eq!(
+        identified_in_the_code(chromium),
+        [
+            Some(vec![
+                ("executables", vec!["chromium", "chromium-browser"]),
+                ("desktop_ids", none.clone()),
+                ("flatpak_ids", none.clone()),
+                ("snap_names", none.clone()),
+                (
+                    "paths",
+                    vec!["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+                ),
+            ]),
+            Some(vec![
+                ("bundle_ids", vec!["org.chromium.Chromium"]),
+                ("app_paths", none.clone()),
+                ("executables", vec!["Chromium"]),
+            ]),
+            Some(vec![
+                ("executables", vec!["chrome.exe"]),
+                ("app_paths_keys", none.clone()),
+                ("paths", none),
+            ]),
+        ]
+    );
+}
+
 /// Every tag list reaches the code in both locales, word for word and in the
 /// order written.
 #[test]
@@ -2654,6 +2869,10 @@ fn every_generated_module_names_the_registry_it_came_from() {
         ("capabilities.rs", "catalog/capabilities.toml"),
         ("wiki.rs", "catalog/wiki/"),
         ("categories.rs", "catalog/categories.toml"),
+        (
+            "external_identifiers.rs",
+            "catalog/external-identifiers.toml",
+        ),
     ] {
         let path = root().join("crates/nc-catalog/src").join(module);
         let text = std::fs::read_to_string(&path)
@@ -2756,7 +2975,7 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
     // these already has a per-entry test walking the other way: the two together
     // are a bijection, and either alone is not.
     let catalog = catalog();
-    let counted: [(&str, usize, usize); 10] = [
+    let counted: [(&str, usize, usize); 11] = [
         (
             "commands",
             nc_catalog::COMMANDS.len(),
@@ -2771,6 +2990,11 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
             "sets of categories",
             nc_catalog::CATEGORY_SETS.len(),
             catalog.category_sets.len(),
+        ),
+        (
+            "external identifiers",
+            nc_catalog::EXTERNAL_IDENTIFIERS.len(),
+            catalog.external_identifiers.len(),
         ),
         ("wiki texts", nc_catalog::WIKI.len(), catalog.wiki.len()),
         (

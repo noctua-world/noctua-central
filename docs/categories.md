@@ -3,7 +3,7 @@
 
 # Categories
 
-Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set is a standard's — its categories carry the names the standard gives them, and the rank it gives them where it ranks them — or the platform's own. A category is named for its set, a dot and a slug, and what a command's `categories` name are categories on this page: the build refuses any other. `noctua help categories` lists them with no daemon, in the reader's language.
+Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set is a standard's — its categories carry the names the standard gives them, and the rank it gives them where it ranks them — or the platform's own. A category is named for its set, a dot and a slug, and what the `categories` of a command and of an external identifier name are categories on this page: the build refuses any other. `noctua help categories` lists them with no daemon, in the reader's language.
 
 ## `apple`
 

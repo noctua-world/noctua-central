@@ -563,7 +563,8 @@ held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
 `memory.rs` and `unit.rs`, the compiler's `load.rs`, `emit.rs` and its own
 `docs.rs`, and `metadata.rs`, which hands an entry's texts to its judge, and
 `registries.rs`, which holds the categories to the shape a set and a category
-have, and the rule the compiler judges a command's declaration and its entry
+have and an external identifier to the shape of each value it is identified
+by, and the rule the compiler judges a command's declaration and its entry
 by, and the
 kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
 `entry.rs` — and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,

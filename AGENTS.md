@@ -263,6 +263,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── log-events.toml             every event the central log can receive (§15.4)
 │   ├── capabilities.toml           every capability a plugin can be granted (§11.3)
 │   ├── categories.toml             every category an entry is listed under, in sets: two standards' and the platform's own (§20.4)
+│   ├── external-identifiers.toml   things outside the platform, and what identifies each on Linux, macOS and Windows (§20.4)
 │   ├── i18n/                       every user-facing string and tag list, both locales
 │   └── wiki/                       an entry's wiki text, by locale, registry and name (§20.4)
 ├── policy/                         HAND-WRITTEN — the Cedar packs (§14.4)
@@ -459,6 +460,7 @@ fails a gate a minute or two later.
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, and `docs/commands.md` links it. Only `md` ships, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry other than `commands` is a row of `REGISTRIES` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
 | a category or a set of categories | `catalog/categories.toml`, both locales | a category is named `<set>.<slug>` under the set it says it is in, and carries a display name and a line description in every locale — the two texts a list of them shows, held to `nc_schema::entry::judge` by `crates/nc-catalog-compiler/src/metadata.rs`, and no other text; the rest of its shape is `crates/nc-catalog-compiler/src/registries.rs`'s. A category of a standard set carries its `standard_name` as the standard writes it, and a `role` where its standard ranks its categories — every category of such a set does — while the platform's own set carries neither and names no `version`; a standard set names what defines it in `defined_by` and the version it was read from in `version`. A standard's values are copied from the standard, never from memory, and `xtask/tests/the_registry_reaches_the_code.rs` holds the two standards' rows written out, so a row added to or taken from a standard set is an edit there as well. A name that is the same in both languages — a project's own — is a row of `THE_SAME_IN_BOTH` in `crates/nc-catalog-compiler/src/messages.rs` with its reason, refused once the locales stop sharing it (`exemption-unused`). A command names categories from here; `docs/categories.md` and `noctua help categories` list them, the second with no daemon |
+| an external identifier | `catalog/external-identifiers.toml`, both locales | it carries a command's four texts — `title`, `description`, `paragraph` and the key of a `[tags]` list — held to `nc_schema::entry::judge` by `crates/nc-catalog-compiler/src/metadata.rs`, with `categories` and `glyph` optional as a command's are, and no wiki text: `external-identifiers` is not a row of `REGISTRIES` there until one ships. What identifies it is a table for each system it is identified on — `[identifier.linux]`, `[identifier.macos]`, `[identifier.windows]` — at least one and none empty, each field a list of values of one closed shape, held by `identification` in `crates/nc-catalog-compiler/src/registries.rs`: no `..`, nothing a reader sees nothing of and at most 260 characters anywhere, a path absolute on Linux and macOS and under `%ProgramFiles%\`, `%ProgramFiles(x86)%\` or `%LOCALAPPDATA%\` on Windows. **A value is copied from a measurement on the system or from the product's own sources, never from memory**, the file's header says which, and one neither confirms is left out and written down for `NOCTUA-PLAN.md`'s Stage 27+; `the_external_identifiers_hold_chrome_and_chromium_on_every_system` in `xtask/tests/the_registry_reaches_the_code.rs` holds every shipped value written out, so a value added or taken away is an edit there as well. A field added to a system is a field of `OnLinux`, `OnMacOs` or `OnWindows` in `crates/nc-catalog-compiler/src/model.rs`, a `Field` with its shape in `registries.rs`, a line of the emitter's `the_systems_tables`, and a line in every reader that names the fields one by one — `apps/cli/src/help.rs` and the comparisons in `xtask/tests/` — each of which fails until it is. A product's name that is the same in both languages is a row of `THE_SAME_IN_BOTH` with its reason. `docs/external-identifiers.md` and `noctua help external-identifiers` list every entry with what identifies it, the second with no daemon |
 | a capability | `catalog/capabilities.toml`, both locales | its functions are the world's, written as the world's parser names them — `[method]<resource>.<name>` for a resource's method — and every function of the world sits in exactly one capability or in the `functions` of an `[[ungated]]` interface, beside the reason that covers it: an interface given to every plugin gives only what it lists, so a function the world gains there is refused by the coverage test until someone writes it in, rather than reaching every plugin under a reason written before it. `crates/nc-kernel/tests/capabilities.rs` holds the registry to the world, to the reference plugin's probe (`PROBED` in `plugins/reference/src/behaviour.rs`) and to the capability each host function asks for, so a function the world gains is also a host function in `crates/nc-kernel/src/host/` whose first statement asks for it — or, in an `[[ungated]]` interface, records it with `HostState::ungated` — a row of `PROBED` and an arm of the probe in `plugins/reference/src/adapter.rs`, and, under a capability, a call in `every_gated_function` in `crates/nc-kernel/src/host.rs`, whose test grants one capability at a time and holds what each function asked for, and under which name, to the catalog — the probe cannot, because a method is out of its reach until its constructor is built |
 | a rule a plugin's command is held to at `activate` | `crates/nc-kernel/src/registry.rs` | a refusal with the code of its kind — `[NC-PLUG-0008]` for a field left empty, `[NC-PLUG-0009]` for anything else wrong with the declaration, `[NC-KERN-0015]` for a name the plugin may not have — and a unit test in that file; and, where the reference plugin can declare it, a `Variant` in `plugins/reference/src/behaviour.rs`, which the plugin reads from its own store's `activation` key, and a test in `crates/nc-kernel/tests/activation.rs` loading the real component that way. A rule the judge in `crates/nc-schema` can state belongs there instead, where the catalog compiler holds every built-in to it too |
 | a refusal the decision point makes | `crates/nc-kernel/src/dispatch.rs` | a code of its own in `catalog/errors.toml` with both locales, a `Reason` — whose sentinel begins `kernel.`, which no policy's `@id` may, and is what the journal records as having decided — with its variant for `kernel.dispatch_refused`, and a case in `crates/nc-kernel/tests/the_decision_point.rs` that dispatches into it through the real component and reads the refusal back from the journal and the log. A denial tells the caller its code and never the policy that decided: that is the journal's. Anything run from inside a host call that measures its own stack — Cedar does — runs on a task of its own (`Frame::dispatch` says why) |
@@ -475,7 +477,7 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table. A help topic is the same kind of word — `exit-codes`, `categories` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
 | a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
 
 Two things are true of all of them:
@@ -2390,8 +2392,12 @@ program reach a channel's daemon through.
   decoded.
 - **Help on a registry of the catalog asks no daemon, and is escaped as the daemon's
   texts are.** `help categories` prints every set and every category the binary's own
-  catalog holds — the registry itself, which no daemon holds another of — in the
-  environment's language, each text written as a daemon's would be.
+  catalog holds, and `help external-identifiers` every external identifier with each
+  value it is identified by on each system — the registries themselves, which no daemon
+  holds another of — in the environment's language, each text and each value written as
+  a daemon's would be: a path, a bundle identifier or a package name is a text the
+  compiler judged for its shape alone, and the escape is what keeps one from moving a
+  terminal.
 
 **Enforced by** the unit tests of each module in `apps/cli/src/` — the client's and a
 run's against a daemon in-process, in a scratch install, that answers as a script says:
@@ -2399,8 +2405,10 @@ nothing listening, a handshake proving nobody, a token another account can reach
 in a directory it can reach, each left as it was, a token missing and each way one is
 malformed, a welcome naming another process and another channel, each answer of a
 dispatch to its row of the exit table and an answer of another kind, help on the exit
-codes and on the categories with no daemon, every text a set is headed with and a category
-is listed with escaped, help on everything showing the grammar and the verbs with none,
+codes, on the categories and on the external identifiers with no daemon, every text a set
+is headed with and a category is listed with escaped, every text an external identifier is
+headed with and every value it is identified by escaped, help on everything showing the
+grammar and the verbs with none,
 and a command line, a command and arguments refused with nothing dispatched — by
 `apps/cli/tests/arguments_from_schemas.rs`, by `apps/daemon/tests/exit_codes.rs` — one
 test for each way a run ends against a real daemon, `reference.irreversible.do` refused with
@@ -2775,7 +2783,16 @@ alone, held to the same rules, and no two categories of one set share a display 
 locale; a category is named `<set>.<slug>` under the set it is in, a standard's category
 carries its standard's name in printable ASCII with no space and, in a set its standard
 ranks, its role — the platform's own carries neither — and a command names only categories
-the registry holds, each once and at most four. A name exempt from the untranslated rule is
+the registry holds, each once and at most four. An external identifier carries a command's
+four texts under the same rules, names categories and a glyph as a command does, and no two
+external identifiers share a display name in a locale; its name is lower-case words joined
+by single hyphens, it is identified on at least one system with no system's table empty,
+and every value it is identified by — a command's name, a desktop file, a Flatpak or Snap
+name, a bundle identifier, an executable, an `App Paths` key, a path — has its field's one
+closed shape, holds nothing a reader sees nothing of and no `..`, is at most 260
+characters, sits once in its list, and as a path begins at `/` on Linux and macOS and at
+`%ProgramFiles%\`, `%ProgramFiles(x86)%\` or `%LOCALAPPDATA%\` on Windows, never at a
+drive or a directory one machine has. A name exempt from the untranslated rule is
 one the locales share, or the exemption is refused. Every wiki text sits in a closed tree — under a locale and a registry this
 catalog has, named for an entry, in the format its lower-case extension names, in every
 locale and in one format across them — is held to 64 KiB with nothing a reader cannot see
@@ -2787,24 +2804,37 @@ it is. Anything else fails the build, and nothing is generated while a problem s
 **Enforced by** `crates/nc-schema/src/entry.rs` — `judge`, `glyph` and `judge_wiki`, a unit
 test per rule and a property in `crates/nc-schema/tests/properties.rs` — the one judge,
 which `crates/nc-catalog-compiler/src/metadata.rs` hands the texts of every command, every
-set of categories and every category and every wiki file, and whose refusals
-`crates/nc-catalog-compiler/tests/the_gates_fire.rs` makes fail one at a time;
-`crates/nc-catalog-compiler/src/registries.rs` holds a set's and a category's shape, and
+set of categories, every category and every external identifier and every wiki file, and
+whose refusals `crates/nc-catalog-compiler/tests/the_gates_fire.rs` makes fail one at a
+time, `every_text_an_external_identifier_carries_is_judged_naming_it` breaking each of an
+identifier's four texts alone; `crates/nc-catalog-compiler/src/registries.rs` holds a set's,
+a category's and an external identifier's shape, and
 `a_category_named_outside_its_set_or_in_no_set_fails_the_build`, its neighbours and
-`an_exemption_over_a_name_the_locales_no_longer_share_fails_the_build` break each rule alone. What the catalog's message rules already report — a key absent, blank or
+`an_exemption_over_a_name_the_locales_no_longer_share_fails_the_build` break each rule alone,
+`every_identification_field_refuses_what_it_cannot_be` holds each field's shape both ways,
+and `every_identification_field_is_held_to_its_shape_naming_the_identifier_and_the_field`
+holds every field of every system to it in the build. What the catalog's message rules already report — a key absent, blank or
 untranslated, a placeholder — is dropped from the judge's answer by name rather than said
 twice, so `declared_params` in `crates/nc-catalog-compiler/src/load.rs` giving each of the
 three sentences the empty set is what refuses a placeholder in one, and
-`a_command_message_may_not_interpolate_anything` breaks each sentence alone; `judge_tags`
+`a_command_message_may_not_interpolate_anything` and
+`an_external_identifiers_texts_may_not_interpolate_anything` break each sentence alone; `judge_tags`
 refuses a tag holding a brace, half a placeholder included. A link is planted where the
 tree, a locale's directory, a registry's and a text belong, by every door
 `nc_platform::testing` makes one with, in
 `a_link_where_a_wiki_path_belongs_fails_the_build`. The page escapes every cell and links a
-wiki text rather than inlining it, and the generated crate writes a glyph as its escape.
+wiki text rather than inlining it, writes a value an entry is identified by as a code span
+whose fence no backtick in it ends and whose cell no bar in it ends, and the generated crate
+writes a glyph as its escape.
 
 **Not answered:** whether a text is true, or a translation faithful beyond not being the
 source sentence again; whether a category's standard name and role are its standard's
-today, beyond the version its set records; whether a glyph depicts what its comment names; whether a wiki
+today, beyond the version its set records; whether a value an external identifier is
+identified by is what a system holds today, or the thing it names — identification is data,
+which nothing in this build runs, expands or resolves, and a name, a path or a bundle
+identifier can be copied by anything installed beside the real one, so a reader that one
+day matches one against a system holds the match as a hint, never as proof (**What is
+deliberately not claimed**); whether a glyph depicts what its comment names; whether a wiki
 text's Markdown or Typst is well formed, since nothing in this build parses or prints one;
 and two display names or tags that differ only by look-alike characters, which needs the
 confusable folding `BLANK_RANGES` says this crate does not carry.
@@ -3731,6 +3761,20 @@ rather than anything decided for the project, and each is a maintainer's to reop
   which the specification leaves blank, and those of `accessibility`, `ide` and `mixer`,
   which say little more than their names there, are this catalog's own; the
   specification's wording is at its address.
+- **An external identifier is what was measured on the day it was seeded, and no more.**
+  `catalog/external-identifiers.toml` holds Google Chrome and Chromium, each value measured
+  on GitHub's hosted runners — ubuntu-latest, macos-latest and windows-latest — or read from
+  Chromium's own source tree on that day, as its header says value by value; nothing reads
+  either again, so an installer that renames a file or moves a path is not seen until the
+  file is edited, and what a distribution packages under names of its own is in it only
+  where a runner showed it. A value neither source confirmed is left out — the header and
+  `NOCTUA-PLAN.md`'s Stage 27+ list which — so the registry is not complete for either
+  product, and filling it is a pending task. Its texts are this catalog's own words.
+- **Identification is a hint, never authentication.** Nothing in this build matches a value
+  against a system. When something does, an executable's name, a desktop file, a bundle
+  identifier and a path are each what any program the person installs can also carry, so a
+  match says what a thing claims to be and never what it is, and no decision of the kernel
+  may rest on one.
 
 **The policy packs**
 

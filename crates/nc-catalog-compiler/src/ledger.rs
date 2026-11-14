@@ -730,6 +730,7 @@ mod tests {
             ungated: Vec::new(),
             category_sets: Vec::new(),
             categories: Vec::new(),
+            external_identifiers: Vec::new(),
             locales: Vec::new(),
             wiki: Vec::new(),
         }

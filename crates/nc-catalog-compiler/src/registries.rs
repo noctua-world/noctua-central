@@ -1,4 +1,5 @@
-//! The registries other entries draw from: the categories (`NOCTUA.md §20.4`).
+//! The registries other entries draw from, and those of things outside the
+//! platform: the categories and the external identifiers (`NOCTUA.md §20.4`).
 //!
 //! **A category is a name a list shows an entry under**, and the categories
 //! registry is the closed set of them: a set — a standard's, or the
@@ -13,9 +14,19 @@
 //! refused rather than ignored: a standard name on the platform's own category
 //! is a claim about a standard that does not make it.
 //!
-//! **What a person is shown of a set and of a category** — a display name and
-//! a line description in every locale — is the entry judge's, through
-//! `crate::metadata`, as every entry's texts are.
+//! **An external identifier is a thing outside the platform** — an
+//! application, a binary, a configuration file — and what identifies it on
+//! each system it is identified on: on Linux the commands that start it, its
+//! desktop files, its Flatpak and Snap names and its paths; on macOS its
+//! bundle identifiers, its application bundles and its executables; on Windows
+//! its executables, its keys under `App Paths` and its paths. Each field holds
+//! values of one closed shape ([`identification`]); an entry identified on no
+//! system, and a system's table naming nothing, are refused.
+//!
+//! **What a person is shown of a set, a category and an external identifier**
+//! — a display name and a line description in every locale, and for an
+//! external identifier a paragraph and tags as well — is the entry judge's,
+//! through `crate::metadata`, as every entry's texts are.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -23,22 +34,59 @@
 //! shape: a name is lower-case letters and digits in words joined by single
 //! hyphens, which a list and a command line can carry, a standard name is
 //! printable ASCII with nothing a reader sees nothing of, and a role is one of
-//! the words its standard uses. Nothing here is read at run time from anywhere
-//! but the generated crate.
+//! the words its standard uses. An external identifier's name is the same
+//! shape, and every value it is identified by is bounded, holds nothing a
+//! reader sees nothing of and no `..`, and is anchored where it is a path: at
+//! the root on Linux and macOS, and on Windows at one of the directories the
+//! system's environment names. **Identification is data**: nothing in this
+//! build runs, expands or resolves a value, and a reader that one day matches
+//! one against the system holds a match as a hint, never as proof of what it
+//! found. Nothing here is read at run time from anywhere but the generated
+//! crate.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::load::{floor, push, says_nothing};
-use crate::model::{CategoryEntry, CategoryFile, CategorySetEntry};
+use crate::model::{
+    CategoryEntry, CategoryFile, CategorySetEntry, ExternalIdentifierEntry, ExternalIdentifierFile,
+};
 use crate::problem::{Problem, line_of};
 
 /// Where the categories registry is written.
 pub(crate) const CATEGORIES: &str = "catalog/categories.toml";
 
+/// The text each registry this module reads was read from.
+pub(crate) struct Texts {
+    /// `catalog/categories.toml`.
+    pub(crate) categories: String,
+    /// `catalog/external-identifiers.toml`.
+    pub(crate) identifiers: String,
+}
+
+/// Every registry this module reads, read, parsed and held to its rules,
+/// with the text each was read from.
+///
+/// `None` when one could not be read or parsed, which is reported; each is
+/// read whatever became of the other, so a build reports both.
+pub(crate) fn all(
+    root: &std::path::Path,
+    problems: &mut Vec<Problem>,
+) -> Option<(CategoryFile, ExternalIdentifierFile, Texts)> {
+    let categories = categories(root, problems);
+    let identifiers = external_identifiers(root, problems);
+    let ((categories_text, categories), (identifiers_text, identifiers)) =
+        (categories?, identifiers?);
+    let texts = Texts {
+        categories: categories_text,
+        identifiers: identifiers_text,
+    };
+    Some((categories, identifiers, texts))
+}
+
 /// The categories registry, read, parsed and held to the rules above, with
 /// its text for the line a later problem is filed at; `None` when it could
 /// not be read or parsed, which is reported.
-pub(crate) fn categories(
+fn categories(
     root: &std::path::Path,
     problems: &mut Vec<Problem>,
 ) -> Option<(String, CategoryFile)> {
@@ -331,6 +379,456 @@ fn every_set_holds_a_category_and_ranks_all_or_none(
     }
 }
 
+/// Where the external-identifiers registry is written.
+pub(crate) const EXTERNAL_IDENTIFIERS: &str = "catalog/external-identifiers.toml";
+
+/// The longest value an entry is identified by, in characters.
+///
+/// The longest path Windows opens without its long-path prefix, which no
+/// other field's values come near.
+const IDENTIFICATION_MAX: usize = 260;
+
+/// The directories a Windows path may begin at.
+///
+/// As the system's environment names them: the programs installed for every
+/// user, in both of their directories, and those installed for one.
+const WINDOWS_ANCHORS: [&str; 3] = [
+    "%ProgramFiles%\\",
+    "%ProgramFiles(x86)%\\",
+    "%LOCALAPPDATA%\\",
+];
+
+/// One field of what identifies an external identifier on a system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Field {
+    /// A command `PATH` finds on Linux.
+    LinuxExecutable,
+    /// A desktop file's name.
+    DesktopId,
+    /// A Flatpak application identifier.
+    FlatpakId,
+    /// A Snap package's name.
+    SnapName,
+    /// An absolute path on Linux.
+    LinuxPath,
+    /// A macOS bundle identifier.
+    BundleId,
+    /// An application bundle's absolute path.
+    AppPath,
+    /// The executable inside a macOS bundle.
+    MacExecutable,
+    /// A Windows executable's name.
+    WindowsExecutable,
+    /// A key under the registry's `App Paths`.
+    AppPathsKey,
+    /// A path under a directory the Windows environment names.
+    WindowsPath,
+}
+
+impl Field {
+    /// The key the registry writes it under, in its system's table.
+    pub(crate) const fn key(self) -> &'static str {
+        match self {
+            Self::LinuxExecutable | Self::MacExecutable | Self::WindowsExecutable => "executables",
+            Self::DesktopId => "desktop_ids",
+            Self::FlatpakId => "flatpak_ids",
+            Self::SnapName => "snap_names",
+            Self::LinuxPath | Self::WindowsPath => "paths",
+            Self::BundleId => "bundle_ids",
+            Self::AppPath => "app_paths",
+            Self::AppPathsKey => "app_paths_keys",
+        }
+    }
+}
+
+/// A system an external identifier is identified on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum System {
+    /// Linux, in any distribution.
+    Linux,
+    /// Apple's macOS.
+    MacOs,
+    /// Windows.
+    Windows,
+}
+
+impl System {
+    /// The table the registry writes it as, under `[identifier.<table>]`.
+    pub(crate) const fn table(self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::MacOs => "macos",
+            Self::Windows => "windows",
+        }
+    }
+
+    /// What a page calls it.
+    pub(crate) const fn word(self) -> &'static str {
+        match self {
+            Self::Linux => "Linux",
+            Self::MacOs => "macOS",
+            Self::Windows => "Windows",
+        }
+    }
+}
+
+/// What identifies one entry on one system: the system, and each of its
+/// fields with its values.
+pub(crate) type OnASystem<'a> = (System, Option<Vec<(Field, &'a [String])>>);
+
+/// What identifies an entry on each system, in the order the registry and
+/// every page write them; `None` for a system it is not identified on.
+pub(crate) fn on_each_system(entry: &ExternalIdentifierEntry) -> [OnASystem<'_>; 3] {
+    [
+        (
+            System::Linux,
+            entry.linux.as_ref().map(|on| {
+                vec![
+                    (Field::LinuxExecutable, on.executables.as_slice()),
+                    (Field::DesktopId, on.desktop_ids.as_slice()),
+                    (Field::FlatpakId, on.flatpak_ids.as_slice()),
+                    (Field::SnapName, on.snap_names.as_slice()),
+                    (Field::LinuxPath, on.paths.as_slice()),
+                ]
+            }),
+        ),
+        (
+            System::MacOs,
+            entry.macos.as_ref().map(|on| {
+                vec![
+                    (Field::BundleId, on.bundle_ids.as_slice()),
+                    (Field::AppPath, on.app_paths.as_slice()),
+                    (Field::MacExecutable, on.executables.as_slice()),
+                ]
+            }),
+        ),
+        (
+            System::Windows,
+            entry.windows.as_ref().map(|on| {
+                vec![
+                    (Field::WindowsExecutable, on.executables.as_slice()),
+                    (Field::AppPathsKey, on.app_paths_keys.as_slice()),
+                    (Field::WindowsPath, on.paths.as_slice()),
+                ]
+            }),
+        ),
+    ]
+}
+
+/// The external-identifiers registry, read, parsed and held to the rules
+/// above.
+///
+/// With its text for the line a later problem is filed at; `None` when it
+/// could not be read or parsed, which is reported.
+fn external_identifiers(
+    root: &std::path::Path,
+    problems: &mut Vec<Problem>,
+) -> Option<(String, ExternalIdentifierFile)> {
+    let text = crate::load::read(root, EXTERNAL_IDENTIFIERS, problems)?;
+    let file: ExternalIdentifierFile = crate::load::parse(EXTERNAL_IDENTIFIERS, &text, problems)?;
+    check_external_identifiers(&file, &text, problems);
+    Some((text, file))
+}
+
+/// Every external identifier: its name once and of its shape, and what
+/// identifies it.
+fn check_external_identifiers(
+    file: &ExternalIdentifierFile,
+    text: &str,
+    problems: &mut Vec<Problem>,
+) {
+    floor(
+        file.identifiers.len(),
+        EXTERNAL_IDENTIFIERS,
+        "external identifier",
+        problems,
+    );
+    let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
+    for entry in &file.identifiers {
+        let times = seen.entry(entry.name.as_str()).or_default();
+        *times += 1;
+        let line = line_of(text, &format!("name = \"{}\"", entry.name), *times);
+        if *times > 1 {
+            push(
+                problems,
+                EXTERNAL_IDENTIFIERS,
+                line,
+                format!("the external identifier `{}` is declared twice", entry.name),
+                "a reader finds an external identifier by its name, and two of one name \
+                 would leave which one it finds to whichever the compiler read last. Keep \
+                 one",
+                "duplicate-external-identifier",
+            );
+        }
+        if !a_slug(&entry.name) {
+            push(
+                problems,
+                EXTERNAL_IDENTIFIERS,
+                line,
+                format!("`{}` cannot name an external identifier", entry.name),
+                "an external identifier's name is a word a command line, a page and a search \
+                 all carry: lower-case letters and digits, in words joined by single hyphens \
+                 — `google-chrome`",
+                "external-identifier-name-malformed",
+            );
+        }
+        check_the_identification(entry, line, problems);
+    }
+}
+
+/// What identifies one entry: at least one system, every system's table
+/// naming something, and every value of its field's shape, once.
+fn check_the_identification(
+    entry: &ExternalIdentifierEntry,
+    line: Option<usize>,
+    problems: &mut Vec<Problem>,
+) {
+    let systems = on_each_system(entry);
+    if systems.iter().all(|(_, fields)| fields.is_none()) {
+        push(
+            problems,
+            EXTERNAL_IDENTIFIERS,
+            line,
+            format!("`{}` is identified on no system", entry.name),
+            "an external identifier is what identifies a thing on the systems it runs on, \
+             and one identified on none identifies nothing. Write a `[identifier.linux]`, \
+             `[identifier.macos]` or `[identifier.windows]` table with what was measured \
+             there",
+            "identified-on-no-system",
+        );
+        return;
+    }
+    for (system, fields) in systems {
+        let Some(fields) = fields else {
+            continue;
+        };
+        if fields.iter().all(|(_, values)| values.is_empty()) {
+            push(
+                problems,
+                EXTERNAL_IDENTIFIERS,
+                line,
+                format!(
+                    "`{}`'s `{}` table names nothing",
+                    entry.name,
+                    system.table()
+                ),
+                "a system's table says the thing is identified there, and one with no value \
+                 says so with nothing behind it. Write what was measured there, or remove the \
+                 table",
+                "identification-empty",
+            );
+        }
+        for (field, values) in fields {
+            for (at, value) in values.iter().enumerate() {
+                let written = format!("{}.{}", system.table(), field.key());
+                if let Err(rule) = identification(field, value) {
+                    push(
+                        problems,
+                        EXTERNAL_IDENTIFIERS,
+                        line,
+                        format!(
+                            "`{}`'s `{written}` holds \"{}\", which is not one",
+                            entry.name,
+                            crate::printable(value)
+                        ),
+                        rule.fix(),
+                        "identification-malformed",
+                    );
+                }
+                if values[..at].contains(value) {
+                    push(
+                        problems,
+                        EXTERNAL_IDENTIFIERS,
+                        line,
+                        format!(
+                            "`{}`'s `{written}` holds \"{}\" twice",
+                            entry.name,
+                            crate::printable(value)
+                        ),
+                        "a value identifies its thing once, and a second copy is one a reader \
+                         matching it counts twice. Keep one",
+                        "identification-twice",
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Whether a value can be what its field holds, and the rule it breaks if not.
+///
+/// **Every field** holds a value a reader sees all of, of at most
+/// [`IDENTIFICATION_MAX`] characters, with nothing before or after it and no
+/// `..` anywhere — a path that climbs out of where it says it is. **Each
+/// field** then has its own shape: a name `PATH` or a bundle finds holds no
+/// `/`; a desktop file's name ends `.desktop`; a Flatpak identifier is three or
+/// more dotted words and a bundle identifier two or more, of ASCII letters,
+/// digits and hyphens (and underscores, for Flatpak); a Snap name is lower-case
+/// letters, digits and hyphens, at most 40; a path on Linux and an application
+/// bundle on macOS begin at the root, the second ending `.app`; and on Windows
+/// an executable and an `App Paths` key are a file name ending `.exe`, and a
+/// path begins at one of [`WINDOWS_ANCHORS`] and is written with backslashes.
+///
+/// # Errors
+///
+/// [`Refused`] says which rule a value breaks.
+pub(crate) fn identification(field: Field, value: &str) -> Result<(), Refused> {
+    if says_nothing(value) || value.trim() != value {
+        return Err(Refused::NotAsWritten);
+    }
+    if value.chars().any(nc_schema::unseen) {
+        return Err(Refused::Unseen);
+    }
+    if value.chars().count() > IDENTIFICATION_MAX {
+        return Err(Refused::TooLong);
+    }
+    // Two dots in a row, wherever they are: a path climbing out of where it
+    // says it is, and nothing any other field's value holds.
+    if value
+        .chars()
+        .zip(value.chars().skip(1))
+        .any(|pair| pair == ('.', '.'))
+    {
+        return Err(Refused::Climbs);
+    }
+    let well_formed = match field {
+        Field::LinuxExecutable | Field::MacExecutable => !value.contains('/'),
+        Field::DesktopId => {
+            !value.contains('/')
+                && value
+                    .strip_suffix(".desktop")
+                    .is_some_and(|stem| !stem.is_empty())
+        }
+        Field::FlatpakId => dotted(value, 3, |character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        }),
+        Field::SnapName => {
+            value.chars().count() <= 40
+                && value.chars().all(|character| {
+                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+                })
+        }
+        Field::LinuxPath => value.starts_with('/'),
+        Field::BundleId => dotted(value, 2, |character| {
+            character.is_ascii_alphanumeric() || character == '-'
+        }),
+        Field::AppPath => {
+            value.starts_with('/')
+                && value
+                    .strip_suffix(".app")
+                    .is_some_and(|bundle| !bundle.ends_with('/'))
+        }
+        Field::WindowsExecutable | Field::AppPathsKey => {
+            !value.contains(['\\', '/'])
+                && value
+                    .strip_suffix(".exe")
+                    .is_some_and(|stem| !stem.is_empty())
+        }
+        Field::WindowsPath => {
+            !value.contains('/')
+                && WINDOWS_ANCHORS.iter().any(|anchor| {
+                    value
+                        .strip_prefix(anchor)
+                        .is_some_and(|rest| !rest.is_empty())
+                })
+        }
+    };
+    if well_formed {
+        Ok(())
+    } else {
+        Err(Refused::Shape(field))
+    }
+}
+
+/// Which rule an identification value breaks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Refused {
+    /// It says nothing, or something stands before or after it.
+    NotAsWritten,
+    /// It holds a character a reader sees nothing of.
+    Unseen,
+    /// It is longer than [`IDENTIFICATION_MAX`].
+    TooLong,
+    /// It holds `..`.
+    Climbs,
+    /// It is not the shape its field holds.
+    Shape(Field),
+}
+
+impl Refused {
+    /// The rule, as the fix a diagnostic gives.
+    const fn fix(self) -> &'static str {
+        match self {
+            Self::NotAsWritten => {
+                "a value is written as the system writes it, with nothing before or after \
+                 it. Copy it again from where it was measured"
+            }
+            Self::Unseen => {
+                "a value a reader sees part of is one a reader cannot check against the \
+                 system. Write it with nothing a reader sees nothing of"
+            }
+            Self::TooLong => {
+                "a value is at most 260 characters, the longest path Windows opens without \
+                 its long-path prefix. Shorten it, or leave it out"
+            }
+            Self::Climbs => {
+                "a value holds no `..`: in a path it climbs out of the directory the path \
+                 says it is in, and no name or identifier holds one. Write the value as it \
+                 resolves"
+            }
+            Self::Shape(field) => the_shape_of(field),
+        }
+    }
+}
+
+/// What a value of a field looks like, as the fix a diagnostic gives.
+const fn the_shape_of(field: Field) -> &'static str {
+    match field {
+        Field::LinuxExecutable | Field::MacExecutable => {
+            "an executable is the name a system starts it by, with no `/`: its path, where \
+             one was measured, is a `paths` or `app_paths` value"
+        }
+        Field::DesktopId => {
+            "a desktop file is named as its directory lists it, ending `.desktop`, with no \
+             `/` — `google-chrome.desktop`"
+        }
+        Field::FlatpakId => {
+            "a Flatpak identifier is three or more words joined by dots, each of ASCII \
+             letters, digits, `_` and `-` — `org.chromium.Chromium`"
+        }
+        Field::SnapName => {
+            "a Snap name is lower-case letters, digits and hyphens, at most 40 — `chromium`"
+        }
+        Field::LinuxPath => "a path on Linux is absolute, beginning at `/`",
+        Field::BundleId => {
+            "a bundle identifier is two or more words joined by dots, each of ASCII \
+             letters, digits and `-` — `com.google.Chrome`"
+        }
+        Field::AppPath => {
+            "an application bundle's path is absolute and ends `.app` — \
+             `/Applications/Google Chrome.app`"
+        }
+        Field::WindowsExecutable | Field::AppPathsKey => {
+            "a Windows executable and an `App Paths` key are a file name ending `.exe`, with \
+             no separator — `chrome.exe`"
+        }
+        Field::WindowsPath => {
+            "a Windows path begins at `%ProgramFiles%\\`, `%ProgramFiles(x86)%\\` or \
+             `%LOCALAPPDATA%\\` — the directories its environment names, so one path holds \
+             on every machine — and is written with backslashes"
+        }
+    }
+}
+
+/// At least `least` words joined by single dots, each of characters `allowed`
+/// admits.
+fn dotted(value: &str, least: usize, allowed: impl Fn(char) -> bool) -> bool {
+    value.split('.').count() >= least
+        && value
+            .split('.')
+            .all(|word| !word.is_empty() && word.chars().all(&allowed))
+}
+
 /// Lower-case ASCII letters and digits, in words joined by single hyphens.
 fn a_slug(text: &str) -> bool {
     !text.is_empty()
@@ -349,7 +847,148 @@ fn a_standard_name(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{a_slug, a_standard_name};
+    use super::{Field, System, a_slug, a_standard_name, identification};
+
+    /// Every system is written as its table in the registry writes it, and
+    /// called on a page what its makers call it.
+    #[test]
+    fn every_system_is_written_as_the_registry_and_a_page_write_it() {
+        for (system, table, word) in [
+            (System::Linux, "linux", "Linux"),
+            (System::MacOs, "macos", "macOS"),
+            (System::Windows, "windows", "Windows"),
+        ] {
+            assert_eq!(system.table(), table, "{system:?}");
+            assert_eq!(system.word(), word, "{system:?}");
+        }
+    }
+
+    /// Each identification field, with values its system writes and values
+    /// that each break exactly one of its rules.
+    ///
+    /// The rules every field shares are driven through one field each: a
+    /// value that says nothing through a Snap name, whose own shape takes an
+    /// empty one, `..` through a Windows path, and the rest through a Linux
+    /// path. **An absolute path is written with its root apart**,
+    /// `concat!("/", …)`, because the determinism gate reads a literal opening
+    /// at `/` in a crate the emitter reaches as a file on this machine.
+    const WHAT_EACH_FIELD_TAKES: [(Field, &[&str], &[&str]); 11] = [
+        (
+            Field::LinuxExecutable,
+            &["google-chrome-stable", "chromium"],
+            &[concat!("/", "usr/bin/chromium")],
+        ),
+        (
+            Field::DesktopId,
+            &["google-chrome.desktop", "com.google.Chrome.desktop"],
+            &[
+                "google-chrome",
+                ".desktop",
+                "applications/google-chrome.desktop",
+            ],
+        ),
+        (
+            Field::FlatpakId,
+            &[
+                "org.chromium.Chromium",
+                "com.google.Chrome_dev",
+                "org.example.my-app",
+            ],
+            &["org.chromium", "org.chromium.", "org.chromium.Chro mium"],
+        ),
+        (
+            Field::SnapName,
+            &["chromium", "chromium-ffmpeg-2"],
+            &["", "Chromium", "chromium_beta"],
+        ),
+        (
+            Field::LinuxPath,
+            &[
+                concat!("/", "opt/google/chrome/google-chrome"),
+                concat!("/", "usr/bin/chromium"),
+            ],
+            &[
+                "usr/bin/chromium",
+                concat!("/", "usr/bin/chromium "),
+                concat!("/", "usr/bin/chro\u{202e}mium"),
+            ],
+        ),
+        (
+            Field::BundleId,
+            &["com.google.Chrome", "org.chromium.Chromium"],
+            &["Chrome", "com.google.", "com.google.Chrome_beta"],
+        ),
+        (
+            Field::AppPath,
+            &[concat!("/", "Applications/Google Chrome.app")],
+            &[
+                "Applications/Chromium.app",
+                concat!("/", "Applications/Chromium"),
+                concat!("/", "Applications/.app"),
+            ],
+        ),
+        (
+            Field::MacExecutable,
+            &["Google Chrome", "Chromium"],
+            &["Contents/MacOS/Chromium"],
+        ),
+        (
+            Field::WindowsExecutable,
+            &["chrome.exe"],
+            &[
+                "chrome",
+                ".exe",
+                "Application\\chrome.exe",
+                "bin/chrome.exe",
+            ],
+        ),
+        (Field::AppPathsKey, &["chrome.exe"], &["chrome.com"]),
+        (
+            Field::WindowsPath,
+            &[
+                "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
+                "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe",
+                "%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe",
+            ],
+            &[
+                "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                "%APPDATA%\\Google\\Chrome\\chrome.exe",
+                "%PROGRAMFILES%\\Google\\chrome.exe",
+                "%ProgramFiles%\\",
+                "%ProgramFiles%\\Google/Chrome/chrome.exe",
+                "%ProgramFiles%\\Google\\..\\..\\Windows\\explorer.exe",
+            ],
+        ),
+    ];
+
+    /// Every identification field refuses what it cannot be.
+    ///
+    /// **Both ways, field by field**: each field accepts what its system
+    /// writes, and refuses a value that breaks exactly one of its rules — and
+    /// each bound is held at the bound and one past it.
+    #[test]
+    fn every_identification_field_refuses_what_it_cannot_be() {
+        for (field, accepted, refused) in WHAT_EACH_FIELD_TAKES {
+            for value in accepted {
+                assert_eq!(
+                    identification(field, value),
+                    Ok(()),
+                    "`{value}` was refused as {field:?}"
+                );
+            }
+            for value in refused {
+                assert!(
+                    identification(field, value).is_err(),
+                    "`{value}` was taken as {field:?}"
+                );
+            }
+        }
+        let long = |length: usize| format!("{}{}", '/', "a".repeat(length - 1));
+        assert_eq!(identification(Field::LinuxPath, &long(260)), Ok(()));
+        assert!(identification(Field::LinuxPath, &long(261)).is_err());
+        assert_eq!(identification(Field::SnapName, &"a".repeat(40)), Ok(()));
+        assert!(identification(Field::SnapName, &"a".repeat(41)).is_err());
+    }
 
     /// A slug is lower-case letters and digits in words joined by single
     /// hyphens, and nothing else.

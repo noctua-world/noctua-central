@@ -21,7 +21,7 @@ use core::fmt::Write as _;
 use nc_catalog::Locale;
 use nc_schema::{Argument, Schema, Shape};
 
-use crate::args::{CATEGORIES, EXIT_CODES, VERBS};
+use crate::args::{CATEGORIES, EXIT_CODES, EXTERNAL_IDENTIFIERS, VERBS};
 use crate::client::Listed;
 use crate::render::escaped;
 
@@ -31,7 +31,8 @@ pub const fn what_it_does(verb: &str) -> &'static str {
     match verb.as_bytes() {
         b"help" => {
             "say what this CLI and each command take; `help exit-codes` lists the exit codes, \
-             and `help categories` the categories"
+             `help categories` the categories and `help external-identifiers` the external \
+             identifiers"
         }
         b"start" => "start this channel's daemon, unless it runs, and wait for it to answer",
         b"stop" => {
@@ -49,7 +50,7 @@ pub const fn what_it_does(verb: &str) -> &'static str {
 pub fn usage(cli: &str) -> String {
     format!(
         "Usage:\n  {cli} [--json] <command> [arguments]\n  {cli} [--json] help [<command> | \
-         <verb> | {EXIT_CODES} | {CATEGORIES}]\n\nOptions, before the command:\n  --json   write the answer \
+         <verb> | {EXIT_CODES} | {CATEGORIES} | {EXTERNAL_IDENTIFIERS}]\n\nOptions, before the command:\n  --json   write the answer \
          as one JSON document on standard output\n  --help   ask for help\n\nArguments follow \
          a command's name: `--<name> <value>`, `--<name>=<value>`, `--<boolean>` or \
          `--<boolean>=false`, a list's flag once for each item, or `--` and one JSON object.\n"
@@ -117,7 +118,8 @@ pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
     let _ = write!(
         text,
         "\n`{cli} help <command>` says what a command takes, `{cli} help {EXIT_CODES}` what each \
-         exit code means, and `{cli} help {CATEGORIES}` what a command is listed under.\n"
+         exit code means, `{cli} help {CATEGORIES}` what a command is listed under, and \
+         `{cli} help {EXTERNAL_IDENTIFIERS}` what the platform knows of the things outside it.\n"
     );
     text
 }
@@ -237,6 +239,112 @@ fn category_lines(category: &Category<'_>, width: usize) -> String {
         "",
         escaped(category.line)
     )
+}
+
+/// Help on the external identifiers: every one the catalog holds, its texts
+/// in `locale`, and what identifies it on each system, every text escaped.
+///
+/// **From the catalog this binary was built with**, for the reason the
+/// categories are: the registry is the catalog's alone.
+#[must_use]
+pub fn external_identifiers(locale: Locale) -> String {
+    let said = |key: &str| nc_catalog::message(key, locale).unwrap_or_default();
+    let mut text = String::from("External identifiers:\n");
+    for identifier in nc_catalog::EXTERNAL_IDENTIFIERS {
+        text.push_str(&identifier_heading(&Identifier {
+            name: identifier.name,
+            display_name: said(identifier.title_key),
+            line: said(identifier.description_key),
+            categories: identifier.categories,
+        }));
+        if let Some(on) = identifier.linux {
+            text.push_str(&identification_lines(
+                "Linux",
+                &[
+                    ("executables", on.executables),
+                    ("desktop_ids", on.desktop_ids),
+                    ("flatpak_ids", on.flatpak_ids),
+                    ("snap_names", on.snap_names),
+                    ("paths", on.paths),
+                ],
+            ));
+        }
+        if let Some(on) = identifier.macos {
+            text.push_str(&identification_lines(
+                "macOS",
+                &[
+                    ("bundle_ids", on.bundle_ids),
+                    ("app_paths", on.app_paths),
+                    ("executables", on.executables),
+                ],
+            ));
+        }
+        if let Some(on) = identifier.windows {
+            text.push_str(&identification_lines(
+                "Windows",
+                &[
+                    ("executables", on.executables),
+                    ("app_paths_keys", on.app_paths_keys),
+                    ("paths", on.paths),
+                ],
+            ));
+        }
+    }
+    text
+}
+
+/// One external identifier, as help heads it.
+struct Identifier<'a> {
+    /// Its name.
+    name: &'a str,
+    /// Its display name, in the reader's language.
+    display_name: &'a str,
+    /// Its line description, in the reader's language.
+    line: &'a str,
+    /// The categories it is listed under.
+    categories: &'a [&'a str],
+}
+
+/// One external identifier's heading, every text escaped.
+///
+/// Its name and display name, its line description beneath, and the
+/// categories it is listed under where it names any.
+fn identifier_heading(identifier: &Identifier<'_>) -> String {
+    let mut text = format!(
+        "\n{} — {}\n  {}\n",
+        escaped(identifier.name),
+        escaped(identifier.display_name),
+        escaped(identifier.line)
+    );
+    if !identifier.categories.is_empty() {
+        let named: Vec<String> = identifier
+            .categories
+            .iter()
+            .map(|name| escaped(name))
+            .collect();
+        let _ = writeln!(text, "  Categories: {}", named.join(", "));
+    }
+    text
+}
+
+/// What identifies an entry on one system: the system, then one line for each
+/// value, under its field, every value escaped.
+///
+/// **One value to a line**, so a value holding a comma or a space is still
+/// one value to a reader; a field with no value has no line.
+fn identification_lines(system: &str, fields: &[(&str, &[&str])]) -> String {
+    let width = fields
+        .iter()
+        .map(|(field, _)| field.len())
+        .max()
+        .unwrap_or(0);
+    let mut text = format!("  {system}\n");
+    for (field, values) in fields {
+        for value in *values {
+            let _ = writeln!(text, "    {field:<width$}   {}", escaped(value));
+        }
+    }
+    text
 }
 
 /// Help on one command: its name, its title and description, and each
@@ -625,6 +733,190 @@ mod tests {
                 );
             }
             assert_eq!(shown.lines().count(), lines, "field {field}: {shown:?}");
+        }
+    }
+
+    /// What identifies one external identifier on each system, as the
+    /// generated crate holds it: the system, the field and the value, in order.
+    fn identified_by(identifier: &nc_catalog::ExternalIdentifier) -> Vec<(&str, &str, &str)> {
+        let mut held = Vec::new();
+        let mut each = |system: &'static str, fields: &[(&'static str, &[&'static str])]| {
+            for (field, values) in fields {
+                for value in *values {
+                    held.push((system, *field, *value));
+                }
+            }
+        };
+        if let Some(on) = identifier.linux {
+            each(
+                "Linux",
+                &[
+                    ("executables", on.executables),
+                    ("desktop_ids", on.desktop_ids),
+                    ("flatpak_ids", on.flatpak_ids),
+                    ("snap_names", on.snap_names),
+                    ("paths", on.paths),
+                ],
+            );
+        }
+        if let Some(on) = identifier.macos {
+            each(
+                "macOS",
+                &[
+                    ("bundle_ids", on.bundle_ids),
+                    ("app_paths", on.app_paths),
+                    ("executables", on.executables),
+                ],
+            );
+        }
+        if let Some(on) = identifier.windows {
+            each(
+                "Windows",
+                &[
+                    ("executables", on.executables),
+                    ("app_paths_keys", on.app_paths_keys),
+                    ("paths", on.paths),
+                ],
+            );
+        }
+        held
+    }
+
+    /// Help on the external identifiers lists each one with what identifies it.
+    ///
+    /// Its name, its display name and line in the environment's language, its
+    /// categories, and every value of every field under its system, in the
+    /// order the catalog holds them, and nothing else.
+    #[test]
+    fn help_on_the_external_identifiers_lists_each_with_what_identifies_it_on_each_system() {
+        for locale in [Locale::En, Locale::PtBR] {
+            let text = super::external_identifiers(locale);
+            let said = |key: &str| nc_catalog::message(key, locale).expect("a message");
+            let mut at = 0;
+            for identifier in nc_catalog::EXTERNAL_IDENTIFIERS {
+                let heading = format!("\n{} — {}\n", identifier.name, said(identifier.title_key));
+                let opened = text[at..]
+                    .find(&heading)
+                    .unwrap_or_else(|| panic!("`{}` is not listed in order", identifier.name))
+                    + at;
+                let closed = text[opened + heading.len()..]
+                    .find("\n\n")
+                    .map_or(text.len(), |end| opened + heading.len() + end);
+                let under = &text[opened + heading.len()..closed];
+                let mut lines = under.lines();
+                assert_eq!(
+                    lines.next(),
+                    Some(format!("  {}", said(identifier.description_key)).as_str()),
+                    "{under}"
+                );
+                if !identifier.categories.is_empty() {
+                    assert_eq!(
+                        lines.next(),
+                        Some(
+                            format!("  Categories: {}", identifier.categories.join(", ")).as_str()
+                        ),
+                        "{under}"
+                    );
+                }
+                let mut system = "";
+                let mut listed = Vec::new();
+                for line in lines {
+                    if let Some(value_line) = line.strip_prefix("    ") {
+                        let (field, value) = value_line
+                            .split_once(' ')
+                            .unwrap_or_else(|| panic!("`{line}` names no value"));
+                        listed.push((system, field, value.trim_start()));
+                    } else {
+                        system = line.trim_start();
+                    }
+                }
+                assert_eq!(listed, identified_by(identifier), "{}", identifier.name);
+                assert!(
+                    listed.len() > 1,
+                    "`{}` is identified by nothing",
+                    identifier.name
+                );
+                at = opened + heading.len();
+            }
+            assert!(
+                nc_catalog::EXTERNAL_IDENTIFIERS.len() > 1,
+                "the catalog holds no external identifiers to list"
+            );
+        }
+        assert_ne!(
+            super::external_identifiers(Locale::En),
+            super::external_identifiers(Locale::PtBR)
+        );
+    }
+
+    /// Every text an external identifier is headed with is escaped.
+    ///
+    /// Its name, display name, line and each category it is listed under, each
+    /// in turn holding what moves a terminal: none comes out raw, and the
+    /// heading keeps its lines.
+    #[test]
+    fn every_text_an_external_identifier_is_headed_with_is_escaped() {
+        let hostile: &'static str = "a\u{1b}[2Jb\u{202e}c\u{7}d\u{2028}e";
+        let lines = super::identifier_heading(&super::Identifier {
+            name: "name",
+            display_name: "Shown",
+            line: "A line",
+            categories: &["set.one", "set.two"],
+        })
+        .lines()
+        .count();
+        for field in 0..5 {
+            let pick = |at: usize, plain: &'static str| if at == field { hostile } else { plain };
+            let categories = [pick(3, "set.one"), pick(4, "set.two")];
+            let shown = super::identifier_heading(&super::Identifier {
+                name: pick(0, "name"),
+                display_name: pick(1, "Shown"),
+                line: pick(2, "A line"),
+                categories: &categories,
+            });
+            for raw in ['\u{1b}', '\u{202e}', '\u{7}', '\u{2028}'] {
+                assert!(!shown.contains(raw), "field {field}: {shown:?}");
+            }
+            for written in ["\\u{1b}[2J", "\\u{202e}", "\\u{7}", "\\u{2028}"] {
+                assert!(
+                    shown.contains(written),
+                    "field {field}: {written} is not in {shown:?}"
+                );
+            }
+            assert_eq!(shown.lines().count(), lines, "field {field}: {shown:?}");
+        }
+    }
+
+    /// Every value an external identifier is identified by is escaped.
+    ///
+    /// Each value of each field in turn holds what moves a terminal: none
+    /// comes out raw, every value keeps its one line, and a field with no
+    /// value has none.
+    #[test]
+    fn every_value_an_external_identifier_is_identified_by_is_escaped() {
+        let hostile: &'static str = "a\u{1b}[2Jb\u{202e}c\u{7}d\u{2028}e";
+        for at in 0..3 {
+            let pick = |here: usize, plain: &'static str| if here == at { hostile } else { plain };
+            let paths = [pick(1, "/usr/bin/one"), pick(2, "/usr/bin/two")];
+            let shown = super::identification_lines(
+                "Linux",
+                &[
+                    ("executables", &[pick(0, "one")]),
+                    ("desktop_ids", &[]),
+                    ("paths", &paths),
+                ],
+            );
+            for raw in ['\u{1b}', '\u{202e}', '\u{7}', '\u{2028}'] {
+                assert!(!shown.contains(raw), "value {at}: {shown:?}");
+            }
+            for written in ["\\u{1b}[2J", "\\u{202e}", "\\u{7}", "\\u{2028}"] {
+                assert!(
+                    shown.contains(written),
+                    "value {at}: {written} is not in {shown:?}"
+                );
+            }
+            assert_eq!(shown.lines().count(), 4, "value {at}: {shown:?}");
+            assert!(!shown.contains("desktop_ids"), "{shown:?}");
         }
     }
 

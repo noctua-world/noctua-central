@@ -1,0 +1,135 @@
+# Things outside the platform, and what identifies each on every system it is
+# identified on (`NOCTUA.md §20.4`).
+#
+# An external identifier is an application, a binary or a configuration file
+# the platform does not ship: what a person is shown of it — the texts a command
+# carries — and what identifies it on Linux, macOS and Windows. Filling this
+# registry is a pending task, written down in `NOCTUA-PLAN.md`, Stage 27+: it
+# holds Google Chrome and Chromium today, to prove the mechanism.
+#
+# An entry:
+#
+#   name         lower-case letters and digits, in words joined by single
+#                hyphens — a word a command line, a page and a search carry
+#   title        the key of its display name in `catalog/i18n/`
+#   description  the key of its line description, one line of at most 80
+#                characters
+#   paragraph    the key of its paragraph description, which never says what
+#                its line says
+#   tags         the key of a list under `[tags]` in every locale
+#   categories   optional: names `catalog/categories.toml` holds, at most four
+#   glyph        optional: a code point the Symbols-Only font draws, `U+F0E2`
+#
+# and a table for each system it is identified on, at least one, none empty —
+# a list left out is a list with nothing in it:
+#
+#   [identifier.linux]
+#   executables     the commands `PATH` finds it by: names, never paths
+#   desktop_ids     its desktop files' names, each ending `.desktop`
+#   flatpak_ids     its Flatpak identifiers, three or more dotted words
+#   snap_names      its Snap names: lower-case letters, digits and hyphens
+#   paths           where it is installed, absolute, from `/`
+#
+#   [identifier.macos]
+#   bundle_ids      its `CFBundleIdentifier`s, two or more dotted words
+#   app_paths       its application bundles, absolute and ending `.app`
+#   executables     its `CFBundleExecutable`s: names, never paths
+#
+#   [identifier.windows]
+#   executables     its executables' names, each ending `.exe`
+#   app_paths_keys  its keys under the registry's `App Paths`, each ending `.exe`
+#   paths           where it is installed, from `%ProgramFiles%\`,
+#                   `%ProgramFiles(x86)%\` or `%LOCALAPPDATA%\` and written with
+#                   backslashes, so one path holds on every machine
+#
+# Every value is written as the system writes it: bounded to 260 characters,
+# with nothing a reader sees nothing of, nothing before or after it and no `..`
+# anywhere, and once in its list. A value may repeat across entries —
+# Chrome's and Chromium's Windows executables are both `chrome.exe`. The rules
+# are `crates/nc-catalog-compiler/src/registries.rs`'s; the texts are held to
+# the entry judge every command's texts are held to, and a product's name that
+# is the same in both languages is exempt from the untranslated rule with its
+# reason, in `THE_SAME_IN_BOTH` in `crates/nc-catalog-compiler/src/messages.rs`.
+#
+# **Identification is data.** Nothing in this build runs, expands or resolves
+# a value; a reader that one day matches one against a system holds a match as
+# a hint, never as proof of what it found, because a name, a path and a bundle
+# identifier can each be copied by anything installed beside it.
+#
+# **A value is copied from a measurement or from the product's own sources,
+# never from memory, and a value neither confirms is left out.** Every value
+# below was measured on GitHub's hosted runners on 2026-11-14 — ubuntu-latest,
+# macos-latest and windows-latest — or is read from Chromium's own source tree
+# on that day:
+#
+# * `google-chrome`, measured. On Linux, the commands `google-chrome-stable` and
+#   `google-chrome` in `/usr/bin`, both resolving to
+#   `/opt/google/chrome/google-chrome`, and the desktop files
+#   `google-chrome.desktop` and `com.google.Chrome.desktop` in
+#   `/usr/share/applications`. On macOS, `/Applications/Google Chrome.app`, whose
+#   `Info.plist` names `com.google.Chrome` and the executable `Google Chrome`.
+#   On Windows, the `App Paths` key `chrome.exe`, whose value is the path below
+#   with its directory as `%ProgramFiles%` names it. Its categories are the ones
+#   its own desktop file declares, `Network;WebBrowser;`; its `Info.plist`
+#   declares no `LSApplicationCategoryType`, so it carries no `apple` category.
+# * `chromium`. On Linux, the commands `chromium` and `chromium-browser` in
+#   `/usr/bin`, measured; the directory the runner's image installs it in is
+#   the image's own and is not written. On macOS, the bundle identifier
+#   `org.chromium.Chromium` (`MAC_BUNDLE_ID` in the BRANDING file of
+#   Chromium's own brand) and the executable `Chromium`
+#   (`Chromium.app/Contents/MacOS/Chromium` in its `chrome_constants.cc`). On
+#   Windows, the executable `chrome.exe` (`kChromeExe` in its installer's
+#   `util_constants.h`). Its categories are this catalog's own classification
+#   of a web browser, not a measurement.
+#
+# The display names, line descriptions, paragraphs and tags are this catalog's
+# own words. `google-chrome`'s English display name and line description are
+# the example `NOCTUA.md §20.4` gives.
+#
+# **Left out, for Stage 27+**: Google Chrome's per-user Windows path and its
+# Flatpak identifier; Chromium's Linux desktop files, Flatpak identifier and
+# Snap name, its macOS application bundle's path, and its Windows paths and
+# `App Paths` key. Chromium's sources name its Windows directory as
+# `<base>\Chromium\Application` without the base, and no runner held it there.
+
+[[identifier]]
+name = "google-chrome"
+title = "external-identifier.google-chrome.title"
+description = "external-identifier.google-chrome.description"
+paragraph = "external-identifier.google-chrome.paragraph"
+tags = "external-identifier.google-chrome.tags"
+categories = ["freedesktop.network", "freedesktop.web-browser"]
+
+[identifier.linux]
+executables = ["google-chrome-stable", "google-chrome"]
+desktop_ids = ["google-chrome.desktop", "com.google.Chrome.desktop"]
+paths = ["/opt/google/chrome/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/google-chrome"]
+
+[identifier.macos]
+bundle_ids = ["com.google.Chrome"]
+app_paths = ["/Applications/Google Chrome.app"]
+executables = ["Google Chrome"]
+
+[identifier.windows]
+executables = ["chrome.exe"]
+app_paths_keys = ["chrome.exe"]
+paths = ['%ProgramFiles%\Google\Chrome\Application\chrome.exe']
+
+[[identifier]]
+name = "chromium"
+title = "external-identifier.chromium.title"
+description = "external-identifier.chromium.description"
+paragraph = "external-identifier.chromium.paragraph"
+tags = "external-identifier.chromium.tags"
+categories = ["freedesktop.network", "freedesktop.web-browser"]
+
+[identifier.linux]
+executables = ["chromium", "chromium-browser"]
+paths = ["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+
+[identifier.macos]
+bundle_ids = ["org.chromium.Chromium"]
+executables = ["Chromium"]
+
+[identifier.windows]
+executables = ["chrome.exe"]

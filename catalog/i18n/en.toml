@@ -7,9 +7,9 @@
 # report nothing.
 #
 # Two tables. `[tags]` holds the lists of words a search finds an entry by — a
-# command's tags (`§20.4`) — each list this locale's own words, as long as it
-# needs to be; `[message]`, after it and to the end of the file, holds the
-# sentences.
+# command's and an external identifier's tags (`§20.4`) — each list this
+# locale's own words, as long as it needs to be; `[message]`, after it and to
+# the end of the file, holds the sentences.
 #
 # Conventions:
 #
@@ -40,6 +40,10 @@ dir   = "ltr"
 "command.limits.prune.tags" = ["prune", "clean up", "old records", "limit", "free space"]
 "command.kernel.undo.tags" = ["undo", "take back", "revert", "go back"]
 "command.kernel.redo.tags" = ["redo", "do again", "repeat", "restore"]
+
+# --- External identifiers ---
+"external-identifier.google-chrome.tags" = ["browser", "web browser", "web", "internet", "google"]
+"external-identifier.chromium.tags" = ["browser", "web browser", "web", "internet", "open source"]
 
 [message]
 
@@ -652,3 +656,11 @@ dir   = "ltr"
 "category.noctua.files.description" = "Naming, finding and arranging a person's files"
 "category.noctua.reference.title" = "Reference"
 "category.noctua.reference.description" = "Commands of the reference plugin, which the platform is proven with"
+
+# --- External identifiers ---
+"external-identifier.google-chrome.title" = "Google Chrome"
+"external-identifier.google-chrome.description" = "Web browser"
+"external-identifier.google-chrome.paragraph" = "The web browser Google distributes. This entry names it on Linux, macOS and Windows by what its own installers leave on each system, as measured there: the commands that start it, its desktop files, its application bundle and the paths it is installed at."
+"external-identifier.chromium.title" = "Chromium"
+"external-identifier.chromium.description" = "Open-source web browser"
+"external-identifier.chromium.paragraph" = "The open-source web browser project. Each system's distributions package it under names of their own, so this entry names only what was measured on a system or is written in the project's own sources: the commands that start it on Linux, its bundle identifier and executable on macOS, and its executable on Windows."

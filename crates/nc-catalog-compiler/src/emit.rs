@@ -41,6 +41,10 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
         ),
         EmittedFile::new("crates/nc-catalog/src/wiki.rs", wiki(catalog)),
         EmittedFile::new("crates/nc-catalog/src/categories.rs", categories(catalog)),
+        EmittedFile::new(
+            "crates/nc-catalog/src/external_identifiers.rs",
+            external_identifiers(catalog),
+        ),
         EmittedFile::new("crates/nc-log/src/events.rs", typed_events(catalog)),
     ]
 }
@@ -177,8 +181,8 @@ fn lib() -> String {
         "//!\n\
          //! The shared core of the platform, compiled from `catalog/`. Every error\n\
          //! code, notification, email, limit, command, log event, capability,\n\
-         //! category, message, tag list and wiki text lives here, and nothing\n\
-         //! outside `catalog/` may add one.\n\
+         //! category, external identifier, message, tag list and wiki text lives\n\
+         //! here, and nothing outside `catalog/` may add one.\n\
          \n\
          // One lint fights generated code specifically. `match_same_arms` fires on\n\
          // every exhaustive match where two variants share a value — every error\n\
@@ -208,6 +212,7 @@ fn lib() -> String {
          pub mod commands;\n\
          pub mod emails;\n\
          pub mod errors;\n\
+         pub mod external_identifiers;\n\
          pub mod events;\n\
          pub mod i18n;\n\
          pub mod limits;\n\
@@ -219,6 +224,7 @@ fn lib() -> String {
          pub use commands::{command, Command, Reversibility, COMMANDS};\n\
          pub use emails::Email;\n\
          pub use errors::{ErrorCode, Severity, AREAS};\n\
+         pub use external_identifiers::{external_identifier, ExternalIdentifier, OnLinux, OnMacOs, OnWindows, EXTERNAL_IDENTIFIERS};\n\
          pub use events::{EventSpec, FieldKind, FieldSpec, Level, EVENTS};\n\
          pub use i18n::{message, render, tags, Locale, KEYS};\n\
          pub use limits::{rate_limit, Argon2Id, Budget, DaemonLimits, Database, KernelLimits, OnLockout, RateLimit, StoreLimit, Strategy, TableLimit, ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, DAEMON, KERNEL, RATE_LIMITS, STORES, TABLES};\n\
@@ -1468,6 +1474,140 @@ fn categories(catalog: &Catalog) -> String {
          \x20   CATEGORIES.iter().find(|candidate| candidate.name == name)\n\
          }\n",
     );
+    out
+}
+
+/// Every external identifier, what identifies it on each system, and the
+/// lookup over them.
+///
+/// **The texts are keys, as a command's are**: a list resolves them in the
+/// reader's locale through the generated `message` and `tags`. **What
+/// identifies an entry is written as the registry writes it**, a list per
+/// field, and a system it is not identified on is `None` rather than a table
+/// of empty lists.
+fn external_identifiers(catalog: &Catalog) -> String {
+    let mut out = header(
+        CommentStyle::Line("//!"),
+        "catalog/external-identifiers.toml",
+    );
+    out.push_str(
+        "//!\n\
+         //! Every thing outside the platform the catalog identifies — an\n\
+         //! application, a binary or a configuration file — with what a person is\n\
+         //! shown of it and what identifies it on each system (`NOCTUA.md §20.4`).\n\
+         //! Identification is data: nothing here runs, expands or trusts a value.\n\
+         \n",
+    );
+    out.push_str("/// One thing outside the platform, and what identifies it on each system.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct ExternalIdentifier {\n");
+    out.push_str("    /// Lower-case letters and digits, in words joined by single hyphens.\n    pub name: &'static str,\n");
+    out.push_str("    /// The i18n key of its display name.\n    pub title_key: &'static str,\n");
+    out.push_str(
+        "    /// The i18n key of its line description.\n    pub description_key: &'static str,\n",
+    );
+    out.push_str("    /// The i18n key of its paragraph description.\n    pub paragraph_key: &'static str,\n");
+    out.push_str("    /// The key of its tags, which [`crate::tags`] resolves.\n    pub tags_key: &'static str,\n");
+    out.push_str("    /// The categories it is listed under, by name.\n    pub categories: &'static [&'static str],\n");
+    out.push_str("    /// The glyph it is shown with, a code point the Symbols-Only font draws.\n    pub glyph: Option<char>,\n");
+    out.push_str("    /// What identifies it on Linux, where it is identified there.\n    pub linux: Option<OnLinux>,\n");
+    out.push_str("    /// What identifies it on macOS, where it is identified there.\n    pub macos: Option<OnMacOs>,\n");
+    out.push_str("    /// What identifies it on Windows, where it is identified there.\n    pub windows: Option<OnWindows>,\n");
+    out.push_str("}\n\n");
+    out.push_str(&the_systems_tables());
+
+    let mut identifiers = catalog.external_identifiers.clone();
+    identifiers.sort_by(|a, b| a.name.cmp(&b.name));
+    out.push_str("/// Every external identifier, in name order.\n");
+    out.push_str("pub const EXTERNAL_IDENTIFIERS: &[ExternalIdentifier] = &[\n");
+    for entry in &identifiers {
+        let _ = writeln!(
+            out,
+            "    ExternalIdentifier {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, linux: {}, macos: {}, windows: {} }},",
+            quoted(&entry.name),
+            quoted(&entry.title),
+            quoted(&entry.description),
+            quoted(&entry.paragraph),
+            quoted(&entry.tags),
+            list(&entry.categories),
+            glyph_literal(entry.glyph.as_deref()),
+            entry.linux.as_ref().map_or_else(
+                || "None".to_owned(),
+                |on| format!(
+                    "Some(OnLinux {{ executables: {}, desktop_ids: {}, flatpak_ids: {}, snap_names: {}, paths: {} }})",
+                    list(&on.executables),
+                    list(&on.desktop_ids),
+                    list(&on.flatpak_ids),
+                    list(&on.snap_names),
+                    list(&on.paths)
+                )
+            ),
+            entry.macos.as_ref().map_or_else(
+                || "None".to_owned(),
+                |on| format!(
+                    "Some(OnMacOs {{ bundle_ids: {}, app_paths: {}, executables: {} }})",
+                    list(&on.bundle_ids),
+                    list(&on.app_paths),
+                    list(&on.executables)
+                )
+            ),
+            entry.windows.as_ref().map_or_else(
+                || "None".to_owned(),
+                |on| format!(
+                    "Some(OnWindows {{ executables: {}, app_paths_keys: {}, paths: {} }})",
+                    list(&on.executables),
+                    list(&on.app_paths_keys),
+                    list(&on.paths)
+                )
+            )
+        );
+    }
+    out.push_str("];\n\n");
+    out.push_str(
+        "/// The external identifier a name refers to, if any.\n\
+         #[must_use]\n\
+         pub fn external_identifier(name: &str) -> Option<&'static ExternalIdentifier> {\n\
+         \x20   EXTERNAL_IDENTIFIERS.iter().find(|candidate| candidate.name == name)\n\
+         }\n",
+    );
+    out
+}
+
+/// What identifies an external identifier on each system, as three structs.
+///
+/// **Each written out**, as every other sealed type is: the test that holds
+/// the sealed list to the emitter reads `pub struct <Name>` here.
+fn the_systems_tables() -> String {
+    let mut out = String::new();
+    out.push_str("/// What identifies an external identifier on Linux.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct OnLinux {\n");
+    out.push_str("    /// The names of the commands that start it, as `PATH` finds them.\n    pub executables: &'static [&'static str],\n");
+    out.push_str(
+        "    /// The names of its desktop files.\n    pub desktop_ids: &'static [&'static str],\n",
+    );
+    out.push_str("    /// Its Flatpak application identifiers.\n    pub flatpak_ids: &'static [&'static str],\n");
+    out.push_str("    /// Its Snap package names.\n    pub snap_names: &'static [&'static str],\n");
+    out.push_str(
+        "    /// The absolute paths it is installed at.\n    pub paths: &'static [&'static str],\n",
+    );
+    out.push_str("}\n\n");
+    out.push_str("/// What identifies an external identifier on macOS.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct OnMacOs {\n");
+    out.push_str("    /// Its bundle identifiers, `CFBundleIdentifier`.\n    pub bundle_ids: &'static [&'static str],\n");
+    out.push_str("    /// The absolute paths of its application bundles.\n    pub app_paths: &'static [&'static str],\n");
+    out.push_str("    /// The names of the executables inside its bundle, `CFBundleExecutable`.\n    pub executables: &'static [&'static str],\n");
+    out.push_str("}\n\n");
+    out.push_str("/// What identifies an external identifier on Windows.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct OnWindows {\n");
+    out.push_str(
+        "    /// The names of its executables.\n    pub executables: &'static [&'static str],\n",
+    );
+    out.push_str("    /// Its keys under the registry's `App Paths`.\n    pub app_paths_keys: &'static [&'static str],\n");
+    out.push_str("    /// Where it is installed, each under a directory the system's environment names.\n    pub paths: &'static [&'static str],\n");
+    out.push_str("}\n\n");
     out
 }
 

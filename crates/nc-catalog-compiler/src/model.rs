@@ -35,6 +35,8 @@ pub struct Catalog {
     pub category_sets: Vec<CategorySetEntry>,
     /// Every category, in declaration order.
     pub categories: Vec<CategoryEntry>,
+    /// Every external identifier, in declaration order.
+    pub external_identifiers: Vec<ExternalIdentifierEntry>,
     /// Every locale, source locale first.
     pub locales: Vec<Locale>,
     /// Every wiki text, by registry and then by name.
@@ -1254,6 +1256,97 @@ pub struct CategoryEntry {
     pub title: String,
     /// The i18n key of its line description.
     pub description: String,
+}
+
+// --- external-identifiers.toml ---
+
+/// The parsed file: every external identifier.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ExternalIdentifierFile {
+    #[serde(default, rename = "identifier")]
+    pub(crate) identifiers: Vec<ExternalIdentifierEntry>,
+}
+
+/// One thing outside the platform, and what identifies it on each system.
+///
+/// An application, a binary or a configuration file (`NOCTUA.md §20.4`), with
+/// an entry's texts as a command carries them.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalIdentifierEntry {
+    /// Lower-case letters and digits, in words joined by single hyphens.
+    pub name: String,
+    /// The i18n key of its display name.
+    pub title: String,
+    /// The i18n key of its line description.
+    pub description: String,
+    /// The i18n key of its paragraph description.
+    pub paragraph: String,
+    /// The key of its tags, a list under `[tags]` in every locale.
+    pub tags: String,
+    /// The categories it is listed under, by name.
+    #[serde(default)]
+    pub categories: Vec<String>,
+    /// The glyph it is shown with, written `U+XXXX`.
+    pub glyph: Option<String>,
+    /// What identifies it on Linux, where it is identified there.
+    pub linux: Option<OnLinux>,
+    /// What identifies it on macOS, where it is identified there.
+    pub macos: Option<OnMacOs>,
+    /// What identifies it on Windows, where it is identified there.
+    pub windows: Option<OnWindows>,
+}
+
+/// What identifies an external identifier on Linux.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnLinux {
+    /// The names of the commands that start it, as `PATH` finds them.
+    #[serde(default)]
+    pub executables: Vec<String>,
+    /// The names of its desktop files.
+    #[serde(default)]
+    pub desktop_ids: Vec<String>,
+    /// Its Flatpak application identifiers.
+    #[serde(default)]
+    pub flatpak_ids: Vec<String>,
+    /// Its Snap package names.
+    #[serde(default)]
+    pub snap_names: Vec<String>,
+    /// The absolute paths it is installed at.
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+/// What identifies an external identifier on macOS.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnMacOs {
+    /// Its bundle identifiers, `CFBundleIdentifier`.
+    #[serde(default)]
+    pub bundle_ids: Vec<String>,
+    /// The absolute paths of its application bundles.
+    #[serde(default)]
+    pub app_paths: Vec<String>,
+    /// The names of the executables inside its bundle, `CFBundleExecutable`.
+    #[serde(default)]
+    pub executables: Vec<String>,
+}
+
+/// What identifies an external identifier on Windows.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnWindows {
+    /// The names of its executables.
+    #[serde(default)]
+    pub executables: Vec<String>,
+    /// Its keys under the registry's `App Paths`.
+    #[serde(default)]
+    pub app_paths_keys: Vec<String>,
+    /// Where it is installed, each under a directory the system names.
+    #[serde(default)]
+    pub paths: Vec<String>,
 }
 
 // --- capabilities.toml ---

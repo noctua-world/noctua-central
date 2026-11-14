@@ -6,8 +6,8 @@
 //!
 //! The shared core of the platform, compiled from `catalog/`. Every error
 //! code, notification, email, limit, command, log event, capability,
-//! category, message, tag list and wiki text lives here, and nothing
-//! outside `catalog/` may add one.
+//! category, external identifier, message, tag list and wiki text lives
+//! here, and nothing outside `catalog/` may add one.
 
 // One lint fights generated code specifically. `match_same_arms` fires on
 // every exhaustive match where two variants share a value — every error
@@ -36,6 +36,7 @@ pub mod commands;
 pub mod emails;
 pub mod errors;
 pub mod events;
+pub mod external_identifiers;
 pub mod i18n;
 pub mod limits;
 pub mod notifications;
@@ -47,6 +48,9 @@ pub use commands::{COMMANDS, Command, Reversibility, command};
 pub use emails::Email;
 pub use errors::{AREAS, ErrorCode, Severity};
 pub use events::{EVENTS, EventSpec, FieldKind, FieldSpec, Level};
+pub use external_identifiers::{
+    EXTERNAL_IDENTIFIERS, ExternalIdentifier, OnLinux, OnMacOs, OnWindows, external_identifier,
+};
 pub use i18n::{KEYS, Locale, message, render, tags};
 pub use limits::{
     ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, Argon2Id, Budget, DAEMON, DaemonLimits, Database,

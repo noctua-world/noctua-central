@@ -33,7 +33,7 @@ pub(crate) fn artifacts(
     ui::detail(&format!(
         "{} error code(s), {} notification(s), {} email(s), {} command(s), \
          {} log event(s), {} table(s), {} capability(ies), {} category(ies) in {} set(s), \
-         {} locale(s)",
+         {} external identifier(s), {} locale(s)",
         catalog.errors.len(),
         catalog.notifications.len(),
         catalog.emails.len(),
@@ -43,6 +43,7 @@ pub(crate) fn artifacts(
         catalog.capabilities.len(),
         catalog.categories.len(),
         catalog.category_sets.len(),
+        catalog.external_identifiers.len(),
         catalog.locales.len(),
     ));
 

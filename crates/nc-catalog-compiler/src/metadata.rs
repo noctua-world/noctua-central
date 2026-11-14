@@ -3,9 +3,9 @@
 //!
 //! **The rules are not written here.** `nc_schema::entry` holds them, once,
 //! for the catalog and for every plugin the kernel admits; this module hands
-//! that judge the texts of each command, each set of categories and each
-//! category as the locales resolve them, and reports what it finds against the
-//! line a reader has to edit.
+//! that judge the texts of each command, each set of categories, each
+//! category and each external identifier as the locales resolve them, and
+//! reports what it finds against the line a reader has to edit.
 //!
 //! **Nothing is reported twice.** A key absent from a locale, a sentence that
 //! is the English one again and a placeholder in an entry's sentence are
@@ -42,7 +42,9 @@ use std::path::{Path, PathBuf};
 use nc_schema::entry::{self, EntryProblem, InLocale, Rules, Text, Texts, WikiFormat};
 
 use crate::load::SOURCE_LOCALE;
-use crate::model::{Catalog, CategoryEntry, CategorySetEntry, CommandEntry, WikiText};
+use crate::model::{
+    Catalog, CategoryEntry, CategorySetEntry, CommandEntry, ExternalIdentifierEntry, WikiText,
+};
 use crate::problem::{Problem, line_of};
 
 /// Where the wiki texts live.
@@ -61,6 +63,8 @@ pub(crate) struct Registries<'a> {
     pub(crate) commands: &'a str,
     /// `catalog/categories.toml`.
     pub(crate) categories: &'a str,
+    /// `catalog/external-identifiers.toml`.
+    pub(crate) identifiers: &'a str,
 }
 
 /// One entry the judge is handed: how a diagnostic names it, where it is
@@ -133,6 +137,25 @@ impl<'a> Owner<'a> {
         }
     }
 
+    /// An external identifier: every text, its categories and its glyph, as a
+    /// command's.
+    fn identifier(identifier: &'a ExternalIdentifierEntry, text: &'a str) -> Self {
+        Self {
+            named: format!("the external identifier `{}`", identifier.name),
+            name: &identifier.name,
+            file: crate::registries::EXTERNAL_IDENTIFIERS,
+            text,
+            keys: [
+                Some(&identifier.title),
+                Some(&identifier.description),
+                Some(&identifier.paragraph),
+                Some(&identifier.tags),
+            ],
+            categories: &identifier.categories,
+            glyph: identifier.glyph.as_deref(),
+        }
+    }
+
     /// The key of one of its texts, if its registry carries it.
     const fn key(&self, text: Text) -> Option<&'a str> {
         self.keys[match text {
@@ -147,9 +170,10 @@ impl<'a> Owner<'a> {
 /// Every entry's texts, held to the one judge, and every display name to
 /// being one entry's.
 ///
-/// **Each registry chooses its texts**: a command carries all four, a set of
-/// categories and a category the two a list shows. A command's categories are
-/// the ones the categories registry holds.
+/// **Each registry chooses its texts**: a command and an external identifier
+/// carry all four, a set of categories and a category the two a list shows.
+/// The categories a command or an external identifier names are the ones the
+/// categories registry holds.
 pub(crate) fn check(
     root: &Path,
     catalog: &Catalog,
@@ -170,13 +194,17 @@ pub(crate) fn check(
         .iter()
         .map(|category| category.name.as_str())
         .collect();
+    let every_text = Rules {
+        requires: &Text::ALL,
+        categories: &held,
+    };
     for command in &catalog.commands {
-        let rules = Rules {
-            requires: &Text::ALL,
-            categories: &held,
-        };
         let owner = Owner::command(command, registries.commands);
-        judged(&owner, &rules, catalog, &locale_texts, problems);
+        judged(&owner, &every_text, catalog, &locale_texts, problems);
+    }
+    for identifier in &catalog.external_identifiers {
+        let owner = Owner::identifier(identifier, registries.identifiers);
+        judged(&owner, &every_text, catalog, &locale_texts, problems);
     }
     let a_list_row = Rules {
         requires: &WHAT_A_LIST_SHOWS,
@@ -196,6 +224,13 @@ pub(crate) fn check(
         .map(|command| (command.name.as_str(), command.title.as_str()))
         .collect();
     one_entry_per_display_name(catalog, &commands, "the commands", &locale_texts, problems);
+    let identifiers: Vec<(&str, &str)> = catalog
+        .external_identifiers
+        .iter()
+        .map(|identifier| (identifier.name.as_str(), identifier.title.as_str()))
+        .collect();
+    let under = "the external identifiers";
+    one_entry_per_display_name(catalog, &identifiers, under, &locale_texts, problems);
     for set in &catalog.category_sets {
         let listed: Vec<(&str, &str)> = catalog
             .categories
@@ -316,8 +351,8 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         // `untranslated` reports a sentence that is the English one, under the
         // exemptions `THE_SAME_IN_BOTH` holds with their reasons; and
         // `param-not-declared` a placeholder, since `declared_params` gives the
-        // sentences of a command, a set of categories and a category the empty
-        // set. The catalog hands the judge no
+        // sentences of a command, a set of categories, a category and an external
+        // identifier the empty set. The catalog hands the judge no
         // exemption, so it can find none unused or unreasoned.
         EntryProblem::LocaleMissing { .. }
         | EntryProblem::Missing { .. }
@@ -350,12 +385,12 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         )),
         EntryProblem::NoTag { .. } => Some((
             "no-tag",
-            "a command is found by its display name and its tags, in the reader's own \
+            "an entry is found by its display name and its tags, in the reader's own \
              language, so every locale lists at least one word a person would type",
         )),
         EntryProblem::TooManyTags { .. } => Some((
             "too-many-tags",
-            "tags are the words a search finds a command by, and past the bound they \
+            "tags are the words a search finds an entry by, and past the bound they \
              find it for everything. Keep the words a person would type for it",
         )),
         EntryProblem::TagBlank { .. } => Some((
@@ -376,18 +411,18 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         )),
         EntryProblem::TooManyCategories(_) => Some((
             "too-many-categories",
-            "a category is a place a list shows the command under, and one listed \
+            "a category is a place a list shows the entry under, and one listed \
              everywhere is found nowhere in particular. Keep the categories it belongs to",
         )),
         EntryProblem::CategoryUnknown(_) => Some((
             "unknown-category",
-            "a command's categories are names the platform's categories registry holds, \
-             and a name it does not hold is a category no list can show the command under. \
+            "an entry's categories are names the platform's categories registry holds, \
+             and a name it does not hold is a category no list can show the entry under. \
              Name one the registry holds, or leave `categories` out",
         )),
         EntryProblem::CategoryTwice(_) => Some((
             "category-twice",
-            "a category named twice lists the command twice under one heading. Name each \
+            "a category named twice lists the entry twice under one heading. Name each \
              category once",
         )),
         EntryProblem::Glyph(entry::GlyphProblem::Malformed(_)) => Some((
@@ -406,7 +441,7 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
 }
 
 /// No two entries of one list are shown by one display name in one locale:
-/// the commands, and each set's categories.
+/// the commands, the external identifiers, and each set's categories.
 ///
 /// **Compared as the untranslated rule compares**, by
 /// `nc_schema::entry::the_same_sentence`: `Undo` and `undo.` are one name to a

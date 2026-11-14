@@ -43,6 +43,7 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
         EmittedFile::new(page("log-events"), log_events(catalog)),
         EmittedFile::new(page("capabilities"), capabilities(catalog)),
         EmittedFile::new(page("categories"), categories(catalog)),
+        EmittedFile::new(page("external-identifiers"), external_identifiers(catalog)),
     ]
 }
 
@@ -1092,7 +1093,13 @@ fn commands(catalog: &Catalog) -> String {
                 })
                 + &shown_with(catalog, entry)
         );
-        what_a_person_is_shown(catalog, entry, &tags, &mut out);
+        let keys = [
+            &entry.title,
+            &entry.description,
+            &entry.paragraph,
+            &entry.tags,
+        ];
+        what_a_person_is_shown(catalog, keys, &tags, &mut out);
         let _ = writeln!(out, "```json\n{}\n```\n", entry.args_schema);
     }
     out
@@ -1151,14 +1158,15 @@ const fn wiki_word(format: nc_schema::entry::WikiFormat) -> &'static str {
     }
 }
 
-/// A command's texts, one column per locale.
+/// An entry's four texts, one column per locale: a command's or an external
+/// identifier's, by the keys of its display name, line, paragraph and tags.
 ///
 /// **A table, both locales side by side**, for the reason this file's header
 /// gives: a reader comparing what a person is shown in each language is
 /// doing what the page is for.
 fn what_a_person_is_shown(
     catalog: &Catalog,
-    entry: &crate::model::CommandEntry,
+    [title, description, paragraph, tag_list]: [&String; 4],
     tags: &[&str],
     out: &mut String,
 ) {
@@ -1169,9 +1177,9 @@ fn what_a_person_is_shown(
         "---|".repeat(tags.len())
     );
     for (row, key) in [
-        ("Display name", &entry.title),
-        ("Line description", &entry.description),
-        ("Paragraph", &entry.paragraph),
+        ("Display name", title),
+        ("Line description", description),
+        ("Paragraph", paragraph),
     ] {
         let cells: Vec<String> = tags.iter().map(|tag| sentence(catalog, key, tag)).collect();
         let _ = writeln!(out, "| {row} | {} |", cells.join(" | "));
@@ -1183,7 +1191,7 @@ fn what_a_person_is_shown(
                 .locales
                 .iter()
                 .find(|locale| locale.meta.bcp47 == *tag)
-                .and_then(|locale| locale.tags.get(&entry.tags))
+                .and_then(|locale| locale.tags.get(tag_list))
                 .map_or_else(
                     || "—".to_owned(),
                     |words| {
@@ -1208,9 +1216,10 @@ fn categories(catalog: &Catalog) -> String {
         "Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set is \
          a standard's — its categories carry the names the standard gives them, and the \
          rank it gives them where it ranks them — or the platform's own. A category is \
-         named for its set, a dot and a slug, and what a command's `categories` name are \
-         categories on this page: the build refuses any other. `noctua help categories` \
-         lists them with no daemon, in the reader's language.",
+         named for its set, a dot and a slug, and what the `categories` of a command and of \
+         an external identifier name are categories on this page: the build refuses any \
+         other. `noctua help categories` lists them with no daemon, in the reader's \
+         language.",
     );
     let tags = tags(catalog);
     // **Sorted, like the generated crate**, sets and categories both by name.
@@ -1316,6 +1325,99 @@ fn a_sets_categories(
     out.push('\n');
 }
 
+/// The external identifiers page: every entry, its texts in every locale, and
+/// what identifies it on each system it is identified on.
+fn external_identifiers(catalog: &Catalog) -> String {
+    let mut out = header(
+        "External identifiers",
+        "catalog/external-identifiers.toml and catalog/i18n/",
+        "Every thing outside the platform the catalog identifies — an application, a \
+         binary or a configuration file — with what a person is shown of it in each \
+         locale and what identifies it on each system it is identified on (`NOCTUA.md \
+         §20.4`). Each value is written as its system writes it, copied from a \
+         measurement on that system or from the product's own sources, and a value \
+         neither confirms is left out: filling the registry is a pending task \
+         (`NOCTUA-PLAN.md`, Stage 27+). **Identification is data**: nothing in the \
+         platform runs, expands or trusts a value, and a match against a system is a \
+         hint, never proof of what was found. `noctua help external-identifiers` lists \
+         them with no daemon, in the reader's language.",
+    );
+    let tags = tags(catalog);
+    // **Sorted, like the generated crate.**
+    let mut in_order: Vec<_> = catalog.external_identifiers.iter().collect();
+    in_order.sort_by(|a, b| a.name.cmp(&b.name));
+    for entry in in_order {
+        let _ = writeln!(out, "## `{}`\n", entry.name);
+        // **A row only when there is one**, as on the commands page.
+        let mut rows = String::new();
+        if !entry.categories.is_empty() {
+            let named: Vec<String> = entry
+                .categories
+                .iter()
+                .map(|name| format!("`{}`", cell(name)))
+                .collect();
+            let _ = write!(rows, "\n| Categories | {} |", named.join(", "));
+        }
+        if let Some(glyph) = &entry.glyph {
+            let _ = write!(rows, "\n| Glyph | `{}` |", cell(glyph));
+        }
+        if !rows.is_empty() {
+            let _ = writeln!(out, "| | |\n|---|---|{rows}\n");
+        }
+        let keys = [
+            &entry.title,
+            &entry.description,
+            &entry.paragraph,
+            &entry.tags,
+        ];
+        what_a_person_is_shown(catalog, keys, &tags, &mut out);
+        out.push_str("| System | Field | Values |\n|---|---|---|\n");
+        for (system, fields) in crate::registries::on_each_system(entry) {
+            for (field, values) in fields.into_iter().flatten() {
+                if values.is_empty() {
+                    continue;
+                }
+                let written: Vec<String> = values.iter().map(|value| code(value)).collect();
+                let _ = writeln!(
+                    out,
+                    "| {} | `{}` | {} |",
+                    system.word(),
+                    field.key(),
+                    written.join(", ")
+                );
+            }
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// A value written as code in a cell, every character as its system writes it.
+///
+/// **Not through `cell`, whose escapes a code span does not undo**: Markdown
+/// reads no backslash escape and no entity inside one, so `cell`'s doubled
+/// backslash would show a Windows path with every separator twice. A code
+/// span reads its text as written but for two things: a table still ends a
+/// cell at a bare `|`, which `\|` keeps inside it, and a backtick ends the
+/// span, so the fence is one backtick longer than the longest run inside,
+/// with a space where the text begins or ends with one. What a reader sees
+/// nothing of becomes a space first, as in every cell.
+fn code(text: &str) -> String {
+    let text = crate::printable(text).replace('|', "\\|");
+    let longest = text
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest + 1);
+    let pad = if text.starts_with('`') || text.ends_with('`') {
+        " "
+    } else {
+        ""
+    };
+    format!("{fence}{pad}{text}{pad}{fence}")
+}
+
 fn log_events(catalog: &Catalog) -> String {
     let mut out = header(
         "Log events",
@@ -1371,7 +1473,31 @@ fn log_events(catalog: &Catalog) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{cell, in_bytes, what_a_limit_counts, what_a_lockout_does, what_undoing_costs};
+    use super::{
+        cell, code, in_bytes, what_a_limit_counts, what_a_lockout_does, what_undoing_costs,
+    };
+
+    /// A value written as code shows every character as its system writes it,
+    /// and nothing in it ends the span or the cell early.
+    ///
+    /// A Windows path keeps one backslash per separator, which `cell` would
+    /// double inside a span; a bar is escaped as a table reads one; a backtick
+    /// gets a fence longer than any run of them inside; and a line break or a
+    /// direction override becomes a space.
+    #[test]
+    fn a_value_written_as_code_is_shown_as_its_system_writes_it() {
+        assert_eq!(
+            code(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            r"`%ProgramFiles%\Google\Chrome\Application\chrome.exe`"
+        );
+        assert_eq!(code("usr/bin/a|b"), r"`usr/bin/a\|b`");
+        assert_eq!(code("tmp/a`b"), "``tmp/a`b``");
+        assert_eq!(code("tmp/a``b"), "```tmp/a``b```");
+        assert_eq!(code("`a"), "`` `a ``");
+        assert_eq!(code("a`"), "`` a` ``");
+        assert_eq!(code("a\u{2028}b\u{202e}c\nd"), "`a b c d`");
+        assert_eq!(code("<b>&amp;"), "`<b>&amp;`");
+    }
 
     /// Every lockout the model can spell, stated as what it does.
     ///

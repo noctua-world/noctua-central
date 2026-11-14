@@ -29,6 +29,10 @@ dir   = "ltr"
 "command.kernel.undo.tags" = ["desfazer", "voltar atrás", "reverter", "anular"]
 "command.kernel.redo.tags" = ["refazer", "fazer de novo", "repetir", "restaurar"]
 
+# --- External identifiers ---
+"external-identifier.google-chrome.tags" = ["navegador", "navegador da web", "web", "internet", "google"]
+"external-identifier.chromium.tags" = ["navegador", "navegador da web", "web", "internet", "código aberto"]
+
 [message]
 
 # --- The journal ---
@@ -636,3 +640,11 @@ dir   = "ltr"
 "category.noctua.files.description" = "Nomear, encontrar e organizar os arquivos de uma pessoa"
 "category.noctua.reference.title" = "Referência"
 "category.noctua.reference.description" = "Comandos do plugin de referência, com o qual a plataforma é testada"
+
+# --- External identifiers ---
+"external-identifier.google-chrome.title" = "Google Chrome"
+"external-identifier.google-chrome.description" = "Navegador da web"
+"external-identifier.google-chrome.paragraph" = "O navegador da web que o Google distribui. Esta entrada o identifica no Linux, no macOS e no Windows pelo que os próprios instaladores dele deixam em cada sistema, como medido lá: os comandos que o iniciam, os arquivos de desktop, o pacote do aplicativo e os caminhos em que fica instalado."
+"external-identifier.chromium.title" = "Chromium"
+"external-identifier.chromium.description" = "Navegador da web de código aberto"
+"external-identifier.chromium.paragraph" = "O projeto de navegador da web de código aberto. As distribuições de cada sistema o empacotam com nomes próprios, por isso esta entrada só nomeia o que foi medido em um sistema ou está escrito nas fontes do próprio projeto: os comandos que o iniciam no Linux, o identificador e o executável do pacote no macOS, e o executável no Windows."

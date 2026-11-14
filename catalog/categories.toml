@@ -1,11 +1,11 @@
 # The categories an entry is listed under (`NOCTUA.md §20.4`).
 #
 # A category is a name a list shows an entry under, and this file is the closed
-# set of them: a command's `categories` names categories written here, and the
-# build refuses any other. Categories come in sets — a standard's, or the
-# platform's own — and a category is named for its set, a dot, and a slug of
-# lower-case letters and digits in words joined by hyphens:
-# `freedesktop.web-browser`.
+# set of them: the `categories` of a command and of an external identifier name
+# categories written here, and the build refuses any other. Categories come in
+# sets — a standard's, or the platform's own — and a category is named for its
+# set, a dot, and a slug of lower-case letters and digits in words joined by
+# hyphens: `freedesktop.web-browser`.
 #
 # A set:
 #

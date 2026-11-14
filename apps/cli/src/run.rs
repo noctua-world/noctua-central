@@ -3,8 +3,9 @@
 //!
 //! **In this order, and each step refuses before the next one starts**: the
 //! command line is read before anything is asked ([`crate::args::read`]);
-//! help on the exit codes, the verbs and the categories is answered without a
-//! daemon, from what this binary carries, and help
+//! help on the exit codes, the verbs, the categories and the external
+//! identifiers is answered without a daemon, from what this binary carries,
+//! and help
 //! on everything shows the grammar and the verbs when no registry can be read,
 //! beside the refusal and in its exit code; a verb that controls the daemon's
 //! process is [`crate::control`]'s, which reads no registry; for anything else
@@ -49,6 +50,9 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
         Asked::Help(Topic::ExitCodes) => Ok(render::shown(line.json, exit::table())),
         Asked::Help(Topic::Verbs) => Ok(render::shown(line.json, help::verbs())),
         Asked::Help(Topic::Categories) => Ok(render::shown(line.json, help::categories(locale))),
+        Asked::Help(Topic::ExternalIdentifiers) => {
+            Ok(render::shown(line.json, help::external_identifiers(locale)))
+        }
         Asked::Help(Topic::Everything) => {
             on_a_runtime(found, line.json, env, Asked::Help(Topic::Everything))
                 .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))
@@ -308,39 +312,48 @@ mod tests {
         assert_eq!(outcome.stdout, crate::help::verbs());
     }
 
-    /// Help on the categories is answered with no daemon to ask.
+    /// Help on the catalog's registries is answered with no daemon to ask.
     ///
-    /// No token and no listener: it is in the environment's language, and the
-    /// same in one canonical document under `--json`.
+    /// The categories and the external identifiers, with no token and no
+    /// listener: each in the environment's language, and the same in one
+    /// canonical document under `--json`.
     #[test]
     fn help_on_the_registries_needs_no_daemon() {
         let installed = Scratch::new("reg");
         let portuguese = Env::of(|name| (name == "LANG").then(|| "pt_BR.UTF-8".to_owned()));
         for (env, locale) in [(english(), Locale::En), (portuguese, Locale::PtBR)] {
-            let outcome = super::run(&argv(&["help", "categories"]), &installed.found, &env);
-            assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
-            assert_eq!(outcome.stdout, crate::help::categories(locale));
-            assert_eq!(outcome.stderr, "");
-            let shown = nc_catalog::message("category.noctua.history.title", locale)
-                .expect("the catalog's display name");
-            assert!(
-                outcome.stdout.contains(shown),
-                "{locale:?}: {}",
-                outcome.stdout
-            );
-            let outcome = super::run(
-                &argv(&["--json", "help", "categories"]),
-                &installed.found,
-                &env,
-            );
-            assert_eq!(
-                outcome.stdout,
-                format!(
-                    "{}\n",
-                    Value::object([("ok", Value::text(crate::help::categories(locale)))])
-                        .to_canonical()
-                )
-            );
+            for (topic, said, key) in [
+                (
+                    "categories",
+                    crate::help::categories(locale),
+                    "category.noctua.history.title",
+                ),
+                (
+                    "external-identifiers",
+                    crate::help::external_identifiers(locale),
+                    "external-identifier.google-chrome.description",
+                ),
+            ] {
+                let outcome = super::run(&argv(&["help", topic]), &installed.found, &env);
+                assert_eq!(outcome.exit, Exit::Success, "{topic}: {outcome:?}");
+                assert_eq!(outcome.stdout, said, "{topic}");
+                assert_eq!(outcome.stderr, "", "{topic}");
+                let shown = nc_catalog::message(key, locale).expect("the catalog's text");
+                assert!(
+                    outcome.stdout.contains(shown),
+                    "{topic}, {locale:?}: {}",
+                    outcome.stdout
+                );
+                let outcome = super::run(&argv(&["--json", "help", topic]), &installed.found, &env);
+                assert_eq!(
+                    outcome.stdout,
+                    format!(
+                        "{}\n",
+                        Value::object([("ok", Value::text(said))]).to_canonical()
+                    ),
+                    "{topic}"
+                );
+            }
         }
     }
 

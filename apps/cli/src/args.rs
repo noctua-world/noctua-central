@@ -3,7 +3,7 @@
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
 //! noctua [--json] start | stop | restart | status
-//! noctua help [<command.name> | <verb> | exit-codes | categories]
+//! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
 //! ```
@@ -87,6 +87,10 @@ pub const EXIT_CODES: &str = "exit-codes";
 /// catalog this binary was built with holds it.
 pub const CATEGORIES: &str = "categories";
 
+/// The help topic that is the external-identifiers registry, which needs no
+/// daemon for the reason the categories need none.
+pub const EXTERNAL_IDENTIFIERS: &str = "external-identifiers";
+
 /// What a command line asks, before any daemon is asked anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
@@ -124,6 +128,9 @@ pub enum Topic {
     ExitCodes,
     /// The categories registry: every set and every category in it.
     Categories,
+    /// The external-identifiers registry: every entry, and what identifies it
+    /// on each system.
+    ExternalIdentifiers,
     /// One command, by its registered name.
     Command(String),
 }
@@ -240,6 +247,7 @@ fn topic(words: &[String]) -> Result<Topic, Unread> {
         [] => Ok(Topic::Everything),
         [word] if word == EXIT_CODES => Ok(Topic::ExitCodes),
         [word] if word == CATEGORIES => Ok(Topic::Categories),
+        [word] if word == EXTERNAL_IDENTIFIERS => Ok(Topic::ExternalIdentifiers),
         [word] if VERBS.contains(&word.as_str()) => Ok(Topic::Verbs),
         [word] => named(word).map(Topic::Command),
         [_, extra, ..] => Err(unread(format!(
@@ -569,6 +577,14 @@ mod tests {
             (&["help", "categories"], Topic::Categories),
             (&["--json", "--help", "categories"], Topic::Categories),
             (
+                &["help", "external-identifiers"],
+                Topic::ExternalIdentifiers,
+            ),
+            (
+                &["--json", "--help", "external-identifiers"],
+                Topic::ExternalIdentifiers,
+            ),
+            (
                 &["help", "kernel.undo"],
                 Topic::Command("kernel.undo".to_owned()),
             ),
@@ -684,6 +700,8 @@ mod tests {
             );
         };
         a_topic_of_its_own(super::CATEGORIES, Topic::Categories);
+        a_topic_of_its_own(super::EXTERNAL_IDENTIFIERS, Topic::ExternalIdentifiers);
+        assert_ne!(super::CATEGORIES, super::EXTERNAL_IDENTIFIERS);
     }
 
     /// The verbs are `help` and the four that control the daemon, each read

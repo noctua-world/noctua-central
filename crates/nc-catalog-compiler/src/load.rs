@@ -93,7 +93,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         &capabilities_text,
         &mut problems,
     );
-    let categories = crate::registries::categories(root, &mut problems);
+    let beside = crate::registries::all(root, &mut problems);
 
     let locales = locales(root, &mut problems);
 
@@ -105,7 +105,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         Some(command_file),
         Some(event_file),
         Some(capability_file),
-        Some((categories_text, category_file)),
+        Some((categories, identifiers, texts)),
     ) = (
         error_file,
         notification_file,
@@ -114,7 +114,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         command_file,
         event_file,
         capability_file,
-        categories,
+        beside,
     )
     else {
         return (None, problems);
@@ -142,13 +142,13 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         events: event_file.events,
         capabilities: capability_file.capabilities,
         ungated: capability_file.ungated,
-        category_sets: category_file.sets,
-        categories: category_file.categories,
+        category_sets: categories.sets,
+        categories: categories.categories,
+        external_identifiers: identifiers.identifiers,
         locales,
         wiki: Vec::new(),
     };
-    let texts = (commands_text.as_str(), categories_text.as_str());
-    across_the_registries(root, &mut catalog, texts, &mut problems);
+    across_the_registries(root, &mut catalog, &commands_text, &texts, &mut problems);
 
     problems.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     (Some(catalog), problems)
@@ -159,12 +159,13 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
 ///
 /// Split out of `load` for its line budget; the order is the one it had
 /// there, the wiki first because the message rules and the entries read it.
-/// `texts` are `catalog/commands.toml` and `catalog/categories.toml` as read,
-/// for the line an entry's problem is filed at.
+/// `commands` and `beside` are the texts of the files whose entries carry
+/// texts, as read, for the line an entry's problem is filed at.
 fn across_the_registries(
     root: &Path,
     catalog: &mut Catalog,
-    (commands, categories): (&str, &str),
+    commands: &str,
+    beside: &crate::registries::Texts,
     problems: &mut Vec<Problem>,
 ) {
     catalog.wiki = crate::metadata::wiki(root, catalog, problems);
@@ -172,7 +173,8 @@ fn across_the_registries(
     crate::messages::check(root, catalog, problems);
     let registries = crate::metadata::Registries {
         commands,
-        categories,
+        categories: &beside.categories,
+        identifiers: &beside.identifiers,
     };
     crate::metadata::check(root, catalog, &registries, problems);
 }
@@ -3085,6 +3087,30 @@ pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<Claim>>
             Table::Message,
         );
     }
+    // An external identifier carries a command's four texts, under the same
+    // names.
+    for identifier in &catalog.external_identifiers {
+        let owner = format!("external identifier {}", identifier.name);
+        claim(
+            &identifier.title,
+            owner.clone(),
+            "display name",
+            Table::Message,
+        );
+        claim(
+            &identifier.description,
+            owner.clone(),
+            "line description",
+            Table::Message,
+        );
+        claim(
+            &identifier.paragraph,
+            owner.clone(),
+            "paragraph",
+            Table::Message,
+        );
+        claim(&identifier.tags, owner, "tags", Table::Tags);
+    }
     keys
 }
 
@@ -3196,6 +3222,19 @@ pub(crate) fn declared_params(catalog: &Catalog) -> Vec<Declaration> {
             owner: format!("category {}", category.name),
             declared: BTreeSet::new(),
             keys: vec![category.title.clone(), category.description.clone()],
+        });
+    }
+    // An external identifier's three sentences are a list's rows and a page's
+    // cells as a command's are, with no caller to supply a value.
+    for identifier in &catalog.external_identifiers {
+        declared.push(Declaration {
+            owner: format!("external identifier {}", identifier.name),
+            declared: BTreeSet::new(),
+            keys: vec![
+                identifier.title.clone(),
+                identifier.description.clone(),
+                identifier.paragraph.clone(),
+            ],
         });
     }
     declared

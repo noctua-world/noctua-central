@@ -225,9 +225,9 @@ fn params(
 /// 28") are satisfied comfortably by a handful of untranslated strings.
 ///
 /// The rule is absolute but for a name that is the same in both languages — a
-/// desktop project's or a toolkit's, which a category is named for — and each
-/// such key goes in the exception list with its reason, which is a two-place
-/// edit somebody reads.
+/// desktop project's or a toolkit's, which a category is named for, or a
+/// product's, which an external identifier is — and each such key goes in the
+/// exception list with its reason, which is a two-place edit somebody reads.
 fn no_value_is_the_source_sentence(
     file: &str,
     tag: &str,
@@ -253,9 +253,9 @@ fn no_value_is_the_source_sentence(
 /// translator to "add it to `THE_SAME_IN_BOTH` with the reason", and with the
 /// list only a parameter there would be nothing to add it to. What it holds are
 /// the display names of categories named for a project — a desktop's or a
-/// toolkit's — whose name no language translates; a product name or an
-/// identifier that coincides goes here the same way, with the reason, which is
-/// the two-place edit somebody reads.
+/// toolkit's — and of external identifiers named for a product, whose names no
+/// language translates; any other name that coincides goes here the same way,
+/// with the reason, which is the two-place edit somebody reads.
 ///
 /// **And the reason is a field.** As `&[&str]` this would be a bare exclusion
 /// list: the diagnostic promises "add it to `THE_SAME_IN_BOTH` with the reason
@@ -305,6 +305,15 @@ pub(crate) const THE_SAME_IN_BOTH: &[(&str, &str)] = &[
     (
         "category.freedesktop.java.title",
         "Java is the name of a programming platform, which no language translates",
+    ),
+    (
+        "external-identifier.google-chrome.title",
+        "Google Chrome is the name of a web browser, which no language translates",
+    ),
+    (
+        "external-identifier.chromium.title",
+        "Chromium is the name of an open-source web browser project, which no language \
+         translates",
     ),
 ];
 
@@ -547,8 +556,8 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
                     table.header()
                 ),
                 "every message key is reached through an error, notification, email, \
-                 command, capability, category or set of categories, and one reached through \
-                 none is shown nowhere — while every \
+                 command, capability, category, set of categories or external identifier, and \
+                 one reached through none is shown nowhere — while every \
                  locale is still asked to carry it. Point an entry at it, or delete it \
                  from every locale",
                 "unreferenced-key",
