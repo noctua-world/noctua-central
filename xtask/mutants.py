@@ -1249,6 +1249,18 @@ WEAKENINGS = [
     ("loader", "locale_files", "a locale's extension is read in any case",
      '            .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))',
      '            .is_some_and(|extension| extension == "toml")'),
+    # A command's sentences are declared to take no parameter, and the entry
+    # judge's own placeholder problem is dropped because that declaration
+    # reports it; a sentence left out of it is one a placeholder passes in.
+    ("loader", "declared_params", "a command's display name takes no placeholder",
+     "                entry.title.clone(),",
+     ""),
+    ("loader", "declared_params", "a command's line description takes no placeholder",
+     "                entry.description.clone(),",
+     ""),
+    ("loader", "declared_params", "a command's paragraph takes no placeholder",
+     "                entry.paragraph.clone(),",
+     ""),
     # -- pages: what a published cell may not carry --------------------------
     ("pages", "cell", "an angle bracket is escaped",
      """    text.replace('\\\\', "\\\\\\\\")
@@ -3206,6 +3218,14 @@ WEAKENINGS = [
     ("compiler_metadata", "one_command_per_display_name", "two display names are compared as a reader reads them",
      "                .find(|(_, earlier)| entry::the_same_sentence(earlier, display_name))",
      "                .find(|(_, earlier)| earlier == display_name)"),
+    # A link is asked what it is, never what it points at: followed, a link
+    # carries the walk out of the catalog and reads whatever it names.
+    ("compiler_metadata", "wiki", "the wiki tree is not read through a link standing for it",
+     "    match std::fs::symlink_metadata(&top) {",
+     "    match std::fs::metadata(&top) {"),
+    ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
+     "            let kind = entry.file_type().ok()?;",
+     "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
 
     # -- packs: what a policy may be called, and what a realm pins -------------
     # The decision point's prefix is refused where an id begins, and only there.

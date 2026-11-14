@@ -172,7 +172,7 @@ pub struct Rules<'a> {
 /// Why a glyph was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlyphProblem {
-    /// Not written `U+` and four to six upper-case hex digits, shortest first.
+    /// Not `U+` and upper-case hex, four digits at least and no leading zero past them.
     Malformed(String),
     /// A code point the Symbols-Only font does not draw.
     NotInTheFont(u32),
@@ -184,7 +184,8 @@ impl fmt::Display for GlyphProblem {
             Self::Malformed(written) => write!(
                 formatter,
                 "has a glyph written `{written}`, and a glyph is written `U+` and its code \
-                 point in four to six upper-case hex digits, as `U+F0E2`"
+                 point in upper-case hex, four digits at least and no leading zero past them \
+                 — `U+F0E2`, never `U+0F0E2`"
             ),
             Self::NotInTheFont(point) => write!(
                 formatter,
@@ -1394,6 +1395,15 @@ mod tests {
                 "`{written}` was not refused as malformed"
             );
         }
+        // A refusal states the rule it applied: `U+0F0E2` is upper-case hex of
+        // five digits, so a message that said only that would contradict the
+        // input it refuses.
+        let refused = glyph("U+0F0E2").expect_err("a padded spelling is refused");
+        assert!(
+            refused.to_string().contains("no leading zero"),
+            "the refusal of `U+0F0E2` does not say a leading zero is what it refused: \
+             {refused}"
+        );
     }
 
     #[test]

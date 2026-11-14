@@ -19514,7 +19514,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/metadata.rs", 15, 1),
         ("nc-catalog-compiler/model.rs", 54, 19),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 79, 113),
+        ("nc-catalog-compiler/the_gates_fire.rs", 81, 113),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             16,
@@ -22453,8 +22453,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 751 scratches this tree
-    /// builds, 663 of the 751 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 753 scratches this tree
+    /// builds, 665 of the 753 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22538,7 +22538,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 200, 200),
+        ("nc-catalog-compiler/the_gates_fire.rs", 202, 202),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25522,7 +25522,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18529;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18532;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25592,7 +25592,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25145;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25150;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25646,7 +25646,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,145 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,150 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37549,7 +37549,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2177] = [
+    static OPERATORS: [(&str, &str, &str); 2182] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38334,6 +38334,21 @@ Options:
             "loader",
             "locale_files",
             "a locale's extension is read in any case",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "a command's display name takes no placeholder",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "a command's line description takes no placeholder",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "a command's paragraph takes no placeholder",
         ),
         ("pages", "cell", "an angle bracket is escaped"),
         ("pages", "cell", "and so is the bar that would end the cell"),
@@ -40634,6 +40649,16 @@ Options:
             "compiler_metadata",
             "one_command_per_display_name",
             "two display names are compared as a reader reads them",
+        ),
+        (
+            "compiler_metadata",
+            "wiki",
+            "the wiki tree is not read through a link standing for it",
+        ),
+        (
+            "compiler_metadata",
+            "listed",
+            "no path under the wiki tree is read through a link",
         ),
         (
             "pack",

@@ -643,20 +643,25 @@ fn an_email_subject_is_checked_too() {
 
 #[test]
 fn a_command_message_may_not_interpolate_anything() {
-    // A command has no `params` field at all, so a placeholder in its title is
-    // one nobody can ever fill in — there is no caller, only a palette and the
-    // generated developer surfaces. Declaring the empty set is what makes that a
-    // build failure rather than braces on a screen.
-    let scratch = Scratch::new("params-command");
-    for locale in ["en", "pt-BR"] {
-        scratch.edit(&format!("catalog/i18n/{locale}.toml"), |text| {
-            text.replace(
-                "\"command.journal.verify.title\" = \"",
-                "\"command.journal.verify.title\" = \"{who} ",
-            )
-        });
+    // A command has no `params` field at all, so a placeholder in any of its
+    // sentences is one nobody can ever fill in — there is no caller, only a
+    // palette and the generated developer surfaces. Declaring the empty set is
+    // what makes that a build failure rather than braces on a screen, and it is
+    // the only thing that does: the entry judge's own placeholder problem is
+    // dropped because this one is said. So each sentence is broken alone, in
+    // both locales, and one left out of the declaration fails here.
+    for slot in ["title", "description", "paragraph"] {
+        let key = format!("command.journal.verify.{slot}");
+        let scratch = Scratch::new(&format!("params-command-{slot}"));
+        for locale in ["en", "pt-BR"] {
+            scratch.replacing(
+                &format!("catalog/i18n/{locale}.toml"),
+                &format!("\"{key}\" = \""),
+                &format!("\"{key}\" = \"{{who}} "),
+            );
+        }
+        scratch.must_fail("param-not-declared", &key);
     }
-    scratch.must_fail("param-not-declared", "command.journal.verify.title");
 }
 
 #[test]
@@ -5352,6 +5357,43 @@ fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
     std::fs::create_dir_all(nested.root.join("catalog/wiki/en/commands/kernel.redo.md"))
         .expect("the scratch is writable");
     nested.must_fail("wiki-misplaced", "catalog/wiki/en/commands/kernel.redo.md");
+}
+
+/// A link anywhere in the wiki tree is refused, never read through.
+///
+/// Each link points at the shipped texts moved aside inside the scratch, a
+/// tree that builds green when read through the link — so only a walk that
+/// asks each path what it is itself fails here. A directory is linked by both
+/// doors: on Windows a junction and a directory's symbolic link are reparse
+/// points of two tags, and on Unix the two doors make one link.
+#[test]
+fn a_link_where_a_wiki_path_belongs_fails_the_build() {
+    /// A door that makes a link at its second path to the directory at its first.
+    type Door = fn(&Path, &Path) -> std::io::Result<()>;
+
+    let doors: [(&str, Door); 2] = [
+        ("linked", nc_platform::testing::link_directory),
+        ("symlinked", nc_platform::testing::symlink_directory),
+    ];
+    for (door, link) in doors {
+        for (level, at) in [
+            ("tree", "catalog/wiki"),
+            ("locale", "catalog/wiki/pt-BR"),
+            ("registry", "catalog/wiki/en/commands"),
+        ] {
+            let scratch = Scratch::new(&format!("wiki-{door}-{level}"));
+            let aside = scratch.root.join("aside");
+            std::fs::rename(scratch.root.join(at), &aside).expect("the scratch is writable");
+            link(&aside, &scratch.root.join(at)).expect("a link");
+            scratch.must_fail("wiki-misplaced", at);
+        }
+    }
+    let text = Scratch::new("wiki-linked-text");
+    let at = "catalog/wiki/pt-BR/commands/kernel.undo.md";
+    let aside = text.root.join("kernel.undo.md");
+    std::fs::rename(text.root.join(at), &aside).expect("the scratch is writable");
+    nc_platform::testing::link_file(&aside, &text.root.join(at)).expect("a link");
+    text.must_fail("wiki-misplaced", at);
 }
 
 #[test]

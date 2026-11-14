@@ -250,8 +250,8 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
         EntryProblem::Glyph(entry::GlyphProblem::Malformed(_)) => Some((
             "glyph-malformed",
             "a glyph is written `U+` and its code point in upper-case hex, four digits at \
-             least, as `U+F0E2` — one spelling, so a search for a glyph finds every entry \
-             that carries it",
+             least and no leading zero past them — `U+F0E2`, never `U+0F0E2` or `U+f0e2` — \
+             one spelling, so a search for a glyph finds every entry that carries it",
         )),
         EntryProblem::Glyph(entry::GlyphProblem::NotInTheFont(_)) => Some((
             "glyph-not-in-the-font",
