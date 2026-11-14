@@ -32,8 +32,13 @@ nc-catalog-compiler = { path = "." }
 # **What this system lists in the order it was made**, which the suite about
 # the order on disk needs and stands aside without, saying so: the one place
 # a system is asked what it has (`NOCTUA.md §2.7`). Its answer is compiled in
-# every build, so none of the test doors is turned on here.
-nc-platform.workspace = true
+# every build.
+#
+# **And the test doors, for one link of each kind**: the suite of gates plants
+# a link where the wiki tree, a locale's directory, a registry's or a text
+# belongs, and a junction on Windows is made through `link_directory` alone,
+# which the standard library cannot make.
+nc-platform = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

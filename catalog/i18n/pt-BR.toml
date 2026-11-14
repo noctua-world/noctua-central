@@ -5,8 +5,9 @@
 # around them — is English, always (`NOCTUA.md §2.1`). A comment in Portuguese
 # here would be the rule broken inside the one file that documents it.
 #
-# Every key in `en.toml` exists here and every key here exists there: one missing
-# from either side **fails the build**, naming the key. The `{placeholders}` of
+# Every key in `en.toml` exists here and every key here exists there, in
+# `[message]` and in `[tags]` alike: one missing from either side **fails the
+# build**, naming the entry and the text it is. The `{placeholders}` of
 # each message must be exactly the ones `en.toml` uses — a placeholder the caller
 # does not supply is rendered literally, so the reader sees the braces.
 #
@@ -17,6 +18,16 @@
 name  = "Português do Brasil"
 bcp47 = "pt-BR"
 dir   = "ltr"
+
+# The words a search finds each entry by, one list per entry, in this locale's
+# own words — see the same table in `en.toml`.
+[tags]
+
+# --- Commands ---
+"command.journal.verify.tags" = ["verificar", "conferir", "histórico", "atividade", "integridade", "auditoria"]
+"command.limits.prune.tags" = ["limpar", "apagar", "registros antigos", "limite", "liberar espaço"]
+"command.kernel.undo.tags" = ["desfazer", "voltar atrás", "reverter", "anular"]
+"command.kernel.redo.tags" = ["refazer", "fazer de novo", "repetir", "restaurar"]
 
 [message]
 
@@ -196,12 +207,16 @@ dir   = "ltr"
 # --- Commands ---
 "command.journal.verify.title" = "Verificar histórico de atividades"
 "command.journal.verify.description" = "Conferir que toda ação registrada está intacta e em ordem."
+"command.journal.verify.paragraph" = "Lê o histórico de atividades desde o início, ou desde a entrada que você indicar, e confere se cada ação registrada continua ligada à anterior. Não muda nada, e responde quantas entradas conferiu, ou a primeira que não confere e por quê."
 "command.limits.prune.title" = "Limpar registros antigos"
 "command.limits.prune.description" = "Remover os registros mais antigos de qualquer tabela que passou do limite."
+"command.limits.prune.paragraph" = "Apaga os registros mais antigos de cada tabela do banco de dados deste aparelho que passou do limite declarado, ou só da tabela que você indicar. Um ensaio conta o que removeria e não remove nada. O que ele remove não pode ser recuperado, então desfazer para no passo que o executou."
 "command.kernel.undo.title" = "Desfazer"
-"command.kernel.undo.description" = "Desfazer o seu último passo: tudo o que ele mudou no Noctua e os arquivos que ele criou."
+"command.kernel.undo.description" = "Desfazer o seu último passo: o que ele mudou no Noctua e os arquivos que criou."
+"command.kernel.undo.paragraph" = "Encontra o seu passo mais recente que ainda pode ser desfeito e devolve cada valor que ele mudou e os arquivos que criou, depois de conferir de novo que você pode fazer cada coisa que ele fez. Para em um passo cujos efeitos saíram deste aparelho, e em um cujos valores mudaram desde então."
 "command.kernel.redo.title" = "Refazer"
 "command.kernel.redo.description" = "Fazer de novo o último passo que você desfez."
+"command.kernel.redo.paragraph" = "Refaz o passo mais recente que você desfez, desde que você não tenha feito nada novo depois, conferindo de novo que você pode fazer cada coisa que ele fez. Um passo cujo desfazer precisou de correções próprias não pode ser refeito."
 
 # --- Capabilities ---
 "capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."

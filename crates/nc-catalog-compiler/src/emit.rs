@@ -39,6 +39,7 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
             "crates/nc-catalog/src/capabilities.rs",
             capabilities(catalog),
         ),
+        EmittedFile::new("crates/nc-catalog/src/wiki.rs", wiki(catalog)),
         EmittedFile::new("crates/nc-log/src/events.rs", typed_events(catalog)),
     ]
 }
@@ -174,8 +175,9 @@ fn lib() -> String {
     out.push_str(
         "//!\n\
          //! The shared core of the platform, compiled from `catalog/`. Every error\n\
-         //! code, notification, email, limit, command, log event, capability and\n\
-         //! message lives here, and nothing outside `catalog/` may add one.\n\
+         //! code, notification, email, limit, command, log event, capability,\n\
+         //! message, tag list and wiki text lives here, and nothing outside\n\
+         //! `catalog/` may add one.\n\
          \n\
          // One lint fights generated code specifically. `match_same_arms` fires on\n\
          // every exhaustive match where two variants share a value — every error\n\
@@ -208,15 +210,17 @@ fn lib() -> String {
          pub mod i18n;\n\
          pub mod limits;\n\
          pub mod notifications;\n\
+         pub mod wiki;\n\
          \n\
          pub use capabilities::{capability, Capability, CapabilitySpec, Ungated, CAPABILITIES, UNGATED};\n\
          pub use commands::{command, Command, Reversibility, COMMANDS};\n\
          pub use emails::Email;\n\
          pub use errors::{ErrorCode, Severity, AREAS};\n\
          pub use events::{EventSpec, FieldKind, FieldSpec, Level, EVENTS};\n\
-         pub use i18n::{message, render, Locale, KEYS};\n\
+         pub use i18n::{message, render, tags, Locale, KEYS};\n\
          pub use limits::{rate_limit, Argon2Id, Budget, DaemonLimits, Database, KernelLimits, OnLockout, RateLimit, StoreLimit, Strategy, TableLimit, ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, DAEMON, KERNEL, RATE_LIMITS, STORES, TABLES};\n\
-         pub use notifications::Notification;\n",
+         pub use notifications::Notification;\n\
+         pub use wiki::{wiki, WikiFormat, WikiText, WIKI};\n",
     );
     out
 }
@@ -1083,8 +1087,13 @@ fn commands(catalog: &Catalog) -> String {
     // honest.
     out.push_str("#[non_exhaustive]\npub struct Command {\n");
     out.push_str("    /// Dotted, and unique platform-wide.\n    pub name: &'static str,\n");
-    out.push_str("    /// The i18n key of the human name.\n    pub title_key: &'static str,\n");
-    out.push_str("    /// The i18n key of one line saying what it does.\n    pub description_key: &'static str,\n");
+    out.push_str("    /// The i18n key of its display name.\n    pub title_key: &'static str,\n");
+    out.push_str("    /// The i18n key of its line description: one line saying what it does.\n    pub description_key: &'static str,\n");
+    out.push_str("    /// The i18n key of its paragraph description.\n    pub paragraph_key: &'static str,\n");
+    out.push_str("    /// The key of its tags, which [`crate::tags`] resolves.\n    pub tags_key: &'static str,\n");
+    out.push_str("    /// The categories it is listed under, by name.\n    pub categories: &'static [&'static str],\n");
+    out.push_str("    /// The glyph it is shown with, a code point the Symbols-Only font draws.\n    pub glyph: Option<char>,\n");
+    out.push_str("    /// The format of its wiki text, where it has one; [`crate::WIKI`] holds the text.\n    pub wiki: Option<crate::WikiFormat>,\n");
     out.push_str("    /// The Cedar action name the policy decision point evaluates.\n    pub action: &'static str,\n");
     out.push_str("    /// How the kernel extracts the resource from the arguments.\n    pub resource_selector: &'static str,\n");
     out.push_str("    /// Whether it can be undone.\n    pub reversibility: Reversibility,\n");
@@ -1114,10 +1123,22 @@ fn commands(catalog: &Catalog) -> String {
     for entry in &sorted {
         let _ = writeln!(
             out,
-            "    Command {{ name: {}, title_key: {}, description_key: {}, action: {}, resource_selector: {}, reversibility: Reversibility::{}, mutating: {}, args_schema: {}, keybinding: {}, arguments: {} }},",
+            "    Command {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, wiki: {}, action: {}, resource_selector: {}, reversibility: Reversibility::{}, mutating: {}, args_schema: {}, keybinding: {}, arguments: {} }},",
             quoted(&entry.name),
             quoted(&entry.title),
             quoted(&entry.description),
+            quoted(&entry.paragraph),
+            quoted(&entry.tags),
+            list(&entry.categories),
+            glyph_literal(entry.glyph.as_deref()),
+            catalog
+                .wiki
+                .iter()
+                .find(|text| text.registry == "commands" && text.name == entry.name)
+                .map_or_else(
+                    || "None".to_owned(),
+                    |text| format!("Some(crate::WikiFormat::{})", wiki_variant(text.format))
+                ),
             quoted(&entry.action),
             quoted(&entry.resource_selector),
             entry.reversibility.variant(),
@@ -1512,6 +1533,172 @@ fn table(catalog: &Catalog) -> String {
          }\n\n",
     );
     out.push_str(RENDER);
+    out.push_str(&tag_table(catalog));
+    out
+}
+
+/// The sorted table of tag lists and the search over it.
+///
+/// **Its own table, beside the messages and not inside them**: a tag list is
+/// a list, and a sentence and a list under one lookup would hand a caller
+/// either shape for one key.
+fn tag_table(catalog: &Catalog) -> String {
+    let locales = &catalog.locales;
+    let source = locales
+        .first()
+        .expect("`too-few-locales` refuses a catalog with no source locale");
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "\n/// Every tag list, sorted by key. One row per key, one column per locale.\nconst TAGS: &[(&str, [&[&str]; {}])] = &[",
+        locales.len()
+    );
+    for key in source.tags.keys() {
+        let row = locales
+            .iter()
+            .map(|locale| {
+                list(
+                    locale
+                        .tags
+                        .get(key)
+                        .expect("`missing-key` and `orphan-key` make every locale carry every key"),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let _ = writeln!(out, "    ({}, [{row}]),", quoted(key));
+    }
+    out.push_str("];\n\n");
+    out.push_str(
+        "/// The tags a key resolves to in a locale, in the order written.\n\
+         ///\n\
+         /// `None` means the key does not exist — never that this locale is missing\n\
+         /// it, because a key missing from one locale fails the build.\n\
+         #[must_use]\n\
+         pub fn tags(key: &str, locale: Locale) -> Option<&'static [&'static str]> {\n\
+         \x20   TAGS\n\
+         \x20       .binary_search_by(|(candidate, _)| (*candidate).cmp(key))\n\
+         \x20       .ok()\n\
+         \x20       .map(|row| TAGS[row].1[locale.index()])\n\
+         }\n",
+    );
+    out
+}
+
+/// A glyph as a character literal, escaped, or `None`.
+///
+/// **Escaped, never the character itself**: a private-use code point in a
+/// source file is a box in every editor without the font, and a reviewer
+/// reads `'\u{f0e2}'` where the character would show them nothing.
+fn glyph_literal(written: Option<&str>) -> String {
+    written.map_or_else(
+        || "None".to_owned(),
+        |written| {
+            let glyph = nc_schema::entry::glyph(written)
+                .expect("`glyph-malformed` and `glyph-not-in-the-font` refuse any other glyph");
+            format!("Some('\\u{{{:x}}}')", u32::from(glyph))
+        },
+    )
+}
+
+/// The generated variant a wiki format is.
+const fn wiki_variant(format: nc_schema::entry::WikiFormat) -> &'static str {
+    match format {
+        nc_schema::entry::WikiFormat::PlainText => "PlainText",
+        nc_schema::entry::WikiFormat::Markdown => "Markdown",
+        nc_schema::entry::WikiFormat::Typst => "Typst",
+    }
+}
+
+/// Every wiki text, compiled in, and the format each is written in.
+///
+/// **Compiled in, because an install has no `catalog/`**: a text read from a
+/// directory at run time is a text the binary does not carry, and one an
+/// install could be handed in its place.
+fn wiki(catalog: &Catalog) -> String {
+    let mut out = header(CommentStyle::Line("//!"), "catalog/wiki/");
+    out.push_str(
+        "//!\n\
+         //! Every wiki text, in every locale: the longer text an entry may carry, in\n\
+         //! the format its file's extension names (`NOCTUA.md §20.4`).\n\
+         \n\
+         use crate::Locale;\n\
+         \n",
+    );
+    out.push_str("/// The format a wiki text is written in, named by its file's extension.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("pub enum WikiFormat {\n");
+    for format in nc_schema::entry::WikiFormat::ALL {
+        let _ = writeln!(
+            out,
+            "    /// Written `{}`.\n    {},",
+            format.extension(),
+            wiki_variant(format)
+        );
+    }
+    out.push_str("}\n\n");
+    out.push_str(
+        "impl WikiFormat {\n\
+         \x20   /// The extension a text of this format is written under.\n\
+         \x20   #[must_use]\n\
+         \x20   pub const fn extension(self) -> &'static str {\n\
+         \x20       match self {\n",
+    );
+    for format in nc_schema::entry::WikiFormat::ALL {
+        let _ = writeln!(
+            out,
+            "            Self::{} => {},",
+            wiki_variant(format),
+            quoted(format.extension())
+        );
+    }
+    out.push_str("        }\n    }\n}\n\n");
+    out.push_str("/// One entry's wiki text, in every locale.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct WikiText {\n");
+    out.push_str("    /// The registry its entry is in, as its directory names it.\n    pub registry: &'static str,\n");
+    out.push_str("    /// The entry's name.\n    pub name: &'static str,\n");
+    out.push_str("    /// The format every locale writes it in.\n    pub format: WikiFormat,\n");
+    let _ = writeln!(
+        out,
+        "    /// The text in each locale, in [`Locale::ALL`]'s order.\n    texts: [&'static str; {}],\n}}\n",
+        catalog.locales.len()
+    );
+    out.push_str(
+        "impl WikiText {\n\
+         \x20   /// The text in a locale.\n\
+         \x20   #[must_use]\n\
+         \x20   pub const fn text(&self, locale: Locale) -> &'static str {\n\
+         \x20       self.texts[locale.index()]\n\
+         \x20   }\n\
+         }\n\n",
+    );
+    out.push_str("/// Every wiki text, by registry and then by name.\n");
+    out.push_str("pub const WIKI: &[WikiText] = &[\n");
+    for text in &catalog.wiki {
+        let texts = text
+            .texts
+            .iter()
+            .map(|held| quoted(held))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let _ = writeln!(
+            out,
+            "    WikiText {{ registry: {}, name: {}, format: WikiFormat::{}, texts: [{texts}] }},",
+            quoted(&text.registry),
+            quoted(&text.name),
+            wiki_variant(text.format)
+        );
+    }
+    out.push_str("];\n\n");
+    out.push_str(
+        "/// The wiki text of an entry of a registry, if it has one.\n\
+         #[must_use]\n\
+         pub fn wiki(registry: &str, name: &str) -> Option<&'static WikiText> {\n\
+         \x20   WIKI.iter()\n\
+         \x20       .find(|text| text.registry == registry && text.name == name)\n\
+         }\n",
+    );
     out
 }
 

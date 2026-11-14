@@ -26,10 +26,20 @@ pub enum Reversibility {
 pub struct Command {
     /// Dotted, and unique platform-wide.
     pub name: &'static str,
-    /// The i18n key of the human name.
+    /// The i18n key of its display name.
     pub title_key: &'static str,
-    /// The i18n key of one line saying what it does.
+    /// The i18n key of its line description: one line saying what it does.
     pub description_key: &'static str,
+    /// The i18n key of its paragraph description.
+    pub paragraph_key: &'static str,
+    /// The key of its tags, which [`crate::tags`] resolves.
+    pub tags_key: &'static str,
+    /// The categories it is listed under, by name.
+    pub categories: &'static [&'static str],
+    /// The glyph it is shown with, a code point the Symbols-Only font draws.
+    pub glyph: Option<char>,
+    /// The format of its wiki text, where it has one; [`crate::WIKI`] holds the text.
+    pub wiki: Option<crate::WikiFormat>,
     /// The Cedar action name the policy decision point evaluates.
     pub action: &'static str,
     /// How the kernel extracts the resource from the arguments.
@@ -60,6 +70,11 @@ pub const COMMANDS: &[Command] = &[
         name: "journal.verify",
         title_key: "command.journal.verify.title",
         description_key: "command.journal.verify.description",
+        paragraph_key: "command.journal.verify.paragraph",
+        tags_key: "command.journal.verify.tags",
+        categories: &[],
+        glyph: Some('\u{f058}'),
+        wiki: Some(crate::WikiFormat::Markdown),
         action: "Read",
         resource_selector: "realm",
         reversibility: Reversibility::Read,
@@ -72,6 +87,11 @@ pub const COMMANDS: &[Command] = &[
         name: "kernel.redo",
         title_key: "command.kernel.redo.title",
         description_key: "command.kernel.redo.description",
+        paragraph_key: "command.kernel.redo.paragraph",
+        tags_key: "command.kernel.redo.tags",
+        categories: &[],
+        glyph: Some('\u{f01e}'),
+        wiki: None,
         action: "Write",
         resource_selector: "realm",
         reversibility: Reversibility::Write,
@@ -84,6 +104,11 @@ pub const COMMANDS: &[Command] = &[
         name: "kernel.undo",
         title_key: "command.kernel.undo.title",
         description_key: "command.kernel.undo.description",
+        paragraph_key: "command.kernel.undo.paragraph",
+        tags_key: "command.kernel.undo.tags",
+        categories: &[],
+        glyph: Some('\u{f0e2}'),
+        wiki: Some(crate::WikiFormat::Markdown),
         action: "Write",
         resource_selector: "realm",
         reversibility: Reversibility::Write,
@@ -96,6 +121,11 @@ pub const COMMANDS: &[Command] = &[
         name: "limits.prune",
         title_key: "command.limits.prune.title",
         description_key: "command.limits.prune.description",
+        paragraph_key: "command.limits.prune.paragraph",
+        tags_key: "command.limits.prune.tags",
+        categories: &[],
+        glyph: Some('\u{f1f8}'),
+        wiki: None,
         action: "Delete",
         resource_selector: "realm",
         reversibility: Reversibility::Write,

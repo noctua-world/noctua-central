@@ -177,7 +177,19 @@ pub(crate) fn the_workspace_documents(workspace: &Path) -> Vec<std::path::PathBu
 /// document added tomorrow cannot fall through the gap unnoticed, and one that
 /// puts a stated count inside the hole and proves the hole is where this says
 /// it is.
-const NOT_READ: [(&str, &str); 2] = [
+const NOT_READ: [(&str, &str); 3] = [
+    (
+        // **The wiki texts, which are what a person reads about an entry.**
+        // Each is held by the catalog compiler — placed, named for an entry,
+        // translated, in a format, bounded — and compiled into the generated
+        // crate, and none is a document about this tree: a number in one is
+        // something a person is told about their own data, never a count of
+        // registries or crates that can rot.
+        "/catalog/wiki",
+        "the wiki texts the catalog compiler holds and compiles in: what a person is \
+         shown about an entry, never a document about this repository, so a number in \
+         one counts nothing in this tree",
+    ),
     (
         // **`/docs`, which is one directory, and not `docs` anywhere.** The
         // reason below is true of the generated directory at the root and of

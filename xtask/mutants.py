@@ -351,6 +351,13 @@ SOURCES = {
     "schema": os.path.join(ROOT, "crates/nc-schema/src/lib.rs"),
     "selector": os.path.join(ROOT, "crates/nc-schema/src/selector.rs"),
     "descriptor": os.path.join(ROOT, "crates/nc-schema/src/descriptor.rs"),
+    # **The entry judge**, which the compiler holds every catalog entry's texts
+    # to and the kernel a plugin's: a clause weakened here is weakened for both,
+    # and the crate's own tests are what decide it.
+    "schema_entry": os.path.join(ROOT, "crates/nc-schema/src/entry.rs"),
+    # **What hands the judge the catalog's texts**, and the wiki walk: the
+    # compiler's own gates are what decide them.
+    "compiler_metadata": os.path.join(ROOT, "crates/nc-catalog-compiler/src/metadata.rs"),
     # **What a pack's version is, and what a realm pins against it.** The
     # manifest gate decides whether a realm running a pack it was not reviewed
     # against is refused, and a decision point reads the same `Manifest` — so a
@@ -1252,6 +1259,18 @@ WEAKENINGS = [
     ("loader", "locale_files", "a locale's extension is read in any case",
      '            .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))',
      '            .is_some_and(|extension| extension == "toml")'),
+    # A command's sentences are declared to take no parameter, and the entry
+    # judge's own placeholder problem is dropped because that declaration
+    # reports it; a sentence left out of it is one a placeholder passes in.
+    ("loader", "declared_params", "a command's display name takes no placeholder",
+     "                entry.title.clone(),",
+     ""),
+    ("loader", "declared_params", "a command's line description takes no placeholder",
+     "                entry.description.clone(),",
+     ""),
+    ("loader", "declared_params", "a command's paragraph takes no placeholder",
+     "                entry.paragraph.clone(),",
+     ""),
     # -- pages: what a published cell may not carry --------------------------
     ("pages", "cell", "an angle bracket is escaped",
      """    text.replace('\\\\', "\\\\\\\\")
@@ -3133,6 +3152,100 @@ WEAKENINGS = [
     ("descriptor", "judge", "a title holds nothing a reader cannot see",
      "    } else if let Some(hidden) = declared.title.chars().find(|held| unseen(*held)) {",
      "    } else if let Some(hidden) = declared.title.chars().find(|held| held.is_control()) {"),
+
+    # -- schema_entry: the one judge of an entry's texts ----------------------
+    ("schema_entry", "judge_sentence", "a text is measured in characters",
+     "    let held = written.chars().count();",
+     "    let held = written.len();"),
+    ("schema_entry", "judge_sentence", "a text holds nothing a reader cannot see",
+     "    if let Some(character) = written.chars().find(|shown| unseen(*shown)) {",
+     "    if let Some(character) = written.chars().find(|shown| shown.is_control()) {"),
+    ("schema_entry", "judge", "a translation is not the source sentence again",
+     "            if theirs.is_some_and(|theirs| the_same_sentence(written, theirs))",
+     "            if theirs.is_some_and(|_| false)"),
+    ("schema_entry", "judge", "a paragraph that says what the line says is one sentence",
+     "            && the_same_sentence(line, paragraph)",
+     "            && line == paragraph"),
+    ("schema_entry", "judge_tags", "a tag twice is the same word in another case",
+     "        let folded: String = tag.chars().flat_map(char::to_lowercase).collect();",
+     "        let folded: String = tag.clone();"),
+    ("schema_entry", "judge_tags", "the tags bound is a bound",
+     "    if tags.len() > TAGS_MAX {",
+     "    if tags.len() > TAGS_MAX + 1 {"),
+    ("schema_entry", "judge_tags", "an empty tag list is refused",
+     "    if tags.is_empty() {",
+     "    if false {"),
+    ("schema_entry", "judge_tags", "a tag holds no brace",
+     "        if tag.contains([',', '{', '}']) {",
+     "        if tag.contains(',') {"),
+    ("schema_entry", "judge_categories", "a category the registry does not hold is refused",
+     "        if !held.contains(&name.as_str()) {",
+     "        if false {"),
+    ("schema_entry", "glyph", "a glyph is written one way",
+     '    if format!("U+{point:04X}") != written {',
+     "    if false {"),
+    ("schema_entry", "glyph", "a glyph past the basic plane is the point it names",
+     "        .any(|(first, last)| (*first..=*last).contains(&point))",
+     "        .any(|(first, last)| (*first..=*last).contains(&(point & 0xFFFF)))"),
+    ("schema_entry", "judge_wiki", "a wiki text holds no control but its line breaks",
+     "    if let Some(character) = text.chars().find(|held| *held != '\\n' && unseen(*held)) {",
+     "    if let Some(character) = text.chars().find(|held| *held != '\\n' && *held != '\\r' && unseen(*held)) {"),
+    ("schema_entry", "judge_wiki", "a wiki text is bounded in bytes",
+     "    if text.len() > WIKI_BYTES_MAX {",
+     "    if text.chars().count() > WIKI_BYTES_MAX {"),
+    ("schema_entry", "from_extension", "an extension names a format in lower case only",
+     "            .find(|format| format.extension() == extension)",
+     "            .find(|format| format.extension().eq_ignore_ascii_case(extension))"),
+    ("schema_entry", "the_same_sentence", "what shows nothing stands between words as a space",
+     "                if shows_nothing(character) {\n                    Some(' ')",
+     "                if shows_nothing(character) {\n                    Some(character)"),
+    ("schema_entry", "placeholders", "an empty brace pair names no placeholder",
+     "        if !name.is_empty()",
+     "        if true"),
+    ("schema_entry", "a_reason_is_prose", "a reason is four words at least",
+     "    reason.trim().chars().count() >= 20 && reason.split_whitespace().count() >= 4",
+     "    reason.trim().chars().count() >= 20 && reason.split_whitespace().count() >= 3"),
+
+    # -- compiler_metadata: the catalog's texts handed to the judge, and wiki --
+    ("compiler_metadata", "listed", "the wiki walk reads one order",
+     "    held.sort_by(|a, b| a.0.cmp(&b.0));",
+     ""),
+    ("compiler_metadata", "one_text", "a wiki extension is read as written",
+     "    let Some(format) = WikiFormat::from_extension(extension) else {",
+     "    let Some(format) = WikiFormat::from_extension(&extension.to_lowercase()) else {"),
+    ("compiler_metadata", "one_text", "a wiki text names an entry the registry holds",
+     "    if !commands.contains(&name) {",
+     "    if false {"),
+    ("compiler_metadata", "complete", "a wiki text is in every locale",
+     "    for tag in tags {",
+     "    for tag in tags.iter().take(1) {"),
+    ("compiler_metadata", "complete", "every locale writes a wiki text in one format",
+     "    if let Some(other) = texts.iter().find(|text| text.format != format) {",
+     "    if let Some(other) = texts.iter().find(|_| false) {"),
+    ("compiler_metadata", "complete", "a wiki text is translated",
+     "        if entry::the_same_sentence(&text.text, source) {",
+     "        if false {"),
+    ("compiler_metadata", "wiki", "a wiki text sits under a registry",
+     "            if !kind.is_dir() || !REGISTRIES.contains(&registry.as_str()) {",
+     "            if !kind.is_dir() {"),
+    ("compiler_metadata", "wiki", "a wiki text is a regular file",
+     "                if !kind.is_file() {",
+     "                if kind.is_symlink() {"),
+    ("compiler_metadata", "one_command_per_display_name", "two display names are compared as a reader reads them",
+     "                .find(|(_, earlier)| entry::the_same_sentence(earlier, display_name))",
+     "                .find(|(_, earlier)| earlier == display_name)"),
+    # A link is asked what it is, never what it points at: followed, a link
+    # carries the walk out of the catalog and reads whatever it names.
+    ("compiler_metadata", "wiki", "the wiki tree is not read through a link standing for it",
+     "    match std::fs::symlink_metadata(&top) {",
+     "    match std::fs::metadata(&top) {"),
+    ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
+     "            let kind = entry.file_type().ok()?;",
+     "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
+    # A tag list's problem is fixed in the list, so it is filed there.
+    ("compiler_metadata", "located", "a tag list's problem is filed at the list",
+     "        | EntryProblem::TagTwice { locale, .. } => in_locale(locale, &command.tags),",
+     "        | EntryProblem::TagTwice { locale, .. } => {\n            let _ = locale;\n            None\n        }"),
 
     # -- packs: what a policy may be called, and what a realm pins -------------
     # The decision point's prefix is refused where an id begins, and only there.
@@ -8085,6 +8198,8 @@ ELSEWHERE = {
     "schema": ["cargo", "test", "-q", "-p", "nc-schema"],
     "selector": ["cargo", "test", "-q", "-p", "nc-schema"],
     "descriptor": ["cargo", "test", "-q", "-p", "nc-schema"],
+    "schema_entry": ["cargo", "test", "-q", "-p", "nc-schema"],
+    "compiler_metadata": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
     # An integration test is a target of its own, and `--bin xtask` cannot
     # reach one.
     "registry": [

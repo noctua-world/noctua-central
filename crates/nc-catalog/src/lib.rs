@@ -5,8 +5,9 @@
 //! Edits to this file will be overwritten. Change the catalog instead.
 //!
 //! The shared core of the platform, compiled from `catalog/`. Every error
-//! code, notification, email, limit, command, log event, capability and
-//! message lives here, and nothing outside `catalog/` may add one.
+//! code, notification, email, limit, command, log event, capability,
+//! message, tag list and wiki text lives here, and nothing outside
+//! `catalog/` may add one.
 
 // One lint fights generated code specifically. `match_same_arms` fires on
 // every exhaustive match where two variants share a value — every error
@@ -37,16 +38,18 @@ pub mod events;
 pub mod i18n;
 pub mod limits;
 pub mod notifications;
+pub mod wiki;
 
 pub use capabilities::{CAPABILITIES, Capability, CapabilitySpec, UNGATED, Ungated, capability};
 pub use commands::{COMMANDS, Command, Reversibility, command};
 pub use emails::Email;
 pub use errors::{AREAS, ErrorCode, Severity};
 pub use events::{EVENTS, EventSpec, FieldKind, FieldSpec, Level};
-pub use i18n::{KEYS, Locale, message, render};
+pub use i18n::{KEYS, Locale, message, render, tags};
 pub use limits::{
     ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, Argon2Id, Budget, DAEMON, DaemonLimits, Database,
     KERNEL, KernelLimits, OnLockout, RATE_LIMITS, RateLimit, STORES, StoreLimit, Strategy, TABLES,
     TableLimit, rate_limit,
 };
 pub use notifications::Notification;
+pub use wiki::{WIKI, WikiFormat, WikiText, wiki};

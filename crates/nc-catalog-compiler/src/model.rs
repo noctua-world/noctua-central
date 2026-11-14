@@ -33,6 +33,8 @@ pub struct Catalog {
     pub ungated: Vec<UngatedEntry>,
     /// Every locale, source locale first.
     pub locales: Vec<Locale>,
+    /// Every wiki text, by registry and then by name.
+    pub wiki: Vec<WikiText>,
 }
 
 // --- errors.toml ---
@@ -1119,10 +1121,19 @@ pub(crate) struct CommandFile {
 pub struct CommandEntry {
     /// Dotted, and unique platform-wide.
     pub name: String,
-    /// The i18n key of the human name.
+    /// The i18n key of its display name (`NOCTUA.md §20.4`).
     pub title: String,
-    /// The i18n key of one line saying what it does.
+    /// The i18n key of its line description: one line saying what it does.
     pub description: String,
+    /// The i18n key of its paragraph description.
+    pub paragraph: String,
+    /// The key of its tags, a list under `[tags]` in every locale.
+    pub tags: String,
+    /// The categories it is listed under, by name.
+    #[serde(default)]
+    pub categories: Vec<String>,
+    /// The glyph it is shown with, written `U+XXXX`.
+    pub glyph: Option<String>,
     /// The Cedar action name the PDP evaluates.
     pub action: String,
     /// How the kernel extracts the resource from the arguments.
@@ -1416,6 +1427,8 @@ pub(crate) struct LocaleFile {
     pub(crate) meta: LocaleMeta,
     #[serde(default)]
     pub(crate) message: BTreeMap<String, String>,
+    #[serde(default)]
+    pub(crate) tags: BTreeMap<String, Vec<String>>,
 }
 
 /// What a locale says about itself.
@@ -1432,6 +1445,25 @@ pub struct LocaleMeta {
     pub dir: String,
 }
 
+/// The table of a locale file a key is looked up in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Table {
+    /// `[message]`: a sentence.
+    Message,
+    /// `[tags]`: a list of tags.
+    Tags,
+}
+
+impl Table {
+    /// The table's header, as a locale file writes it.
+    pub(crate) const fn header(self) -> &'static str {
+        match self {
+            Self::Message => "[message]",
+            Self::Tags => "[tags]",
+        }
+    }
+}
+
 /// One locale, with every message it carries.
 #[derive(Debug, Clone)]
 pub struct Locale {
@@ -1439,6 +1471,46 @@ pub struct Locale {
     pub meta: LocaleMeta,
     /// Key to sentence.
     pub message: BTreeMap<String, String>,
+    /// Key to a list of tags, in the order written.
+    pub tags: BTreeMap<String, Vec<String>>,
+}
+
+impl Locale {
+    /// Every key this locale holds, with the table it is in: the sentences
+    /// first, then the tag lists.
+    pub(crate) fn keys(&self) -> impl Iterator<Item = (&String, Table)> {
+        self.message
+            .keys()
+            .map(|key| (key, Table::Message))
+            .chain(self.tags.keys().map(|key| (key, Table::Tags)))
+    }
+
+    /// Whether this locale holds a key in a table.
+    pub(crate) fn holds(&self, key: &str, table: Table) -> bool {
+        match table {
+            Table::Message => self.message.contains_key(key),
+            Table::Tags => self.tags.contains_key(key),
+        }
+    }
+}
+
+// --- wiki/ ---
+
+/// One entry's wiki text, in every locale (`NOCTUA.md §20.4`).
+///
+/// Found by walking `catalog/wiki/<locale>/<registry>/<name>.<extension>`,
+/// never declared in the entry: what sits there is held to an entry, a locale
+/// and a format, or the build fails.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiText {
+    /// The registry its entry is in, as its directory names it.
+    pub registry: String,
+    /// The entry's name.
+    pub name: String,
+    /// The format every locale writes it in.
+    pub format: nc_schema::entry::WikiFormat,
+    /// The text in each locale, source locale first.
+    pub texts: Vec<String>,
 }
 
 #[cfg(test)]

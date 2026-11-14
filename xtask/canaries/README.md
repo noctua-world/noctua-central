@@ -561,9 +561,10 @@ documentation step's `docs.rs`, one integration test,
 `the_registry_reaches_the_code.rs`, which is the only place a generated limit is
 held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
 `memory.rs` and `unit.rs`, the compiler's `load.rs`, `emit.rs` and its own
-`docs.rs`, and the rule the compiler judges a command's declaration by, and
-the kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs` and `descriptor.rs`
-— and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
+`docs.rs`, and `metadata.rs`, which hands an entry's texts to its judge, and the
+rule the compiler judges a command's declaration and its entry by, and the
+kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
+`entry.rs` — and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
 `directory.rs` and `embedded.rs`, and the kernel's own `lib.rs`, `world.rs`,
 `bindings.rs`, `engine.rs` and `built.rs`, the grants and bounds a plugin's
 manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and

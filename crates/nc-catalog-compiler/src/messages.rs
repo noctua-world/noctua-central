@@ -30,8 +30,10 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::load::{SOURCE_LOCALE, declared_params, referenced_keys};
-use crate::model::{Catalog, Locale};
+use nc_schema::entry::{placeholders, the_same_sentence};
+
+use crate::load::{Claim, SOURCE_LOCALE, declared_params, referenced_keys};
+use crate::model::{Catalog, Locale, Table};
 use crate::problem::{Problem, line_of};
 
 /// The 1-indexed line a key that is not in this file should be written on.
@@ -64,6 +66,48 @@ fn where_to_write(text: &str, key: &str) -> usize {
         }
     }
     text.lines().count().max(1)
+}
+
+/// The line a key that is not in this file should be written on, inside the
+/// table it belongs to.
+///
+/// [`where_to_write`]'s answer, bounded to that table's lines.
+///
+/// **A locale file holds two tables**, `[tags]` and `[message]` after it, and
+/// the group a key shares a prefix with may sit in the other one: a command's
+/// tags key and its sentences share `command.<name>.`, so a tags key would be
+/// pointed among the sentences, and a new group's tags list would fall back
+/// to the end of the file, which is inside `[message]`. So the search and its
+/// fallback both stay inside the table's own lines.
+fn where_to_write_in(text: &str, key: &str, table: Table) -> usize {
+    let lines: Vec<&str> = text.lines().collect();
+    let Some(opening) = lines.iter().position(|line| line.trim() == table.header()) else {
+        return lines.len().max(1);
+    };
+    let closing = lines[opening + 1..]
+        .iter()
+        .position(|line| line.trim_start().starts_with('['))
+        .map_or(lines.len(), |at| opening + 1 + at);
+    opening + where_to_write(&lines[opening..closing].join("\n"), key)
+}
+
+/// A key a locale is missing, as the text it is.
+///
+/// **The entry and the text, not the key alone**: a key is a string a reader
+/// has to search the registries for, and *command kernel.undo's display name
+/// has no pt-BR text* is what they were going to find there.
+fn missing_from(tag: &str, key: &str, claim: Option<&Claim>) -> String {
+    claim.map_or_else(
+        || format!("{tag} is missing \"{key}\""),
+        |claim| {
+            format!(
+                "{}'s {} has no {tag} text: \"{key}\" is missing from its `{}`",
+                claim.owner,
+                claim.slot,
+                claim.table.header()
+            )
+        },
+    )
 }
 
 #[cfg(test)]
@@ -312,84 +356,6 @@ fn no_value_is_the_source_sentence_except(
     }
 }
 
-/// Whether two sentences are the same one, for the purpose above.
-///
-/// **Byte equality alone makes the rule one keystroke wide**: a trailing
-/// period, a capital, or two spaces between words make an English sentence
-/// pasted into `pt-BR.toml` pass as a translation, and every downstream gate —
-/// presence, placeholders, both test floors — reads it as translated.
-/// Measured, `error.db.migration-failed` in `catalog/i18n/pt-BR.toml` set to the
-/// English sentence with a full stop added, under byte equality:
-///
-/// ```text
-/// cargo xtask check   ->  check passed
-/// docs/errors.md      ->  both language columns, one sentence
-/// ```
-///
-/// Normalised on the three things a translator never changes on purpose and a
-/// copy-paste changes by accident: case, run-together whitespace, and the
-/// punctuation a sentence ends on. Anything past that is a judgement about
-/// meaning, which is what `THE_SAME_IN_BOTH` and its written reason are for.
-fn the_same_sentence(ours: &str, theirs: &str) -> bool {
-    fn plainly(text: &str) -> String {
-        // **What a reader cannot see is not what tells two messages apart.**
-        // `split_whitespace` drops whitespace and nothing else, so with it alone
-        // one `U+2063 INVISIBLE SEPARATOR` appended to the English sentence
-        // would make it a different string here and the same sentence on the
-        // page. Measured on `NC-JRNL-0001` — `critical`, non-retryable, the
-        // journal-tampering message: with whitespace alone dropped,
-        // `cargo xtask build` accepts it and `docs/errors.md` publishes English
-        // in the pt-BR column.
-        //
-        // **And the escapers' set is a different question.** `shows_nothing`
-        // answers `INVISIBLE_RANGES`, and what that array holds is replaced by a
-        // *space* in every doc line and every published cell — so it can only
-        // ever hold characters that stand between words, and
-        // `U+3164 HANGUL FILLER` is a letter that stands inside them. Read
-        // through that set, the English sentence plus `U+3164` filed as the
-        // pt-BR `error.journal.chain-broken` gives `Ok, 0 problem(s)` and puts
-        // that English sentence in the pt-BR column of `NC-JRNL-0001` in
-        // `docs/errors.md`. `tells_two_sentences_apart` is this question's own
-        // predicate, and the only reader of `BLANK_RANGES`.
-        // **What a reader sees, not what the bytes are.** Deleting every
-        // character `tells_two_sentences_apart` refuses is not enough, because
-        // `printable` — which writes every `///` line and every published cell —
-        // replaces the invisible half of that set with a space. So the English
-        // sentence with one of its spaces written `U+200D` would normalise here
-        // to `oldrecords` while publishing as `Old records`: the two columns of
-        // `docs/errors.md` carry the identical English sentence and this rule,
-        // whose whole job is to notice that, compares two different strings.
-        // Measured, filed as the pt-BR `error.db.unreachable`:
-        // `ACCEPTED, 0 problem(s)`.
-        //
-        // Substituting what `printable` substitutes makes this normalise to the
-        // sentence the page actually publishes. What stays deleted is
-        // `BLANK_RANGES`, which sits *inside* words and which nothing that
-        // writes a file reads.
-        let folded: String = text
-            .chars()
-            .filter_map(|character| {
-                if crate::shows_nothing(character) {
-                    Some(' ')
-                } else if crate::tells_two_sentences_apart(character) {
-                    Some(character)
-                } else {
-                    None
-                }
-            })
-            .collect::<String>()
-            .to_lowercase();
-        let words: Vec<&str> = folded.split_whitespace().collect();
-        words
-            .join(" ")
-            .trim_matches(|character: char| {
-                matches!(character, '.' | '!' | '?' | ':' | ';' | ',' | '…')
-            })
-            .to_owned()
-    }
-    plainly(ours) == plainly(theirs)
-}
-
 /// A key that is present and says nothing.
 ///
 /// **The completeness rules are about a key's *presence*; none of them looks at
@@ -465,16 +431,22 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
     // Every key a registry points at has to resolve. This is the check that
     // makes "a notification that no longer exists is a compile error" true in
     // the other direction too: an entry pointing at a key nobody wrote.
-    for (key, owner) in referenced_keys(catalog) {
-        if !source.message.contains_key(&key) {
+    let claims = referenced_keys(catalog);
+    for (key, claim) in &claims {
+        if !source.holds(key, claim.table) {
             // Located at the end of the file it is missing from, because that is
             // where the key has to be written. A diagnostic about an absent key
             // cannot point at the key, but it can point at the group the key
             // belongs to — see `where_to_write`.
             problems.push(Problem::at(
                 &source_file,
-                where_to_write(&source_text, &key),
-                format!("{owner} points at \"{key}\", which no locale declares"),
+                where_to_write_in(&source_text, key, claim.table),
+                format!(
+                    "{}'s {} points at \"{key}\", which no locale declares in `{}`",
+                    claim.owner,
+                    claim.slot,
+                    claim.table.header()
+                ),
                 "the registry entry and the sentence are written together; add the key \
                  here first, because English is the source locale",
                 "dangling-message-key",
@@ -496,13 +468,15 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
     // *provably* dead — nothing calls it with a literal today, and a caller that
     // one day does adds the key to a registry, which is where a sentence a user
     // can see belongs anyway.
-    let referenced: BTreeSet<String> = referenced_keys(catalog).into_keys().collect();
-    for key in source.message.keys() {
-        if !referenced.contains(key) {
+    for (key, table) in source.keys() {
+        if claims.get(key).is_none_or(|claim| claim.table != table) {
             problems.push(Problem::at(
                 &source_file,
                 line_of(&source_text, &format!("\"{key}\""), 1).unwrap_or(1),
-                format!("\"{key}\" is a sentence no registry entry points at"),
+                format!(
+                    "\"{key}\" in `{}` is a text no registry entry points at",
+                    table.header()
+                ),
                 "every message key is reached through an error, notification, email or \
                  command, and one reached through none is shown nowhere — while every \
                  locale is still asked to carry it. Point an entry at it, or delete it \
@@ -538,12 +512,12 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
 
         // Missing here. Named individually: "3 keys missing" sends a translator
         // hunting and "error.db.prune-failed is missing" does not.
-        for key in source.message.keys() {
-            if !locale.message.contains_key(key) {
+        for (key, table) in source.keys() {
+            if !locale.holds(key, table) {
                 problems.push(Problem {
                     file: file.clone(),
-                    line: Some(where_to_write(&text, key)),
-                    what: format!("{tag} is missing \"{key}\""),
+                    line: Some(where_to_write_in(&text, key, table)),
+                    what: missing_from(tag, key, claims.get(key)),
                     fix: format!(
                         "every locale carries every key. A lookup that quietly fell back \
                          to English would ship a page in two languages and report \
@@ -557,8 +531,8 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
         no_key_is_blank(&file, tag, &text, locale, problems);
 
         // And the other direction.
-        for key in locale.message.keys() {
-            if !source.message.contains_key(key) {
+        for (key, table) in locale.keys() {
+            if !source.holds(key, table) {
                 problems.push(Problem {
                     file: file.clone(),
                     line: line_of(&text, &format!("\"{key}\""), 1),
@@ -572,27 +546,39 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
             }
         }
 
-        // Placeholders.
-        for (key, sentence) in &locale.message {
-            let Some(original) = source.message.get(key) else {
-                continue;
-            };
-            let ours = placeholders(sentence);
-            let theirs = placeholders(original);
-            if ours != theirs {
-                problems.push(Problem {
-                    file: file.clone(),
-                    line: line_of(&text, &format!("\"{key}\""), 1),
-                    what: format!(
-                        "{tag}'s \"{key}\" uses {ours:?} where {SOURCE_LOCALE}.toml uses {theirs:?}"
-                    ),
-                    fix: "a placeholder the caller does not supply is rendered literally, \
-                          so the reader sees the braces. Translate the words around a \
-                          placeholder, never the placeholder"
-                        .to_owned(),
-                    check: "placeholders-differ",
-                });
-            }
+        placeholders_agree(&file, tag, &text, locale, source, problems);
+    }
+}
+
+/// A locale's sentences interpolate what the source's do, each one.
+fn placeholders_agree(
+    file: &str,
+    tag: &str,
+    text: &str,
+    locale: &Locale,
+    source: &Locale,
+    problems: &mut Vec<Problem>,
+) {
+    // Split out of `check` for its line budget.
+    for (key, sentence) in &locale.message {
+        let Some(original) = source.message.get(key) else {
+            continue;
+        };
+        let ours = placeholders(sentence);
+        let theirs = placeholders(original);
+        if ours != theirs {
+            problems.push(Problem {
+                file: file.to_owned(),
+                line: line_of(text, &format!("\"{key}\""), 1),
+                what: format!(
+                    "{tag}'s \"{key}\" uses {ours:?} where {SOURCE_LOCALE}.toml uses {theirs:?}"
+                ),
+                fix: "a placeholder the caller does not supply is rendered literally, \
+                      so the reader sees the braces. Translate the words around a \
+                      placeholder, never the placeholder"
+                    .to_owned(),
+                check: "placeholders-differ",
+            });
         }
     }
 }
@@ -611,35 +597,8 @@ pub fn placeholders_for_tests(sentence: &str) -> Vec<String> {
     placeholders(sentence).into_iter().collect()
 }
 
-/// The `{name}` placeholders in a sentence.
-///
-/// A set rather than a list, because a message may legitimately repeat one and
-/// the caller supplies it once either way.
-pub(crate) fn placeholders(sentence: &str) -> BTreeSet<String> {
-    let mut found = BTreeSet::new();
-    let mut rest = sentence;
-    while let Some(open) = rest.find('{') {
-        rest = &rest[open + 1..];
-        let Some(close) = rest.find('}') else { break };
-        let name = &rest[..close];
-        // A brace pair with anything but a bare name in it is prose — a JSON
-        // fragment in an example, or a set written out — and not a placeholder.
-        if !name.is_empty()
-            && name
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || character == '_')
-        {
-            found.insert(name.to_owned());
-        }
-        rest = &rest[close + 1..];
-    }
-    found
-}
-
 #[cfg(test)]
 mod tests {
-    use super::placeholders;
-
     /// The exemption silences the key it names, and only that key.
     ///
     /// **The hole, not just the rule** — the `SKIP`/`COVERED` pattern
@@ -661,6 +620,7 @@ mod tests {
                 .iter()
                 .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
                 .collect(),
+            tags: std::collections::BTreeMap::new(),
         };
         let both = locale(&[("brand.name", "Noctua"), ("limit.reached", "Limit reached")]);
 
@@ -807,37 +767,6 @@ mod tests {
                  opening the locale files"
             );
         }
-    }
-
-    #[test]
-    fn a_sentence_yields_the_names_it_interpolates() {
-        let found = placeholders("{field} must be between {min} and {max}.");
-        assert_eq!(found.len(), 3);
-        assert!(found.contains("field") && found.contains("min") && found.contains("max"));
-    }
-
-    #[test]
-    fn a_sentence_with_no_placeholders_yields_none() {
-        let got = placeholders("Noctua is working.");
-        assert!(got.is_empty(), "{got:?}");
-    }
-
-    #[test]
-    fn a_repeated_placeholder_is_one_name() {
-        assert_eq!(placeholders("{name}, {name}").len(), 1);
-    }
-
-    #[test]
-    fn braces_around_something_that_is_not_a_name_are_prose() {
-        // The alternative — treating every brace pair as a placeholder — would
-        // make any message quoting a JSON fragment fail the cross-locale check
-        // for a difference that is not one.
-        let got = placeholders(r#"such as {"type": "object"}"#);
-        assert!(got.is_empty(), "{got:?}");
-        let got = placeholders("{}");
-        assert!(got.is_empty(), "{got:?}");
-        let got = placeholders("{ spaced }");
-        assert!(got.is_empty(), "{got:?}");
     }
 }
 

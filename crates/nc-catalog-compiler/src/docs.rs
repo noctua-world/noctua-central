@@ -1011,10 +1011,12 @@ fn capabilities(catalog: &Catalog) -> String {
 fn commands(catalog: &Catalog) -> String {
     let mut out = header(
         "Commands",
-        "catalog/commands.toml and catalog/i18n/",
+        "catalog/commands.toml, catalog/i18n/ and catalog/wiki/",
         "Every command the catalog declares — the kernel's own — with what a dispatcher \
          decides on: the Cedar action it is authorized as, how its resource is \
-         extracted, whether it changes state, and whether it can be undone.\n\n\
+         extracted, whether it changes state, and whether it can be undone; and with \
+         what a person is shown of it in each locale: its display name, its line \
+         description, its paragraph and the tags a search finds it by.\n\n\
          **The kernel registers every one of them and decides each at its decision \
          point**, as it decides a plugin's, and runs each one it allows itself. A \
          plugin's commands are not on this page: a plugin declares them at \
@@ -1087,18 +1089,113 @@ fn commands(catalog: &Catalog) -> String {
                 .map_or_else(String::new, |key| {
                     format!("\n| Keybinding | `{}` |", cell(key))
                 })
+                + &shown_with(catalog, entry)
         );
-        for tag in &tags {
-            let _ = writeln!(
-                out,
-                "**{tag}** — {} — {}\n",
-                sentence(catalog, &entry.title, tag),
-                sentence(catalog, &entry.description, tag)
-            );
-        }
+        what_a_person_is_shown(catalog, entry, &tags, &mut out);
         let _ = writeln!(out, "```json\n{}\n```\n", entry.args_schema);
     }
     out
+}
+
+/// The rows of a command's table that are there only when the entry has them:
+/// its categories, its glyph and its wiki text.
+///
+/// **The wiki text is linked, never inlined**: it is a document in its own
+/// format, and a page of tables holding a Markdown or Typst document would be
+/// a page whose tables a heading inside it ends.
+fn shown_with(catalog: &Catalog, entry: &crate::model::CommandEntry) -> String {
+    let mut rows = String::new();
+    if !entry.categories.is_empty() {
+        let named: Vec<String> = entry
+            .categories
+            .iter()
+            .map(|name| format!("`{}`", cell(name)))
+            .collect();
+        let _ = write!(rows, "\n| Categories | {} |", named.join(", "));
+    }
+    if let Some(glyph) = &entry.glyph {
+        let _ = write!(rows, "\n| Glyph | `{}` |", cell(glyph));
+    }
+    if let Some(text) = catalog
+        .wiki
+        .iter()
+        .find(|text| text.registry == "commands" && text.name == entry.name)
+    {
+        let extension = text.format.extension();
+        let links: Vec<String> = tags(catalog)
+            .iter()
+            .map(|tag| {
+                format!(
+                    "[{tag}](../catalog/wiki/{tag}/commands/{}.{extension})",
+                    entry.name
+                )
+            })
+            .collect();
+        let _ = write!(
+            rows,
+            "\n| Wiki | {} (`.{extension}`): {} |",
+            wiki_word(text.format),
+            links.join(", ")
+        );
+    }
+    rows
+}
+
+/// What a wiki format is called on a page.
+const fn wiki_word(format: nc_schema::entry::WikiFormat) -> &'static str {
+    match format {
+        nc_schema::entry::WikiFormat::PlainText => "plain text",
+        nc_schema::entry::WikiFormat::Markdown => "Markdown",
+        nc_schema::entry::WikiFormat::Typst => "Typst",
+    }
+}
+
+/// A command's texts, one column per locale.
+///
+/// **A table, both locales side by side**, for the reason this file's header
+/// gives: a reader comparing what a person is shown in each language is
+/// doing what the page is for.
+fn what_a_person_is_shown(
+    catalog: &Catalog,
+    entry: &crate::model::CommandEntry,
+    tags: &[&str],
+    out: &mut String,
+) {
+    let _ = writeln!(
+        out,
+        "| | {} |\n|---|{}",
+        tags.join(" | "),
+        "---|".repeat(tags.len())
+    );
+    for (row, key) in [
+        ("Display name", &entry.title),
+        ("Line description", &entry.description),
+        ("Paragraph", &entry.paragraph),
+    ] {
+        let cells: Vec<String> = tags.iter().map(|tag| sentence(catalog, key, tag)).collect();
+        let _ = writeln!(out, "| {row} | {} |", cells.join(" | "));
+    }
+    let listed: Vec<String> = tags
+        .iter()
+        .map(|tag| {
+            catalog
+                .locales
+                .iter()
+                .find(|locale| locale.meta.bcp47 == *tag)
+                .and_then(|locale| locale.tags.get(&entry.tags))
+                .map_or_else(
+                    || "—".to_owned(),
+                    |words| {
+                        words
+                            .iter()
+                            .map(|word| cell(word))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    },
+                )
+        })
+        .collect();
+    let _ = writeln!(out, "| Tags | {} |\n", listed.join(" | "));
 }
 
 fn log_events(catalog: &Catalog) -> String {
