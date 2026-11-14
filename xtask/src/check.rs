@@ -19575,7 +19575,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/blobs.rs", 69, 52),
         ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
         ("nc-kernel/built.rs", 7, 7),
-        ("nc-kernel/builtin.rs", 57, 13),
+        ("nc-kernel/builtin.rs", 72, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
         ("nc-kernel/dispatch.rs", 124, 26),
@@ -25530,7 +25530,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18644;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18667;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25549,7 +25549,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4762;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4783;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25566,7 +25566,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1601;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1608;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25600,7 +25600,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25292;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25314;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25654,7 +25654,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,292 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,314 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25687,7 +25687,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1601 of
+    /// this tree offers, **1608 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37557,7 +37557,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2200] = [
+    static OPERATORS: [(&str, &str, &str); 2201] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42579,6 +42579,11 @@ Options:
             "kernel_builtin",
             "texts",
             "every item of a list argument is read",
+        ),
+        (
+            "kernel_builtin",
+            "texts",
+            "a long list argument is read to its last item",
         ),
         ("kernel_builtin", "answer", "an extension is answered"),
         (

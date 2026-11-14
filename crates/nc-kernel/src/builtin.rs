@@ -596,6 +596,9 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use nc_catalog::ErrorCode;
+    use proptest::prelude::{
+        Just, Strategy, prop, prop_assert, prop_assert_eq, prop_oneof, proptest,
+    };
 
     use super::{
         Builtin, DRY_RUN, EXTENSION, FROM, ID, KEYWORDS, NAME, PROPOSE, PRUNE, READ, SIGNATURE,
@@ -866,17 +869,16 @@ mod tests {
         }
     }
 
-    /// A proposal the handler answers is read back by the handler as its own
-    /// fields.
+    /// The scheme's own example and each shape of argument are answered word
+    /// for word, and read back by the handler as their own fields.
     ///
-    /// **Over the handler's JSON, not the crate's types**: each argument shape
-    /// the schema admits — every field, none, lists of several, a kept
-    /// identifier spelled loosely — answered by `naming.propose` and read back
-    /// by `naming.read` from the name it answered, which gives every field
-    /// again and says the name is already canonical. An answer that dropped a
-    /// field, or a reading that read it from somewhere else, fails here.
+    /// **The examples beside the property below**: every field, none, lists of
+    /// several and a kept identifier spelled loosely, each answered by
+    /// `naming.propose` and read back by `naming.read`; and `§16.3`'s example
+    /// and a loose spelling held to the exact canonical JSON a caller receives,
+    /// which a property comparing the handler with the text door cannot see.
     #[test]
-    fn a_proposal_the_handler_answers_is_read_back_by_the_handler_as_its_own_fields() {
+    fn the_schemes_example_and_each_shape_of_argument_are_answered_word_for_word() {
         use nc_ids::naming::Identifier;
 
         for (args, id) in [
@@ -945,6 +947,307 @@ mod tests {
             loose,
             "{\"canonical\":false,\"extension\":\"jpg\",\"id\":\"01J8XK2M9P51\",\"keywords\":[],\
              \"name\":\"--praia@@01J8XK2M9P51.jpg\",\"signature\":[],\"title\":\"praia\"}"
+        );
+    }
+
+    /// One draw of `naming.propose`'s arguments, as the parts a caller typed.
+    #[derive(Debug, Clone)]
+    struct Drawn {
+        /// The title, when one is sent.
+        title: Option<String>,
+        /// The signature's items, when the list is sent.
+        signature: Option<Vec<String>>,
+        /// The keywords, when the list is sent.
+        keywords: Option<Vec<String>>,
+        /// The extension, when one is sent.
+        extension: Option<String>,
+        /// The identifier a file already carries, as its value and the
+        /// spelling sent; none when one is to be minted.
+        kept: Option<(u64, String)>,
+    }
+
+    /// What a caller sends, built from the parts drawn.
+    impl Drawn {
+        /// The JSON a caller sends: each part present only when drawn.
+        fn arguments(&self) -> serde_json::Value {
+            let mut sent = serde_json::Map::new();
+            if let Some(title) = &self.title {
+                sent.insert(TITLE.to_owned(), title.as_str().into());
+            }
+            if let Some(signature) = &self.signature {
+                sent.insert(SIGNATURE.to_owned(), signature.clone().into());
+            }
+            if let Some(keywords) = &self.keywords {
+                sent.insert(KEYWORDS.to_owned(), keywords.clone().into());
+            }
+            if let Some(extension) = &self.extension {
+                sent.insert(EXTENSION.to_owned(), extension.as_str().into());
+            }
+            if let Some((_, spelled)) = &self.kept {
+                sent.insert(ID.to_owned(), spelled.as_str().into());
+            }
+            serde_json::Value::Object(sent)
+        }
+    }
+
+    /// A part of a name as a person types it, inside the schema's 255
+    /// characters.
+    ///
+    /// Plain words, accents, the scheme's own delimiters, what a file name
+    /// cannot hold, nothing at all, and text long enough that only a refusal
+    /// makes it fit.
+    fn part() -> impl Strategy<Value = String> {
+        prop_oneof![
+            "[a-z0-9 ]{0,20}",
+            "[A-Za-zÀ-ÿ ]{0,20}",
+            "[a-z=\\-_@. ]{0,20}",
+            "[a-z<>:\"/\\\\|?*\u{0000}-\u{001f}\u{007f} ]{0,20}",
+            "[a-zé中 ]{200,255}",
+            Just(String::new()),
+        ]
+    }
+
+    /// A title, up to the 1,024 characters the schema allows and the name
+    /// shortens to fit.
+    fn title() -> impl Strategy<Value = String> {
+        prop_oneof![3 => part(), 1 => "[a-zé中𐀀=_@. -]{600,1024}"]
+    }
+
+    /// A list of parts: a few, or nearly the 128 the schema allows of the
+    /// shortest.
+    fn list() -> impl Strategy<Value = Vec<String>> {
+        prop_oneof![
+            4 => prop::collection::vec(part(), 0..4),
+            1 => prop::collection::vec("[a-z]{0,1}", 96..=128),
+        ]
+    }
+
+    /// An extension, empty, dotted, holding delimiters or what a file name
+    /// cannot hold, or long enough to refuse on its own.
+    fn extension() -> impl Strategy<Value = String> {
+        prop_oneof![
+            "[a-z]{1,5}",
+            "[a-z]{1,3}\\.[A-Z]{1,3}",
+            "[a-z=_.@ -]{0,8}",
+            "[a-z]{0,3}[\u{0000}-\u{001f}<>:\"/\\\\|?*]{1,3}[a-z]{0,3}",
+            "[a-z]{200,255}",
+        ]
+    }
+
+    /// An identifier a file carries: its value, and a spelling Crockford
+    /// reads, in its canonical form, lower case, or padded once more.
+    fn kept() -> impl Strategy<Value = (u64, String)> {
+        (0_u64..(1 << 63), 0_u8..3).prop_map(|(value, spelling)| {
+            let canonical = nc_ids::base32::encode(value);
+            let spelled = match spelling {
+                0 => canonical,
+                1 => canonical.to_ascii_lowercase(),
+                _ if canonical.len() < nc_ids::base32::MAX_WIDTH => format!("0{canonical}"),
+                _ => canonical,
+            };
+            (value, spelled)
+        })
+    }
+
+    /// The arguments of one `naming.propose`, each part drawn or left out.
+    fn drawn() -> impl Strategy<Value = Drawn> {
+        (
+            prop::option::of(title()),
+            prop::option::of(list()),
+            prop::option::of(list()),
+            prop::option::of(extension()),
+            prop::option::of(kept()),
+        )
+            .prop_map(|(title, signature, keywords, extension, kept)| Drawn {
+                title,
+                signature,
+                keywords,
+                extension,
+                kept,
+            })
+    }
+
+    /// An identifier the machine's minter mints, `moment` past the start
+    /// of the [`Standing`] clock.
+    fn minted(moment: u64) -> nc_ids::Snowflake {
+        nc_ids::Minter::new(
+            nc_ids::MachineFlake::from_value(3).expect("a flake"),
+            Standing(Arc::new(AtomicU64::new(1_787_702_400_000 + moment))),
+        )
+        .mint()
+        .expect("a clock standing past the epoch mints")
+    }
+
+    /// The identifier the handler is handed for `arguments`: the one sent,
+    /// or else `minted`, read the way [`super::proposed`] reads it.
+    fn handed(
+        arguments: &serde_json::Value,
+        minted: nc_ids::Snowflake,
+    ) -> nc_ids::naming::Identifier<'_> {
+        arguments
+            .get(ID)
+            .and_then(serde_json::Value::as_str)
+            .map_or(
+                nc_ids::naming::Identifier::Minted(minted),
+                nc_ids::naming::Identifier::Kept,
+            )
+    }
+
+    /// The compiled schema `command` declares for its arguments.
+    fn schema_of(command: &str) -> nc_schema::Schema {
+        nc_schema::Schema::compile(nc_catalog::command(command).expect("declared").args_schema)
+            .expect("the catalog's schema compiles")
+    }
+
+    proptest! {
+        /// A proposal the handler answers is read back by the handler as its
+        /// own fields.
+        ///
+        /// **Over JSON the catalog's own schema admits**, each draw held to it:
+        /// a title up to its 1,024 characters, lists up to 128 items of up to
+        /// 255, an extension, and an identifier kept in a loose spelling or,
+        /// when none is sent, minted. The handler answers exactly the fields
+        /// the text door gives for the same parts, and nothing else, so an
+        /// answer that drops one or a list read to its first item fails here;
+        /// or it refuses a name that cannot fit, `invalid` in the code a name
+        /// too long carries, and nothing else. What it answers is the same
+        /// object when `naming.read` reads it back, and already canonical.
+        #[test]
+        fn a_proposal_the_handler_answers_is_read_back_by_the_handler_as_its_own_fields(
+            drawn in drawn(),
+            moment in 0_u64..(1 << 40),
+        ) {
+            let arguments = drawn.arguments();
+            prop_assert!(
+                schema_of(PROPOSE).validate(&arguments).is_ok(),
+                "{} is outside the schema",
+                arguments
+            );
+            let minted = minted(moment);
+            let id = handed(&arguments, minted);
+            let signature: Vec<&str> =
+                drawn.signature.iter().flatten().map(String::as_str).collect();
+            let keywords: Vec<&str> =
+                drawn.keywords.iter().flatten().map(String::as_str).collect();
+            let door = nc_ids::naming::propose(
+                &signature,
+                drawn.title.as_deref(),
+                &keywords,
+                id,
+                drawn.extension.as_deref(),
+            );
+            let (answered, fields) = match (proposal(&arguments, id), door) {
+                (Ok(answered), Ok(fields)) => (answered, fields),
+                (Err(failure), Err(nc_ids::NameError::TooLong { .. })) => {
+                    let refusal = failure.refusal();
+                    prop_assert_eq!(
+                        (refusal.kind(), refusal.code(), failure.word()),
+                        (RefusalKind::Invalid, ErrorCode::IdsNameTooLong, "name-too-long"),
+                        "{}",
+                        refusal.sentence()
+                    );
+                    return Ok(());
+                }
+                (handled, door) => {
+                    return Err(proptest::test_runner::TestCaseError::fail(format!(
+                        "{arguments}: the handler gave {:?}, the text door {door:?}",
+                        handled.map_err(|failure| failure.refusal().sentence().to_owned())
+                    )));
+                }
+            };
+            let object = nc_canon::parse(&answered)
+                .expect("canonical JSON")
+                .into_object()
+                .expect("an object");
+            let text = |key: &str| object.get(key).cloned().and_then(nc_canon::Value::into_text);
+            let texts = |key: &str| {
+                object.get(key).cloned().and_then(nc_canon::Value::into_array).map(|items| {
+                    items
+                        .into_iter()
+                        .filter_map(nc_canon::Value::into_text)
+                        .collect::<Vec<String>>()
+                })
+            };
+            let expected = drawn.kept.as_ref().map_or_else(
+                || minted.to_crockford(),
+                |(value, _)| nc_ids::base32::encode(*value),
+            );
+            let owned = |field: Option<&str>| field.map(str::to_owned);
+            prop_assert_eq!(text("id"), Some(expected));
+            prop_assert_eq!(text("id"), owned(Some(fields.id())));
+            prop_assert_eq!(text("name"), owned(Some(fields.name())));
+            prop_assert_eq!(texts("signature"), Some(fields.signature().to_vec()));
+            prop_assert_eq!(texts("keywords"), Some(fields.keywords().to_vec()));
+            prop_assert_eq!(text("title"), owned(fields.title()));
+            prop_assert_eq!(text("extension"), owned(fields.extension()));
+            prop_assert_eq!(
+                object.len(),
+                4 + usize::from(fields.title().is_some())
+                    + usize::from(fields.extension().is_some()),
+                "{}",
+                answered
+            );
+            let reading = serde_json::json!({ NAME: fields.name() });
+            prop_assert!(
+                schema_of(READ).validate(&reading).is_ok(),
+                "{} is a name `naming.read` does not take",
+                reading
+            );
+            let read = read_back(&reading)
+                .map_err(|failure| failure.refusal().sentence().to_owned());
+            prop_assert!(read.is_ok(), "{} reads as {:?}", fields.name(), read);
+            let read = read.unwrap_or_default();
+            let mut back = nc_canon::parse(&read)
+                .expect("canonical JSON")
+                .into_object()
+                .expect("an object");
+            prop_assert_eq!(
+                back.remove("canonical"),
+                Some(nc_canon::Value::Bool(true)),
+                "{}",
+                read
+            );
+            prop_assert_eq!(back, object, "proposed {}, read {}", answered, read);
+        }
+    }
+
+    /// Enough generated proposals are answered for the round trip to assert
+    /// something, and enough refused for the refusal to be met.
+    ///
+    /// The property above returns early on a name that cannot fit, which is
+    /// the law too; but a generator drifting until nearly every draw is
+    /// refused leaves it asserting nothing with every run still `ok`, and one
+    /// that never draws a refusal leaves its refusal arm untried (`NOCTUA.md
+    /// §19.5`). Measured over the 512 draws this makes: 395 answered and 117
+    /// refused. The floors are well below both, because a generator edited for
+    /// another reason moves them.
+    #[test]
+    fn enough_generated_proposals_are_answered_and_enough_refused() {
+        use proptest::strategy::ValueTree as _;
+
+        /// How many draws are counted.
+        const SAMPLES: usize = 512;
+        let mut runner = proptest::test_runner::TestRunner::deterministic();
+        let (mut answered, mut refused) = (0_usize, 0_usize);
+        for moment in 0..SAMPLES {
+            let drawn = drawn()
+                .new_tree(&mut runner)
+                .expect("the generators produce a value")
+                .current();
+            let arguments = drawn.arguments();
+            let minted = minted(u64::try_from(moment).expect("fits"));
+            match proposal(&arguments, handed(&arguments, minted)) {
+                Ok(_) => answered += 1,
+                Err(_) => refused += 1,
+            }
+        }
+        assert!(
+            answered * 2 >= SAMPLES,
+            "only {answered} of {SAMPLES} generated proposals are answered"
+        );
+        assert!(
+            refused * 20 >= SAMPLES,
+            "only {refused} of {SAMPLES} generated proposals are refused"
         );
     }
 
