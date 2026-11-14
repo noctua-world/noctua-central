@@ -1442,13 +1442,23 @@ mod tests {
 
     /// What a test asks of its child.
     impl Child {
-        /// Waits for the child to end, for a minute at most, and answers
-        /// whether it ended as a passing test does.
-        fn ended_well(&mut self) -> bool {
+        /// Waits for the child to end, for a minute at most, and answers what
+        /// it wrote if it did not end as a passing test does.
+        fn ended_well(&mut self) -> Result<(), String> {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
             loop {
                 if let Some(status) = self.0.try_wait().expect("the child is asked") {
-                    return status.success();
+                    if status.success() {
+                        return Ok(());
+                    }
+                    let mut said = String::new();
+                    if let Some(mut stream) = self.0.stdout.take() {
+                        let _ = std::io::Read::read_to_string(&mut stream, &mut said);
+                    }
+                    if let Some(mut stream) = self.0.stderr.take() {
+                        let _ = std::io::Read::read_to_string(&mut stream, &mut said);
+                    }
+                    return Err(said);
                 }
                 assert!(
                     std::time::Instant::now() < deadline,
@@ -1480,7 +1490,8 @@ mod tests {
         clippy::disallowed_methods,
         reason = "the other end of a connection has to be another process for its id to be \
                   told from this one's; the child is this same test binary, its output \
-                  discarded"
+                  read once it has ended, for a failure of it to print: libtest's few \
+                  lines, which no pipe fills before the end"
     )]
     fn spawned(role: &str, endpoint: &super::ipc::Endpoint) -> Child {
         Child(
@@ -1491,8 +1502,8 @@ mod tests {
                 .env(CHILD_SOCKET, &endpoint.socket)
                 .env(CHILD_PIPE, &endpoint.pipe)
                 .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .expect("the child starts"),
         )
@@ -1532,6 +1543,11 @@ mod tests {
                 let (mut stream, _) = super::ipc::connect(&endpoint, &user)
                     .await
                     .expect("the child reaches the parent's endpoint");
+                // Said once the parent has been read off the system, as the
+                // serving child says it: the parent closes only after this.
+                tokio::io::AsyncWriteExt::write_all(&mut stream, b"!")
+                    .await
+                    .expect("the parent hears it");
                 until_closed(&mut stream).await;
             }
         });
@@ -1591,11 +1607,11 @@ mod tests {
         let user = user_in(&scratch.0).expect("private");
         let endpoint = endpoint_in(&scratch, "child-connects");
         let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
-        let mut child = runtime().block_on(async {
+        let (mut child, heard) = runtime().block_on(async {
             let mut listener =
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
             let child = spawned("connect", &endpoint);
-            let accepted = within("the connecting child", listener.accept())
+            let mut accepted = within("the connecting child", listener.accept())
                 .await
                 .expect("the child's connection");
             assert_eq!(
@@ -1604,13 +1620,30 @@ mod tests {
                 "the client read is not the child"
             );
             assert_ne!(accepted.peer.pid, std::process::id());
-            child
+            // Closed only once the child has read this end off the system,
+            // which its `connect` does after the connection is made: macOS no
+            // longer names a peer that has closed, so a connection closed as
+            // soon as it was accepted can leave the child's `connect` with no
+            // peer to name — read from the code after a macOS runner's child
+            // failed once, its output then discarded. A child that fails
+            // once its connection is accepted ends the read, and says why
+            // below.
+            let mut word = [0_u8; 1];
+            let heard = within(
+                "the connecting child's word",
+                tokio::io::AsyncReadExt::read_exact(&mut accepted.stream, &mut word),
+            )
+            .await;
+            (child, heard)
         });
         // **Waited for once the runtime is gone**, never on it: a pipe's handle
         // is closed only as the runtime driving it lets it go, so a wait that
         // blocked that runtime would wait for itself — measured on a Windows
         // runner, the child never saw its connection end.
-        assert!(child.ended_well(), "the connecting child failed");
+        if let Err(said) = child.ended_well() {
+            panic!("the connecting child failed: {said}");
+        }
+        heard.expect("the connecting child read this end");
 
         // The child's own lock, on a directory of its own: this process holds
         // the first one's.
@@ -1642,7 +1675,9 @@ mod tests {
             .expect("the child accepted");
             child
         });
-        assert!(child.ended_well(), "the serving child failed");
+        if let Err(said) = child.ended_well() {
+            panic!("the serving child failed: {said}");
+        }
     }
 
     /// The peer predicate refuses a user that is not this one, naming both
