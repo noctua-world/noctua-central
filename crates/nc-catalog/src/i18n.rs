@@ -246,7 +246,7 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         "command.naming.read.description",
         [
             "Read a file name back into its identifier, signature, title and keywords.",
-            "Ler um nome de arquivo e dizer seu identificador, assinatura e palavras-chave.",
+            "Ler um nome de arquivo: identificador, assinatura, título e palavras-chave.",
         ],
     ),
     (

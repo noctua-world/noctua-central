@@ -129,7 +129,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | | en | pt-BR |
 |---|---|---|
 | Display name | Read a file name | Ler um nome de arquivo |
-| Line description | Read a file name back into its identifier, signature, title and keywords. | Ler um nome de arquivo e dizer seu identificador, assinatura e palavras-chave. |
+| Line description | Read a file name back into its identifier, signature, title and keywords. | Ler um nome de arquivo: identificador, assinatura, título e palavras-chave. |
 | Paragraph | Reads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing. | Lê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada. |
 | Tags | file name, read a name, identifier, parse, details | nome de arquivo, ler um nome, identificador, analisar, detalhes |
 
