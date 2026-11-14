@@ -1,0 +1,163 @@
+# The fuzzy core's rule, as rows its implementations replay.
+#
+# crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs replays every row against the
+# Rust core, and noctua-design's matcher replays the same rows once the
+# interface brings it to this rule. A row is a claim about the rule, so a change
+# to the rule changes a row in the same edit, and a row nobody can explain is a
+# defect in the rule or in the row.
+#
+# Tab-separated, one row per line; a line opening with # is a comment, and a
+# blank line is nothing.
+#
+#   fold    TEXT    FOLDED          each character of TEXT folds to the one at its index in FOLDED
+#   words   QUERY   WORDS           the words of QUERY, folded, joined by |, or - for none
+#   match   QUERY   ITEM    HITS    how QUERY matches one item, or - when it does not
+#   order   QUERY   ITEMS   ORDER   the indices QUERY finds among ITEMS, best first, joined by ;, or - for none
+#
+# An ITEM is its fields joined by |, each a name unless it opens with tag: and
+# ITEMS are items joined by ;. HITS hold one hit per word of the query, in the
+# order the words were typed, joined by |: the index of the field the word
+# matched and a colon, left out for the first field, then its positions as
+# indices and inclusive ranges joined by commas. A position is a character's
+# index in the field's own text, separators counted.
+#
+# A backslash, u and a hexadecimal code point in braces writes any character,
+# and is how a row holds a tab, an invisible character, a space at the edge of a
+# column, or one of | ; and the backslash itself. No other backslash is read.
+#
+# The letters are kept to those whose case and decomposition every Unicode
+# version a browser or a system ships agrees on.
+
+# One character to one character: lower case first, then the base letter.
+fold	É	e
+fold	Configurações	configuracoes
+fold	ÁÀÂÃÄáàâãä	aaaaaaaaaa
+fold	ÉÈÊËéèêë	eeeeeeee
+fold	ÍÌÎÏíìîï	iiiiiiii
+fold	ÓÒÔÕÖóòôõö	oooooooooo
+fold	ÚÙÛÜúùûü	uuuuuuuu
+fold	ÇçÑñ	ccnn
+fold	ĄĘŚŹŻĆŃąęśźżćń	aeszzcnaeszzcn
+fold	ŠŽČŘĎŤŇšžčřďťň	szcrdtnszcrdtn
+fold	ÅåÝýŸÿ	aayyyy
+# A capital whose lower case is two characters as a string is one here.
+fold	İstanbul	istanbul
+# A letter with no decomposition is not folded to a letter it resembles.
+fold	ßøæłđħœ	ßøæłđħœ
+fold	ØÆŁĐĦŒ	øæłđħœ
+fold	ẞ	ß
+fold	ΑΆΕΈΩΏαάωώ	ααεεωωααωω
+fold	ΪΫϊϋ	ιυιυ
+fold	ЙйЁёПоиск	ииеепоиск
+# Title case and the two-letter capitals lower case to their small forms.
+fold	ǄǅǆǇ	ǆǆǆǉ
+# A Hangul syllable keeps itself: folded, one syllable would find every syllable
+# that opens with its consonant.
+fold	한하가힣	한하가힣
+fold	日本語中文	日本語中文
+# A letter outside the basic plane folds like any other.
+fold	\u{10400}\u{10414}	\u{10428}\u{1043C}
+fold	ABCxyz019	abcxyz019
+fold	'’-_.	'’-_.
+
+# A query is split at spaces, and a separator inside a word is dropped.
+words	verificar histórico	verificar|historico
+words	Configurações do sistema	configuracoes|do|sistema
+words	journal.verify	journalverify
+words	button-group a/b c:d e_f	buttongroup|ab|cd|ef
+words	a\u{9}b\u{A0}c\u{FEFF}d\u{85}e\u{3000}f	a|b|c|d|e|f
+words	\u{20}\u{20}Procurar\u{20}\u{20}comando\u{20}	procurar|comando
+words	ver - ificar	ver|ificar
+words	SÃO PAULO	sao|paulo
+words	o'reilly	o'reilly
+words	- . _ / :	-
+words	\u{20}	-
+words		-
+
+# Every word must match, each in its own field, and words may share characters.
+match	verificar historico	Verificar o histórico de atividades	0-8|12-20
+match	historico verificar	Verificar o histórico de atividades	12-20|0-8
+match	verificar zzz	Verificar o histórico de atividades	-
+match	zzz verificar	Verificar o histórico de atividades	-
+match	ver verificar	Verificar	0-2|0-8
+match	verificar ver	Verificar	0-8|0-2
+match	configuracoes	Configurações	0-12
+match	configuracoes	Configurações do sistema	0-12
+match	ação	acao	0-3
+match	acao	Ação rápida	0-3
+match	VERIFICAR	verificar	0-8
+# A separator is skipped in the field and dropped in the query.
+match	verify	journal.verify	8-13
+match	journalverify	journal.verify	0-6,8-13
+match	journal.verify	journal.verify	0-6,8-13
+match	nalver	journal.verify	4-6,8-10
+match	ab	a\u{A0}b	0,2
+match	ab	a\u{FEFF}b	0,2
+match	ab	a\u{85}b	0,2
+match	ab	a\u{200B}b	0,2
+match	a	-_.	-
+# A run opening a word beats an earlier run inside one, every occurrence weighed.
+match	ab	lab Ab	4-5
+match	gr	ButtonGroup	6-7
+match	ver	Vast Error Report, sever	21-23
+# Scattered: more word starts, then more adjacent characters, then earlier.
+match	bg	ButtonGroup	0,6
+match	ver	Vast Error Report	0,5,11
+match	tg	ButtonGroup	2,6
+match	hs	HTTPServer	0,4
+match	abc	axbxc xbc	0,7-8
+match	oreilly	O'Reilly Media	0,2-7
+match	o'reilly	O'Reilly Media	0-7
+# Of equal alignments, the leftmost.
+match	abc	ab x c c	0-1,5
+# A one-letter word matches wherever its letter is.
+match	g	ButtonGroup	6
+match	o	ButtonGroup	4
+# Order is required, and every character.
+match	yfirev	verify	-
+match	verifyx	verify	-
+# A Hangul syllable finds itself and not the syllables sharing its consonant.
+match	한	대한민국	1
+match	하	대한민국	-
+match	ελεγχος	Έλεγχος ιστορικού	0-6
+match	поиск	Поиск команды	0-4
+match	日本	日本語	0-1
+# A word reports the field it matched, and the field it matched best.
+match	procurar comando	Encontrar um comando|tag:procurar|tag:pesquisar|tag:find	1:0-7|13-19
+match	find command	Find a command|Encontrar um comando|tag:search|tag:procurar	0-3|7-13
+match	search procurar	Find a command|tag:search|tag:procurar	1:0-5|2:0-7
+match	encontrar zzz	Encontrar um comando|tag:procurar	-
+match	desfazer	kernel.undo|Undo a step|Desfazer um passo|tag:revert|tag:reverter	2:0-7
+match	reverter	kernel.undo|Undo a step|Desfazer um passo|tag:revert|tag:reverter	4:0-7
+match	revert	kernel.undo|Undo a step|Desfazer um passo|tag:revert|tag:reverter	3:0-5
+match	undo	kernel.undo|Undo a step|Desfazer um passo|tag:revert|tag:reverter	1:0-3
+match	kernel undo	kernel.undo|Undo a step	0-5|1:0-3
+# At an equal tier a name beats a tag, wherever each begins; a tier beats a name.
+match	hist	Verificar o histórico|tag:history	12-15
+match	pcr	Procurar|tag:pcr	1:0-2
+match	undo	tag:undo|tag:undo	0-3
+
+# The tier, then the role, then starts, adjacent characters, earliness and shortness.
+order	ver	Verify;server;Very Elaborate Report	0;2;1
+order	ver	server;verify	1;0
+order	ab	lab;Ab;xab	1;0;2
+order	ab	a\u{200B}b;a\u{A0}b	1;0
+order	arquivo	tag:arquivo;arquivo	1;0
+order	arq	tag:arquivo;arquivo	1;0
+order	pcr	Procurar;tag:pcr	1;0
+order	bg	Bagging;ButtonGroup	1;0
+order	ver	a verify;verify	1;0
+order	ver	Verify everything;Verify it	1;0
+order	ver hist	Verificar o histórico;tag:verificar|tag:histórico	0;1
+order	h	Verify the history;Hide;ah	1;0;2
+order	한	한국;대한민국;하늘	0;1
+# A query in Portuguese finds through a Portuguese synonym, one in English through the English name.
+order	procurar	Find a command|tag:search|tag:procurar;Verify the history|tag:verificar	0
+order	verify	Find a command|tag:search;Verify the history|tag:verificar	1
+order	verificar historico	Verify the history|Verificar o histórico|tag:audit;Find a command|Encontrar um comando	0
+# Equal scores keep the order the items were given in.
+order	ab	ab x;ab y;ab z	0;1;2
+order	ab	ab z;ab y;ab x	0;1;2
+order	acao	Ação;acao;AÇÃO	0;1;2
+order		b;a;c	0;1;2
+order	zzz	a;b	-

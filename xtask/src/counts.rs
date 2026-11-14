@@ -3047,7 +3047,7 @@ mod tests {
         ("integration test files", 4),
         ("migrations", 12),
         ("registries", 8),
-        ("crates", 16),
+        ("crates", 17),
         ("packs", 3),
     ];
 

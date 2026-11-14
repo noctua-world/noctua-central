@@ -7756,7 +7756,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 49] = [
+const SUITES: [(&str, &str); 51] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7787,6 +7787,10 @@ const SUITES: [(&str, &str); 49] = [
     // driven in-process.
     ("nc-daemon", "a_recycled_pid_is_never_signalled.rs"),
     ("nc-daemon", "channels_side_by_side.rs"),
+    // The fuzzy core's laws over generated items and queries, and its corpus
+    // replayed row by row: neither touches a disk or spawns anything.
+    ("nc-fuzzy", "properties.rs"),
+    ("nc-fuzzy", "the_corpus_is_the_rule.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     // The protocol: the daemon's listener at the catalog's bound over a real
@@ -17232,7 +17236,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 20);
+        assert_eq!(members_of(root()), 21);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17421,7 +17425,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 20] = [
+    const SOURCE_ROOTS: [(&str, usize); 21] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -17429,6 +17433,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-channel", 2),
         ("nc-cli", 3),
         ("nc-daemon", 11),
+        ("nc-fuzzy", 3),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19458,7 +19463,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 198] = [
+    const DOCUMENTED: [(&str, usize, usize); 206] = [
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
@@ -19526,6 +19531,14 @@ mod the_frozen_path_rule {
         ("nc-channel/lib.rs", 55, 16),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 26, 0),
+        ("nc-fuzzy/align.rs", 19, 13),
+        ("nc-fuzzy/fold.rs", 8, 7),
+        ("nc-fuzzy/lib.rs", 5, 9),
+        ("nc-fuzzy/properties.rs", 27, 1),
+        ("nc-fuzzy/query.rs", 6, 9),
+        ("nc-fuzzy/rank.rs", 16, 18),
+        ("nc-fuzzy/score.rs", 39, 5),
+        ("nc-fuzzy/the_corpus_is_the_rule.rs", 9, 5),
         ("nc-guest/lib.rs", 1, 0),
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
@@ -25512,7 +25525,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18273;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18488;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25531,7 +25544,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4702;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4708;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25582,7 +25595,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24966;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25145;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25636,7 +25649,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,966 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,145 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -32974,7 +32987,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 14] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 15] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -32986,8 +32999,11 @@ mod the_frozen_path_rule {
         // Every `.toml` under `crates/` is a member's own manifest, at the
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
-        // The denote corpus, which is the one table `crates/` holds.
+        // The tables `crates/` holds, each a corpus a suite beside it replays:
+        // what Denote returned, and the fuzzy core's rule — the second by its
+        // path, so a copy of the rule anywhere else is refused.
         ("crates", "tsv", "denote-corpus.tsv"),
+        ("crates", "tsv", "crates/nc-fuzzy/tests/fuzzy-corpus.tsv"),
         // The kernel's copy of the reference world, which is the one WIT file
         // this repository holds: a second one is a second world a plugin could
         // be generated from. **By its path, not its name**, which is what a row
@@ -34214,7 +34230,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 56] = [
+    const NOT_MUTATED: [(&str, &str); 58] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34460,6 +34476,24 @@ mod the_meta_gate {
             "a suite: acceptance criterion 4 read a second way, against a \
              shuffled `read_dir`. The ordering it holds is decided in `emit.rs` \
              and `docs.rs`, both of which the runner edits",
+        ),
+        (
+            "crates/nc-fuzzy/tests/properties.rs",
+            "a suite: the fuzzy core's laws stated as properties, and every \
+             alignment it chooses held to an exhaustive search, over `fold.rs`, \
+             `query.rs`, `align.rs`, `score.rs` and `rank.rs`, every one of which \
+             the runner edits under the crate's own command, which builds this \
+             suite. It starts no process, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs",
+            "a suite: the rule's corpus beside it replayed row by row against \
+             `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, which \
+             the runner edits under the crate's own command. The corpus is the \
+             case file both of the rule's implementations are held to, and a \
+             weakening of this reader would remove evidence rather than uncover \
+             an undecided clause",
         ),
         (
             "crates/nc-ids/tests/against_denote.rs",
@@ -37492,7 +37526,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 212,
+            walked, 220,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37532,7 +37566,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2153] = [
+    static OPERATORS: [(&str, &str, &str); 2198] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47169,6 +47203,207 @@ Options:
             "daemon_environment",
             "newest_kept",
             "a start reads the journal's unit over an older one its store committed",
+        ),
+        (
+            "fuzzy_lib",
+            "WORDS_MAX",
+            "the word bound holds the densest query the query bound allows",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a letter is lowercased before it is decomposed",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a Hangul syllable is not folded to its leading consonant",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a letter folds to the first scalar of its decomposition",
+        ),
+        (
+            "fuzzy_fold",
+            "is_space",
+            "the byte-order mark splits a query as JavaScript's spaces do",
+        ),
+        (
+            "fuzzy_fold",
+            "is_separator",
+            "every character a name is joined with is a separator",
+        ),
+        (
+            "fuzzy_fold",
+            "opens_a_word",
+            "a capital opens a word only after a character that is not one",
+        ),
+        (
+            "fuzzy_fold",
+            "opens_a_word",
+            "a character after a separator opens a word",
+        ),
+        (
+            "fuzzy_fold",
+            "is_upper",
+            "a capital is a character its lower case changes",
+        ),
+        ("fuzzy_query", "parse", "a query past its bound is refused"),
+        (
+            "fuzzy_query",
+            "parse",
+            "a query is split where JavaScript's spaces split it",
+        ),
+        (
+            "fuzzy_query",
+            "parse",
+            "a separator inside a word is dropped",
+        ),
+        (
+            "fuzzy_query",
+            "parse",
+            "every character of a word is folded",
+        ),
+        ("fuzzy_query", "parse", "a word of separators is no word"),
+        (
+            "fuzzy_align",
+            "read",
+            "a field is read to its bound and no further",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "the character past the bound is left for the field to be judged whole by",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "a separator is left out of the copy a word is laid in",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "a field cut at its bound is not whole",
+        ),
+        (
+            "fuzzy_align",
+            "original",
+            "a position handed out is an index of the original text",
+        ),
+        (
+            "fuzzy_align",
+            "quality",
+            "a matched character opening a word is counted as one",
+        ),
+        (
+            "fuzzy_align",
+            "quality",
+            "an adjacent pair is one tight index apart",
+        ),
+        (
+            "fuzzy_align",
+            "holds",
+            "a word is a subsequence only in its own order",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "the whole field is the first tier",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "a whole match needs a field read whole",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "a run inside a word is below one opening it",
+        ),
+        (
+            "fuzzy_align",
+            "best_run",
+            "a run's tier is weighed before its quality",
+        ),
+        (
+            "fuzzy_align",
+            "best_run",
+            "every occurrence of a run is weighed, not the first",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "a word start outweighs every adjacent pair",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "an adjacent pair adds its weight",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "a character may sit past the next index",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "the first character sits where the best total begins",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "of equal alignments the leftmost is kept",
+        ),
+        (
+            "fuzzy_score",
+            "bits",
+            "a width holds every bit of its largest sum",
+        ),
+        (
+            "fuzzy_score",
+            "STARTS_BITS",
+            "the width of word starts holds its largest sum",
+        ),
+        (
+            "fuzzy_score",
+            "EARLINESS_BITS",
+            "the width of earliness holds its largest sum",
+        ),
+        ("fuzzy_score", "packed", "the tiers sit above the names"),
+        (
+            "fuzzy_score",
+            "packed",
+            "shortness reaches the packed score",
+        ),
+        ("fuzzy_score", "of_word", "a word on a name counts as one"),
+        (
+            "fuzzy_score",
+            "plus",
+            "every component of a word's score is summed",
+        ),
+        ("fuzzy_rank", "matched", "every word must match"),
+        (
+            "fuzzy_rank",
+            "matched",
+            "a field tied with an earlier one leaves the earlier",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "the best field's positions are the ones kept",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "a match scores the sum of its words",
+        ),
+        ("fuzzy_rank", "ranked", "a higher score ranks first"),
+        (
+            "fuzzy_rank",
+            "ranked",
+            "equal scores keep the order the items were given in",
         ),
     ];
 

@@ -363,6 +363,19 @@ ed25519-dalek = { version = "3.0", default-features = false, features = ["zeroiz
 # answers already.
 rustix = { version = "1.1", default-features = false }
 
+# **The canonical decomposition of a character**, which the fuzzy core folds a
+# letter to its base letter by (`NOCTUA.md §12.4`): `é` to `e` and `ç` to `c`,
+# so a query typed without accents finds the text that has them — the rule the
+# browser applies when `noctua-design`'s matcher asks for `normalize("NFD")[0]`.
+# A direct dependency of `nc-fuzzy` alone, decided on 2026-11-14 over a table
+# written here: Unicode's table is data a transcription gets wrong, and this
+# tree has measured exactly that defect once. Already in the graph at this
+# version under `stringprep` and `unicode-security` (`cargo tree -i
+# unicode-normalization`), so it adds no package. **`default-features = false`**:
+# the one feature is `std`, and the decomposition the core calls needs none of
+# it. 0.1.25 is the release whose tables are Unicode 17.0.
+unicode-normalization = { version = "0.1.25", default-features = false }
+
 # The ledger's checksum, which is what catches an edit made outside the compiler.
 # `NOCTUA.md §16.2` and `§14.9` both name BLAKE3, and it is already
 # `noctua-colors`'.
