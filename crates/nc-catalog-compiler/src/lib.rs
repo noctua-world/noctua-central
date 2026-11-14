@@ -28,6 +28,7 @@ mod docs;
 pub use docs::cell_for_tests;
 pub mod ledger;
 pub mod load;
+mod metadata;
 pub mod model;
 pub mod problem;
 
@@ -819,8 +820,9 @@ fn names(reason: &str, table: &str) -> bool {
 /// reads; a character is ignored here when a reader would see no difference
 /// between a sentence with it and the same sentence without. `U+3164 HANGUL
 /// FILLER` answers yes to the second and no to the first, and the union of
-/// [`INVISIBLE_RANGES`] with [`BLANK_RANGES`] is the second answer. The
-/// untranslated rule is the only caller.
+/// [`INVISIBLE_RANGES`] with [`BLANK_RANGES`] is the second answer. A value
+/// that holds no character this answers yes for says nothing, which is what
+/// the rules refusing a blank value ask.
 #[must_use]
 pub fn tells_two_sentences_apart(character: char) -> bool {
     let point = character as u32;

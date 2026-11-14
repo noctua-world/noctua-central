@@ -11,6 +11,28 @@
 # build rather than being ignored, and every object says
 # `"additionalProperties": false`.
 #
+# What a person is shown of a command is its entry (`§20.4`): four keys into
+# `catalog/i18n/`, each required and resolved in every locale, and three
+# optional fields. Every text is held to `nc_schema::entry`, the judge the kernel
+# holds a plugin's entries to as well:
+#
+#   title              the display name, at most 64 characters
+#   description        the line description, one line of at most 80 characters
+#   paragraph          a paragraph saying more, at most 1,024 characters, and
+#                      never the line again
+#   tags               the key of a list under `[tags]`: at least one word a
+#                      search finds the command by, at most 32 of at most 40
+#                      characters each, none twice
+#   categories         optional: the names of the categories it is listed under,
+#                      at most four, each one the categories registry holds
+#   glyph              optional: the code point it is shown with, written
+#                      `U+F0E2`, one the Symbols-Only font draws — the icon's
+#                      name in a comment beside it
+#
+# A wiki text, optional, is not a field: it is found at
+# `catalog/wiki/<locale>/commands/<name>.<md|txt|typ>`, in every locale and in
+# one format.
+#
 # Four fields are required and none of them is optional at `activate`
 # (`§11.7`, `reference/identity-and-authorization.md §2`):
 #
@@ -46,6 +68,9 @@
 name = "journal.verify"
 title = "command.journal.verify.title"
 description = "command.journal.verify.description"
+paragraph = "command.journal.verify.paragraph"
+tags = "command.journal.verify.tags"
+glyph = "U+F058"   # nf-fa-check_circle
 action = "Read"
 resource_selector = "realm"
 reversibility = "read"
@@ -57,6 +82,9 @@ args_schema = """
 name = "limits.prune"
 title = "command.limits.prune.title"
 description = "command.limits.prune.description"
+paragraph = "command.limits.prune.paragraph"
+tags = "command.limits.prune.tags"
+glyph = "U+F1F8"   # nf-fa-trash
 action = "Delete"
 resource_selector = "realm"
 # `write` and not `irreversible`, and the distinction is the point: what this
@@ -81,6 +109,9 @@ args_schema = """
 name = "kernel.undo"
 title = "command.kernel.undo.title"
 description = "command.kernel.undo.description"
+paragraph = "command.kernel.undo.paragraph"
+tags = "command.kernel.undo.tags"
+glyph = "U+F0E2"   # nf-fa-undo
 action = "Write"
 resource_selector = "realm"
 reversibility = "write"
@@ -92,6 +123,9 @@ args_schema = """
 name = "kernel.redo"
 title = "command.kernel.redo.title"
 description = "command.kernel.redo.description"
+paragraph = "command.kernel.redo.paragraph"
+tags = "command.kernel.redo.tags"
+glyph = "U+F01E"   # nf-fa-repeat
 action = "Write"
 resource_selector = "realm"
 reversibility = "write"

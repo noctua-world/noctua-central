@@ -180,7 +180,7 @@ Linux job runs it; the verdict names each one, and on Linux it holds the run to 
 
 | Path | What it is |
 |---|---|
-| `catalog/` | The declarative registries every part of the platform reads: error codes, notifications, emails, limits, commands, log events, the capabilities a plugin can be granted, and both locales |
+| `catalog/` | The declarative registries every part of the platform reads: error codes, notifications, emails, limits, commands — each with what a person is shown of it — log events, the capabilities a plugin can be granted, both locales, and the wiki texts an entry may carry |
 | `apps/` | The binaries a person's machine runs, each a library and a thin binary. `daemon` is the daemon a channel runs: it serves its kernel at its endpoint, and `noctua-daemon` with no argument is it. `cli` is `noctua`, the command line a channel is reached through: every command read against its schema, the daemon started, stopped and asked how it is, and the installer `cargo xtask dev --install` runs |
 | `crates/` | The libraries. `nc-catalog` is generated from `catalog/` and committed; `nc-catalog-compiler` is what generates it; `nc-kernel` is the local kernel, which hosts the plugins and authorizes and journals every command they run |
 | `docs/` | This manual, and every error code, notification, email, limit, command, log event and capability, as Markdown — the pages generated from `catalog/` by `cargo xtask docs` and committed. Editing a page by hand fails the gate; edit the registry instead. This file is the one written by hand |

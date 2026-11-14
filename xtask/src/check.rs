@@ -3907,7 +3907,7 @@ fn the_excused_lines_are_counted(
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
     ("allow-logging:", 84),
-    ("allow-nondeterminism:", 20),
+    ("allow-nondeterminism:", 21),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
     ("nc:narrows:", 15),
@@ -3931,7 +3931,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 75] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 76] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3946,6 +3946,11 @@ const EXCUSED_WHERE: [(&str, &str, usize); 75] = [
         1,
     ),
     ("crates/nc-catalog-compiler/src/load.rs", "nc:bounded:", 1),
+    (
+        "crates/nc-catalog-compiler/src/metadata.rs",
+        "allow-nondeterminism:",
+        1,
+    ),
     ("crates/nc-catalog-compiler/src/model.rs", "nc:bounded:", 1),
     (
         "crates/nc-catalog-compiler/tests/the_gates_fire.rs",
@@ -4078,12 +4083,13 @@ const EXCUSED_WHERE: [(&str, &str, usize); 75] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 48] = [
+const EXCUSED_IN: [(&str, usize); 49] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
     ("crates/nc-catalog-compiler/src/lib.rs", 8),
     ("crates/nc-catalog-compiler/src/load.rs", 2),
+    ("crates/nc-catalog-compiler/src/metadata.rs", 1),
     ("crates/nc-catalog-compiler/src/model.rs", 1),
     ("crates/nc-catalog-compiler/tests/the_gates_fire.rs", 2),
     (
@@ -5713,7 +5719,7 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 4] = [
         "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
         "nc_platform::system::LISTED_AS_MADE.is_none()",
         "skipped, not applicable on",
-        1,
+        2,
     ),
     // A POSIX shell of the system's own, which every guard of the checkout
     // script is a claim about.
@@ -11244,7 +11250,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 738] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11665,6 +11671,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 738] = [
     "file {digest} {path}\n",
     "five duplicated versions outside duplicate detection",
     "generated from the catalog by `cargo xtask docs` and drift-checked against disk, so a number in one is the tree counting itself rather than a person claiming a count — and editing one by hand is already a build failure",
+    "the wiki texts the catalog compiler holds and compiles in: what a person is shown about an entry, never a document about this repository, so a number in one counts nothing in this tree",
     "generated output",
     "how many cores this machine has",
     "id text not null storage x collate pg_catalog.default:d, realm text not null storage x collate pg_catalog.default:d, principal text not null storage x collate pg_catalog.default:d, occurred_at bigint not null storage p, user_agent text storage x collate pg_catalog.default:d, client_address inet storage m, country text storage x collate pg_catalog.default:d, region text storage x collate pg_catalog.default:d, city text storage x collate pg_catalog.default:d, autonomous_system bigint storage p, masked boolean not null storage p, masked_reason text storage x collate pg_catalog.default:d, outcome text not null storage x collate pg_catalog.default:d, recorded bigint not null storage p",
@@ -19458,7 +19465,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 198] = [
+    const DOCUMENTED: [(&str, usize, usize); 201] = [
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
@@ -19498,18 +19505,19 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 23, 15),
-        ("nc-catalog-compiler/emit.rs", 28, 15),
+        ("nc-catalog-compiler/docs.rs", 26, 15),
+        ("nc-catalog-compiler/emit.rs", 32, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
-        ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 59, 19),
-        ("nc-catalog-compiler/messages.rs", 20, 8),
-        ("nc-catalog-compiler/model.rs", 49, 17),
+        ("nc-catalog-compiler/lib.rs", 22, 15),
+        ("nc-catalog-compiler/load.rs", 60, 19),
+        ("nc-catalog-compiler/messages.rs", 21, 3),
+        ("nc-catalog-compiler/metadata.rs", 14, 1),
+        ("nc-catalog-compiler/model.rs", 54, 19),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 75, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 79, 113),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
-            13,
+            16,
             2,
         ),
         ("nc-catalog/capabilities.rs", 7, 1),
@@ -19517,11 +19525,12 @@ mod the_frozen_path_rule {
         ("nc-catalog/emails.rs", 6, 1),
         ("nc-catalog/errors.rs", 13, 6),
         ("nc-catalog/events.rs", 6, 3),
-        ("nc-catalog/i18n.rs", 14, 1),
-        ("nc-catalog/lib.rs", 0, 8),
+        ("nc-catalog/i18n.rs", 16, 1),
+        ("nc-catalog/lib.rs", 0, 9),
         ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
+        ("nc-catalog/wiki.rs", 6, 2),
         ("nc-channel/found.rs", 18, 10),
         ("nc-channel/lib.rs", 55, 16),
         ("nc-channel/record.rs", 15, 10),
@@ -19628,8 +19637,9 @@ mod the_frozen_path_rule {
         ("nc-prune/postgres.rs", 21, 10),
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
-        ("nc-schema/lib.rs", 92, 65),
-        ("nc-schema/properties.rs", 14, 1),
+        ("nc-schema/entry.rs", 41, 42),
+        ("nc-schema/lib.rs", 92, 66),
+        ("nc-schema/properties.rs", 18, 2),
         ("nc-schema/selector.rs", 18, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
@@ -19655,8 +19665,8 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 38, 21),
-        ("xtask/the_registry_reaches_the_code.rs", 26, 22),
+        ("xtask/the_pages_reach_the_catalog.rs", 40, 21),
+        ("xtask/the_registry_reaches_the_code.rs", 30, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -22443,8 +22453,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 719 scratches this tree
-    /// builds, 631 of the 719 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 750 scratches this tree
+    /// builds, 662 of the 750 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22528,7 +22538,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 168, 168),
+        ("nc-catalog-compiler/the_gates_fire.rs", 199, 199),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25512,7 +25522,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18273;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18528;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25531,7 +25541,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4702;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4733;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25548,7 +25558,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1582;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1592;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25582,7 +25592,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24966;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25145;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25636,7 +25646,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,966 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,145 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25669,7 +25679,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1582 of
+    /// this tree offers, **1592 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28171,7 +28181,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 738;
+    const THE_REST_IT_SAYS: usize = 739;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -32824,8 +32834,10 @@ mod the_frozen_path_rule {
         // The workflow. Composite actions and scripts would be more kinds, and
         // adding one is a line here.
         (".github", &["yml"], 1),
-        // Locale bundles and the catalog's own tables, all TOML.
-        ("catalog", &["toml"], 4),
+        // Locale bundles and the catalog's own tables, all TOML, and the wiki
+        // texts, of which only Markdown ships: a format the compiler reads and
+        // no file wears is an allowance nobody asked for.
+        ("catalog", &["md", "toml"], 4),
         // Sources, manifests, the denote corpus, proptest's saved
         // counterexamples, which belong in the tree by proptest's own design,
         // and the kernel's copy of the plugin world.
@@ -32911,12 +32923,15 @@ mod the_frozen_path_rule {
     /// this one. Both directions, so a registry deleted fails here as loudly as
     /// a file arriving.
     ///
-    /// `i18n` is the one directory, and its own contents are held by the
-    /// compiler rather than here: every file under it is loaded as a locale
-    /// bundle, and `LocaleFile` is `deny_unknown_fields`, so a file that is not
-    /// one fails the build with `registry-malformed` before this rule is
-    /// reached. What is asserted below is that it holds nothing but files.
-    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 9] = [
+    /// `i18n` and `wiki` are the two directories, and their contents are held
+    /// by the compiler rather than here: every file under `i18n` is loaded as
+    /// a locale bundle, and `LocaleFile` is `deny_unknown_fields`, so a file
+    /// that is not one fails the build with `registry-malformed` before this
+    /// rule is reached; and every path under `wiki` is placed under a locale,
+    /// a registry and an entry, in a format, or the build fails with
+    /// `wiki-misplaced`, `wiki-orphan` or `wiki-format-unknown`. What is
+    /// asserted below is that `i18n` holds nothing but files.
+    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 10] = [
         // The seven registries the compiler reads.
         "capabilities.toml",
         "commands.toml",
@@ -32929,6 +32944,8 @@ mod the_frozen_path_rule {
         "errors.reserved.toml",
         // And the locale bundles, one per translated language.
         "i18n",
+        // And the wiki texts, one tree per locale.
+        "wiki",
     ];
 
     /// A kind whose allowance in a tree belongs to one file name.
@@ -37492,7 +37509,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 212,
+            walked, 215,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37532,7 +37549,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2153] = [
+    static OPERATORS: [(&str, &str, &str); 2177] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40517,6 +40534,106 @@ Options:
             "descriptor",
             "judge",
             "a title holds nothing a reader cannot see",
+        ),
+        (
+            "schema_entry",
+            "judge_sentence",
+            "a text is measured in characters",
+        ),
+        (
+            "schema_entry",
+            "judge_sentence",
+            "a text holds nothing a reader cannot see",
+        ),
+        (
+            "schema_entry",
+            "judge",
+            "a translation is not the source sentence again",
+        ),
+        (
+            "schema_entry",
+            "judge",
+            "a paragraph that says what the line says is one sentence",
+        ),
+        (
+            "schema_entry",
+            "judge_tags",
+            "a tag twice is the same word in another case",
+        ),
+        ("schema_entry", "judge_tags", "the tags bound is a bound"),
+        ("schema_entry", "judge_tags", "an empty tag list is refused"),
+        (
+            "schema_entry",
+            "judge_categories",
+            "a category the registry does not hold is refused",
+        ),
+        ("schema_entry", "glyph", "a glyph is written one way"),
+        (
+            "schema_entry",
+            "glyph",
+            "a glyph past the basic plane is the point it names",
+        ),
+        (
+            "schema_entry",
+            "judge_wiki",
+            "a wiki text holds no control but its line breaks",
+        ),
+        (
+            "schema_entry",
+            "from_extension",
+            "an extension names a format in lower case only",
+        ),
+        (
+            "schema_entry",
+            "the_same_sentence",
+            "what shows nothing stands between words as a space",
+        ),
+        (
+            "schema_entry",
+            "placeholders",
+            "an empty brace pair names no placeholder",
+        ),
+        (
+            "schema_entry",
+            "a_reason_is_prose",
+            "a reason is four words at least",
+        ),
+        (
+            "compiler_metadata",
+            "listed",
+            "the wiki walk reads one order",
+        ),
+        (
+            "compiler_metadata",
+            "one_text",
+            "a wiki extension is read as written",
+        ),
+        (
+            "compiler_metadata",
+            "one_text",
+            "a wiki text names an entry the registry holds",
+        ),
+        (
+            "compiler_metadata",
+            "complete",
+            "a wiki text is in every locale",
+        ),
+        (
+            "compiler_metadata",
+            "complete",
+            "every locale writes a wiki text in one format",
+        ),
+        ("compiler_metadata", "complete", "a wiki text is translated"),
+        (
+            "compiler_metadata",
+            "wiki",
+            "a wiki text sits under a registry",
+        ),
+        ("compiler_metadata", "wiki", "a wiki text is a regular file"),
+        (
+            "compiler_metadata",
+            "one_command_per_display_name",
+            "two display names are compared as a reader reads them",
         ),
         (
             "pack",

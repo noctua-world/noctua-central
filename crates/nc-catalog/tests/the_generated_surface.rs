@@ -714,9 +714,9 @@ fn rendering_an_unknown_key_answers_nothing_rather_than_an_empty_sentence() {
 /// kernel's own sources are read for.
 #[test]
 fn a_registry_entry_is_sealed_against_construction() {
-    // The eleven, at the top of the body: clippy refuses an item after a
+    // The twelve, at the top of the body: clippy refuses an item after a
     // statement, and this is the list the whole test is written around.
-    const SEALED: [&str; 11] = [
+    const SEALED: [&str; 12] = [
         // The registry entry a dispatcher checks an action against.
         "Command",
         "EventSpec",
@@ -739,6 +739,9 @@ fn a_registry_entry_is_sealed_against_construction() {
         // The daemon's bounds on itself, sealed as the kernel's are: the daemon
         // reads `DAEMON` and takes no value of the type from its caller.
         "DaemonLimits",
+        // A wiki text, whose texts a surface shows as the entry's: one built
+        // elsewhere would be a text the catalog never judged.
+        "WikiText",
     ];
 
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));
@@ -856,7 +859,7 @@ fn a_registry_entry_is_sealed_against_construction() {
 fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
     // Every generated enum, at the top of the body for the reason `SEALED` is
     // at the top of its own: clippy refuses an item after a statement.
-    const OPEN: [&str; 12] = [
+    const OPEN: [&str; 13] = [
         // A host function names the one it asks for, so a capability added is a
         // compile error at every `match` over them rather than one arm short.
         "Capability",
@@ -871,6 +874,9 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
         "Reversibility",
         "Severity",
         "Strategy",
+        // A format a renderer matches on, so a format added is a compile error
+        // at every renderer rather than a text shown as another format.
+        "WikiFormat",
     ];
 
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));

@@ -729,6 +729,7 @@ mod tests {
             capabilities: Vec::new(),
             ungated: Vec::new(),
             locales: Vec::new(),
+            wiki: Vec::new(),
         }
     }
 

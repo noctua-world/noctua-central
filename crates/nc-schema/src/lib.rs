@@ -98,6 +98,7 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod descriptor;
+pub mod entry;
 pub mod selector;
 
 pub use descriptor::{

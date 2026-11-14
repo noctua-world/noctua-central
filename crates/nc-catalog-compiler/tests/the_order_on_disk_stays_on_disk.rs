@@ -502,3 +502,124 @@ fn boundaries(line: &str) -> usize {
     }
     found
 }
+
+/// Lays `catalog/wiki/` down again under `into`, every directory's entries
+/// made in name order or in its reverse.
+fn lay_out_the_wiki(into: &Path, reversed: bool) {
+    let from = root().join("catalog/wiki");
+    let to = into.join("catalog/wiki");
+    let _ = std::fs::remove_dir_all(&to);
+    lay_down(&from, &to, reversed);
+}
+
+/// One directory of the wiki tree, its entries made in the order asked.
+fn lay_down(from: &Path, to: &Path, reversed: bool) {
+    std::fs::create_dir_all(to).expect("writable");
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(from)
+        .expect("the wiki tree is there")
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+    entries.sort();
+    if reversed {
+        entries.reverse();
+    }
+    for path in entries {
+        let target = to.join(path.file_name().expect("a named entry"));
+        if path.is_dir() {
+            lay_down(&path, &target, reversed);
+        } else {
+            std::fs::copy(&path, &target).expect("writable");
+        }
+    }
+}
+
+/// Wiki texts are read in one order whatever order the directories list them in.
+///
+/// **The wiki walk is three `read_dir`s deep** — locales, registries, texts —
+/// and the order it reads them in reaches the generated `WIKI` table and the
+/// order of every diagnostic. The sort in its listing is what the hatch marker
+/// beside that `read_dir` asserts, and this is what checks the assertion: two
+/// trees whose every directory was made in opposite orders compile to the same
+/// bytes.
+#[test]
+fn wiki_texts_are_read_in_one_order_whatever_the_directory_order() {
+    if nc_platform::system::LISTED_AS_MADE.is_none() {
+        println!(
+            "skipped, not applicable on {}: no directory here lists its entries in the \
+             order they were made, and the Linux job runs it",
+            std::env::consts::OS
+        );
+        return;
+    }
+    let scratch = Scratch(
+        Path::new(nc_platform::system::LISTED_AS_MADE.expect("asked above"))
+            .join(format!("nc-wiki-order-{}", std::process::id())),
+    );
+    let _ = std::fs::remove_dir_all(&scratch.0);
+    let forward = scratch.0.join("forward");
+    let backward = scratch.0.join("backward");
+    lay_out(&forward, "en");
+    lay_out(&backward, "en");
+    lay_out_the_wiki(&forward, false);
+    lay_out_the_wiki(&backward, true);
+
+    for directory in ["catalog/wiki", "catalog/wiki/en/commands"] {
+        let one = as_the_filesystem_gives_them(&forward.join(directory));
+        let other = as_the_filesystem_gives_them(&backward.join(directory));
+        assert!(
+            one.len() > 1,
+            "{directory} holds {} entr(ies), so no order can differ",
+            one.len()
+        );
+        assert_ne!(
+            one, other,
+            "{directory} came back in one order from both trees, so this test would \
+             pass whatever the walk does with it"
+        );
+    }
+
+    let first =
+        nc_catalog_compiler::compile(&forward, nc_catalog_compiler::ledger::Bootstrap::Allow)
+            .expect("the catalog compiles");
+    let second =
+        nc_catalog_compiler::compile(&backward, nc_catalog_compiler::ledger::Bootstrap::Allow)
+            .expect("the catalog compiles");
+    assert!(
+        first.catalog.wiki.len() > 1,
+        "{} wiki text(s) were read, so their order cannot differ",
+        first.catalog.wiki.len()
+    );
+    assert_eq!(first.catalog.wiki, second.catalog.wiki);
+    assert_eq!(first.files, second.files);
+
+    // **And what the walk says, not only what it builds.** The texts are
+    // gathered into maps that sort themselves, so the generated files above
+    // cannot move with the walk; which of two texts written for one entry in
+    // one locale is the second — the one a diagnostic names — is the walk's
+    // order and nothing else's. Each tree gets the pair made in the opposite
+    // order, and both must say the same.
+    for (tree, made) in [(&forward, ["md", "txt"]), (&backward, ["txt", "md"])] {
+        let commands = tree.join("catalog/wiki/en/commands");
+        let english = std::fs::read_to_string(commands.join("kernel.undo.md"))
+            .expect("the shipped wiki text");
+        std::fs::remove_file(commands.join("kernel.undo.md")).expect("writable");
+        for extension in made {
+            std::fs::write(commands.join(format!("kernel.undo.{extension}")), &english)
+                .expect("writable");
+        }
+    }
+    let one = as_the_filesystem_gives_them(&forward.join("catalog/wiki/en/commands"));
+    let other = as_the_filesystem_gives_them(&backward.join("catalog/wiki/en/commands"));
+    assert_ne!(one, other, "the two pairs came back in one order");
+    let refused = |tree: &Path| {
+        nc_catalog_compiler::compile(tree, nc_catalog_compiler::ledger::Bootstrap::Allow)
+            .expect_err("two wiki texts for one entry in one locale are refused")
+    };
+    let said = refused(&forward);
+    assert!(
+        said.iter().any(|problem| problem.check == "wiki-twice"),
+        "{said:?}"
+    );
+    assert_eq!(said, refused(&backward));
+}
