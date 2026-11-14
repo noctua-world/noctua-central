@@ -8226,6 +8226,94 @@ def command_for(source):
 LONGEST = 900
 
 
+def run_bounded(command):
+    """`command` run to its end in `ROOT`, or `None` once `LONGEST` has passed.
+
+    **A command that does not finish takes what it started with it.**
+    `subprocess.run` with a timeout kills the one process it started, and that
+    is `cargo`: the test binary cargo started goes on, orphaned, holding its
+    suite's files and ports into the next operator's run. So a timeout ends
+    cargo and every process under it, a daemon a suite started included, and a
+    signal to this process alone does the same once the handler has put the
+    tree back. The command stays in this process's group, so an interrupt or a
+    hangup from the terminal ends cargo and its test binaries at once, as it
+    always did; a process a suite started outside that group outlives them then,
+    as it always did, since by the time the handler looks it is under nobody.
+    """
+    started = subprocess.Popen(
+        command,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        out, err = started.communicate(timeout=LONGEST)
+    except subprocess.TimeoutExpired:
+        end_with_what_it_started(started)
+        return None
+    except BaseException:
+        end_with_what_it_started(started)
+        raise
+    return subprocess.CompletedProcess(command, started.returncode, out, err)
+
+
+def end_with_what_it_started(started):
+    """End `started` and every process under it, and reap it.
+
+    **Frozen first, then ended.** Each process found under it is stopped before
+    the next look, so none can start another between the look and the kill,
+    and the look is repeated until it finds nothing new. Found by parent, as
+    `ps` lists them: a process whose parent ended before the look is no longer
+    under it. Where there is no `SIGSTOP`, only `started` is ended, and its
+    pipes are left to the reader threads that hold them.
+    """
+    if os.name != "posix":
+        started.kill()
+        started.wait()
+        return
+    frozen = []
+    found = [started.pid]
+    while found:
+        for pid in found:
+            try:
+                os.kill(pid, signal.SIGSTOP)
+            except ProcessLookupError:
+                continue
+            frozen.append(pid)
+        found = [pid for pid in under(started.pid) if pid not in frozen]
+    for pid in frozen:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    for pipe in (started.stdout, started.stderr):
+        if pipe is not None:
+            pipe.close()
+    started.wait()
+
+
+def under(root):
+    """Every process whose chain of parents reaches `root`, as `ps` lists them."""
+    listed = subprocess.Popen(
+        ["ps", "-A", "-o", "pid=", "-o", "ppid="],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).communicate()[0]
+    children = {}
+    for line in listed.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and fields[0].isdigit() and fields[1].isdigit():
+            children.setdefault(int(fields[1]), []).append(int(fields[0]))
+    found, waiting = [], [root]
+    while waiting:
+        for child in children.get(waiting.pop(), []):
+            found.append(child)
+            waiting.append(child)
+    return found
+
+
 # **What a suite says when it stops before the mutant, and what fixes each.**
 # Each first half is copied, word for word, from the suite that says it, and
 # `check.rs` holds every copy to the tree. A failure is this file's word for
@@ -8266,15 +8354,8 @@ def run_corpus(source):
     # them all — and pays for the second command only on a survivor.
     done = None
     for command in command_for(source):
-        try:
-            done = subprocess.run(
-                command,
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-                timeout=LONGEST,
-            )
-        except subprocess.TimeoutExpired:
+        done = run_bounded(command)
+        if done is None:
             return "did not finish"
         if done.returncode != 0:
             break
@@ -8656,11 +8737,8 @@ def refuse_if_a_suite_fails_unweakened(when):
     says so.
     """
     for command in the_commands_judging([source for source, *_ in WEAKENINGS]):
-        try:
-            done = subprocess.run(
-                command, cwd=ROOT, capture_output=True, text=True, timeout=LONGEST
-            )
-        except subprocess.TimeoutExpired:
+        done = run_bounded(command)
+        if done is None:
             print(f"`{' '.join(command)}` did not finish on the tree {when}.")
             return True
         if done.returncode != 0:

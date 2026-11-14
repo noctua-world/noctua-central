@@ -461,8 +461,11 @@ pub trait Store {
     /// that row is never found, and what the store kept of it outlives the
     /// journal that never took it. Asked here, it is the same four columns
     /// [`Store::unit_closing`] asks — `realm`, `work_unit`, `action` and
-    /// `result` — none of which is the part of a row that fails to decode,
-    /// which is the argument [`Store::head`] makes.
+    /// `result` — and the sequence an opening bracket stands at, none of which
+    /// is the part of a row that fails to decode, which is the argument
+    /// [`Store::head`] makes. An open bracket's `work_unit` is read as the
+    /// identifier it spells, and one not spelled as this code writes it is
+    /// refused by name (**Errors**) rather than skipped.
     ///
     /// **Required, and no implementation is provided.** One provided over
     /// `from(0)` would be the slow path and the blind spot this exists to

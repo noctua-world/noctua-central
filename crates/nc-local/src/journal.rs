@@ -40,13 +40,13 @@
 //! - **Which units are open is asked of four columns**: the realm, the unit,
 //!   the action and the outcome — over the index `(realm, work_unit)`, never
 //!   over the history — so a row nothing can decode hides no unit opened after
-//!   it. Every entry of the realm inside a unit is visited through the index,
-//!   read from those columns and never decoded, so the answer costs the
-//!   realm's units and not every realm's history. An opening bracket whose
-//!   unit is not spelled as this code writes one is refused by name
-//!   (`Error::Undecodable`), never skipped: read leniently it is a unit no
-//!   question finds by its text, and skipped it might be the one a stopped
-//!   process left.
+//!   it. Every entry of the realm inside a unit is visited through the index
+//!   and read from those columns, none decoded but the unit each open one
+//!   names, so the answer costs the realm's units and not every realm's
+//!   history. An opening bracket whose unit is not spelled as this code writes
+//!   one is refused by name (`Error::Undecodable`), never skipped: read
+//!   leniently it is a unit no question finds by its text, and skipped it
+//!   might be the one a stopped process left.
 //! - **The newest unit is the largest any entry names, in any realm**
 //!   ([`LocalJournal::newest_unit`]): what a daemon's start resumes its
 //!   identifiers above, beside its mark and the newest unit the store

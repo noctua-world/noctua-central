@@ -35581,6 +35581,7 @@ mod the_meta_gate {
              spec.loader.exec_module(runner); \
              done = type('Done', (), {{'returncode': 101, 'stdout': sys.argv[1], 'stderr': ''}}); \
              runner.subprocess.run = lambda *args, **kwargs: done; \
+             runner.run_bounded = lambda command: done; \
              print(runner.run_corpus('kernel_bindings'))",
             root.join("xtask/mutants.py").display().to_string()
         );
@@ -35663,6 +35664,7 @@ mod the_meta_gate {
                  fails = mode == 'fails' or (mode == 'later' and len(judged) > 2)\n    \
                  return Done(101 if fails else 0)\n\
              runner.subprocess.run = run\n\
+             runner.run_bounded = run\n\
              runner.refuse_if_the_database_is_absent = lambda: False\n\
              runner.refuse_if_a_previous_run_was_killed = lambda: False\n\
              with tempfile.TemporaryDirectory() as scratch:\n    \

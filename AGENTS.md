@@ -462,7 +462,7 @@ fails a gate a minute or two later.
 | a host function that waits | its interface's file under `crates/nc-kernel/src/host/` | its body, after the capability is asked, goes through `supervisor::in_time` under its `interface#function` name with `self.left()`, which holds it to `host_call_deadline_ms` or to what its call tree has left, whichever is nearer, and kills the plugin past it — every host function but `commands.dispatch`, whose command runs under its call tree's deadline and whose waits on the journal the decision point holds to the same bound (`Waits` in `crates/nc-kernel/src/dispatch.rs`) — and a case in `crates/nc-kernel/tests/isolation.rs` makes it never answer, on a paused clock, and reads the kill back as `[NC-PLUG-0006]` naming that function |
 | a note a unit keeps | `Note` in `crates/nc-kernel/src/history.rs` | its kind is its `note` field, written as canonical JSON and read back by `Note::read`, the one reader: a note of a kind it does not know, or of a known kind in another shape, is refused as a row the kernel did not write (`NC-DB-0007`), so an undo never acts on a note it misread. A note of a blob made or a request sent is written where it happens (`crate::blobs`, `crate::net`) and read here too. A unit's notes of every kind share `store_notes`' bound, and `every_note_the_history_writes_is_read_back_as_itself` holds each kind's text both ways |
 | a call the kernel asks of the store | `StoreBackend` in `crates/nc-kernel/src/backend.rs` | the same method on `nc_local::LocalStore` first — the trait answers as that store does, and is its specification — then on `MemoryBackend` beside the trait, with the same refusals in the same sentences; `crates/nc-kernel/tests/both_stores_answer_alike.rs` runs each script through both and holds the two transcripts equal, and its property test drives both through every operation, in two realms and every kind of unit, so a call the second store answers otherwise fails there — a script or a sequence that never varies what a filter selects on cannot see that filter go |
-| a call the kernel asks of the journal store | `nc_journal::Store` in `crates/nc-journal/src/lib.rs` | a **required** method — one provided over `from(0)` would be the slow path, and the blind spot of a row that does not decode, inherited in silence — answered in the same change by all three stores: `InMemory` (`memory.rs`, the specification), `Postgres` (`postgres.rs`, one statement over columns that cannot fail to decode) and `nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, every statement in that crate), and by every test store that implements the trait — `unit.rs`, `tampering.rs` and the kernel suites' wrappers. Its `# Errors` section names what each implementation builds (`every_errors_section_names_what_its_body_builds`, whose count of sections is written down), the shared scripts of `crates/nc-journal/tests/in_postgres.rs` ask it of the two stores in that crate, and `crates/nc-local/tests/the_local_journal.rs` holds the local journal's transcript to both, over written scripts and generated ones |
+| a call the kernel asks of the journal store | `nc_journal::Store` in `crates/nc-journal/src/lib.rs` | a **required** method — one provided over `from(0)` would be the slow path, and the blind spot of a row that does not decode, inherited in silence — answered in the same change by all three stores: `InMemory` (`memory.rs`, the specification), `Postgres` (`postgres.rs`, one statement over the columns that bracket a unit, and nothing decoded but the unit each open one names) and `nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, every statement in that crate), and by every test store that implements the trait — `unit.rs`, `tampering.rs` and the kernel suites' wrappers. Its `# Errors` section names what each implementation builds (`every_errors_section_names_what_its_body_builds`, whose count of sections is written down), the shared scripts of `crates/nc-journal/tests/in_postgres.rs` ask it of the two stores in that crate, and `crates/nc-local/tests/the_local_journal.rs` holds the local journal's transcript to both, over written scripts and generated ones |
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
@@ -1508,11 +1508,12 @@ the plugin store: `local_journal_entries`, built by
   One that fails is where `from` stops and what `tail` refuses as `Undecodable`
   (`NC-JRNL-0001`), at its own sequence, and `journal.verify` reports it there as a
   tampered row (`NC-JRNL-0002`).
-- **Which units are open is asked of four columns** — the realm, the unit, the action
-  and the outcome, over the index `(realm, work_unit)` — so no row that fails to decode
-  hides a unit opened after it, and a recovery visits the realm's entries inside units,
-  never decoded, rather than every realm's history. An opening bracket whose unit is not
-  spelled as this code writes one is refused by name, never skipped (`NC-JRNL-0001`).
+- **Which units are open is asked of four columns** — the realm, the unit, the action and
+  the outcome, over the index `(realm, work_unit)` — so no row that fails to decode hides
+  a unit opened after it, and a recovery visits the realm's entries inside units, decoding
+  none of them but the unit each open one names, rather than every realm's history. An
+  opening bracket whose unit is not spelled as this code writes one is refused by name,
+  never skipped (`NC-JRNL-0001`).
 
 **Enforced by** `crates/nc-local/tests/the_local_journal.rs` — the triggers from a
 connection of its own, rows planted past the next sequence with the checks on and off, a
@@ -3278,23 +3279,24 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **Plugins can time one another**: they share one process, one machine and one bus, one
   top-level call tree at a time, and nothing pads, batches or randomises a wait — the
   reason the kernel's crate header names timing between plugins as unanswered.
-- **Recovery finds what was left open, and not what is broken.** A kernel opening asks
-  the journal's store which units of its realm are open (`nc_journal::Store::open_units`):
-  the columns that bracket a unit, never a read of the history, so a row nothing can
-  decode hides no unit opened after it. Its cost still grows with the history, and not
-  only with what was left open: four columns of each entry visited are compared and none
-  is decoded, but the local journal's index `(realm, work_unit)` visits every entry of
-  the realm inside a unit, whatever the data, since invariant 18 leaves the planner's
+- **Recovery finds what was left open, and not what is broken.** A kernel opening asks the
+  journal's store which units of its realm are open (`nc_journal::Store::open_units`): the
+  columns that bracket a unit, never a read of the history, so a row nothing can decode
+  hides no unit opened after it. Its cost still grows with the history, and not only with
+  what was left open: four columns of each entry visited are compared and none is decoded
+  — the local journal and PostgreSQL decode nothing but the unit each open one names, from
+  its text — yet the local journal's index `(realm, work_unit)` visits every entry of the
+  realm inside a unit, whatever the data, since invariant 18 leaves the planner's
   statistics ungathered there; and PostgreSQL, which indexes the realm and the unit apart
   (`journal_entries_realm`, `journal_entries_work_unit`) and the two together nowhere,
-  reads the opening brackets and their closes each through those indexes or over the
-  whole table, by the cost its planner estimates, so a recovery there may visit every
-  entry of every realm. It does not look for a broken row, and logs nothing about a
-  history it never reads: `journal.verify` still stops at it and reports it
-  (`journal.broken`), and nothing runs that verification on a schedule. An opening
-  bracket it cannot name keeps the kernel shut, as the decision point's **Not answered**
-  says. Two kernels over one journal would each take the other's open units for a stopped
-  process's; one daemon keeps one profile.
+  reads the opening brackets and their closes each through those indexes or over the whole
+  table, by the cost its planner estimates, so a recovery there may visit every entry of
+  every realm. It does not look for a broken row, and logs nothing about a history it
+  never reads: `journal.verify` still stops at it and reports it (`journal.broken`), and
+  nothing runs that verification on a schedule. An opening bracket it cannot name keeps
+  the kernel shut, as the decision point's **Not answered** says. Two kernels over one
+  journal would each take the other's open units for a stopped process's; one daemon keeps
+  one profile.
 - **The schedule is the running daemon's, and nothing put off outlives the kernel.**
   Timers and events are kept on no disk. A daemon pumps its kernel every `pump_every_ms`
   — the timers due, the events queued, and `nc-prune` over the local database — and
