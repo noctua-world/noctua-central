@@ -463,6 +463,22 @@ async fn a_command_outside_the_plugins_namespace_or_in_a_reserved_one_is_rejecte
     );
 }
 
+/// A command selecting a feature of the platform is refused, and named.
+///
+/// **Through the real component**: the judge every built-in is held to
+/// accepts the form, so the kernel's own refusal at `activate` is what keeps a
+/// plugin from borrowing the permit a person's naming commands are decided by.
+#[tokio::test]
+async fn a_command_selecting_a_feature_of_the_platform_is_refused_and_named() {
+    let (code, sentence) = the_one_problem(Variant::SelectsAFeature).await;
+    assert_eq!(code, ErrorCode::PluginDescriptorInvalid);
+    assert_eq!(
+        sentence,
+        "`reference.note.get` of `noctua:reference` selects the feature `naming` of the \
+         platform, which only a command of the kernel's own selects"
+    );
+}
+
 #[tokio::test]
 async fn an_action_the_schema_does_not_declare_is_rejected() {
     let (code, sentence) = the_one_problem(Variant::UnknownAction).await;
@@ -747,7 +763,7 @@ fn sized(bytes: &[u8]) -> Vec<u8> {
 #[tokio::test]
 async fn a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled() {
     let kernel = kernel::<InMemory>(MemoryBackend::default()).await;
-    for namespace in ["journal", "kernel", "limits"] {
+    for namespace in ["journal", "kernel", "limits", "naming"] {
         let refused = kernel
             .load(
                 manifest("noctua:reference", namespace),

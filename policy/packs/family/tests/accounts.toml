@@ -13,10 +13,9 @@
 # account back its undo and redo. The gate refuses a type test
 # that guards no read in a floor's condition, and these cases stand behind the
 # shape it still excuses. So a suspended member is refused here on `Content`,
-# the `Realm` and her own `User`. A guardian who has died is refused on those
-# three and on a `Feature`, which his role reaches. No permit lets a member
-# who is not a guardian reach a `Feature`, so a case asking about one for her
-# would be a denial that proves nothing.
+# the `Realm`, her own `User` and the `naming` `Feature`, which the naming
+# permit gives every person of the house. A guardian who has died is refused
+# on the first three and on a `Feature` his role reaches.
 
 [default.context]
 now = { datetime = "2026-08-26T00:00:00Z" }
@@ -43,6 +42,15 @@ name = "a suspended account steps through no history, not even its own"
 principal = 'User::"dora"'
 action = "Write"
 resource = 'Realm::"home"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The naming permit gives every person of the house a file's name.
+name = "a suspended account has no file named"
+principal = 'User::"dora"'
+action = "Read"
+resource = 'Feature::"naming"'
 decision = "deny"
 because = "family.a_frozen_account_acts_on_nothing"
 

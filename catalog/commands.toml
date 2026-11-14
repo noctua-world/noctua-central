@@ -41,9 +41,12 @@
 #
 #   action             the Cedar action name the PDP evaluates
 #   resource_selector  how the kernel extracts the resource from the arguments:
-#                      `realm`, or `argument:<name>` naming a required string
+#                      `realm`; `argument:<name>` naming a required string
 #                      argument whose schema carries `x-entity` — the Cedar type
-#                      it identifies — and a `maxLength` of at most 128
+#                      it identifies — and a `maxLength` of at most 128; or
+#                      `feature:<id>`, a feature of the platform the realm's
+#                      directory holds, for a command of the kernel's own that
+#                      reads none of the realm's data — a plugin is refused it
 #   reversibility      read | write | irreversible
 #   mutating           whether it changes state at all
 #
@@ -54,10 +57,11 @@
 # with (`§11.7`).
 #
 # The commands below are the kernel's own operations: verifying the journal's
-# chain, pruning a table that has passed its limit, and stepping back and
-# forward through a person's own history. The kernel registers every one as
-# its own — a command in the namespaces it keeps, `kernel.`, `journal.` and
-# `limits.`, is the kernel's — decides each at its decision point as it decides
+# chain, pruning a table that has passed its limit, stepping back and forward
+# through a person's own history, and proposing and reading a file's name. The
+# kernel registers every one as its own — a command in the namespaces it keeps,
+# `kernel.`, `journal.`, `limits.` and `naming.`, is the kernel's — decides
+# each at its decision point as it decides
 # a plugin's, and runs each one it allows itself: every command here has a
 # handler in `crates/nc-kernel/src/builtin.rs`, and that file's test holds the
 # two lists to each other both ways. A plugin's commands are not written here:
@@ -135,3 +139,46 @@ reversibility = "write"
 mutating = true
 args_schema = """
 {"type":"object","properties":{},"additionalProperties":false}"""
+
+# Denote naming, reached the same way from every surface (`NOCTUA.md §16.3`):
+# the one builder and the one parser of `nc-ids`, as two commands. Both read
+# nothing of the realm's data, so they select the platform's `naming` feature
+# rather than the realm — `Read` on `Feature::"naming"`, which the family pack
+# gives every person of the realm — and both are reads: an identifier is not
+# state, so nothing is kept and nothing could be undone. The arguments are
+# never journaled; the entry names the command and the feature.
+#
+# The bounds: a name is at most 255 bytes, `nc_ids::naming::MAX_BYTES`, and a
+# character is a byte at least, so a signature part, a keyword, an extension or
+# a name longer than 255 characters can never fit; each list item costs a
+# character and its joiner, so 128 items are past any that fit. The title is
+# shortened by the builder to fit, so its bound only bounds the work. `id` is
+# the text of an identifier a file already carries — kept, so a renamed file is
+# still the same file — and without it the machine's one minter mints one.
+[[command]]
+name = "naming.propose"
+title = "command.naming.propose.title"
+description = "command.naming.propose.description"
+paragraph = "command.naming.propose.paragraph"
+tags = "command.naming.propose.tags"
+glyph = "U+F040"   # nf-fa-pencil
+action = "Read"
+resource_selector = "feature:naming"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"title":{"type":"string","maxLength":1024},"signature":{"type":"array","items":{"type":"string","maxLength":255},"maxItems":128},"keywords":{"type":"array","items":{"type":"string","maxLength":255},"maxItems":128},"extension":{"type":"string","maxLength":255},"id":{"type":"string","minLength":1,"maxLength":13}},"additionalProperties":false}"""
+
+[[command]]
+name = "naming.read"
+title = "command.naming.read.title"
+description = "command.naming.read.description"
+paragraph = "command.naming.read.paragraph"
+tags = "command.naming.read.tags"
+glyph = "U+F06E"   # nf-fa-eye
+action = "Read"
+resource_selector = "feature:naming"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}"""

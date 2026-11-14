@@ -6809,3 +6809,361 @@ async fn journal_rows(store: &LocalStore) -> i64 {
         .await
         .expect("the journal counts")
 }
+
+/// The command that proposes a file's name.
+const PROPOSE: &str = "naming.propose";
+
+/// The command that reads a file's name back.
+const READ_NAME: &str = "naming.read";
+
+/// The deciding `@id` of every naming command a person is allowed.
+const NAMES_FILES: &str = "family.a_member_names_files";
+
+/// A ceiling that makes nothing durable, so a minter given it mints nothing.
+#[derive(Debug)]
+struct NothingDurable;
+
+impl nc_ids::Ceiling for NothingDurable {
+    fn raise(&mut self, _at_least: u64) -> Result<u64, nc_ids::CeilingRefused> {
+        Err(nc_ids::CeilingRefused)
+    }
+
+    fn settle(&mut self, _high_water: u64) -> Result<(), nc_ids::CeilingRefused> {
+        Err(nc_ids::CeilingRefused)
+    }
+}
+
+/// A kernel with no plugin, over the world the policy cases are about, with
+/// grants for the household's persons, ana's laptop and ana's assistant —
+/// minting on a minter held to `ceiling` when one is given — and that world.
+async fn naming(
+    ceiling: Option<Box<dyn nc_ids::Ceiling>>,
+) -> (Kernel<Env<nc_journal::InMemory>>, MemoryDirectory) {
+    let seen = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
+    let mut directory = MemoryDirectory::from_world(WORLD, &family())
+        .expect("the world is valid")
+        .with_epoch("home", EPOCH);
+    for (kind, id) in [
+        ("User", "ana"),
+        ("User", "bruno"),
+        ("User", "carla"),
+        ("User", "dora"),
+        ("Device", "ana-laptop"),
+        ("Agent", "ana-assistant"),
+    ] {
+        directory = directory
+            .with_grant(
+                "home",
+                EntityRef {
+                    type_name: kind.to_owned(),
+                    id: id.to_owned(),
+                },
+                "g.current",
+            )
+            .expect("the realm holds the grant");
+    }
+    let clock = Manual::at(NOW_MS);
+    let mut minter = Minter::new(MachineFlake::from_value(9).expect("a flake"), clock.clone());
+    if let Some(ceiling) = ceiling {
+        minter = minter.with_ceiling(ceiling, 0);
+    }
+    let kernel = Kernel::open(KernelConfig {
+        store: stalling(
+            LocalStore::in_memory_for_tests()
+                .await
+                .expect("the local database opens in memory"),
+        ),
+        blobs: nc_kernel::blobs::MemoryBlobs::default(),
+        pdp: Ok(family()),
+        journal: nc_journal::Journal::new(
+            nc_journal::InMemory::default(),
+            seen.realm_id("home").expect("home is a realm"),
+            the_keeper(),
+            minter,
+        ),
+        directory: Flaky {
+            inner: directory,
+            mode: Arc::new(Mutex::new(Mode::Answers)),
+            call: Arc::new(Mutex::new(Call::Realm)),
+        },
+        clock,
+        log: Arc::new(Captured::default()),
+        transport: nc_kernel::net::Scripted::default(),
+    })
+    .await
+    .expect("the kernel opens");
+    (kernel, seen)
+}
+
+/// The entity an entry records its dispatch was decided on, as canonical JSON.
+fn entity_of(entry: &Entry) -> Option<String> {
+    entry
+        .record
+        .resource
+        .clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove("entity"))
+        .map(|entity| entity.to_canonical())
+}
+
+/// Every person of the household has a name proposed and read, each decided
+/// on the naming feature.
+///
+/// **A person's permit, not a guardian's**: a guardian, an adult and a child
+/// are each answered, each read back as the name proposed, and each entry
+/// names `Feature::"naming"` and the permit that decided it. Neither command
+/// changes anything, so no unit is opened and no entry carries one.
+#[tokio::test]
+async fn every_person_of_the_household_has_a_name_proposed_and_read_decided_on_the_naming_feature()
+{
+    let (kernel, world) = naming(None).await;
+    let args = Value::object([
+        ("title", Value::text("Praia de Copacabana")),
+        (
+            "signature",
+            Value::Array(vec![Value::text("familia"), Value::text("fotos")]),
+        ),
+        ("keywords", Value::Array(vec![Value::text("brasil")])),
+        ("extension", Value::text("jpg")),
+    ])
+    .to_canonical();
+    let persons = ["ana", "bruno", "carla"];
+    for person in persons {
+        let caller = Caller::new(
+            world
+                .principal(PrincipalKind::User, person)
+                .expect("a person"),
+        );
+        let proposed = kernel
+            .dispatch(&caller, PROPOSE, &args)
+            .await
+            .unwrap_or_else(|refused| panic!("{person} has no name proposed: {refused}"));
+        let name = text(&proposed, "name");
+        assert_eq!(
+            name,
+            format!(
+                "==familia=fotos--praia-de-copacabana__brasil@@{}.jpg",
+                text(&proposed, "id")
+            ),
+            "{person}"
+        );
+        let read = kernel
+            .dispatch(
+                &caller,
+                READ_NAME,
+                &Value::object([("name", Value::text(name.as_str()))]).to_canonical(),
+            )
+            .await
+            .unwrap_or_else(|refused| panic!("{person} has no name read: {refused}"));
+        assert_eq!(field(&read, "canonical"), Value::Bool(true), "{read}");
+        for key in ["extension", "id", "keywords", "name", "signature", "title"] {
+            assert_eq!(field(&read, key), field(&proposed, key), "{person}: {key}");
+        }
+    }
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    assert_eq!(
+        entries.len(),
+        persons.len() * 2,
+        "a naming command opened a unit: {entries:#?}"
+    );
+    for entry in &entries {
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(entry.record.action, "Read", "{entry:?}");
+        assert_eq!(deciding(entry), Some(NAMES_FILES), "{entry:?}");
+        assert_eq!(entry.record.work_unit, None, "{entry:?}");
+        assert_eq!(
+            entity_of(entry).as_deref(),
+            Some(r#"{"id":"naming","type":"Feature"}"#),
+            "{entry:?}"
+        );
+    }
+    let decided: Vec<&str> = entries
+        .iter()
+        .map(|entry| entry.record.principal.as_str())
+        .collect();
+    assert_eq!(decided, ["ana", "ana", "bruno", "bruno", "carla", "carla"]);
+}
+
+/// A frozen account, a device and an agent have no name proposed.
+///
+/// Dora's account is suspended, and the floor refuses her whatever a permit
+/// says; ana's laptop is attested and holds a grant, and no permit lets a
+/// device name a file; and ana's assistant is refused as every agent the
+/// kernel is asked for is, until Stage 15 marks a dispatch as an agent's. Each
+/// refusal says only the code, and the journal names what decided it.
+#[tokio::test]
+async fn a_frozen_account_a_device_and_an_agent_have_no_name_proposed() {
+    let (kernel, world) = naming(None).await;
+    let args = r#"{"title":"Praia"}"#;
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+        (
+            PrincipalKind::Agent,
+            "ana-assistant",
+            "core.an_agent_never_impersonates",
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        let refused = kernel.dispatch(&caller, PROPOSE, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{id}: {refused:?}"
+        );
+        let entries = kernel.journal_for_tests().await.expect("the journal reads");
+        let entry = entries.last().expect("the denial was journaled");
+        assert_eq!(
+            (entry.record.principal.as_str(), entry.record.result),
+            (id, Outcome::Denied)
+        );
+        assert_eq!(deciding(entry), Some(decided), "{id}");
+        assert_eq!(
+            entity_of(entry).as_deref(),
+            Some(r#"{"id":"naming","type":"Feature"}"#),
+            "{id}"
+        );
+    }
+}
+
+/// A proposal without an identifier mints a fresh one, and a rename keeps the
+/// identifier it was given.
+///
+/// **The identity of a file is its identifier** (`NOCTUA.md §16.3`): two
+/// proposals of one title are two files, each under an identifier the
+/// machine's one minter made; and a file renamed — a new title, the
+/// identifier read off its old name — keeps it, in its canonical spelling
+/// however it was written, so the renamed file reads back as the same one.
+#[tokio::test]
+async fn a_rename_keeps_the_identifier_it_was_given() {
+    let (kernel, world) = naming(None).await;
+    let carla = Caller::new(
+        world
+            .principal(PrincipalKind::User, "carla")
+            .expect("a person"),
+    );
+    let first = kernel
+        .dispatch(&carla, PROPOSE, r#"{"title":"Old title"}"#)
+        .await
+        .expect("a name is proposed");
+    let second = kernel
+        .dispatch(&carla, PROPOSE, r#"{"title":"Old title"}"#)
+        .await
+        .expect("a name is proposed");
+    assert_ne!(
+        text(&first, "id"),
+        text(&second, "id"),
+        "two proposals were given one identifier"
+    );
+    let id = text(&first, "id");
+    let kept = Value::object([
+        ("title", Value::text("New title")),
+        ("id", Value::text(id.to_lowercase())),
+    ])
+    .to_canonical();
+    let renamed = kernel
+        .dispatch(&carla, PROPOSE, &kept)
+        .await
+        .expect("a rename is proposed");
+    assert_eq!(text(&renamed, "id"), id, "the rename has another identity");
+    assert_eq!(
+        text(&renamed, "name"),
+        format!("--new-title@@{id}"),
+        "{renamed}"
+    );
+    let read = kernel
+        .dispatch(
+            &carla,
+            READ_NAME,
+            &Value::object([("name", Value::text(text(&renamed, "name")))]).to_canonical(),
+        )
+        .await
+        .expect("the renamed file's name reads back");
+    assert_eq!(text(&read, "id"), id);
+    let unread = kernel
+        .dispatch(&carla, PROPOSE, r#"{"id":"U","title":"t"}"#)
+        .await;
+    assert!(
+        is(&unread, RefusalKind::Invalid, ErrorCode::IdsNotAnIdentifier),
+        "{unread:?}"
+    );
+}
+
+/// A plugin proposes a name from inside a read, as the tree's person.
+///
+/// **Every surface that dispatches reaches the same commands**, a plugin
+/// that saves a file among them: nested beneath a read, since neither
+/// changes anything, decided as the person the tree runs for, and journaled
+/// as the kernel's own command.
+#[tokio::test]
+async fn a_plugin_proposes_a_name_from_inside_a_read_as_the_trees_person() {
+    let (fixture, _) = reference().await;
+    let relayed = fixture
+        .as_(
+            "carla",
+            "reference.relay.read",
+            &relay(PROPOSE, r#"{"extension":"md","title":"From inside"}"#, None),
+        )
+        .await
+        .expect("carla reads the photo the house shares");
+    assert_eq!(field(&relayed, "answered"), Value::Integer(1), "{relayed}");
+    let last = text(&relayed, "last");
+    assert_eq!(
+        text(&last, "name"),
+        format!("--from-inside@@{}.md", text(&last, "id")),
+        "{last}"
+    );
+    let entries = fixture.entries().await;
+    let nested = only(&entries, PROPOSE);
+    assert_eq!(
+        (nested.record.principal.as_str(), nested.record.result),
+        ("carla", Outcome::Allowed)
+    );
+    assert_eq!(deciding(nested), Some(NAMES_FILES));
+    assert_eq!(nested.record.work_unit, None, "a read's tree opened a unit");
+}
+
+/// A journal that mints nothing leaves a proposal unavailable, and a kept
+/// identifier still answered.
+///
+/// **No identifier is never one made up**: the minter's ceiling refuses its
+/// raise, so `naming.propose` without an identifier is refused as the journal
+/// refused it — unavailable, in the identifiers' own code — while one keeping
+/// an identifier mints nothing and is answered, and so is a read.
+#[tokio::test]
+async fn a_journal_that_mints_nothing_leaves_a_proposal_unavailable() {
+    let (kernel, world) = naming(Some(Box::new(NothingDurable))).await;
+    let ana = Caller::new(
+        world
+            .principal(PrincipalKind::User, "ana")
+            .expect("a person"),
+    );
+    let refused = kernel.dispatch(&ana, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Unavailable,
+            ErrorCode::IdsCeilingNotRaised
+        ),
+        "{refused:?}"
+    );
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    let entry = only(&entries, PROPOSE);
+    assert_eq!(entry.record.result, Outcome::Failed, "{entry:?}");
+    let kept = kernel
+        .dispatch(&ana, PROPOSE, r#"{"id":"01J8XK2M9P51","title":"t"}"#)
+        .await
+        .expect("a kept identifier mints nothing");
+    assert_eq!(text(&kept, "name"), "--t@@01J8XK2M9P51");
+    kernel
+        .dispatch(&ana, READ_NAME, r#"{"name":"--t@@01J8XK2M9P51"}"#)
+        .await
+        .expect("a read mints nothing");
+}

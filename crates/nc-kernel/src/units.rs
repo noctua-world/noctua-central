@@ -1628,13 +1628,18 @@ async fn revert<E: Environment>(shared: &Shared<E>, unit: Snowflake) -> Result<(
         })?;
     let restored = restored(shared, &detail).await?;
     let held = still_held(shared, &detail, &restored).await?;
-    let by = shared.journal.lock().await.mint_unit().map_err(|error| {
-        Refusal::new(
-            RefusalKind::Unavailable,
-            error.code(),
-            "the journal minted no identifier for the reversal's own unit".to_owned(),
-        )
-    })?;
+    let by = shared
+        .journal
+        .lock()
+        .await
+        .mint_identifier()
+        .map_err(|error| {
+            Refusal::new(
+                RefusalKind::Unavailable,
+                error.code(),
+                "the journal minted no identifier for the reversal's own unit".to_owned(),
+            )
+        })?;
     let mut record = reversal(&detail, by, shared.clock.now_ms(), restored, &held)
         .map_err(|failed| store_failed(&failed))?;
     // **A pin put back only on a blob the store still holds**: one whose row is

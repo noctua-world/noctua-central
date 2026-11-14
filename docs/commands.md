@@ -95,3 +95,45 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"table":{"type":"string"},"dry_run":{"type":"boolean"}},"additionalProperties":false}
 ```
 
+## `naming.propose`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:naming` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it changes nothing |
+| Glyph | `U+F040` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Propose a file name | Propor um nome de arquivo |
+| Line description | Build a file name from a title, signature, keywords and extension. | Montar o nome de um arquivo com título, assinatura, palavras-chave e extensão. |
+| Paragraph | Writes the name Noctua gives a saved file: its signature, title, keywords, identifier and extension, each cleaned of what a file name cannot hold. A file being renamed keeps the identifier you give, so it stays the same file; without one, a new identifier is made. It saves nothing and changes nothing. | Escreve o nome que o Noctua dá a um arquivo salvo: a assinatura, o título, as palavras-chave, o identificador e a extensão, cada um limpo do que um nome de arquivo não comporta. Um arquivo renomeado mantém o identificador que você informar e continua sendo o mesmo arquivo; sem ele, um identificador novo é criado. Não salva nada e não muda nada. |
+| Tags | file name, name a file, rename, save as, propose | nome de arquivo, nomear arquivo, renomear, salvar como, propor |
+
+```json
+{"type":"object","properties":{"title":{"type":"string","maxLength":1024},"signature":{"type":"array","items":{"type":"string","maxLength":255},"maxItems":128},"keywords":{"type":"array","items":{"type":"string","maxLength":255},"maxItems":128},"extension":{"type":"string","maxLength":255},"id":{"type":"string","minLength":1,"maxLength":13}},"additionalProperties":false}
+```
+
+## `naming.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:naming` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it changes nothing |
+| Glyph | `U+F06E` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read a file name | Ler um nome de arquivo |
+| Line description | Read a file name back into its identifier, signature, title and keywords. | Ler um nome de arquivo e dizer seu identificador, assinatura e palavras-chave. |
+| Paragraph | Reads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing. | Lê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada. |
+| Tags | file name, read a name, identifier, parse, details | nome de arquivo, ler um nome, identificador, analisar, detalhes |
+
+```json
+{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}
+```
+

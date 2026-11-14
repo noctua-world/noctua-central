@@ -453,9 +453,10 @@ fails a gate a minute or two later.
 | a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that — one that starts a process through its crate's test doors, a `.spawn()` with nothing in its parentheses, included — but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml` and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
-| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md` |
+| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
-| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
+| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
+| a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, and `docs/commands.md` links it. Only `md` ships, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry other than `commands` is a row of `REGISTRIES` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
 | a capability | `catalog/capabilities.toml`, both locales | its functions are the world's, written as the world's parser names them — `[method]<resource>.<name>` for a resource's method — and every function of the world sits in exactly one capability or in the `functions` of an `[[ungated]]` interface, beside the reason that covers it: an interface given to every plugin gives only what it lists, so a function the world gains there is refused by the coverage test until someone writes it in, rather than reaching every plugin under a reason written before it. `crates/nc-kernel/tests/capabilities.rs` holds the registry to the world, to the reference plugin's probe (`PROBED` in `plugins/reference/src/behaviour.rs`) and to the capability each host function asks for, so a function the world gains is also a host function in `crates/nc-kernel/src/host/` whose first statement asks for it — or, in an `[[ungated]]` interface, records it with `HostState::ungated` — a row of `PROBED` and an arm of the probe in `plugins/reference/src/adapter.rs`, and, under a capability, a call in `every_gated_function` in `crates/nc-kernel/src/host.rs`, whose test grants one capability at a time and holds what each function asked for, and under which name, to the catalog — the probe cannot, because a method is out of its reach until its constructor is built |
 | a rule a plugin's command is held to at `activate` | `crates/nc-kernel/src/registry.rs` | a refusal with the code of its kind — `[NC-PLUG-0008]` for a field left empty, `[NC-PLUG-0009]` for anything else wrong with the declaration, `[NC-KERN-0015]` for a name the plugin may not have — and a unit test in that file; and, where the reference plugin can declare it, a `Variant` in `plugins/reference/src/behaviour.rs`, which the plugin reads from its own store's `activation` key, and a test in `crates/nc-kernel/tests/activation.rs` loading the real component that way. A rule the judge in `crates/nc-schema` can state belongs there instead, where the catalog compiler holds every built-in to it too |
@@ -874,6 +875,7 @@ entry owns.
 | A way around the decision point | `commands.dispatch` is the one door, and a nested dispatch runs as its tree's principal | the same entry |
 | A forged principal, confirmation or approval | `context` is read-only; a confirmation and an approval are the kernel's alone, bound to one dispatch — its command by the plugin that holds it — and one whole principal, used once and only on a dispatch the kernel decided, short-lived and never inherited | the same entry, and "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A command declared in another plugin's name | a namespace one loaded plugin holds, and the ones the kernel keeps | "A plugin is loaded with the commands it may have, and only those" |
+| A person's permit for a feature of the platform borrowed by a plugin, a file's name that is a path, or a caller's text turned into a logged identifier | `feature:` refused in a plugin's declaration at `activate`; one builder and one parser, every name one path component; and the kernel handed text only | "A file's name is proposed and read by one function, decided and journaled like any command" |
 | A plugin that will not stop | the epoch, fuel, memory, a host call's deadline, the tree's deadline, depth and count, the refusal of re-entry, bounded queues, timers, surfaces and log, the restart budget and quarantine | "A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else" |
 | Half-applied state | writes staged and committed whole, recovery each time a kernel opens, and an undo that is a unit of its own | "A command runs only when it is decided, and the journal hears of it first", and "A person undoes their own steps, with the authority they hold now" |
 | A request to somewhere it should not go | names the manifest declares, public addresses only, no redirect and no proxy, bounds, and only `GET` and `HEAD` where nothing changes | "A plugin reaches the network its manifest names, and nothing else" |
@@ -927,10 +929,12 @@ manifest asks for more than its plugin needs, which is its author's and its inst
 `activate` can be authorized and is its own to declare — or none does, and the plugin is
 not loaded (the rules are `crates/nc-kernel/src/registry.rs`'s header). Each is held to
 the judge every built-in is held to (`crates/nc-schema`): an action the decision point's
-schema declares, a resource type that action applies to, and the whole realm selected only
+schema declares, a resource type that action applies to, the whole realm selected only
 by a command that reads it, since a permit for a realm-wide change would authorize every
-plugin's. Its name sits in the plugin's own namespace, never one the kernel keeps
-(`kernel.`, `journal.`, `limits.`), declared once, and matches the catalog where the
+plugin's, and never a feature of the platform (`[NC-PLUG-0009]`), whose permit is a
+person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
+one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`), declared once, and
+matches the catalog where the
 catalog describes it. A namespace and an identity belong to one loaded plugin at a time,
 so a second cannot declare commands in the first one's name (`[NC-PLUG-0022]`, before
 anything is compiled and again after it activates). `activate` runs in a store of its own
@@ -1306,6 +1310,54 @@ blob and which are a person's steps.
 - an undo or a redo whose close the journal did not take and whose reversal the store
   refused, committed until the next prune or kernel opening reverts it — a redo of such an
   undo is refused meanwhile.
+
+### A file's name is proposed and read by one function, decided and journaled like any command
+
+**Guaranteed.** `naming.propose` and `naming.read` are the one builder and the one parser
+of `NOCTUA.md §16.3`, `nc_ids::naming`, as commands of the kernel's own (`crates/nc-kernel/src/builtin.rs`
+says what each takes and answers):
+
+- **Decided at the one door and journaled**, as every command is: `Read` on
+  `Feature::"naming"`, which `family.a_member_names_files` gives every person of the realm.
+  A frozen account is refused by the floor; a device and an agent by the permit's
+  `principal is User`, pinned by cases; a person of another realm by the decision point's
+  slice. The handler — and so the minting — runs only after the decision allowed it, so a
+  denied proposal spends no identifier.
+- **The entity always means naming.** Only a command of the kernel's own selects a
+  feature: a plugin declaring `feature:` is refused at `activate` (`[NC-PLUG-0009]`), so a
+  plugin cannot borrow the permit, and a journal entry naming `Feature::"naming"` is a
+  naming command.
+- **A person's text stays out of the chain and the log.** Titles and keywords are
+  arguments, which no entry records: the entry holds the command and the entity. The kernel
+  never turns caller text into an identifier: a kept `id` is read in `nc-ids`, which
+  cannot log, and comes back as text, which the log's type wall refuses as an identifier —
+  so `AWAY_FROM_A_CALL` holds no excuse for it and the census of public routes to an
+  identifier in `xtask/src/wall.rs` is unchanged.
+- **A name is one path component holding nothing a filesystem refuses**, at most
+  `nc_ids::naming::MAX_BYTES` bytes, which `crates/nc-ids/tests/properties.rs` holds for
+  every generated input, so an extension written as a path is cleaned of its separators
+  and names no directory.
+- **Bounded**: the argument schema's bounds — each the byte limit implies, which a test in
+  `crates/nc-kernel/src/builtin.rs` holds — then the kernel's payload bound, then a parse
+  and a build linear in the name; a call tree's naming calls are bounded by its dispatch
+  count.
+- **An identifier minted for a name is the machine's one minter's**, the same the journal's
+  units come from (`nc_journal::Journal::mint_identifier`), behind the mark persisted
+  before any is handed out, so no name's identifier is a unit's.
+
+**Enforced by** `crates/nc-ids/src/naming.rs` and the properties beside it — a proposed
+name reads back as the fields that built it, a kept identifier in its canonical spelling —
+`crates/nc-kernel/src/builtin.rs`'s tests of the arguments, the bounds and each failure's
+kind, code and word, `crates/nc-kernel/tests/the_decision_point.rs` over the real pack and
+world — every person answered, a frozen account, a device and an agent refused, a rename
+keeping its identifier, a plugin's nested proposal, a minter that mints nothing — the
+registry's and `crates/nc-kernel/tests/activation.rs`' refusal of a plugin's `feature:`,
+`policy/packs/family/tests/features.toml`, and `apps/daemon/tests/every_command_from_the_cli.rs`,
+through the CLI and over the endpoint as one JSON dispatch.
+
+**Not answered:** see "What is deliberately not claimed": a proposal reserves nothing, a
+kept identifier is not vouched for, whether a file of that name exists or collides is the
+saving feature's, and an agent reaches naming only once Stage 15 gives it a permit.
 
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
@@ -3404,6 +3456,19 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
   carries what that writer gives it.
+- **A proposed name reserves nothing.** Two proposals are two identifiers, an unused one
+  is a gap, as a Snowflake's gaps already are, and nothing records which names were handed
+  out; a proposal whose name does not fit, or whose entry the journal refuses, spends its
+  identifier all the same.
+- **A kept identifier is not vouched for.** `naming.propose` formats the `id` it is given
+  and does not ask whether this machine minted it or any file carries it, so a caller can
+  claim another file's identity, exactly as renaming by hand can; whether a file of that
+  name exists, or would collide on disk, is the saving feature's question.
+- **No agent names a file yet**, and a person's plugin may mint as many identifiers as its
+  tree's dispatch count allows: there is no naming budget until Stage 15 gives an agent a
+  permit of its own.
+- **Whether Denote removes an `=` inside a signature part** is open
+  (`crates/nc-ids/src/naming.rs`), and the commands answer what the builder does today.
 
 **Channels and installs**
 
@@ -3715,6 +3780,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   two counts `check` prints read alike: `core policy file(s) are on disk` counts **files**
   under `policy/core/`, `policy(ies) parse and validate` the `@id` policies in them and in
   `family`.
+
+- **A feature's realm is the decision point's slice, not the policy's.** The permits in
+  `policy/packs/family/features.cedar` ask no membership, so Cedar alone allows a person of
+  another realm a feature — `policy/packs/family/tests/features.toml` pins that answer —
+  and only the slice of the asking realm, which holds no other realm's people, refuses it.
 
 **The gate and its run**
 

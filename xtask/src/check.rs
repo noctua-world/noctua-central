@@ -11250,7 +11250,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11462,6 +11462,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a declared field type is not a guarantee when the value is built out of text at the call — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for, and `FileName::parse` reaches the same constructor one hop away. Log an identifier the platform minted, or declare what you mean as a field of its own. If this `{minted}` cannot carry caller text — `Duration::new` is the case — say so with `{ALLOW}` on this line and name `{minted}` in the reason",
     "a declared field type is not a guarantee when the value is built out of text — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for. The value need not be built at the call: a `let` on the line above, or a helper in this file, reaches the same field. Log an identifier the platform minted. If this one cannot carry caller text, say so with `allow-logging:` on this line — and name `{minted}` in the reason, because `cargo fmt` joins lines and a marker that names nothing excuses whatever lands beside it",
     "a device in the realm steps through no history, however attested",
+    "a device of the house has no file named, however attested",
     "a device is the machine's, and reading one at build time is the machine reaching the output",
     "a device nobody attested reads nothing, not even what the house has made public",
     "a document that describes a file nobody wrote reads as true to everyone who does not go and look — create it, correct the citation, or mark the line `{ALLOW} <reason>` if it names something deliberately absent",
@@ -11511,6 +11512,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a log event carries declared fields, never a sentence a caller wrote — the description a reader sees lives in `catalog/log-events.toml` beside the declaration. Pass the values themselves and let the registry say what they mean. If this one cannot, say so with `{ALLOW}` on this line and name `{needle}` in the reason, because a marker that names nothing excuses whatever else lands beside it",
     "a manual grant with no end is refused, however recently it was written",
     "a marker that names nothing excuses whatever else lands on its line, and `cargo fmt` moves things onto lines. Say `{ALLOW} …{needle}…` so an excuse that arrived by reformatting fails rather than widens",
+    "a member has a file named and writes nothing to the feature",
+    "a member of the house has a file named",
     "a member reads her own account",
     "a member reads her own account and does not rewrite it",
     "a member reads what the house has made public",
@@ -11543,6 +11546,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a subprocess answers with whatever is installed on this machine — `date` being the shortest way to put a clock in a file. Everything the output depends on arrives through the catalog",
     "a suite that is present but inert is announced exactly like one that ran, so the floor that names the suites cannot see it — nineteen ignored tamper tests left `check passed` with acceptance criterion 3 enforced by nothing. If a test cannot run here, make it say so and return, the way the workspace-document tests do",
     "a suspended account does not read even its own account",
+    "a suspended account has no file named",
     "a suspended account steps through no history, not even its own",
     "a suspended account writes nothing, not even what it owns",
     "a table that can grow without bound needs `[tables.{}]` with `max_rows`, `prune_batch`, `strategy` and `order_by`, so one pruner can enforce it (NOCTUA.md §15.8). If it genuinely cannot grow, say so in the comment block directly above it, on a line beginning `-- {BOUNDED} <reason>`",
@@ -11573,6 +11577,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "an error's identity is data, not a string at a call site (NOCTUA.md §15.1). The code travels through every layer and is what the central log is queried by, so one spelled out here is one the registry cannot renumber, cannot translate and cannot publish. Use the `ErrorCode` variant `catalog/errors.toml` declares; if the code does not exist yet, declare it there",
     "an image named here is a second definition of a service `docker-compose.yml` already defines, and CI cannot reproduce what that file gives it — a service container has no command, so the log store loses the retention flags the gate reads back, and nothing applies the migrations. Delete it and let `cargo xtask dev` bring up the stack",
     "an import of `{name}`",
+    "an outsider has a file named, which only the decision point refuses",
     "an outsider reads what this household shares, which is the gap invariant 4 leaves",
     "an owner governs her own content and does not grant over it",
     "an owner writes her own content",
@@ -11588,6 +11593,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "and not without one, which the core decides and the pack cannot override",
     "and one that has begun is",
     "and shares it with one",
+    "and so does a child of the house",
     "and so is a device",
     "and somebody from another realm does not",
     "and with the confirmation it goes through, so the refusal is the confirmation's absence",
@@ -11710,6 +11716,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "no associated function or constant named `from_macro` found for struct `Literal`",
     "no rules expected `leaked`",
     "no such command",
+    "nor does an agent acting openly as one, until it has a permit of its own",
     "nor does an agent, even one acting openly as an agent",
     "nor revoke from herself, which is how a constraint is removed rather than added",
     "nothing here reads a `FROM` line, so a Dockerfile naming an unpinned tag is invisible to this gate. This stack pulls two pinned images (`§18.4`, `§18.5`) and builds nothing; if that changes, the pin moves to the Dockerfile and this gate has to follow it there. The line number is in `docker compose config`'s output, which is what the stack actually runs",
@@ -11800,6 +11807,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "the log store answers /health",
     "the log's type wall",
     "the name is built by a function, so nothing here can tell whether it is `search_path` — and a `search_path` this gate cannot see is the §15.8 defect it exists to stop. Write the setting's name as a literal, or, if it genuinely has to be computed, split the statement so that the one naming `search_path` is written out",
+    "the naming permit reaches no other feature",
     "the path separator differs by platform, and a generated file that holds one differs with it",
     "the path separator differs by platform, and a generated file that holds one differs with it. A generated path is written with a forward slash",
     "the pointer width of the machine that built this, which `size_of::<usize>` above is the other spelling of",
@@ -19481,7 +19489,7 @@ mod the_frozen_path_rule {
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 14, 16),
-        ("daemon/every_command_from_the_cli.rs", 26, 2),
+        ("daemon/every_command_from_the_cli.rs", 35, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/lib.rs", 7, 14),
@@ -19540,8 +19548,8 @@ mod the_frozen_path_rule {
         ("nc-ids/base32.rs", 11, 18),
         ("nc-ids/flake.rs", 21, 26),
         ("nc-ids/lib.rs", 47, 28),
-        ("nc-ids/naming.rs", 40, 37),
-        ("nc-ids/properties.rs", 11, 6),
+        ("nc-ids/naming.rs", 57, 40),
+        ("nc-ids/properties.rs", 13, 6),
         ("nc-ids/snowflake.rs", 70, 90),
         ("nc-ipc/connection.rs", 15, 9),
         ("nc-ipc/endpoint.rs", 4, 5),
@@ -19561,16 +19569,16 @@ mod the_frozen_path_rule {
         ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
-        ("nc-kernel/activation.rs", 23, 67),
+        ("nc-kernel/activation.rs", 24, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
         ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
         ("nc-kernel/built.rs", 7, 7),
-        ("nc-kernel/builtin.rs", 35, 13),
+        ("nc-kernel/builtin.rs", 57, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 123, 26),
+        ("nc-kernel/dispatch.rs", 124, 26),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/history.rs", 48, 7),
@@ -19593,9 +19601,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 36, 24),
+        ("nc-kernel/registry.rs", 37, 24),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 177, 77),
+        ("nc-kernel/the_decision_point.rs", 188, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 14, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
         ("nc-kernel/timers.rs", 18, 5),
@@ -19640,7 +19648,7 @@ mod the_frozen_path_rule {
         ("nc-schema/entry.rs", 41, 42),
         ("nc-schema/lib.rs", 92, 66),
         ("nc-schema/properties.rs", 18, 2),
-        ("nc-schema/selector.rs", 18, 20),
+        ("nc-schema/selector.rs", 21, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
@@ -25522,7 +25530,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18532;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18644;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25541,7 +25549,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4733;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4762;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25558,7 +25566,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1592;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1601;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25592,7 +25600,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25150;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25292;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25646,7 +25654,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,150 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,292 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25679,7 +25687,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1592 of
+    /// this tree offers, **1601 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28181,7 +28189,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 739;
+    const THE_REST_IT_SAYS: usize = 747;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -37549,7 +37557,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2185] = [
+    static OPERATORS: [(&str, &str, &str); 2200] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37747,6 +37755,26 @@ Options:
             "naming",
             "canonical_name",
             "a name that cannot be parsed says so",
+        ),
+        (
+            "naming",
+            "propose",
+            "a kept identifier is read rather than replaced",
+        ),
+        (
+            "naming",
+            "of",
+            "a proposal answers its identifier in the canonical spelling",
+        ),
+        (
+            "naming",
+            "of",
+            "a proposal answers the keywords it was given",
+        ),
+        (
+            "naming",
+            "read",
+            "a reading says whether the name was already canonical",
         ),
         (
             "release",
@@ -40534,6 +40562,21 @@ Options:
             "a name outside the grammar is repeated cut short",
         ),
         (
+            "selector",
+            "written",
+            "a feature's id is no longer than an entity's",
+        ),
+        (
+            "selector",
+            "resolved",
+            "a feature selector names the feature written",
+        ),
+        (
+            "selector",
+            "entity_type",
+            "a feature selector selects a `Feature`",
+        ),
+        (
             "descriptor",
             "judge",
             "a read that mutates is refused by the judge",
@@ -41532,6 +41575,11 @@ Options:
         ),
         (
             "kernel_registry",
+            "undecidable",
+            "a plugin selects no feature of the platform",
+        ),
+        (
+            "kernel_registry",
             "unheard",
             "a subscription its manifest does not declare is refused",
         ),
@@ -42521,6 +42569,37 @@ Options:
             "kernel_builtin",
             "verified",
             "a journal that cannot be read is unavailable to verify",
+        ),
+        (
+            "kernel_builtin",
+            "proposed",
+            "a proposal keeps the identifier it is given",
+        ),
+        (
+            "kernel_builtin",
+            "texts",
+            "every item of a list argument is read",
+        ),
+        ("kernel_builtin", "answer", "an extension is answered"),
+        (
+            "kernel_builtin",
+            "answer",
+            "a reading says whether the name was canonical",
+        ),
+        (
+            "kernel_builtin",
+            "unnamed",
+            "a kept identifier that is not one is refused in base32's code",
+        ),
+        (
+            "kernel_builtin",
+            "unminted",
+            "a minter that mints nothing leaves a proposal unavailable",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "a name is read from the arguments it was asked with",
         ),
         (
             "kernel_dispatch",

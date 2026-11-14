@@ -28,6 +28,7 @@ allowed and never reaches past a floor.
 | `permissions.cedar` | `family.a_guardian_administers_the_realm`, `family.a_member_reads_shared_content`, `family.an_owner_governs_their_own_content`, and the `forbid` `family.giving_out_encrypted_content_needs_quorum` | content and permissions: who reads what the household shares, who changes what they own, who grants, and the quorum for handing out an encrypted content key. The guardian's `Grant` and `Revoke` name no resource type and ask no membership, so they reach any `Realm`, one she is not in included — Cedar's answer over the whole world, pinned by a case and recorded in `../../core/README.md`, and one the decision point in `nc-authz` denies, because a realm's slice holds no other realm |
 | `realm.cedar` | `family.a_guardian_reads_the_realm`, `family.a_guardian_prunes_the_realm`, `family.a_member_steps_through_their_own_history`, `family.a_member_reads_their_own_account` | the realm itself as the resource — the commands that act on the whole realm (the journal verified, the tables pruned, a step undone or redone) — and a person reading their own account. Each permit here that reaches the realm requires `principal in resource`, so a member of another realm is refused them; the undo and redo permit also requires `principal is User`, so a device or an agent in the realm is refused a person's history |
 | `accounts.cedar` | the `forbid`s `family.a_frozen_account_acts_on_nothing` and `family.an_unattested_device_acts_on_nothing` | who may act at all: a frozen account and a device nobody attested are refused whatever they ask |
+| `features.cedar` | `family.a_member_names_files` | the platform's features, each named, as the resource a command of the kernel's own selects when it reads none of the realm's data: every person of the household reads the `naming` feature, which is how `naming.propose` and `naming.read` are decided. It asks `principal is User`, so a device and an agent are refused, and no membership, so realm scoping is the decision point's slice, as for `permissions.cedar` — a case pins Cedar's answer over the whole world |
 
 **Each file is also a line of `crates/nc-authz/src/embedded.rs`**, in the pack's
 own list: a kernel decides with the pack compiled into it, and a policy on disk
@@ -94,3 +95,9 @@ other. No gate compares a policy with what it said before it changed — the
 pull request's diff shows that to a reviewer — so no gate raises the version
 for you: raising it, with every such realm's pin in the same edit, is the
 reviewed migration §14.4 asks for.
+
+While no realm outside development pins the pack, a permit it gains keeps its
+version: every realm that pins it is a development profile, and
+`cargo xtask dev` installs the world again on each run, so there is no realm
+for a raised version to migrate. `features.cedar` arrived that way, as
+`family@1`. The first realm a release installs ends that.

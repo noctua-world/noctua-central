@@ -2029,6 +2029,7 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
         "policy/core/chain_depth.cedar",
         "policy/core/agent_authority.cedar",
         "policy/packs/family/accounts.cedar",
+        "policy/packs/family/features.cedar",
         "policy/packs/family/permissions.cedar",
         "policy/packs/family/realm.cedar",
     ] {

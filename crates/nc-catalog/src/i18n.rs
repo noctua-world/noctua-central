@@ -225,6 +225,42 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Clear old records", "Limpar registros antigos"],
     ),
     (
+        "command.naming.propose.description",
+        [
+            "Build a file name from a title, signature, keywords and extension.",
+            "Montar o nome de um arquivo com título, assinatura, palavras-chave e extensão.",
+        ],
+    ),
+    (
+        "command.naming.propose.paragraph",
+        [
+            "Writes the name Noctua gives a saved file: its signature, title, keywords, identifier and extension, each cleaned of what a file name cannot hold. A file being renamed keeps the identifier you give, so it stays the same file; without one, a new identifier is made. It saves nothing and changes nothing.",
+            "Escreve o nome que o Noctua dá a um arquivo salvo: a assinatura, o título, as palavras-chave, o identificador e a extensão, cada um limpo do que um nome de arquivo não comporta. Um arquivo renomeado mantém o identificador que você informar e continua sendo o mesmo arquivo; sem ele, um identificador novo é criado. Não salva nada e não muda nada.",
+        ],
+    ),
+    (
+        "command.naming.propose.title",
+        ["Propose a file name", "Propor um nome de arquivo"],
+    ),
+    (
+        "command.naming.read.description",
+        [
+            "Read a file name back into its identifier, signature, title and keywords.",
+            "Ler um nome de arquivo e dizer seu identificador, assinatura e palavras-chave.",
+        ],
+    ),
+    (
+        "command.naming.read.paragraph",
+        [
+            "Reads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing.",
+            "Lê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada.",
+        ],
+    ),
+    (
+        "command.naming.read.title",
+        ["Read a file name", "Ler um nome de arquivo"],
+    ),
+    (
         "email.catalog.mechanism.body",
         [
             "This message exists so that Noctua can check its own email reaches you correctly. Nothing is expected of you.",
@@ -588,8 +624,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.ids.name-too-long",
         [
-            "That name is too long for your computer to store. Shorten the title.",
-            "Esse nome é longo demais para o seu computador guardar. Encurte o título.",
+            "That name is too long for your computer to store, even without its title. Use a shorter signature, fewer keywords or a shorter extension.",
+            "Esse nome é longo demais para o seu computador guardar, mesmo sem o título. Use uma assinatura mais curta, menos palavras-chave ou uma extensão mais curta.",
         ],
     ),
     (
@@ -1282,6 +1318,12 @@ pub const KEYS: &[&str] = &[
     "command.limits.prune.description",
     "command.limits.prune.paragraph",
     "command.limits.prune.title",
+    "command.naming.propose.description",
+    "command.naming.propose.paragraph",
+    "command.naming.propose.title",
+    "command.naming.read.description",
+    "command.naming.read.paragraph",
+    "command.naming.read.title",
     "email.catalog.mechanism.body",
     "email.catalog.mechanism.subject",
     "error.blob.io",
@@ -1621,6 +1663,32 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "registros antigos",
                 "limite",
                 "liberar espaço",
+            ],
+        ],
+    ),
+    (
+        "command.naming.propose.tags",
+        [
+            &["file name", "name a file", "rename", "save as", "propose"],
+            &[
+                "nome de arquivo",
+                "nomear arquivo",
+                "renomear",
+                "salvar como",
+                "propor",
+            ],
+        ],
+    ),
+    (
+        "command.naming.read.tags",
+        [
+            &["file name", "read a name", "identifier", "parse", "details"],
+            &[
+                "nome de arquivo",
+                "ler um nome",
+                "identificador",
+                "analisar",
+                "detalhes",
             ],
         ],
     ),

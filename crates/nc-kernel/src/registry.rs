@@ -3,7 +3,7 @@
 //!
 //! **The kernel's own come from the catalog.** Every command of
 //! `catalog/commands.toml` whose namespace is one the kernel keeps —
-//! [`RESERVED`]: `journal.`, `kernel.`, `limits.` — is a built-in, registered
+//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.` — is a built-in, registered
 //! when the registry is made. A catalog command in any other namespace is one
 //! the catalog describes for a plugin to implement (`NOCTUA.md §15.2`): it is
 //! registered when a plugin declares it, matching the catalog in every field a
@@ -24,9 +24,10 @@
 //!   declared once, not already registered, and, when the catalog describes
 //!   it, matching the catalog;
 //! - each action and selector by the decision point's schema,
-//!   `[NC-PLUG-0009]`: an action the schema declares, a resource type that
-//!   action applies to, and the whole realm selected only by a command that
-//!   reads — a realm-wide change is the kernel's;
+//!   `[NC-PLUG-0009]`: no feature of the platform at all — a `feature:`
+//!   selector is the kernel's own commands' — an action the schema declares, a
+//!   resource type that action applies to, and the whole realm selected only by
+//!   a command that reads — a realm-wide change is the kernel's;
 //! - each subscription by the manifest, `[NC-PLUG-0009]`: one its
 //!   `[events] subscribe` declares, once;
 //! - and the count by the catalog: more than `commands_per_plugin` commands is
@@ -40,7 +41,11 @@
 //! or under a name already registered — and a command nothing can authorize,
 //! which never reaches the registry. A plugin that would select the realm to
 //! change it is refused, because a permit for that action on the realm would
-//! then authorize every such command of every plugin. What it does not answer:
+//! then authorize every such command of every plugin; and one that would select
+//! a feature of the platform is refused, because the permit for that feature is
+//! a person's permit for the kernel's own command — a plugin selecting it would
+//! borrow it, and the journal's entity would no longer say which command ran.
+//! What it does not answer:
 //! whether a plugin's command acts on the resource it was authorized for,
 //! inside its own namespace, which is the plugin's code and no check here.
 
@@ -49,13 +54,13 @@ use std::collections::BTreeMap;
 use nc_authz::Pdp;
 use nc_catalog::{ErrorCode, KERNEL};
 use nc_schema::descriptor::{self, DescriptorProblem, Judged, Reversibility};
-use nc_schema::selector::REALM_TYPE;
+use nc_schema::selector::{REALM_TYPE, Selector};
 
 use crate::manifest::PluginManifest;
 use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands.
-pub const RESERVED: [&str; 3] = ["journal", "kernel", "limits"];
+pub const RESERVED: [&str; 4] = ["journal", "kernel", "limits", "naming"];
 
 /// The one action a plugin's command may select the whole realm under.
 const THE_REALM_IS_READ_WITH: &str = "Read";
@@ -111,7 +116,7 @@ pub(crate) struct Declared {
     pub(crate) mutating: bool,
     /// The Cedar action.
     pub(crate) action: String,
-    /// `realm`, or `argument:<name>`.
+    /// `realm`, `argument:<name>` or `feature:<id>`.
     pub(crate) resource_selector: String,
     /// Read, write or irreversible.
     pub(crate) reversibility: Reversibility,
@@ -378,15 +383,24 @@ impl Registry {
     }
 }
 
-/// Why a judged command cannot be decided as declared, when it cannot: an
-/// action the schema does not declare, a resource type the action does not
-/// apply to, or the whole realm selected by a command that does not read it.
+/// Why a judged command cannot be decided as declared, when it cannot.
+///
+/// A feature of the platform selected at all, an action the schema does not
+/// declare, a resource type the action does not apply to, or the whole realm
+/// selected by a command that does not read it.
 fn undecidable(
     command: &Declared,
     judged: &Judged,
     actions: &[String],
     pdp: &Pdp,
 ) -> Option<String> {
+    if let Selector::Feature { id } = &judged.selector {
+        return Some(format!(
+            "selects the feature {} of the platform, which only a command of the kernel's \
+             own selects",
+            quoted(id)
+        ));
+    }
     if !actions.contains(&command.action) {
         return Some(format!(
             "names the action {}, which the decision point's schema does not declare — it \
@@ -1122,6 +1136,52 @@ mod tests {
                 problems[0].1
             );
         }
+    }
+
+    /// A plugin that selects a feature is refused at `activate`, naming the
+    /// command and the feature.
+    ///
+    /// **Whatever the action, and the feature the kernel's own commands
+    /// select included.** The judge accepts the form from anyone, so this is
+    /// the refusal that keeps a person's permit for `naming` from being borrowed:
+    /// with it gone, a plugin's read on `feature:naming` is decided by the
+    /// naming permit and journaled as if it were the kernel's.
+    #[test]
+    fn a_plugin_that_selects_a_feature_is_refused_at_activate() {
+        let featured = |action: &str, id: &str| Declared {
+            args_schema: NOTHING.to_owned(),
+            resource_selector: format!("feature:{id}"),
+            action: action.to_owned(),
+            ..a_read("notes.name.propose")
+        };
+        for (action, id) in [("Read", "naming"), ("Read", "gallery"), ("Share", "naming")] {
+            assert_eq!(
+                refused(
+                    &Registry::from_catalog(),
+                    &notes(),
+                    &[featured(action, id)],
+                    &[]
+                ),
+                [(
+                    ErrorCode::PluginDescriptorInvalid,
+                    format!(
+                        "`notes.name.propose` of `noctua:notes` selects the feature `{id}` of \
+                         the platform, which only a command of the kernel's own selects"
+                    )
+                )],
+                "{action} on `{id}`"
+            );
+        }
+        let kernels = Registry::from_catalog()
+            .listed()
+            .into_iter()
+            .filter(|command| command.resource_selector.starts_with("feature:"))
+            .count();
+        assert!(
+            kernels > 0,
+            "no command of the kernel's own selects a feature, so the refusal above \
+             guards a form nothing uses"
+        );
     }
 
     #[test]

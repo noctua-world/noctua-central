@@ -33,6 +33,13 @@
 //! **It is a proposal.** The user may rename the file. Identity depends on the
 //! ID (`§13.1`), so a renamed file is still the same file, and this module's job
 //! is to offer a good name rather than to own one.
+//!
+//! **[`propose`] and [`read`] are the same builder and parser, as text.** They
+//! are what the kernel's naming commands call: an identifier goes in minted or
+//! as the text a file already carries, and every field comes back as text, the
+//! identifier in its canonical spelling. So the one place text becomes an
+//! identifier is this crate, which cannot log, and a caller that can holds
+//! none it could log as one.
 
 use nc_catalog::ErrorCode;
 
@@ -377,6 +384,159 @@ impl FileName {
             extension.as_deref(),
         ))
     }
+}
+
+/// Where a proposed name's identifier comes from.
+///
+/// **Minted or kept.** A file named for the first time takes one the
+/// machine's one minter has just handed out (`§16.2`); a file renamed keeps
+/// the one it already carries, so it is still the same file (`§16.3`). The
+/// kept one arrives as the text a caller wrote and is read here, in this
+/// crate, so a crate that may log never turns text into an identifier itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Identifier<'a> {
+    /// One a minter has just handed out.
+    Minted(Snowflake),
+    /// The text of one a file already carries, in any spelling Crockford reads.
+    Kept(&'a str),
+}
+
+/// A name as text, and the fields it encodes.
+///
+/// What [`propose`] and [`read`] answer: each field as the name holds it,
+/// already normalised, and the identifier in its canonical spelling. **Text and
+/// nothing else**, so a caller that may log holds no identifier it could log as
+/// one, and every accessor hands back a borrowed `str` or a list of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fields {
+    name: String,
+    id: String,
+    signature: Vec<String>,
+    title: Option<String>,
+    keywords: Vec<String>,
+    extension: Option<String>,
+}
+
+impl Fields {
+    /// The fields of `file`, whose name is `name`.
+    fn of(file: &FileName, name: String) -> Self {
+        Self {
+            name,
+            id: file.id.to_crockford(),
+            signature: file.signature.clone(),
+            title: file.title.clone(),
+            keywords: file.keywords.clone(),
+            extension: file.extension.clone(),
+        }
+    }
+
+    /// The whole name, as this scheme writes it.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The identifier, in the spelling this scheme writes it in.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// The signature parts.
+    #[must_use]
+    pub fn signature(&self) -> &[String] {
+        &self.signature
+    }
+
+    /// The title, if there is one.
+    #[must_use]
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    /// The keywords, in the order they were given.
+    #[must_use]
+    pub fn keywords(&self) -> &[String] {
+        &self.keywords
+    }
+
+    /// The extension, if there is one.
+    #[must_use]
+    pub fn extension(&self) -> Option<&str> {
+        self.extension.as_deref()
+    }
+}
+
+/// A name read back: its fields, and whether it was already written as this
+/// scheme writes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reading {
+    fields: Fields,
+    canonical: bool,
+}
+
+impl Reading {
+    /// The fields the name encodes, its canonical spelling as the name.
+    #[must_use]
+    pub const fn fields(&self) -> &Fields {
+        &self.fields
+    }
+
+    /// Whether the name read was already its canonical spelling.
+    #[must_use]
+    pub const fn canonical(&self) -> bool {
+        self.canonical
+    }
+}
+
+/// Proposes a name from its parts, as text.
+///
+/// The one builder, [`FileName::new`] and [`FileName::build`], under the
+/// identifier `id` names: one just minted, or the text of a kept one read
+/// here and written back in its canonical spelling.
+///
+/// # Errors
+///
+/// [`NameError::BadIdentifier`] when a kept identifier is not one, before any
+/// name is built, and [`NameError::TooLong`] when the name does not fit even
+/// with no title.
+pub fn propose(
+    signature: &[&str],
+    title: Option<&str>,
+    keywords: &[&str],
+    id: Identifier<'_>,
+    extension: Option<&str>,
+) -> Result<Fields, NameError> {
+    let id = match id {
+        Identifier::Minted(minted) => minted,
+        Identifier::Kept(text) => {
+            Snowflake::from_crockford(text).map_err(NameError::BadIdentifier)?
+        }
+    };
+    let file = FileName::new(signature, title, keywords, id, extension);
+    let name = file.build()?;
+    Ok(Fields::of(&file, name))
+}
+
+/// Reads a name back into its fields, as text.
+///
+/// The one parser, [`FileName::parse`], and the name built back from what it
+/// read: the fields' name is that canonical spelling, and the reading says
+/// whether `name` already was it.
+///
+/// # Errors
+///
+/// Whatever [`FileName::canonical_name`] returns: [`NameError::NoIdentifier`]
+/// and [`NameError::BadIdentifier`] for a name that does not parse, and
+/// [`NameError::TooLong`] for one that parses and that this scheme will not
+/// write.
+pub fn read(name: &str) -> Result<Reading, NameError> {
+    let file = FileName::parse(name)?;
+    let canonical = file.build()?;
+    Ok(Reading {
+        canonical: canonical == name,
+        fields: Fields::of(&file, canonical),
+    })
 }
 
 /// What ends a component, per marker.
@@ -1668,6 +1828,105 @@ mod tests {
         assert!(
             bytes > MAX_BYTES,
             "`TooLong` reported {bytes}, which is not over the bound it refused for"
+        );
+    }
+
+    /// Text that is no identifier is refused before any name is built.
+    ///
+    /// Empty, a letter Crockford leaves out, and one character past the widest
+    /// a 64-bit value takes: each is `BadIdentifier` carrying base32's own
+    /// reason, and never a name under some identifier put in its place.
+    #[test]
+    fn text_that_is_no_identifier_is_refused_before_any_name_is_built() {
+        use super::{Identifier, propose};
+        use crate::base32::Base32Error;
+
+        let past = "1".repeat(crate::base32::MAX_WIDTH + 1);
+        for (kept, why) in [
+            ("", Base32Error::Empty),
+            (
+                "U",
+                Base32Error::NotBase32 {
+                    character: 'U',
+                    at: 0,
+                },
+            ),
+            (
+                past.as_str(),
+                Base32Error::TooLong {
+                    length: crate::base32::MAX_WIDTH + 1,
+                },
+            ),
+        ] {
+            assert_eq!(
+                propose(
+                    &[],
+                    Some("a title"),
+                    &[],
+                    Identifier::Kept(kept),
+                    Some("md")
+                ),
+                Err(NameError::BadIdentifier(why)),
+                "`{kept}` was taken for an identifier"
+            );
+        }
+    }
+
+    /// A proposal answers the fields its name encodes, each as text.
+    ///
+    /// The specification's own example, written as a person types it: the
+    /// name is the one `§16.3` writes down, and every field is what reading
+    /// that name back gives.
+    #[test]
+    fn a_proposal_answers_the_fields_its_name_encodes() {
+        use super::{Identifier, propose, read};
+
+        const EXAMPLE: &str = "==familia=fotos--praia-de-copacabana__brasil@@01J8XK2M9P51.jpg";
+        for id in [Identifier::Minted(id()), Identifier::Kept("01j8xk2m9p51")] {
+            let fields = propose(
+                &["Familia", "fotos"],
+                Some("Praia de Copacabana"),
+                &["Brasil"],
+                id,
+                Some("JPG"),
+            )
+            .expect("the example fits");
+            assert_eq!(fields.name(), EXAMPLE, "{id:?}");
+            assert_eq!(fields.id(), "01J8XK2M9P51", "{id:?}");
+            assert_eq!(fields.signature(), ["familia", "fotos"], "{id:?}");
+            assert_eq!(fields.title(), Some("praia-de-copacabana"), "{id:?}");
+            assert_eq!(fields.keywords(), ["brasil"], "{id:?}");
+            assert_eq!(fields.extension(), Some("jpg"), "{id:?}");
+            let reading = read(fields.name()).expect("what was proposed reads back");
+            assert_eq!(reading.fields(), &fields, "{id:?}");
+            assert!(reading.canonical(), "{id:?}");
+        }
+        let bare = propose(&[], None, &[], Identifier::Minted(id()), None).expect("fits");
+        assert_eq!(
+            (bare.name(), bare.title(), bare.extension()),
+            ("@@01J8XK2M9P51", None, None)
+        );
+        assert!(bare.signature().is_empty() && bare.keywords().is_empty());
+    }
+
+    /// A reading says whether the name was already written as this scheme
+    /// writes it, and answers the spelling it would write.
+    #[test]
+    fn a_reading_says_whether_the_name_was_already_canonical() {
+        use super::read;
+
+        let lenient = read("--Praia@@01j8xk2m9p51.JPG").expect("a name, spelled loosely");
+        assert!(!lenient.canonical(), "{lenient:?}");
+        assert_eq!(lenient.fields().name(), "--praia@@01J8XK2M9P51.jpg");
+        assert_eq!(lenient.fields().id(), "01J8XK2M9P51");
+        let exact = read("--praia@@01J8XK2M9P51.jpg").expect("the canonical spelling");
+        assert!(exact.canonical(), "{exact:?}");
+        assert_eq!(exact.fields(), lenient.fields());
+        assert_eq!(read("--just-a-title.jpg"), Err(NameError::NoIdentifier));
+        let long = format!("__{}@@01J8XK2M9P51.jpg", "keyword_".repeat(40));
+        assert!(
+            matches!(read(&long), Err(NameError::TooLong { .. })),
+            "a name this scheme will not write was read as one it writes"
         );
     }
 }

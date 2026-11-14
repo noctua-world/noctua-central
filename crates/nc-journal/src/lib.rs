@@ -1822,23 +1822,25 @@ impl<S: Store, C: Clock> Journal<S, C> {
         &self.realm
     }
 
-    /// An identifier from the minter this journal's units come from, for a
-    /// unit this journal will not bracket.
+    /// An identifier from the minter this journal's units come from, for
+    /// something this journal will not bracket.
     ///
     /// **One minter per flake per process**, which [`Journal::new`] says is the
-    /// caller's rule — and a caller that needs a unit identifier besides the
+    /// caller's rule — and a caller that needs an identifier besides the
     /// ones [`Journal::open_unit`] mints would otherwise need a second minter,
-    /// which collides with this one. The kernel's case: when the store has
-    /// committed a unit and the journal will not take its close, the kernel
-    /// commits the unit's reversal at once, as a unit of its own in the store,
-    /// and the journal is the thing that cannot be written at that moment.
-    /// Nothing is written here.
+    /// which collides with this one. The kernel has two such callers: a unit's
+    /// reversal — when the store has committed a unit and the journal will not
+    /// take its close, the kernel commits the unit's reversal at once, as a
+    /// unit of its own in the store, and the journal is the thing that cannot
+    /// be written at that moment — and a file's proposed name, whose identifier
+    /// is what the file is from then on (`NOCTUA.md §16.3`). Nothing is
+    /// written here.
     ///
     /// # Errors
     ///
     /// Returns [`Error::NoIdentifier`] when the machine's clock will not yield
     /// an identifier.
-    pub fn mint_unit(&mut self) -> Result<Snowflake, Error> {
+    pub fn mint_identifier(&mut self) -> Result<Snowflake, Error> {
         self.minted().map_err(Error::NoIdentifier)
     }
 
@@ -3963,7 +3965,7 @@ mod a_bracket_carries_what_no_caller_supplies {
             nc_ids::Minter::new(flake, nc_ids::SystemClock),
         );
         assert_eq!(journal.realm(), &realm);
-        let minted = journal.mint_unit().expect("the clock yields one");
+        let minted = journal.mint_identifier().expect("the clock yields one");
         let opened = journal
             .open_unit("a step")
             .await

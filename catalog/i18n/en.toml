@@ -40,6 +40,8 @@ dir   = "ltr"
 "command.limits.prune.tags" = ["prune", "clean up", "old records", "limit", "free space"]
 "command.kernel.undo.tags" = ["undo", "take back", "revert", "go back"]
 "command.kernel.redo.tags" = ["redo", "do again", "repeat", "restore"]
+"command.naming.propose.tags" = ["file name", "name a file", "rename", "save as", "propose"]
+"command.naming.read.tags" = ["file name", "read a name", "identifier", "parse", "details"]
 
 [message]
 
@@ -63,7 +65,7 @@ dir   = "ltr"
 "error.ids.ceiling-not-raised" = "Noctua could not save where its numbering has reached, so nothing new was saved. Try again in a moment, and check the disk has room if this does not clear."
 "error.ids.flake-exhausted" = "This computer could not be given an identity of its own. Contact whoever set up your Noctua."
 "error.ids.name-unparsable" = "That file name is not in Noctua's format, so its details could not be read."
-"error.ids.name-too-long" = "That name is too long for your computer to store. Shorten the title."
+"error.ids.name-too-long" = "That name is too long for your computer to store, even without its title. Use a shorter signature, fewer keywords or a shorter extension."
 "error.ids.not-an-identifier" = "That is not an identifier this system recognises. Check the value and try again."
 
 # --- The central log ---
@@ -233,6 +235,12 @@ dir   = "ltr"
 "command.kernel.redo.title" = "Redo"
 "command.kernel.redo.description" = "Make again the last step you took back."
 "command.kernel.redo.paragraph" = "Puts back the newest step you took back, as long as you have done nothing new since, after checking again that you may do each thing it did. A step whose undo needed corrections of its own cannot be redone."
+"command.naming.propose.title" = "Propose a file name"
+"command.naming.propose.description" = "Build a file name from a title, signature, keywords and extension."
+"command.naming.propose.paragraph" = "Writes the name Noctua gives a saved file: its signature, title, keywords, identifier and extension, each cleaned of what a file name cannot hold. A file being renamed keeps the identifier you give, so it stays the same file; without one, a new identifier is made. It saves nothing and changes nothing."
+"command.naming.read.title" = "Read a file name"
+"command.naming.read.description" = "Read a file name back into its identifier, signature, title and keywords."
+"command.naming.read.paragraph" = "Reads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing."
 
 # --- Capabilities ---
 "capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."

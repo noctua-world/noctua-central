@@ -1,0 +1,93 @@
+# The `family` pack's permits over the platform's features, and the boundary of
+# each.
+#
+# Each permit is shown firing and shown refusing just outside itself: a verb it
+# does not give, a kind of principal it does not let in, and a feature it does
+# not name. The runner re-runs every refusal with every `forbid` removed, so a
+# case still denied is one about the permit and not about a floor.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a member of the house has a file named"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"naming"'
+decision = "allow"
+because = "family.a_member_names_files"
+
+[[case]]
+# A child as much as an adult: naming reads nothing of anybody's.
+name = "and so does a child of the house"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Feature::"naming"'
+decision = "allow"
+because = "family.a_member_names_files"
+
+[[case]]
+# **The verb.** Naming is a read, and with the permit's action dropped a member
+# would be given every verb over the feature.
+name = "a member has a file named and writes nothing to the feature"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"naming"'
+decision = "deny"
+no_permit_matched = "family.a_member_names_files"
+
+[[case]]
+# **Who is asking.** Ana's laptop is attested, so no floor refuses it; the
+# permit's `principal is User` is what does, and with the type test deleted
+# this exact request is allowed.
+name = "a device of the house has no file named, however attested"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Feature::"naming"'
+decision = "deny"
+no_permit_matched = "family.a_member_names_files"
+
+[[case]]
+# And an agent acting openly as one — `via_agent` set, so no core `forbid`
+# refuses it and the permit is the only thing that can, until Stage 15 gives an
+# agent a permit of its own.
+name = "nor does an agent acting openly as one, until it has a permit of its own"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true }
+decision = "deny"
+no_permit_matched = "family.a_member_names_files"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member read every feature the realm holds.
+name = "the naming permit reaches no other feature"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"gallery"'
+decision = "deny"
+no_permit_matched = "family.a_member_names_files"
+
+[[case]]
+# **Cedar's answer without the directory, pinned rather than left implicit.**
+# The permit asks no membership, for the reason `features.cedar` gives, so over
+# the whole world a person of another realm is allowed it; the decision point's
+# slice of `home` holds no `User::"mallory"` and denies her. That this answer is
+# `allow` here is the finding, written down: the day the permit or a core
+# `forbid` narrows it, this case flips and somebody decides on purpose.
+name = "an outsider has a file named, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Read"
+resource = 'Feature::"naming"'
+decision = "allow"
+because = "family.a_member_names_files"

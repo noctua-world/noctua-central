@@ -42,8 +42,9 @@ pub(crate) const CORE: [(&str, &str); 7] = [
 ];
 
 /// The `family` pack's policies.
-const FAMILY: [(&str, &str); 3] = [
+const FAMILY: [(&str, &str); 4] = [
     embed!("policy/packs/family/accounts.cedar"),
+    embed!("policy/packs/family/features.cedar"),
     embed!("policy/packs/family/permissions.cedar"),
     embed!("policy/packs/family/realm.cedar"),
 ];

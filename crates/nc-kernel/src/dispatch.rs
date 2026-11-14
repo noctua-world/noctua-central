@@ -1896,6 +1896,12 @@ impl Failure {
     pub(crate) const fn refusal(&self) -> &Refusal {
         &self.refusal
     }
+
+    /// The word its entry records it under, for a handler's own tests.
+    #[cfg(test)]
+    pub(crate) const fn word(&self) -> &'static str {
+        self.word
+    }
 }
 
 /// What running an authorized command came to.
@@ -2289,8 +2295,8 @@ fn quarantined(name: &str) -> Failure {
 const QUOTED: usize = 256;
 
 /// Runs a command the kernel itself implements, in the tree's own unit:
-/// verifying the journal, pruning the local tables, and the history's undo
-/// and redo (`crate::builtin`).
+/// verifying the journal, pruning the local tables, the history's undo and
+/// redo, and proposing and reading a file's name (`crate::builtin`).
 ///
 /// **A command the registry gives the kernel has a handler**, which
 /// `crate::builtin`'s test holds both ways; one without would be answered as
@@ -2310,6 +2316,8 @@ async fn builtin<E: Environment>(
         }
         Some(Builtin::Undo) => history::undo(shared, tree, &asked.principal, authorized.held).await,
         Some(Builtin::Redo) => history::redo(shared, tree, &asked.principal, authorized.held).await,
+        Some(Builtin::Propose) => builtin::proposed(shared, &asked.json, asked.waits).await,
+        Some(Builtin::ReadName) => builtin::read_back(&asked.json),
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

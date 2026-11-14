@@ -5,6 +5,11 @@
 //! afterwards; and help printed from the daemon's registry, each command by
 //! its name and its title and each argument from its command's schema.
 //!
+//! **Acceptance 8 of Stage 14 here too**: a name `naming.propose` answers is
+//! read back by `naming.read` as the fields that built it, through the CLI and
+//! through the daemon's endpoint as one JSON object — a raw dispatch, the path
+//! `noctua mcp` will take — each decided on the platform's `naming` feature.
+//!
 //! **The CLI in-process** (`nc_cli::run`), so no `noctua` a build left behind
 //! is ever what runs, against the daemon this build made, copied where an
 //! installer puts it beside a manifest under a scratch root and a namespace
@@ -100,6 +105,27 @@ const fn ended(
     }
 }
 
+/// The words that propose `NOCTUA.md §16.3`'s own example, as a person types
+/// its parts.
+const PROPOSED: &[&str] = &[
+    "--title",
+    "Praia de Copacabana",
+    "--signature",
+    "familia",
+    "--signature",
+    "fotos",
+    "--keywords",
+    "brasil",
+    "--extension",
+    "jpg",
+];
+
+/// The name `NOCTUA.md §16.3` writes down.
+const THE_EXAMPLE: &str = "==familia=fotos--praia-de-copacabana__brasil@@01J8XK2M9P51.jpg";
+
+/// The permit every naming command a person is allowed is decided by.
+const NAMES_FILES: &str = "family.a_member_names_files";
+
 /// The note's words, and the note with some text.
 const A_NOTE: &[&str] = &["--note", NOTE];
 const A_NOTE_AND_TEXT: &[&str] = &["--note", NOTE, "--text", "written"];
@@ -121,6 +147,8 @@ const A_NOTE_AND_TEXT: &[&str] = &["--note", NOTE, "--text", "written"];
 /// to `NC-KERN-0006` alone.
 const ROWS: &[Row] = &[
     ran("journal.verify", &["--from", "0"]),
+    ran("naming.propose", PROPOSED),
+    ran("naming.read", &["--name", THE_EXAMPLE]),
     ended(
         "limits.prune",
         &["--dry_run"],
@@ -551,7 +579,10 @@ fn held_to(row: &Row, record: &nc_journal::Record, registered: &Registered) {
     );
     let entity = match registered.resource_selector.as_str() {
         "realm" => "{\"id\":\"home\",\"type\":\"Realm\"}".to_owned(),
-        _ => format!("{{\"id\":\"{NOTE}\",\"type\":\"Content\"}}"),
+        selector => selector.strip_prefix("feature:").map_or_else(
+            || format!("{{\"id\":\"{NOTE}\",\"type\":\"Content\"}}"),
+            |feature| format!("{{\"id\":\"{feature}\",\"type\":\"Feature\"}}"),
+        ),
     };
     let resource = record
         .resource
@@ -661,6 +692,229 @@ fn help_lists_every_command_by_its_name_and_title_and_each_argument_from_its_sch
         read.entries.is_empty(),
         "help dispatched {:?}",
         read.entries
+    );
+    serving.stopped();
+}
+
+/// What `--json` wrote for `words`, run through the CLI: its answer, under
+/// the `ok` it is written in, once the run ended well.
+fn answered_to(serving: &Serving, words: &[&str]) -> Value {
+    let argv: Vec<String> = std::iter::once("--json")
+        .chain(words.iter().copied())
+        .map(ToOwned::to_owned)
+        .collect();
+    let outcome = serving.run(&argv, &english());
+    assert_eq!(outcome.exit, Exit::Success, "{words:?}: {outcome:?}");
+    nc_canon::parse(outcome.stdout.trim_end())
+        .expect("one canonical document")
+        .into_object()
+        .and_then(|mut fields| fields.remove("ok"))
+        .unwrap_or_else(|| panic!("{words:?} answered no `ok`: {}", outcome.stdout))
+}
+
+/// The text the field `name` of `answer` holds.
+fn text_of(answer: &Value, name: &str) -> String {
+    answer
+        .clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove(name))
+        .and_then(Value::into_text)
+        .unwrap_or_else(|| panic!("`{name}` of {answer:?} is not text"))
+}
+
+/// A reading's fields, with the `canonical` it adds to a proposal's taken out
+/// and answered beside them.
+fn read_as_proposed(reading: &Value) -> (Value, Option<Value>) {
+    let mut fields = reading
+        .clone()
+        .into_object()
+        .expect("an answer is an object");
+    let canonical = fields.remove("canonical");
+    (Value::Object(fields), canonical)
+}
+
+/// Every naming command the daemon's journal holds, allowed, by the policy
+/// that decided it.
+fn naming_decided(serving: &Serving) -> Vec<String> {
+    let store = serving
+        .runtime
+        .block_on(nc_local::LocalStore::open(&serving.installed.layout.data))
+        .expect("the daemon's database opens beside it");
+    let read = serving
+        .runtime
+        .block_on(nc_journal::Store::from(&store.journal(), 0))
+        .expect("the journal reads");
+    serving.runtime.block_on(store.close());
+    read.entries
+        .iter()
+        .map(|entry| &entry.record)
+        .filter(|record| {
+            record.result == Outcome::Allowed
+                && command_of(record).is_some_and(|command| command.starts_with("naming."))
+        })
+        .map(|record| record.deciding_policy.clone().unwrap_or_default())
+        .collect()
+}
+
+/// A name the CLI proposes is read back by the CLI as the fields that built
+/// it (Stage 14, acceptance 8, the CLI's half).
+///
+/// Proposed from flags as a person types the parts, the answer is the scheme's
+/// own example but for the identifier, which the daemon's minter made; read
+/// back from that name, it is every field again and already canonical. Two
+/// proposals are two identifiers, `--id` keeps the one given in its canonical
+/// spelling, and a name with no identifier is refused as one this scheme
+/// cannot read. Every one allowed was decided by the naming permit and no
+/// other rule.
+#[test]
+fn a_name_the_cli_proposes_is_read_back_by_the_cli_as_the_fields_that_built_it() {
+    let serving = Serving::new();
+    let words = |command: &'static str, rest: &[&'static str]| -> Vec<&'static str> {
+        std::iter::once(command)
+            .chain(rest.iter().copied())
+            .collect()
+    };
+    let proposed = answered_to(&serving, &words("naming.propose", PROPOSED));
+    let id = text_of(&proposed, "id");
+    let name = text_of(&proposed, "name");
+    assert_eq!(
+        name,
+        THE_EXAMPLE.replace("01J8XK2M9P51", &id),
+        "the example's parts built another name"
+    );
+    let (fields, canonical) = read_as_proposed(&answered_to(
+        &serving,
+        &["naming.read", "--name", name.as_str()],
+    ));
+    assert_eq!(canonical, Some(Value::Bool(true)));
+    assert_eq!(
+        fields, proposed,
+        "the name read back is not the fields that built it"
+    );
+    let again = answered_to(&serving, &words("naming.propose", PROPOSED));
+    assert_ne!(
+        text_of(&again, "id"),
+        id,
+        "two proposals were one identifier"
+    );
+    let lower = id.to_lowercase();
+    let kept = answered_to(
+        &serving,
+        &[
+            "naming.propose",
+            "--title",
+            "Ipanema",
+            "--id",
+            lower.as_str(),
+        ],
+    );
+    assert_eq!(text_of(&kept, "id"), id);
+    assert_eq!(text_of(&kept, "name"), format!("--ipanema@@{id}"));
+    let unread = serving.run(
+        &[
+            "naming.read".to_owned(),
+            "--name".to_owned(),
+            "nothing.txt".to_owned(),
+        ],
+        &english(),
+    );
+    assert_eq!(unread.exit, Exit::Invalid, "{unread:?}");
+    assert!(
+        unread
+            .stderr
+            .starts_with(&format!("error[{}]", ErrorCode::IdsNameUnparsable.code())),
+        "{}",
+        unread.stderr
+    );
+    let decided = naming_decided(&serving);
+    assert_eq!(decided.len(), 4, "{decided:?}");
+    assert!(
+        decided.iter().all(|rule| rule == NAMES_FILES),
+        "{decided:?}"
+    );
+    serving.stopped();
+}
+
+/// A name proposed over the endpoint as one JSON object is read back the same
+/// (Stage 14, acceptance 8, the endpoint's half).
+///
+/// **The path `noctua mcp` will take**: one `Request::Dispatch` carrying the
+/// arguments as one JSON object, through `nc_ipc` and nothing of the CLI's,
+/// answered as one; the name it answers is read back over the same endpoint
+/// as the same fields, and through the CLI as the same answer. A name with no
+/// identifier is refused there as one this scheme cannot read.
+#[test]
+fn a_name_proposed_over_the_endpoint_as_one_json_object_is_read_back_the_same() {
+    let mut serving = Serving::new();
+    let arguments = nc_canon::parse(
+        r#"{"extension":"jpg","keywords":["brasil"],"signature":["familia","fotos"],"title":"Praia de Copacabana"}"#,
+    )
+    .expect("one JSON object");
+    let (proposed, read, refused) = serving.runtime.block_on(async {
+        let Answer::Result(proposed) = asked(
+            &mut serving.client,
+            Request::Dispatch {
+                command: "naming.propose".to_owned(),
+                args: arguments,
+            },
+        )
+        .await
+        else {
+            panic!("the proposal was not answered");
+        };
+        let name = text_of(&proposed, "name");
+        let Answer::Result(read) = asked(
+            &mut serving.client,
+            Request::Dispatch {
+                command: "naming.read".to_owned(),
+                args: Value::object([("name", Value::text(name))]),
+            },
+        )
+        .await
+        else {
+            panic!("the reading was not answered");
+        };
+        let refused = asked(
+            &mut serving.client,
+            Request::Dispatch {
+                command: "naming.read".to_owned(),
+                args: Value::object([("name", Value::text("nothing.txt"))]),
+            },
+        )
+        .await;
+        (proposed, read, refused)
+    });
+    let name = text_of(&proposed, "name");
+    assert_eq!(
+        name,
+        THE_EXAMPLE.replace("01J8XK2M9P51", &text_of(&proposed, "id")),
+        "the example's parts built another name"
+    );
+    let (fields, canonical) = read_as_proposed(&read);
+    assert_eq!(canonical, Some(Value::Bool(true)));
+    assert_eq!(
+        fields, proposed,
+        "the name read back is not the fields that built it"
+    );
+    assert_eq!(
+        answered_to(&serving, &["naming.read", "--name", name.as_str()]),
+        read,
+        "the CLI and the endpoint read one name two ways"
+    );
+    let Answer::Refused(refusal) = refused else {
+        panic!("a name with no identifier was answered: {refused:?}");
+    };
+    assert_eq!(
+        (refusal.code, refusal.kind),
+        (ErrorCode::IdsNameUnparsable, nc_ipc::RefusalKind::Invalid),
+        "{}",
+        refusal.sentence
+    );
+    let decided = naming_decided(&serving);
+    assert_eq!(
+        decided,
+        [NAMES_FILES, NAMES_FILES, NAMES_FILES],
+        "{decided:?}"
     );
     serving.stopped();
 }

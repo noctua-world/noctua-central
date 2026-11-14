@@ -71,11 +71,12 @@ const CORE_POLICIES: [&str; 7] = [
 /// Compared with the pack on disk in both directions, like `CORE_POLICIES`: a
 /// name here that is not in the pack is a rule somebody removed, and one in the
 /// pack that is not here is a rule nobody wrote down.
-const PACK_RULES: [&str; 10] = [
+const PACK_RULES: [&str; 11] = [
     "family.a_frozen_account_acts_on_nothing",
     "family.a_guardian_administers_the_realm",
     "family.a_guardian_prunes_the_realm",
     "family.a_guardian_reads_the_realm",
+    "family.a_member_names_files",
     "family.a_member_reads_shared_content",
     "family.a_member_reads_their_own_account",
     "family.a_member_steps_through_their_own_history",
@@ -408,9 +409,9 @@ fn the_commands_the_schema_does_not_declare(
 ///
 /// **The selector is read by the rule that judged it**, `nc_schema`'s, which
 /// the catalog compiler holds every command to and the kernel holds every
-/// plugin's to: `realm` is the `Realm` entity, and `argument:<name>` is the type
-/// the property's `x-entity` names — declared, required and bounded, or the
-/// compiler refuses the catalog. So every selector a compiled catalog carries
+/// plugin's to: `realm` is the `Realm` entity, `feature:<id>` the `Feature` it
+/// names, and `argument:<name>` the type the property's `x-entity` names —
+/// declared, required and bounded, or the compiler refuses the catalog. So every selector a compiled catalog carries
 /// names a type this can compare, the form that extracts from the arguments
 /// included.
 ///
@@ -434,9 +435,10 @@ fn the_type_a_selector_names(selector: &str, args_schema: &str) -> Option<String
 /// Every command whose resource is one its own action cannot be applied to.
 ///
 /// **The resource as well as the verb.** Every shipped command selects the
-/// realm, and with no action applying to a `Realm` in the schema the request
-/// each of them builds is one Cedar's own schema refuses, while a comparison
-/// of verbs alone prints `ok … command(s) name an action the schema declares`.
+/// realm or a feature of the platform, and with no action applying to a
+/// `Realm` in the schema the request each of the first builds is one Cedar's
+/// own schema refuses, while a comparison of verbs alone prints
+/// `ok … command(s) name an action the schema declares`.
 /// Measured by appending a case with `resource = 'Realm::"home"'`:
 ///
 /// ```text
@@ -613,8 +615,8 @@ fn every_command_names_an_action_the_schema_has(
             declared.len()
         ));
         // **And how many resources this could not compare.** Every selector a
-        // compiled catalog holds names its type — `realm`, or an argument whose
-        // `x-entity` says it — so one this cannot read is a selector its own
+        // compiled catalog holds names its type — `realm`, a feature, or an
+        // argument whose `x-entity` says it — so one this cannot read is a selector its own
         // schema does not back, which the compiler refuses. Passing over one
         // silently would make this step quietly cover less of the catalog;
         // saying the number is what makes that visible.
@@ -941,7 +943,7 @@ fn what_the_case_asserts(case: &nc_policy::Case) -> String {
 
 /// How many cases the pack's own suite runs — see
 /// [`the_cases_are_the_written_number`], which is where the argument for it is.
-const CASES: usize = 73;
+const CASES: usize = 81;
 
 /// Every entity `policy/world.json` declares, and every attribute it carries.
 ///
@@ -962,7 +964,7 @@ const CASES: usize = 73;
 /// as an attribute is. An entity carrying nothing gets one row with two empty
 /// fields, so that deleting it is a row that went rather than nothing at all.
 #[cfg(test)]
-const THE_WORLD: [(&str, &str, &str); 130] = [
+const THE_WORLD: [(&str, &str, &str); 132] = [
     (
         "Agent::\"ana-assistant\"",
         "<parent>",
@@ -1128,6 +1130,12 @@ const THE_WORLD: [(&str, &str, &str); 130] = [
         "{\"type\":\"Realm\",\"id\":\"home\"}",
     ),
     ("Feature::\"gallery\"", "tier", "\"included\""),
+    (
+        "Feature::\"naming\"",
+        "<parent>",
+        "{\"type\":\"Realm\",\"id\":\"home\"}",
+    ),
+    ("Feature::\"naming\"", "tier", "\"included\""),
     ("Folder::\"household\"", "", ""),
     (
         "Folder::\"household\"",
@@ -1443,7 +1451,7 @@ const THE_WORLD: [(&str, &str, &str); 130] = [
     ("User::\"mallory\"", "status", "\"active\""),
 ];
 
-/// The same 73, by what each one asks.
+/// The same 81, by what each one asks.
 ///
 /// **A total is satisfied by any cases that add up to it, and so is a count per
 /// file.** The one thing `CASES` exists to protect is a case that records
@@ -1492,7 +1500,7 @@ const THE_WORLD: [(&str, &str, &str); 130] = [
 /// The context is the whole Cedar JSON, sorted, because a field left out of
 /// this row is a field a case can be moved along. Changing any of the six is an
 /// edit somebody reads.
-const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
+const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 81] = [
     (
         "policy/core/tests/agent_authority.toml",
         "a person acting unmarked is not impersonating",
@@ -1783,6 +1791,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
     ),
     (
         "policy/packs/family/tests/accounts.toml",
+        "a suspended account has no file named",
+        "User::\"dora\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/because=family.a_frozen_account_acts_on_nothing",
+    ),
+    (
+        "policy/packs/family/tests/accounts.toml",
         "a suspended account steps through no history, not even its own",
         "User::\"dora\"",
         "Action::\"Write\"",
@@ -1834,6 +1851,69 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
         "Content::\"notice\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Allow/because=family.a_member_reads_shared_content",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a device of the house has no file named, however attested",
+        "Device::\"ana-laptop\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_names_files/boundary=principal",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a member has a file named and writes nothing to the feature",
+        "User::\"carla\"",
+        "Action::\"Write\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_names_files/boundary=action",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a member of the house has a file named",
+        "User::\"carla\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_names_files",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "an outsider has a file named, which only the decision point refuses",
+        "User::\"mallory\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_names_files",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "and so does a child of the house",
+        "User::\"bruno\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_names_files",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "nor does an agent acting openly as one, until it has a permit of its own",
+        "Agent::\"ana-assistant\"",
+        "Action::\"Read\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":true}",
+        "Deny/outside=family.a_member_names_files/boundary=principal",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "the naming permit reaches no other feature",
+        "User::\"carla\"",
+        "Action::\"Read\"",
+        "Feature::\"gallery\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_names_files",
     ),
     (
         "policy/packs/family/tests/permissions.toml",
@@ -2154,7 +2234,7 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
 
 /// Every clause a case pins, held against the number written down.
 ///
-/// **62, and what the clauses behind it are.** The frozen-account floor names
+/// **65, and what the clauses behind it are.** The frozen-account floor names
 /// the states that may act — `active`, `dormant` and `presumed_inactive`, three
 /// comparisons, and a case for each state notices one deleted. Listing the
 /// states that may not, `suspended` and `deceased`, allows any other value of a
@@ -2166,7 +2246,8 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
 /// agent acting openly as one. The pairing rule cannot pin it — a denial for a
 /// device pairs only with an `allow` for a device, which that permit never
 /// gives — so a case may say `the_principal_is_the_boundary`, and two of them
-/// pin the type test.
+/// pin the type test. The naming permit's `principal is User` is pinned the
+/// same way, beside its verb and the one feature it names.
 ///
 /// **The family pack's rules for the decision point.** Their clauses are one
 /// row each in [`PINNED_BY_POLICY`]: the realm's permits pin their verb, their
@@ -2205,9 +2286,9 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 73] = [
 /// *why* the number is what it is.
 /// `the_written_number_is_the_number` reads this comment and requires the two to
 /// agree, in the shape `xtask/canaries/README.md` calls one rule written twice.
-const PINNED: usize = 62;
+const PINNED: usize = 65;
 
-/// The same 62, by the policy each clause belongs to.
+/// The same 65, by the policy each clause belongs to.
 ///
 /// **A count is not a set, and every policy here shares one number.** `PINNED`
 /// is a total: a policy gaining a pinned conjunct pays for another losing one,
@@ -2222,7 +2303,7 @@ const PINNED: usize = 62;
 /// that reason — its conjuncts are all guards, which
 /// `guards_a_dereference` excuses by name — and a zero row says so where an
 /// absent row would say nothing.
-const PINNED_BY_POLICY: [(&str, usize); 21] = [
+const PINNED_BY_POLICY: [(&str, usize); 22] = [
     ("core.an_agent_never_impersonates", 2),
     ("core.budget_is_a_permission", 2),
     ("core.chain_depth_is_bounded", 2),
@@ -2238,6 +2319,7 @@ const PINNED_BY_POLICY: [(&str, usize); 21] = [
     ("family.a_guardian_administers_the_realm", 2),
     ("family.a_guardian_prunes_the_realm", 4),
     ("family.a_guardian_reads_the_realm", 3),
+    ("family.a_member_names_files", 3),
     ("family.a_member_reads_shared_content", 4),
     ("family.a_member_reads_their_own_account", 3),
     ("family.a_member_steps_through_their_own_history", 4),
@@ -3298,27 +3380,40 @@ mod tests {
             "the shipped commands were reported against the shipped schema: {real:?}"
         );
 
-        // The drift: `Realm` gone from every action's resource list, which is
-        // what removing it from §4 and the schema together produces.
-        let (without_realm, _) = super::the_commands_a_schema_cannot_apply(&shipped, &|action| {
-            pack.resources_for(action)
-                .into_iter()
-                .filter(|named| named != "Realm")
-                .collect()
-        });
-        assert_eq!(
-            without_realm.len(),
-            nc_catalog::commands::COMMANDS.len(),
-            "both shipped commands select the realm, and with `Realm` out of the schema \
-             each builds a request Cedar's own schema refuses — {} of {} were named",
-            without_realm.len(),
-            nc_catalog::commands::COMMANDS.len()
-        );
-        for (command, said) in nc_catalog::commands::COMMANDS.iter().zip(&without_realm) {
+        // The drift: each type a shipped command selects — the realm, a
+        // feature — gone from every action's resource list in turn, which is
+        // what removing it from §4 and the schema together produces. Exactly
+        // the commands selecting it are named, each with the type, and the
+        // others are not.
+        for (gone, selecting) in [("Realm", "realm"), ("Feature", "feature:")] {
+            let (without, _) = super::the_commands_a_schema_cannot_apply(&shipped, &|action| {
+                pack.resources_for(action)
+                    .into_iter()
+                    .filter(|named| named != gone)
+                    .collect()
+            });
+            let expected: Vec<&nc_catalog::commands::Command> = nc_catalog::commands::COMMANDS
+                .iter()
+                .filter(|command| command.resource_selector.starts_with(selecting))
+                .collect();
             assert!(
-                said.contains(command.name) && said.contains("Realm"),
-                "the sentence does not name the command and the type it selects: {said}"
+                !expected.is_empty(),
+                "no shipped command selects a `{gone}`, so this drift is about nothing"
             );
+            assert_eq!(
+                without.len(),
+                expected.len(),
+                "with `{gone}` out of the schema each command selecting it builds a request \
+                 Cedar's own schema refuses — {} of {} were named: {without:?}",
+                without.len(),
+                expected.len()
+            );
+            for (command, said) in expected.iter().zip(&without) {
+                assert!(
+                    said.contains(command.name) && said.contains(gone),
+                    "the sentence does not name the command and the type it selects: {said}"
+                );
+            }
         }
 
         // **An action the schema does not declare is somebody else's finding.**
@@ -3332,12 +3427,9 @@ mod tests {
 
         // **The mapping, field by field.** A guard on its length is satisfied
         // by any `.map`, so under it a selector replaced by a constant
-        // different from the shipped one leaves the whole run byte-identical.
-        // Every command selects the realm today, so a constant that *is*
-        // `"realm"` is
-        // indistinguishable here — that one becomes visible the moment the
-        // catalog holds two different selectors, and saying so is better than
-        // implying this closes every substitution.
+        // different from the shipped one leaves the whole run byte-identical —
+        // and with the catalog holding two selectors, `realm` and
+        // `feature:naming`, no one constant can stand in for both.
         let mapped = super::the_catalog_as_commands();
         assert_eq!(
             mapped.len(),
@@ -3509,13 +3601,29 @@ mod tests {
             );
         }
 
-        // And one action dropped from an otherwise complete schema: exactly one
-        // command is named, which is what says the comparison is per command
-        // rather than all-or-nothing.
-        let missing: Vec<String> = real.iter().skip(1).cloned().collect();
-        let one = super::the_commands_the_schema_does_not_declare(&missing);
-        assert_eq!(one.len(), 1, "{one:?}");
-        assert_eq!(one[0].name, nc_catalog::commands::COMMANDS[0].name);
+        // And one action dropped from an otherwise complete schema: exactly the
+        // commands declaring it are named, which is what says the comparison
+        // is per command rather than all-or-nothing.
+        let dropped = real[1].clone();
+        let missing: Vec<String> = real
+            .iter()
+            .filter(|action| **action != dropped)
+            .cloned()
+            .collect();
+        let named: Vec<&str> = super::the_commands_the_schema_does_not_declare(&missing)
+            .iter()
+            .map(|command| command.name)
+            .collect();
+        let declaring: Vec<&str> = nc_catalog::commands::COMMANDS
+            .iter()
+            .filter(|command| command.action == dropped)
+            .map(|command| command.name)
+            .collect();
+        assert!(
+            declaring.len() < nc_catalog::commands::COMMANDS.len(),
+            "every command declares `{dropped}`, so this cannot tell one from all"
+        );
+        assert_eq!(named, declaring, "`{dropped}` dropped");
     }
 
     /// Which fences of §4 are the schema, and which are examples beside it.
@@ -3927,8 +4035,8 @@ mod tests {
         // written name goes with that case and nothing notices.
         assert_eq!(
             super::PACK_RULES.len(),
-            10,
-            "the family pack ships ten rules; one deleted with its only denial case \
+            11,
+            "the family pack ships eleven rules; one deleted with its only denial case \
              moved every count down together and left the run green"
         );
         assert_eq!(

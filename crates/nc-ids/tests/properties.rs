@@ -411,15 +411,107 @@ proptest! {
         let text = id.to_crockford();
         prop_assert_eq!(Snowflake::from_crockford(&text), Ok(id));
     }
+
+    /// A proposed name reads back as the fields that built it, in text.
+    ///
+    /// **Criterion 8 as the naming commands meet it**: `propose` and `read`,
+    /// the text-only door the kernel calls, over the same generators as the
+    /// law above. Every field `propose` answers is the one the builder holds,
+    /// the identifier is the minted one's canonical spelling, and reading the
+    /// name back gives the same fields, already canonical. The only refusal is
+    /// a name that cannot fit, which the builder documents.
+    #[test]
+    fn a_proposed_name_reads_back_as_the_fields_that_built_it(
+        signature in prop::collection::vec(text(), 0..3),
+        title in prop::option::of(text()),
+        keywords in prop::collection::vec(text(), 0..3),
+        id in snowflake(),
+        extension in prop::option::of(extension_text()),
+    ) {
+        use nc_ids::naming::{Identifier, propose, read};
+
+        let signature: Vec<&str> = signature.iter().map(String::as_str).collect();
+        let keywords: Vec<&str> = keywords.iter().map(String::as_str).collect();
+        let built =
+            FileName::new(&signature, title.as_deref(), &keywords, id, extension.as_deref());
+        let proposed = propose(
+            &signature,
+            title.as_deref(),
+            &keywords,
+            Identifier::Minted(id),
+            extension.as_deref(),
+        );
+        let fields = match proposed {
+            Ok(fields) => fields,
+            Err(nc_ids::NameError::TooLong { .. }) => {
+                prop_assert!(built.build().is_err(), "propose refused a name build writes");
+                return Ok(());
+            }
+            Err(other) => panic!("a minted identifier was refused: {other:?}"),
+        };
+        prop_assert_eq!(Ok(fields.name().to_owned()), built.build());
+        prop_assert_eq!(fields.id(), id.to_crockford());
+        prop_assert_eq!(fields.signature(), built.signature());
+        prop_assert_eq!(fields.title(), built.title());
+        prop_assert_eq!(fields.keywords(), built.keywords());
+        prop_assert_eq!(fields.extension(), built.extension());
+        let reading = read(fields.name()).expect("what was just proposed reads back");
+        prop_assert!(reading.canonical(), "{:?} is not its own spelling", fields.name());
+        prop_assert_eq!(reading.fields(), &fields);
+    }
+
+    /// A kept identifier is carried in its canonical spelling, whichever
+    /// spelling Crockford reads it from.
+    ///
+    /// Lower case, the confusable `O`, `I` and `L`, and the thirteen-character
+    /// width a value padded once more is written in: each is the same
+    /// identifier, so a rename keeps the file's identity and its name says it
+    /// the one way this scheme writes it.
+    #[test]
+    fn a_kept_identifier_is_carried_in_its_canonical_spelling(
+        value in 0_u64..(1 << 63),
+        spellings in prop::collection::vec(0_u8..4, 13),
+        padded in any::<bool>(),
+    ) {
+        use nc_ids::naming::{Identifier, propose};
+
+        let canonical = nc_ids::base32::encode(value);
+        let mut kept: String = canonical
+            .chars()
+            .zip(&spellings)
+            .map(|(character, choice)| match (character, choice) {
+                ('0', 1) => 'O',
+                ('0', 2) => 'o',
+                ('1', 1) => 'I',
+                ('1', 2) => 'l',
+                ('1', 3) => 'L',
+                (other, 3) => other.to_ascii_lowercase(),
+                (other, _) => other,
+            })
+            .collect();
+        if padded && kept.chars().count() < nc_ids::base32::MAX_WIDTH {
+            kept.insert(0, '0');
+        }
+        let fields = propose(&[], Some("kept"), &[], Identifier::Kept(&kept), None)
+            .expect("every spelling of an identifier is one");
+        prop_assert_eq!(fields.id(), canonical.as_str(), "kept as {}", kept);
+        prop_assert!(
+            fields.name().ends_with(&format!("@@{canonical}")),
+            "{} does not end in the canonical identifier",
+            fields.name()
+        );
+    }
 }
 
 /// How many of the generated cases actually exercise criterion 8.
 ///
-/// **Two of the properties above return early, and this says how often.**
+/// **Three of the properties above return early, and this says how often.**
 /// `parsing_a_built_name_returns_what_built_it` skips a case whose signature and
-/// keywords alone will not fit, and `parsing_any_name_reaches_a_fixed_point`
-/// skips one the parser refuses. Both skips are correct — the refusal is the law
-/// too — but a property that asserts nothing in half its cases is a property
+/// keywords alone will not fit, `a_proposed_name_reads_back_as_the_fields_that_built_it`
+/// skips the same case met through `propose`, and
+/// `parsing_any_name_reaches_a_fixed_point` skips one the parser refuses. Each
+/// skip is correct — the refusal is the law too — but a property that asserts
+/// nothing in half its cases is a property
 /// running at half the strength its name claims, and `§19.5` is that the count
 /// of things examined is part of what a test claims.
 ///
@@ -440,6 +532,7 @@ fn enough_generated_cases_reach_the_assertion() {
     let mut runner = TestRunner::deterministic();
 
     let mut built = 0_usize;
+    let mut proposed = 0_usize;
     let generator = (
         prop::collection::vec(text(), 0..3),
         prop::option::of(text()),
@@ -464,11 +557,30 @@ fn enough_generated_cases_reach_the_assertion() {
         if name.build().is_ok() {
             built += 1;
         }
+        // The same draw through the text-only door, whose property returns
+        // early on the same refusal.
+        if nc_ids::naming::propose(
+            &signature,
+            title.as_deref(),
+            &keywords,
+            nc_ids::naming::Identifier::Minted(id),
+            extension.as_deref(),
+        )
+        .is_ok()
+        {
+            proposed += 1;
+        }
     }
     assert!(
         built * 4 >= SAMPLES,
         "only {built} of {SAMPLES} generated names build, so \
          `parsing_a_built_name_returns_what_built_it` asserts nothing in most of its cases"
+    );
+    assert!(
+        proposed * 4 >= SAMPLES,
+        "only {proposed} of {SAMPLES} generated proposals are answered, so \
+         `a_proposed_name_reads_back_as_the_fields_that_built_it` asserts nothing in most \
+         of its cases"
     );
 
     let mut parsed = 0_usize;

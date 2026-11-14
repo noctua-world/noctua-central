@@ -28,6 +28,8 @@ dir   = "ltr"
 "command.limits.prune.tags" = ["limpar", "apagar", "registros antigos", "limite", "liberar espaço"]
 "command.kernel.undo.tags" = ["desfazer", "voltar atrás", "reverter", "anular"]
 "command.kernel.redo.tags" = ["refazer", "fazer de novo", "repetir", "restaurar"]
+"command.naming.propose.tags" = ["nome de arquivo", "nomear arquivo", "renomear", "salvar como", "propor"]
+"command.naming.read.tags" = ["nome de arquivo", "ler um nome", "identificador", "analisar", "detalhes"]
 
 [message]
 
@@ -51,7 +53,7 @@ dir   = "ltr"
 "error.ids.ceiling-not-raised" = "O Noctua não conseguiu salvar até onde sua numeração chegou, então nada novo foi salvo. Tente de novo em instantes e, se não resolver, veja se o disco tem espaço."
 "error.ids.flake-exhausted" = "Não foi possível dar uma identidade própria a este computador. Fale com quem instalou o seu Noctua."
 "error.ids.name-unparsable" = "Esse nome de arquivo não está no formato do Noctua, então os dados dele não puderam ser lidos."
-"error.ids.name-too-long" = "Esse nome é longo demais para o seu computador guardar. Encurte o título."
+"error.ids.name-too-long" = "Esse nome é longo demais para o seu computador guardar, mesmo sem o título. Use uma assinatura mais curta, menos palavras-chave ou uma extensão mais curta."
 "error.ids.not-an-identifier" = "Isso não é um identificador que este sistema reconheça. Confira o valor e tente de novo."
 
 # --- The central log ---
@@ -217,6 +219,12 @@ dir   = "ltr"
 "command.kernel.redo.title" = "Refazer"
 "command.kernel.redo.description" = "Fazer de novo o último passo que você desfez."
 "command.kernel.redo.paragraph" = "Refaz o passo mais recente que você desfez, desde que você não tenha feito nada novo depois, conferindo de novo que você pode fazer cada coisa que ele fez. Um passo cujo desfazer precisou de correções próprias não pode ser refeito."
+"command.naming.propose.title" = "Propor um nome de arquivo"
+"command.naming.propose.description" = "Montar o nome de um arquivo com título, assinatura, palavras-chave e extensão."
+"command.naming.propose.paragraph" = "Escreve o nome que o Noctua dá a um arquivo salvo: a assinatura, o título, as palavras-chave, o identificador e a extensão, cada um limpo do que um nome de arquivo não comporta. Um arquivo renomeado mantém o identificador que você informar e continua sendo o mesmo arquivo; sem ele, um identificador novo é criado. Não salva nada e não muda nada."
+"command.naming.read.title" = "Ler um nome de arquivo"
+"command.naming.read.description" = "Ler um nome de arquivo e dizer seu identificador, assinatura e palavras-chave."
+"command.naming.read.paragraph" = "Lê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada."
 
 # --- Capabilities ---
 "capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."

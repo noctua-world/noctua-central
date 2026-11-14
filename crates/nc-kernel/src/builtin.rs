@@ -2,7 +2,8 @@
 //!
 //! **One handler for each command the catalog declares in a namespace the
 //! kernel keeps, and none for any other.** `catalog/commands.toml` declares
-//! `journal.verify`, `limits.prune`, `kernel.undo` and `kernel.redo`; the
+//! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
+//! `naming.propose` and `naming.read`; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -46,6 +47,25 @@
 //! records, and one of those is what the recovery on open reverts it from.
 //! `kernel.undo` and `kernel.redo` are `crate::history`'s.
 //!
+//! **`naming.propose` and `naming.read` are the one file-naming scheme as
+//! commands** (`NOCTUA.md §16.3`), so every surface that dispatches names a
+//! file the same way. `propose` builds a name from `title`, `signature`,
+//! `keywords` and `extension` through `nc_ids::naming::propose`, under the
+//! identifier `id` names — kept, so a renamed file is still the same file — or,
+//! when there is none, one the journal's minter mints, the machine's one
+//! (`NOCTUA.md §16.2`). `read` reads `name` back through
+//! `nc_ids::naming::read`. Each answers the name and its fields as canonical
+//! JSON — `id`, `keywords`, `name`, `signature`, and `title` and `extension`
+//! when there are — and `read` says with `canonical` whether `name` was already
+//! written as the scheme writes it. Both are `Read` on `Feature::"naming"`,
+//! which the family pack gives every person of the realm
+//! (`family.a_member_names_files`): they read nothing of the realm's, so they
+//! open no unit and change nothing, and the journal's entry names the command
+//! and the feature, never the arguments. **The kernel is handed text only**:
+//! a kept identifier is read in `nc-ids`, which cannot log, and comes back as
+//! text, so nothing here turns a caller's text into an identifier the log
+//! could carry.
+//!
 //! What this answers (`NOCTUA.md §2.4`): a declared command that answers that
 //! it is not built, a pruner run by a caller the pack does not let delete on
 //! the realm — every run is decided, journaled and counted against the quorum
@@ -61,6 +81,8 @@ use nc_canon::Value;
 use nc_catalog::ErrorCode;
 
 use crate::backend::StoreBackend as _;
+use nc_ids::naming::{Fields, Identifier, NameError};
+
 use crate::dispatch::{Failure, Refusal, RefusalKind, Waits};
 use crate::logging::LogSink as _;
 use crate::{Environment, Shared};
@@ -71,6 +93,12 @@ pub(crate) const VERIFY: &str = "journal.verify";
 /// The command that holds the local tables to their bounds.
 pub(crate) const PRUNE: &str = "limits.prune";
 
+/// The command that proposes a file's name.
+pub(crate) const PROPOSE: &str = "naming.propose";
+
+/// The command that reads a file's name back.
+pub(crate) const READ: &str = "naming.read";
+
 /// Where `journal.verify` starts: the sequence of the first entry it verifies.
 const FROM: &str = "from";
 
@@ -79,6 +107,24 @@ const TABLE: &str = "table";
 
 /// Whether `limits.prune` only counts what a real run would remove.
 const DRY_RUN: &str = "dry_run";
+
+/// The title a name is proposed under, shortened to fit by the builder.
+const TITLE: &str = "title";
+
+/// The parts of the signature a name is proposed under.
+const SIGNATURE: &str = "signature";
+
+/// The keywords a name is proposed under.
+const KEYWORDS: &str = "keywords";
+
+/// The extension a name is proposed with.
+const EXTENSION: &str = "extension";
+
+/// The identifier a name keeps: the text of one a file already carries.
+const ID: &str = "id";
+
+/// The name `naming.read` reads back.
+const NAME: &str = "name";
 
 /// How many characters of a table's name a prune's refusal repeats.
 ///
@@ -98,6 +144,10 @@ pub(crate) enum Builtin {
     Undo,
     /// `kernel.redo`: the person's newest undo, put back.
     Redo,
+    /// `naming.propose`: a file's name, built from its parts.
+    Propose,
+    /// `naming.read`: a file's name, read back into its parts.
+    ReadName,
 }
 
 impl Builtin {
@@ -105,7 +155,14 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 4] = [Self::Verify, Self::Prune, Self::Undo, Self::Redo];
+    const ALL: [Self; 6] = [
+        Self::Verify,
+        Self::Prune,
+        Self::Undo,
+        Self::Redo,
+        Self::Propose,
+        Self::ReadName,
+    ];
 
     /// The name of the command it runs, as the catalog declares it.
     pub(crate) const fn name(self) -> &'static str {
@@ -114,6 +171,8 @@ impl Builtin {
             Self::Prune => PRUNE,
             Self::Undo => crate::history::UNDO,
             Self::Redo => crate::history::REDO,
+            Self::Propose => PROPOSE,
+            Self::ReadName => READ,
         }
     }
 
@@ -178,6 +237,141 @@ pub(crate) async fn verified<E: Environment>(
             "journal-unreadable",
         )),
     }
+}
+
+/// `naming.propose`: a file's name, from the parts `args` holds.
+///
+/// Under the identifier `id` holds, kept, or — when it holds none — one the
+/// journal's minter mints, the machine's one: minted only here, once the
+/// decision point has allowed the dispatch, so a denied proposal spends none.
+///
+/// # Errors
+///
+/// `invalid` with the code [`unnamed`] gives for a kept identifier that is not
+/// one or a name that does not fit, and `unavailable` with the journal's code
+/// when its minter mints nothing ([`unminted`]).
+pub(crate) async fn proposed<E: Environment>(
+    shared: &Shared<E>,
+    args: &serde_json::Value,
+    waits: Waits,
+) -> Result<String, Failure> {
+    if let Some(kept) = args.get(ID).and_then(serde_json::Value::as_str) {
+        return proposal(args, Identifier::Kept(kept));
+    }
+    let minted = waits
+        .on(async { shared.journal.lock().await.mint_identifier() })
+        .await
+        .map_err(|error| unminted(&error))?;
+    proposal(args, Identifier::Minted(minted))
+}
+
+/// The name `args` proposes under `id`, answered as its fields.
+fn proposal(args: &serde_json::Value, id: Identifier<'_>) -> Result<String, Failure> {
+    let signature = texts(args, SIGNATURE);
+    let keywords = texts(args, KEYWORDS);
+    let fields = nc_ids::naming::propose(
+        &signature,
+        args.get(TITLE).and_then(serde_json::Value::as_str),
+        &keywords,
+        id,
+        args.get(EXTENSION).and_then(serde_json::Value::as_str),
+    )
+    .map_err(|error| unnamed(PROPOSE, &error))?;
+    Ok(answer(&fields, None))
+}
+
+/// `naming.read`: the name `args` holds, read back into its fields.
+///
+/// # Errors
+///
+/// `invalid` with the code [`unnamed`] gives for a name that does not parse,
+/// or that parses and does not fit the scheme.
+pub(crate) fn read_back(args: &serde_json::Value) -> Result<String, Failure> {
+    let name = args
+        .get(NAME)
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let reading = nc_ids::naming::read(name).map_err(|error| unnamed(READ, &error))?;
+    Ok(answer(reading.fields(), Some(reading.canonical())))
+}
+
+/// The texts of the list argument `name`, none when it is absent.
+fn texts<'a>(args: &'a serde_json::Value, name: &str) -> Vec<&'a str> {
+    args.get(name)
+        .and_then(serde_json::Value::as_array)
+        .map(|items| items.iter().filter_map(serde_json::Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// What a naming command answers for `fields`: every field, and, for a
+/// reading, whether the name was already `canonical`.
+///
+/// The lists are always there and a title or an extension only when the name
+/// has one, so an absent field is absent rather than `null`.
+fn answer(fields: &Fields, canonical: Option<bool>) -> String {
+    let listed = |items: &[String]| {
+        Value::Array(
+            items
+                .iter()
+                .map(|item| Value::text(item.as_str()))
+                .collect(),
+        )
+    };
+    let mut answer = vec![
+        ("id", Value::text(fields.id())),
+        ("keywords", listed(fields.keywords())),
+        ("name", Value::text(fields.name())),
+        ("signature", listed(fields.signature())),
+    ];
+    if let Some(title) = fields.title() {
+        answer.push(("title", Value::text(title)));
+    }
+    if let Some(extension) = fields.extension() {
+        answer.push(("extension", Value::text(extension)));
+    }
+    if let Some(canonical) = canonical {
+        answer.push(("canonical", Value::Bool(canonical)));
+    }
+    Value::object(answer).to_canonical()
+}
+
+/// The failure of `command`, refused `error` by the naming scheme.
+///
+/// **Each cause its own code and word.** A name that does not fit is
+/// `[NC-IDS-0005]`; a kept identifier that is not one is base32's own
+/// `[NC-IDS-0006]`, since what was wrong is the identifier and not a name;
+/// and a name `naming.read` cannot read is `[NC-IDS-0004]`. The sentence
+/// repeats nothing of the caller's text but the one character base32 names,
+/// escaped.
+fn unnamed(command: &str, error: &NameError) -> Failure {
+    let (code, word) = match error {
+        NameError::TooLong { .. } => (error.clone().code(), "name-too-long"),
+        NameError::BadIdentifier(why) if command == PROPOSE => (why.code(), "not-an-identifier"),
+        NameError::NoIdentifier | NameError::BadIdentifier(_) => {
+            (error.clone().code(), "name-unparsable")
+        }
+    };
+    Failure::new(
+        Refusal::new(
+            RefusalKind::Invalid,
+            code,
+            format!("`{command}` answered no name: {error}"),
+        ),
+        word,
+    )
+}
+
+/// The failure of a `naming.propose` the journal's minter minted no
+/// identifier for: `unavailable`, in the journal's own code.
+fn unminted(error: &nc_journal::Error) -> Failure {
+    Failure::new(
+        Refusal::new(
+            RefusalKind::Unavailable,
+            error.code(),
+            format!("`{PROPOSE}` answered no name, because no identifier was minted for it"),
+        ),
+        "no-identifier",
+    )
 }
 
 /// What `limits.prune` came to before it deletes anything.
@@ -403,7 +597,10 @@ mod tests {
 
     use nc_catalog::ErrorCode;
 
-    use super::{Builtin, DRY_RUN, FROM, PRUNE, TABLE, VERIFY, answered, refused};
+    use super::{
+        Builtin, DRY_RUN, EXTENSION, FROM, ID, KEYWORDS, NAME, PROPOSE, PRUNE, READ, SIGNATURE,
+        TABLE, TITLE, VERIFY, answered, proposal, read_back, refused, unminted, unnamed,
+    };
     use crate::dispatch::RefusalKind;
     use crate::registry::{Owner, RESERVED, Registry};
 
@@ -412,6 +609,12 @@ mod tests {
 
     /// Every argument `limits.prune` reads, by the name the command declares.
     const PRUNE_READS: [&str; 2] = [TABLE, DRY_RUN];
+
+    /// Every argument `naming.propose` reads, by the name the command declares.
+    const PROPOSE_READS: [&str; 5] = [TITLE, SIGNATURE, KEYWORDS, EXTENSION, ID];
+
+    /// Every argument `naming.read` reads, by the name the command declares.
+    const READ_READS: [&str; 1] = [NAME];
 
     /// Whether `name` is in a namespace the kernel keeps.
     fn the_kernels(name: &str) -> bool {
@@ -500,6 +703,249 @@ mod tests {
             prune.reversibility,
             nc_catalog::Reversibility::Write
         ));
+    }
+
+    /// The declared naming commands are the ones this module implements.
+    ///
+    /// **Both ways**, against `Command::arguments`, and the decision each is
+    /// made under: `Read` on the platform's `naming` feature, never the realm,
+    /// changing nothing — so no unit is opened for either, and the permit that
+    /// decides them is a person's and not a guardian's.
+    #[test]
+    fn the_declared_naming_commands_are_the_ones_this_module_implements() {
+        for (name, reads) in [(PROPOSE, &PROPOSE_READS[..]), (READ, &READ_READS[..])] {
+            let declared =
+                nc_catalog::command(name).unwrap_or_else(|| panic!("`{name}` is declared"));
+            let takes: BTreeSet<&str> = declared.arguments.iter().copied().collect();
+            let read: BTreeSet<&str> = reads.iter().copied().collect();
+            assert_eq!(takes, read, "`{name}` declares {:?}", declared.arguments);
+            assert_eq!(declared.arguments.len(), reads.len(), "`{name}`");
+            assert_eq!(
+                (
+                    declared.action,
+                    declared.resource_selector,
+                    declared.mutating
+                ),
+                ("Read", "feature:naming", false),
+                "`{name}`"
+            );
+            assert!(
+                matches!(declared.reversibility, nc_catalog::Reversibility::Read),
+                "`{name}`"
+            );
+        }
+        assert_eq!(
+            (
+                PROPOSE, READ, TITLE, SIGNATURE, KEYWORDS, EXTENSION, ID, NAME
+            ),
+            (
+                "naming.propose",
+                "naming.read",
+                "title",
+                "signature",
+                "keywords",
+                "extension",
+                "id",
+                "name"
+            )
+        );
+        assert_eq!(Builtin::named(PROPOSE), Some(Builtin::Propose));
+        assert_eq!(Builtin::named(READ), Some(Builtin::ReadName));
+    }
+
+    /// The bound `property` of `command`'s schema declares under `keyword`,
+    /// read off the catalog's own text.
+    fn bound(command: &str, path: &[&str], keyword: &str) -> u64 {
+        let declared = nc_catalog::command(command).expect("declared");
+        let schema: serde_json::Value =
+            serde_json::from_str(declared.args_schema).expect("a schema is JSON");
+        let mut at = &schema["properties"];
+        for step in path {
+            at = &at[*step];
+        }
+        at[keyword]
+            .as_u64()
+            .unwrap_or_else(|| panic!("`{command}` declares no {keyword} at {path:?}"))
+    }
+
+    /// The naming schemas' bounds are the ones a name's byte limit implies.
+    ///
+    /// A name is at most `MAX_BYTES` bytes and a character a byte at least, so
+    /// no part longer than that many characters fits, and a list item costs a
+    /// character and its joiner, so no more than half as many fit. Held here,
+    /// so a schema edited alone is a failure and not a bound that stopped
+    /// meaning anything; the identifier is as wide as base32 writes one.
+    #[test]
+    fn the_naming_schemas_bounds_are_the_ones_a_names_byte_limit_implies() {
+        let most = u64::try_from(nc_ids::naming::MAX_BYTES).expect("fits");
+        let items = u64::try_from(nc_ids::naming::MAX_BYTES.div_ceil(2)).expect("fits");
+        for list in [SIGNATURE, KEYWORDS] {
+            assert_eq!(
+                bound(PROPOSE, &[list, "items"], "maxLength"),
+                most,
+                "{list}"
+            );
+            assert_eq!(bound(PROPOSE, &[list], "maxItems"), items, "{list}");
+        }
+        assert_eq!(bound(PROPOSE, &[EXTENSION], "maxLength"), most);
+        assert_eq!(bound(READ, &[NAME], "maxLength"), most);
+        assert_eq!(bound(READ, &[NAME], "minLength"), 1);
+        assert_eq!(
+            bound(PROPOSE, &[ID], "maxLength"),
+            u64::try_from(nc_ids::base32::MAX_WIDTH).expect("fits")
+        );
+        assert_eq!(bound(PROPOSE, &[ID], "minLength"), 1);
+        assert_eq!(
+            bound(PROPOSE, &[TITLE], "maxLength"),
+            1_024,
+            "the title is shortened to fit, so its bound bounds only the work"
+        );
+    }
+
+    /// Each naming failure is refused with its own kind, code and word.
+    ///
+    /// A name that does not fit is the caller's to shorten; a kept identifier
+    /// that is not one is the identifier's fault, under base32's own code; a
+    /// name that cannot be read is not a name of this scheme; and a minter that
+    /// mints nothing is the journal's, unavailable and never the caller's.
+    #[test]
+    fn each_naming_failure_is_refused_with_its_own_kind_code_and_word() {
+        use nc_ids::NameError;
+        use nc_ids::base32::Base32Error;
+
+        let bad = NameError::BadIdentifier(Base32Error::Empty);
+        for (failure, kind, code, word) in [
+            (
+                unnamed(PROPOSE, &NameError::TooLong { bytes: 300 }),
+                RefusalKind::Invalid,
+                ErrorCode::IdsNameTooLong,
+                "name-too-long",
+            ),
+            (
+                unnamed(READ, &NameError::TooLong { bytes: 300 }),
+                RefusalKind::Invalid,
+                ErrorCode::IdsNameTooLong,
+                "name-too-long",
+            ),
+            (
+                unnamed(PROPOSE, &bad),
+                RefusalKind::Invalid,
+                ErrorCode::IdsNotAnIdentifier,
+                "not-an-identifier",
+            ),
+            (
+                unnamed(READ, &bad),
+                RefusalKind::Invalid,
+                ErrorCode::IdsNameUnparsable,
+                "name-unparsable",
+            ),
+            (
+                unnamed(READ, &NameError::NoIdentifier),
+                RefusalKind::Invalid,
+                ErrorCode::IdsNameUnparsable,
+                "name-unparsable",
+            ),
+            (
+                unminted(&nc_journal::Error::NoIdentifier(
+                    nc_ids::MintError::ClockStuck {
+                        at: core::time::Duration::ZERO,
+                    },
+                )),
+                RefusalKind::Unavailable,
+                ErrorCode::IdsClockStuck,
+                "no-identifier",
+            ),
+        ] {
+            let refusal = failure.refusal();
+            assert_eq!(
+                (refusal.kind(), refusal.code(), failure.word()),
+                (kind, code, word),
+                "{}",
+                refusal.sentence()
+            );
+        }
+    }
+
+    /// A proposal the handler answers is read back by the handler as its own
+    /// fields.
+    ///
+    /// **Over the handler's JSON, not the crate's types**: each argument shape
+    /// the schema admits — every field, none, lists of several, a kept
+    /// identifier spelled loosely — answered by `naming.propose` and read back
+    /// by `naming.read` from the name it answered, which gives every field
+    /// again and says the name is already canonical. An answer that dropped a
+    /// field, or a reading that read it from somewhere else, fails here.
+    #[test]
+    fn a_proposal_the_handler_answers_is_read_back_by_the_handler_as_its_own_fields() {
+        use nc_ids::naming::Identifier;
+
+        for (args, id) in [
+            (
+                serde_json::json!({"title": "Praia de Copacabana", "signature": ["familia", "fotos"],
+                                   "keywords": ["brasil"], "extension": "jpg"}),
+                Identifier::Kept("01J8XK2M9P51"),
+            ),
+            (serde_json::json!({}), Identifier::Kept("01J8XK2M9P51")),
+            (
+                serde_json::json!({"title": "Café à noite", "keywords": ["rio de janeiro", "noite"],
+                                   "extension": "TAR.GZ", "id": "01j8xk2m9p5l"}),
+                Identifier::Kept("01j8xk2m9p5l"),
+            ),
+            (
+                serde_json::json!({"signature": ["a=b", "c"], "id": "01J8XK2M9P51"}),
+                Identifier::Kept("01J8XK2M9P51"),
+            ),
+        ] {
+            let proposed = proposal(&args, id)
+                .unwrap_or_else(|failure| panic!("{args}: {:?}", failure.refusal()));
+            let fields = nc_canon::parse(&proposed)
+                .expect("canonical JSON")
+                .into_object()
+                .expect("an object");
+            let name = fields
+                .get("name")
+                .cloned()
+                .and_then(nc_canon::Value::into_text)
+                .expect("a name");
+            assert_eq!(
+                fields
+                    .get("id")
+                    .and_then(|id| id.clone().into_text())
+                    .as_deref(),
+                Some("01J8XK2M9P51"),
+                "{args}"
+            );
+            let read = read_back(&serde_json::json!({ "name": name }))
+                .unwrap_or_else(|failure| panic!("{name}: {:?}", failure.refusal()));
+            let mut back = nc_canon::parse(&read)
+                .expect("canonical JSON")
+                .into_object()
+                .expect("an object");
+            assert_eq!(
+                back.remove("canonical"),
+                Some(nc_canon::Value::Bool(true)),
+                "{read}"
+            );
+            assert_eq!(back, fields, "{args}: proposed {proposed}, read {read}");
+        }
+        assert_eq!(
+            proposal(
+                &serde_json::json!({"title": "Praia de Copacabana", "signature": ["familia", "fotos"],
+                                    "keywords": ["brasil"], "extension": "jpg"}),
+                Identifier::Kept("01J8XK2M9P51")
+            )
+            .expect("the example"),
+            "{\"extension\":\"jpg\",\"id\":\"01J8XK2M9P51\",\"keywords\":[\"brasil\"],\
+             \"name\":\"==familia=fotos--praia-de-copacabana__brasil@@01J8XK2M9P51.jpg\",\
+             \"signature\":[\"familia\",\"fotos\"],\"title\":\"praia-de-copacabana\"}"
+        );
+        let loose = read_back(&serde_json::json!({"name": "--Praia@@01j8xk2m9p51.JPG"}))
+            .expect("a loose spelling reads");
+        assert_eq!(
+            loose,
+            "{\"canonical\":false,\"extension\":\"jpg\",\"id\":\"01J8XK2M9P51\",\"keywords\":[],\
+             \"name\":\"--praia@@01J8XK2M9P51.jpg\",\"signature\":[],\"title\":\"praia\"}"
+        );
     }
 
     /// A table pruned, one within its bound and one left alone are each
