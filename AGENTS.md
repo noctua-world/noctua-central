@@ -2763,9 +2763,10 @@ of 80, a paragraph 1,024, a tag 40, at most 32 tags; a paragraph never says what
 says, and no two commands share a display name in a locale. A glyph is a code point the
 Symbols-Only font draws, written one way. Every wiki text sits in a closed tree — under a
 locale and a registry this catalog has, named for an entry, in the format its lower-case
-extension names, in every locale and in one format across them — is a regular file, so the
-walk follows no link out of `catalog/wiki/`, and is held to 64 KiB with nothing a reader
-cannot see but its line breaks. A text missing from a locale names its entry and the text
+extension names, in every locale and in one format across them — is held to 64 KiB with
+nothing a reader cannot see but its line breaks, and every path of the tree is read as what
+it is, never through a link: a link, or a file where a directory belongs, is refused as
+misplaced, so the walk reads nothing outside `catalog/wiki/`. A text missing from a locale names its entry and the text
 it is. Anything else fails the build, and nothing is generated while a problem stands.
 
 **Enforced by** `crates/nc-schema/src/entry.rs` — `judge`, `glyph` and `judge_wiki`, a unit

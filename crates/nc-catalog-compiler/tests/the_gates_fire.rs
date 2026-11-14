@@ -5343,6 +5343,11 @@ fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
         scratch.place(placed, "# Undo\n");
         scratch.must_fail("wiki-misplaced", naming);
     }
+    // And the tree itself: a file where it belongs is no tree of texts.
+    let flat = Scratch::new("wiki-file-for-the-tree");
+    std::fs::remove_dir_all(flat.root.join("catalog/wiki")).expect("the scratch is writable");
+    flat.place("catalog/wiki", "# Undo\n");
+    flat.must_fail("wiki-misplaced", "catalog/wiki");
     let nested = Scratch::new("wiki-directory-for-a-text");
     std::fs::create_dir_all(nested.root.join("catalog/wiki/en/commands/kernel.redo.md"))
         .expect("the scratch is writable");

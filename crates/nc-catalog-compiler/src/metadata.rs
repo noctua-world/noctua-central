@@ -342,8 +342,15 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         .collect();
     let mut found: BTreeMap<(String, String), BTreeMap<String, Found>> = BTreeMap::new();
     let top = root.join(WIKI);
-    if !top.exists() {
-        return Vec::new();
+    // Asked of the path itself, as every entry below is: a link standing where
+    // the tree belongs would carry the walk out of the catalog.
+    match std::fs::symlink_metadata(&top) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Ok(held) if held.file_type().is_dir() => {}
+        _ => {
+            misplaced(WIKI, "a directory holding one tree per locale", problems);
+            return Vec::new();
+        }
     }
     for (locale, kind, _) in listed(&top, WIKI, problems) {
         let under = format!("{WIKI}/{locale}");
@@ -382,27 +389,9 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
                 let Some((name, format)) = one_text(&relative, &file, &commands, problems) else {
                     continue;
                 };
-                let Ok(read) = std::fs::read_to_string(&path) else {
-                    problems.push(Problem::in_file(
-                        &relative,
-                        "could not be read as UTF-8 text",
-                        "a wiki text is compiled into the generated crate as a string, so it \
-                         is UTF-8 text a reader can open. Save it as UTF-8, or take it out",
-                        "wiki-unreadable",
-                    ));
+                let Some(read) = judged_text(&relative, &path, problems) else {
                     continue;
                 };
-                if let Err(why) = entry::judge_wiki(&read) {
-                    problems.push(Problem::in_file(
-                        &relative,
-                        format!("{why}"),
-                        "a wiki text is shown to a person and handed to an agent, so it is \
-                         bounded and holds nothing a reader cannot see but its line breaks. \
-                         Write what the entry is, in the locale's own words",
-                        "wiki-text-refused",
-                    ));
-                    continue;
-                }
                 let held = found.entry((registry.clone(), name.clone())).or_default();
                 if let Some(first) = held.insert(
                     locale.clone(),
@@ -430,6 +419,32 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         .into_iter()
         .filter_map(|((registry, name), held)| complete(&registry, &name, held, &tags, problems))
         .collect()
+}
+
+/// One wiki file's text, read as UTF-8 and held to the judge.
+fn judged_text(relative: &str, path: &Path, problems: &mut Vec<Problem>) -> Option<String> {
+    let Ok(read) = std::fs::read_to_string(path) else {
+        problems.push(Problem::in_file(
+            relative,
+            "could not be read as UTF-8 text",
+            "a wiki text is compiled into the generated crate as a string, so it \
+             is UTF-8 text a reader can open. Save it as UTF-8, or take it out",
+            "wiki-unreadable",
+        ));
+        return None;
+    };
+    if let Err(why) = entry::judge_wiki(&read) {
+        problems.push(Problem::in_file(
+            relative,
+            format!("{why}"),
+            "a wiki text is shown to a person and handed to an agent, so it is \
+             bounded and holds nothing a reader cannot see but its line breaks. \
+             Write what the entry is, in the locale's own words",
+            "wiki-text-refused",
+        ));
+        return None;
+    }
+    Some(read)
 }
 
 /// Every entry a directory holds, by name, with its kind and its path.

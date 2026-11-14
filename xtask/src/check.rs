@@ -19511,7 +19511,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/lib.rs", 22, 15),
         ("nc-catalog-compiler/load.rs", 60, 19),
         ("nc-catalog-compiler/messages.rs", 21, 3),
-        ("nc-catalog-compiler/metadata.rs", 14, 1),
+        ("nc-catalog-compiler/metadata.rs", 15, 1),
         ("nc-catalog-compiler/model.rs", 54, 19),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/the_gates_fire.rs", 79, 113),
@@ -22453,8 +22453,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 750 scratches this tree
-    /// builds, 662 of the 750 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 751 scratches this tree
+    /// builds, 663 of the 751 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22538,7 +22538,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 199, 199),
+        ("nc-catalog-compiler/the_gates_fire.rs", 200, 200),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25522,7 +25522,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18528;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18529;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -32913,7 +32913,7 @@ mod the_frozen_path_rule {
     /// hand-written TOML file in `catalog/`, holding a credential, wears the
     /// extension that tree is allowed to hold, in the directory that holds the registries — so
     /// the kind rule admits it, and `ONLY_UNDER_THIS_NAME` cannot pin `toml`
-    /// here to one name because seven files wear it: the six registries the
+    /// here to one name because eight files wear it: the seven registries the
     /// compiler reads and the reservation ledger, which the list below and
     /// `counts.rs` both keep apart from them.
     ///
