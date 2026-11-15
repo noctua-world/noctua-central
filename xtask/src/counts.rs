@@ -3059,7 +3059,7 @@ mod tests {
         ("integration test files", 4),
         ("migrations", 12),
         ("registries", 10),
-        ("crates", 16),
+        ("crates", 17),
         ("packs", 3),
     ];
 

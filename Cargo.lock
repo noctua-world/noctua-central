@@ -1831,6 +1831,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc-fuzzy"
+version = "0.1.0-rc.1"
+dependencies = [
+ "nc-fuzzy",
+ "proptest",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "nc-guest"
 version = "0.1.0-rc.1"
 dependencies = [

@@ -65,12 +65,13 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 25] = [
+const COVERED: [&str; 26] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
     "crates/nc-catalog-compiler/src",
     "crates/nc-channel/src",
+    "crates/nc-fuzzy/src",
     "crates/nc-guest/src",
     "crates/nc-ids/src",
     "crates/nc-ipc/src",
@@ -1240,10 +1241,11 @@ pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 17] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 18] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
+    "crates/nc-fuzzy/",
     "crates/nc-guest/",
     "crates/nc-ids/",
     "crates/nc-ipc/",
@@ -10523,12 +10525,13 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 20] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 21] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
         "crates/nc-catalog-compiler",
         "crates/nc-channel",
+        "crates/nc-fuzzy",
         "crates/nc-guest",
         "crates/nc-ids",
         "crates/nc-ipc",
@@ -10555,10 +10558,11 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 17] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 18] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
+        "crates/nc-fuzzy/",
         "crates/nc-guest/",
         "crates/nc-ids/",
         "crates/nc-ipc/",
@@ -13099,6 +13103,7 @@ mod tests {
                 "crates/nc-catalog/src",
                 "crates/nc-catalog-compiler/src",
                 "crates/nc-channel/src",
+                "crates/nc-fuzzy/src",
                 "crates/nc-guest/src",
                 "crates/nc-ids/src",
                 "crates/nc-ipc/src",

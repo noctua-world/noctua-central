@@ -2,18 +2,28 @@
 //!
 //! A command declares a resource selector, and the decision point evaluates
 //! the entity it selects (`NOCTUA.md §11.7`, `reference/identity-and-authorization.md §2`).
-//! The grammar is two forms and nothing else:
+//! The grammar is three forms and nothing else:
 //!
 //! ```text
-//! selector = "realm" / "argument:" name
+//! selector = "realm" / "argument:" name / "feature:" name
 //! name     = [a-z] [a-z0-9_]*
 //! ```
 //!
 //! `realm` is the realm the kernel serves. `argument:<name>` is the entity a
 //! required string argument identifies, and the schema says which type that
 //! is: the property must carry `x-entity` and a `maxLength` no longer than an
-//! entity id may be. A selector the schema cannot back is refused when the
-//! command is declared, never discovered when it is dispatched.
+//! entity id may be. `feature:<id>` is a feature of the platform the realm's
+//! directory holds — [`FEATURE_TYPE`] and the id written — for a command that
+//! reads none of the realm's data, such as naming a file; whatever the
+//! arguments hold, it selects that one entity, and a feature id is no longer
+//! than an entity id may be. A selector the schema cannot back is refused when
+//! the command is declared, never discovered when it is dispatched.
+//!
+//! **Only a command of the kernel's own selects a feature.** The grammar is
+//! one for every caller, so this judge accepts the form from anyone; the
+//! kernel refuses it in a plugin's declaration at `activate`
+//! (`crates/nc-kernel/src/registry.rs`), so the entity a journal entry names
+//! as a feature is only ever one the kernel's own command was decided on.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -45,6 +55,9 @@ pub const REALM: &str = "realm";
 /// The Cedar type of the entity [`Selector::Realm`] selects.
 pub const REALM_TYPE: &str = "Realm";
 
+/// The Cedar type of the entity [`Selector::Feature`] selects.
+pub const FEATURE_TYPE: &str = "Feature";
+
 /// The longest entity id, in characters; the same bound as an `OpaqueId`.
 pub const ENTITY_ID_MAX: usize = 128;
 
@@ -59,6 +72,11 @@ pub enum Selector {
         property: String,
         /// The Cedar type its `x-entity` names.
         entity_type: String,
+    },
+    /// A feature of the platform, whatever the arguments hold.
+    Feature {
+        /// The feature's id, as the realm's directory holds it.
+        id: String,
     },
 }
 
@@ -78,7 +96,7 @@ pub struct EntityRef {
 /// author's, and a plugin's at `activate`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectorError {
-    /// Neither `realm` nor `argument:` and a well-formed name.
+    /// Neither `realm` nor `argument:` or `feature:` and a well-formed name.
     Malformed(String),
     /// The argument it names is not a property the schema declares.
     NotDeclared(String),
@@ -97,8 +115,8 @@ impl fmt::Display for SelectorError {
         match self {
             Self::Malformed(written) => write!(
                 formatter,
-                "`{written}` is neither `realm` nor `argument:` followed by a name in \
-                 `[a-z][a-z0-9_]*`"
+                "`{written}` is neither `realm` nor `argument:` or `feature:` followed by a \
+                 name in `[a-z][a-z0-9_]*`, a feature's {ENTITY_ID_MAX} characters at most"
             ),
             Self::NotDeclared(name) => write!(
                 formatter,
@@ -162,6 +180,7 @@ impl std::error::Error for ExtractError {}
 pub(crate) enum Written<'a> {
     Realm,
     Argument(&'a str),
+    Feature(&'a str),
 }
 
 /// Reads a selector against the grammar alone.
@@ -169,10 +188,14 @@ pub(crate) fn written(text: &str) -> Result<Written<'_>, SelectorError> {
     if text == REALM {
         return Ok(Written::Realm);
     }
-    // Written inline rather than as a constant: this tree reads a `&str`
+    // Written inline rather than as constants: this tree reads a `&str`
     // constant ending in a colon as an escape-hatch marker, and a selector's
     // prefix is not one.
-    let Some(name) = text.strip_prefix("argument:") else {
+    let (name, written) = if let Some(name) = text.strip_prefix("argument:") {
+        (name, Written::Argument(name))
+    } else if let Some(id) = text.strip_prefix("feature:") {
+        (id, Written::Feature(id))
+    } else {
         return Err(SelectorError::Malformed(excerpt(text)));
     };
     let mut characters = name.chars();
@@ -180,8 +203,11 @@ pub(crate) fn written(text: &str) -> Result<Written<'_>, SelectorError> {
         .next()
         .is_some_and(|first| first.is_ascii_lowercase())
         && characters.all(|rest| rest.is_ascii_lowercase() || rest.is_ascii_digit() || rest == '_');
-    if well_formed {
-        Ok(Written::Argument(name))
+    // A feature's id is an entity's id as it is written: bounded here, where
+    // it is declared, rather than refused at every dispatch.
+    let bounded = !matches!(written, Written::Feature(_)) || name.len() <= ENTITY_ID_MAX;
+    if well_formed && bounded {
+        Ok(written)
     } else {
         Err(SelectorError::Malformed(excerpt(text)))
     }
@@ -192,6 +218,7 @@ impl Written<'_> {
     pub(crate) fn resolved(self, schema: &Schema) -> Result<Selector, SelectorError> {
         let name = match self {
             Self::Realm => return Ok(Selector::Realm),
+            Self::Feature(id) => return Ok(Selector::Feature { id: id.to_owned() }),
             Self::Argument(name) => name,
         };
         let root = schema.root();
@@ -227,8 +254,9 @@ impl Selector {
     ///
     /// # Errors
     ///
-    /// [`SelectorError::Malformed`] for text outside the grammar, and for an
-    /// `argument:` selector [`SelectorError::NotDeclared`],
+    /// [`SelectorError::Malformed`] for text outside the grammar — a feature's
+    /// id longer than [`ENTITY_ID_MAX`] included — and for an `argument:`
+    /// selector [`SelectorError::NotDeclared`],
     /// [`SelectorError::NotRequired`], [`SelectorError::NotAnEntity`],
     /// [`SelectorError::RealmThroughAnArgument`] or [`SelectorError::Unbounded`]
     /// when the schema does not back it.
@@ -242,6 +270,7 @@ impl Selector {
         match self {
             Self::Realm => REALM_TYPE,
             Self::Argument { entity_type, .. } => entity_type,
+            Self::Feature { .. } => FEATURE_TYPE,
         }
     }
 
@@ -249,6 +278,7 @@ impl Selector {
     ///
     /// Arguments are validated against the schema first, so an absent
     /// argument is a caller that skipped that step; it is refused all the same.
+    /// A feature reads no argument: it is the one entity its id names.
     ///
     /// # Errors
     ///
@@ -258,6 +288,7 @@ impl Selector {
     pub fn extract(&self, realm_id: &str, args: &Value) -> Result<EntityRef, ExtractError> {
         let (named, id) = match self {
             Self::Realm => (REALM, realm_id),
+            Self::Feature { id } => ("feature", id.as_str()),
             Self::Argument { property, .. } => {
                 let Some(id) = args.get(property).and_then(Value::as_str) else {
                     return Err(ExtractError::Absent(excerpt(property)));
@@ -293,7 +324,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        ENTITY_ID_MAX, EntityRef, ExtractError, Selector, SelectorError, id_is_well_formed,
+        ENTITY_ID_MAX, EntityRef, ExtractError, FEATURE_TYPE, Selector, SelectorError,
+        id_is_well_formed,
     };
     use crate::{Declared, DescriptorProblem, EXCERPT, Reversibility, Schema, judge};
 
@@ -375,6 +407,85 @@ mod tests {
         }
         // And the grammar's own alphabet, every class of it, is accepted.
         assert!(super::written("argument:n0_te_9").is_ok());
+    }
+
+    /// A feature selector names its feature whatever the arguments hold.
+    ///
+    /// **It reads no argument.** A command selecting `feature:naming` is decided
+    /// on `Feature::"naming"` and on nothing a caller wrote, so an argument
+    /// called `feature`, or one carrying an entity, chooses nothing — and the
+    /// schema is not asked to back it, since there is no argument to back.
+    #[test]
+    fn a_feature_selector_names_its_feature_whatever_the_arguments_hold() {
+        assert_eq!(
+            Selector::parse("feature:gallery", &schema()),
+            Ok(Selector::Feature {
+                id: "gallery".to_owned()
+            }),
+            "a feature selector names the feature written, and no other"
+        );
+        let selector = Selector::parse("feature:naming", &schema()).expect("the grammar's");
+        assert_eq!(
+            selector,
+            Selector::Feature {
+                id: "naming".to_owned()
+            }
+        );
+        assert_eq!(selector.entity_type(), FEATURE_TYPE);
+        assert_eq!(FEATURE_TYPE, "Feature");
+        for arguments in [
+            json!({}),
+            json!({"feature": "gallery"}),
+            json!({"note": "photo", "naming": "gallery"}),
+            json!(null),
+        ] {
+            assert_eq!(
+                selector.extract("home", &arguments),
+                Ok(EntityRef {
+                    type_name: "Feature".to_owned(),
+                    id: "naming".to_owned()
+                }),
+                "{arguments} chose the feature"
+            );
+        }
+        let nothing = Schema::compile(r#"{"type":"object","additionalProperties":false}"#)
+            .expect("inside the subset");
+        assert!(
+            Selector::parse("feature:naming", &nothing).is_ok(),
+            "a schema declaring nothing backs a selector that reads nothing"
+        );
+        let longest = format!("feature:{}", "a".repeat(ENTITY_ID_MAX));
+        let selected = Selector::parse(&longest, &nothing).expect("as long as an id may be");
+        assert!(selected.extract("home", &json!({})).is_ok());
+    }
+
+    /// A feature selector outside the grammar is refused when it is declared.
+    #[test]
+    fn a_feature_selector_outside_the_grammar_is_refused() {
+        let past = format!("feature:{}", "a".repeat(ENTITY_ID_MAX + 1));
+        for written in [
+            "feature:",
+            "feature",
+            "Feature:naming",
+            "feature:Naming",
+            "feature:1x",
+            "feature:_x",
+            "feature:a-b",
+            "feature: x",
+            "feature:a.b",
+            "feature:a:b",
+            "feature:nämig",
+            past.as_str(),
+        ] {
+            assert!(
+                matches!(
+                    Selector::parse(written, &schema()),
+                    Err(SelectorError::Malformed(_))
+                ),
+                "`{written}` was not refused by the grammar"
+            );
+        }
+        assert!(super::written("feature:n0_te_9").is_ok());
     }
 
     #[test]
@@ -593,7 +704,7 @@ mod tests {
         })
         .expect_err("the schema declares nothing");
         said.extend(judged.iter().map(ToString::to_string));
-        assert_eq!(said.len(), 10, "a refusal was not reached");
+        assert_eq!(said.len(), 11, "a refusal was not reached");
         for refusal in said {
             // The name cut short, and the sentence around it.
             assert!(
@@ -608,11 +719,11 @@ mod tests {
         }
     }
 
-    /// What the grammar says of `long` in both ways out of it.
+    /// What the grammar says of `long` in every way out of it.
     ///
-    /// No `argument:` at all, and `argument:` before a name the grammar
-    /// refuses. Each here opens with `ESC [2J`, which clears the terminal a
-    /// raw repeat reaches, and either way out could repeat the text raw.
+    /// No prefix at all, and `argument:` or `feature:` before a name the
+    /// grammar refuses. Each here opens with `ESC [2J`, which clears the
+    /// terminal a raw repeat reaches, and any way out could repeat the text raw.
     fn what_text_outside_the_grammar_is_refused_with(long: &str) -> Vec<String> {
         let empty = Schema::compile(r#"{"type":"object","additionalProperties":false}"#)
             .expect("inside the subset");
@@ -622,6 +733,10 @@ mod tests {
             (
                 format!("argument:\u{1b}[2J{long}"),
                 "a name outside the grammar",
+            ),
+            (
+                format!("feature:\u{1b}[2J{long}"),
+                "a feature outside the grammar",
             ),
         ] {
             let refusal = Selector::parse(&written, &empty).expect_err("outside the grammar");

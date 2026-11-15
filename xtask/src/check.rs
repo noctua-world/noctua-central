@@ -7762,7 +7762,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 49] = [
+const SUITES: [(&str, &str); 51] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7793,6 +7793,10 @@ const SUITES: [(&str, &str); 49] = [
     // driven in-process.
     ("nc-daemon", "a_recycled_pid_is_never_signalled.rs"),
     ("nc-daemon", "channels_side_by_side.rs"),
+    // The fuzzy core's laws over generated items and queries, and its corpus
+    // replayed row by row: neither touches a disk or spawns anything.
+    ("nc-fuzzy", "properties.rs"),
+    ("nc-fuzzy", "the_corpus_is_the_rule.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     // The protocol: the daemon's listener at the catalog's bound over a real
@@ -11250,7 +11254,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11462,6 +11466,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a declared field type is not a guarantee when the value is built out of text at the call — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for, and `FileName::parse` reaches the same constructor one hop away. Log an identifier the platform minted, or declare what you mean as a field of its own. If this `{minted}` cannot carry caller text — `Duration::new` is the case — say so with `{ALLOW}` on this line and name `{minted}` in the reason",
     "a declared field type is not a guarantee when the value is built out of text — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for. The value need not be built at the call: a `let` on the line above, or a helper in this file, reaches the same field. Log an identifier the platform minted. If this one cannot carry caller text, say so with `allow-logging:` on this line — and name `{minted}` in the reason, because `cargo fmt` joins lines and a marker that names nothing excuses whatever lands beside it",
     "a device in the realm steps through no history, however attested",
+    "a device of the house has no file named, however attested",
     "a device is the machine's, and reading one at build time is the machine reaching the output",
     "a device nobody attested reads nothing, not even what the house has made public",
     "a document that describes a file nobody wrote reads as true to everyone who does not go and look — create it, correct the citation, or mark the line `{ALLOW} <reason>` if it names something deliberately absent",
@@ -11511,6 +11516,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a log event carries declared fields, never a sentence a caller wrote — the description a reader sees lives in `catalog/log-events.toml` beside the declaration. Pass the values themselves and let the registry say what they mean. If this one cannot, say so with `{ALLOW}` on this line and name `{needle}` in the reason, because a marker that names nothing excuses whatever else lands beside it",
     "a manual grant with no end is refused, however recently it was written",
     "a marker that names nothing excuses whatever else lands on its line, and `cargo fmt` moves things onto lines. Say `{ALLOW} …{needle}…` so an excuse that arrived by reformatting fails rather than widens",
+    "a member has a file named and writes nothing to the feature",
+    "a member of the house has a file named",
     "a member reads her own account",
     "a member reads her own account and does not rewrite it",
     "a member reads what the house has made public",
@@ -11543,6 +11550,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "a subprocess answers with whatever is installed on this machine — `date` being the shortest way to put a clock in a file. Everything the output depends on arrives through the catalog",
     "a suite that is present but inert is announced exactly like one that ran, so the floor that names the suites cannot see it — nineteen ignored tamper tests left `check passed` with acceptance criterion 3 enforced by nothing. If a test cannot run here, make it say so and return, the way the workspace-document tests do",
     "a suspended account does not read even its own account",
+    "a suspended account has no file named",
     "a suspended account steps through no history, not even its own",
     "a suspended account writes nothing, not even what it owns",
     "a table that can grow without bound needs `[tables.{}]` with `max_rows`, `prune_batch`, `strategy` and `order_by`, so one pruner can enforce it (NOCTUA.md §15.8). If it genuinely cannot grow, say so in the comment block directly above it, on a line beginning `-- {BOUNDED} <reason>`",
@@ -11573,6 +11581,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "an error's identity is data, not a string at a call site (NOCTUA.md §15.1). The code travels through every layer and is what the central log is queried by, so one spelled out here is one the registry cannot renumber, cannot translate and cannot publish. Use the `ErrorCode` variant `catalog/errors.toml` declares; if the code does not exist yet, declare it there",
     "an image named here is a second definition of a service `docker-compose.yml` already defines, and CI cannot reproduce what that file gives it — a service container has no command, so the log store loses the retention flags the gate reads back, and nothing applies the migrations. Delete it and let `cargo xtask dev` bring up the stack",
     "an import of `{name}`",
+    "an outsider has a file named, which only the decision point refuses",
     "an outsider reads what this household shares, which is the gap invariant 4 leaves",
     "an owner governs her own content and does not grant over it",
     "an owner writes her own content",
@@ -11588,6 +11597,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "and not without one, which the core decides and the pack cannot override",
     "and one that has begun is",
     "and shares it with one",
+    "and so does a child of the house",
     "and so is a device",
     "and somebody from another realm does not",
     "and with the confirmation it goes through, so the refusal is the confirmation's absence",
@@ -11710,6 +11720,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "no associated function or constant named `from_macro` found for struct `Literal`",
     "no rules expected `leaked`",
     "no such command",
+    "nor does an agent acting openly as one, until it has a permit of its own",
     "nor does an agent, even one acting openly as an agent",
     "nor revoke from herself, which is how a constraint is removed rather than added",
     "nothing here reads a `FROM` line, so a Dockerfile naming an unpinned tag is invisible to this gate. This stack pulls two pinned images (`§18.4`, `§18.5`) and builds nothing; if that changes, the pin moves to the Dockerfile and this gate has to follow it there. The line number is in `docker compose config`'s output, which is what the stack actually runs",
@@ -11800,6 +11811,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 739] = [
     "the log store answers /health",
     "the log's type wall",
     "the name is built by a function, so nothing here can tell whether it is `search_path` — and a `search_path` this gate cannot see is the §15.8 defect it exists to stop. Write the setting's name as a literal, or, if it genuinely has to be computed, split the statement so that the one naming `search_path` is written out",
+    "the naming permit reaches no other feature",
     "the path separator differs by platform, and a generated file that holds one differs with it",
     "the path separator differs by platform, and a generated file that holds one differs with it. A generated path is written with a forward slash",
     "the pointer width of the machine that built this, which `size_of::<usize>` above is the other spelling of",
@@ -17239,7 +17251,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 20);
+        assert_eq!(members_of(root()), 21);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17428,7 +17440,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 20] = [
+    const SOURCE_ROOTS: [(&str, usize); 21] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -17436,6 +17448,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-channel", 2),
         ("nc-cli", 3),
         ("nc-daemon", 11),
+        ("nc-fuzzy", 3),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19465,7 +19478,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 204] = [
+    const DOCUMENTED: [(&str, usize, usize); 212] = [
         ("cli/args.rs", 43, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
@@ -19481,7 +19494,7 @@ mod the_frozen_path_rule {
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 14, 16),
-        ("daemon/every_command_from_the_cli.rs", 26, 2),
+        ("daemon/every_command_from_the_cli.rs", 35, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/lib.rs", 7, 14),
@@ -19538,13 +19551,21 @@ mod the_frozen_path_rule {
         ("nc-channel/lib.rs", 55, 16),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 26, 0),
+        ("nc-fuzzy/align.rs", 19, 13),
+        ("nc-fuzzy/fold.rs", 8, 7),
+        ("nc-fuzzy/lib.rs", 5, 9),
+        ("nc-fuzzy/properties.rs", 27, 1),
+        ("nc-fuzzy/query.rs", 6, 9),
+        ("nc-fuzzy/rank.rs", 16, 18),
+        ("nc-fuzzy/score.rs", 39, 5),
+        ("nc-fuzzy/the_corpus_is_the_rule.rs", 9, 5),
         ("nc-guest/lib.rs", 1, 0),
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
         ("nc-ids/flake.rs", 21, 26),
         ("nc-ids/lib.rs", 47, 28),
-        ("nc-ids/naming.rs", 40, 37),
-        ("nc-ids/properties.rs", 11, 6),
+        ("nc-ids/naming.rs", 57, 40),
+        ("nc-ids/properties.rs", 13, 6),
         ("nc-ids/snowflake.rs", 70, 90),
         ("nc-ipc/connection.rs", 15, 9),
         ("nc-ipc/endpoint.rs", 4, 5),
@@ -19564,16 +19585,16 @@ mod the_frozen_path_rule {
         ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
-        ("nc-kernel/activation.rs", 23, 67),
+        ("nc-kernel/activation.rs", 24, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
         ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
         ("nc-kernel/built.rs", 7, 7),
-        ("nc-kernel/builtin.rs", 35, 13),
+        ("nc-kernel/builtin.rs", 72, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 123, 26),
+        ("nc-kernel/dispatch.rs", 124, 26),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/history.rs", 48, 7),
@@ -19596,9 +19617,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 36, 24),
+        ("nc-kernel/registry.rs", 37, 24),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 177, 77),
+        ("nc-kernel/the_decision_point.rs", 188, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 14, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
         ("nc-kernel/timers.rs", 18, 5),
@@ -19643,7 +19664,7 @@ mod the_frozen_path_rule {
         ("nc-schema/entry.rs", 41, 42),
         ("nc-schema/lib.rs", 92, 66),
         ("nc-schema/properties.rs", 18, 2),
-        ("nc-schema/selector.rs", 18, 20),
+        ("nc-schema/selector.rs", 21, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
@@ -25525,7 +25546,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18881;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19233;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25544,7 +25565,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4867;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4923;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25561,7 +25582,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1638;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1654;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25595,7 +25616,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25495;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25838;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25649,7 +25670,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,495 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,838 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25682,7 +25703,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1638 of
+    /// this tree offers, **1654 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28184,7 +28205,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 739;
+    const THE_REST_IT_SAYS: usize = 747;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -32996,7 +33017,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 14] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 15] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -33008,8 +33029,11 @@ mod the_frozen_path_rule {
         // Every `.toml` under `crates/` is a member's own manifest, at the
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
-        // The denote corpus, which is the one table `crates/` holds.
+        // The tables `crates/` holds, each a corpus a suite beside it replays:
+        // what Denote returned, and the fuzzy core's rule — the second by its
+        // path, so a copy of the rule anywhere else is refused.
         ("crates", "tsv", "denote-corpus.tsv"),
+        ("crates", "tsv", "crates/nc-fuzzy/tests/fuzzy-corpus.tsv"),
         // The kernel's copy of the reference world, which is the one WIT file
         // this repository holds: a second one is a second world a plugin could
         // be generated from. **By its path, not its name**, which is what a row
@@ -34236,7 +34260,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 56] = [
+    const NOT_MUTATED: [(&str, &str); 58] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34482,6 +34506,24 @@ mod the_meta_gate {
             "a suite: acceptance criterion 4 read a second way, against a \
              shuffled `read_dir`. The ordering it holds is decided in `emit.rs` \
              and `docs.rs`, both of which the runner edits",
+        ),
+        (
+            "crates/nc-fuzzy/tests/properties.rs",
+            "a suite: the fuzzy core's laws stated as properties, and every \
+             alignment it chooses held to an exhaustive search, over `fold.rs`, \
+             `query.rs`, `align.rs`, `score.rs` and `rank.rs`, every one of which \
+             the runner edits under the crate's own command, which builds this \
+             suite. It starts no process, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs",
+            "a suite: the rule's corpus beside it replayed row by row against \
+             `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, which \
+             the runner edits under the crate's own command. The corpus is the \
+             case file both of the rule's implementations are held to, and a \
+             weakening of this reader would remove evidence rather than uncover \
+             an undecided clause",
         ),
         (
             "crates/nc-ids/tests/against_denote.rs",
@@ -37514,7 +37556,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 218,
+            walked, 226,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37554,7 +37596,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2287] = [
+    static OPERATORS: [(&str, &str, &str); 2351] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37752,6 +37794,26 @@ Options:
             "naming",
             "canonical_name",
             "a name that cannot be parsed says so",
+        ),
+        (
+            "naming",
+            "propose",
+            "a kept identifier is read rather than replaced",
+        ),
+        (
+            "naming",
+            "of",
+            "a proposal answers its identifier in the canonical spelling",
+        ),
+        (
+            "naming",
+            "of",
+            "a proposal answers the keywords it was given",
+        ),
+        (
+            "naming",
+            "read",
+            "a reading says whether the name was already canonical",
         ),
         (
             "release",
@@ -40539,6 +40601,21 @@ Options:
             "a name outside the grammar is repeated cut short",
         ),
         (
+            "selector",
+            "written",
+            "a feature's id is no longer than an entity's",
+        ),
+        (
+            "selector",
+            "resolved",
+            "a feature selector names the feature written",
+        ),
+        (
+            "selector",
+            "entity_type",
+            "a feature selector selects a `Feature`",
+        ),
+        (
             "descriptor",
             "judge",
             "a read that mutates is refused by the judge",
@@ -42023,6 +42100,11 @@ Options:
         ),
         (
             "kernel_registry",
+            "undecidable",
+            "a plugin selects no feature of the platform",
+        ),
+        (
+            "kernel_registry",
             "unheard",
             "a subscription its manifest does not declare is refused",
         ),
@@ -43012,6 +43094,42 @@ Options:
             "kernel_builtin",
             "verified",
             "a journal that cannot be read is unavailable to verify",
+        ),
+        (
+            "kernel_builtin",
+            "proposed",
+            "a proposal keeps the identifier it is given",
+        ),
+        (
+            "kernel_builtin",
+            "texts",
+            "every item of a list argument is read",
+        ),
+        (
+            "kernel_builtin",
+            "texts",
+            "a long list argument is read to its last item",
+        ),
+        ("kernel_builtin", "answer", "an extension is answered"),
+        (
+            "kernel_builtin",
+            "answer",
+            "a reading says whether the name was canonical",
+        ),
+        (
+            "kernel_builtin",
+            "unnamed",
+            "a kept identifier that is not one is refused in base32's code",
+        ),
+        (
+            "kernel_builtin",
+            "unminted",
+            "a minter that mints nothing leaves a proposal unavailable",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "a name is read from the arguments it was asked with",
         ),
         (
             "kernel_dispatch",
@@ -47813,6 +47931,222 @@ Options:
             "daemon_environment",
             "newest_kept",
             "a start reads the journal's unit over an older one its store committed",
+        ),
+        (
+            "fuzzy_lib",
+            "WORDS_MAX",
+            "the word bound holds the densest query the query bound allows",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a letter is lowercased before it is decomposed",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a Hangul syllable is not folded to its leading consonant",
+        ),
+        (
+            "fuzzy_fold",
+            "fold",
+            "a letter folds to the first scalar of its decomposition",
+        ),
+        (
+            "fuzzy_fold",
+            "is_space",
+            "the byte-order mark splits a query as JavaScript's spaces do",
+        ),
+        (
+            "fuzzy_fold",
+            "is_separator",
+            "every character a name is joined with is a separator",
+        ),
+        (
+            "fuzzy_fold",
+            "opens_a_word",
+            "a capital opens a word only after a character that is not one",
+        ),
+        (
+            "fuzzy_fold",
+            "opens_a_word",
+            "a character after a separator opens a word",
+        ),
+        (
+            "fuzzy_fold",
+            "is_upper",
+            "a capital is a character its lower case changes",
+        ),
+        ("fuzzy_query", "parse", "a query past its bound is refused"),
+        (
+            "fuzzy_query",
+            "parse",
+            "a query is split where JavaScript's spaces split it",
+        ),
+        (
+            "fuzzy_query",
+            "parse",
+            "a separator inside a word is dropped",
+        ),
+        (
+            "fuzzy_query",
+            "parse",
+            "every character of a word is folded",
+        ),
+        ("fuzzy_query", "parse", "a word of separators is no word"),
+        (
+            "fuzzy_align",
+            "read",
+            "a field is read to its bound and no further",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "the character past the bound is left for the field to be judged whole by",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "a separator is left out of the copy a word is laid in",
+        ),
+        (
+            "fuzzy_align",
+            "read",
+            "a field cut at its bound is not whole",
+        ),
+        (
+            "fuzzy_align",
+            "original",
+            "a position handed out is an index of the original text",
+        ),
+        (
+            "fuzzy_align",
+            "quality",
+            "a matched character opening a word is counted as one",
+        ),
+        (
+            "fuzzy_align",
+            "quality",
+            "an adjacent pair is one tight index apart",
+        ),
+        (
+            "fuzzy_align",
+            "holds",
+            "a word is a subsequence only in its own order",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "the whole field is the first tier",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "a whole match needs a field read whole",
+        ),
+        (
+            "fuzzy_align",
+            "aligned",
+            "a run inside a word is below one opening it",
+        ),
+        (
+            "fuzzy_align",
+            "best_run",
+            "a run's tier is weighed before its quality",
+        ),
+        (
+            "fuzzy_align",
+            "best_run",
+            "every occurrence of a run is weighed, not the first",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "a word start outweighs every adjacent pair",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "an adjacent pair adds its weight",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "a character may sit past the next index",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "the first character sits where the best total begins",
+        ),
+        (
+            "fuzzy_align",
+            "scattered",
+            "of equal alignments the leftmost is kept",
+        ),
+        (
+            "fuzzy_score",
+            "bits",
+            "a width holds every bit of its largest sum",
+        ),
+        (
+            "fuzzy_score",
+            "STARTS_BITS",
+            "the width of word starts holds its largest sum",
+        ),
+        (
+            "fuzzy_score",
+            "EARLINESS_BITS",
+            "the width of earliness holds its largest sum",
+        ),
+        ("fuzzy_score", "packed", "the tiers sit above the names"),
+        (
+            "fuzzy_score",
+            "packed",
+            "shortness reaches the packed score",
+        ),
+        ("fuzzy_score", "of_word", "a word on a name counts as one"),
+        (
+            "fuzzy_score",
+            "plus",
+            "every component of a word's score is summed",
+        ),
+        ("fuzzy_rank", "matched", "every word must match"),
+        (
+            "fuzzy_rank",
+            "matched",
+            "a field tied with an earlier one leaves the earlier",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "the best field's positions are the ones kept",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "a match scores the sum of its words",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "an item keeps no positions the item before it matched",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "an item keeps no word the item before it matched",
+        ),
+        (
+            "fuzzy_rank",
+            "matched",
+            "each word's hit holds its own positions and no earlier word's",
+        ),
+        ("fuzzy_rank", "ranked", "a higher score ranks first"),
+        (
+            "fuzzy_rank",
+            "ranked",
+            "equal scores keep the order the items were given in",
         ),
     ];
 
