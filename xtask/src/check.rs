@@ -37597,7 +37597,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2375] = [
+    static OPERATORS: [(&str, &str, &str); 2377] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40780,6 +40780,11 @@ Options:
             "tables",
             "a command a person chose keys for is bound to those",
         ),
+        (
+            "schema_keys",
+            "tables",
+            "a command chosen twice is read where it is named first",
+        ),
         ("schema_keys", "tables", "a key bound twice is refused"),
         (
             "schema_keys",
@@ -40795,6 +40800,11 @@ Options:
             "schema_keys",
             "SYSTEM_SHORTCUTS",
             "every row is the chord its source writes",
+        ),
+        (
+            "schema_keys",
+            "SYSTEM_SHORTCUTS",
+            "no row is filed under a source its system does not write",
         ),
         (
             "compiler_metadata",

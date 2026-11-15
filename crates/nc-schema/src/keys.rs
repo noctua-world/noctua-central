@@ -1826,6 +1826,31 @@ mod tests {
             tables(&defaults, &[("page.close", bound(&["Leader+KeyZ"]))]).is_err(),
             "a chosen binding met a default nobody replaced"
         );
+        // A command named twice in either list is read where it is named
+        // first, and the later list is not bound at all.
+        let twice = [
+            ("kernel.undo", bound(&["Leader+KeyU"])),
+            ("kernel.undo", bound(&["Leader+KeyV"])),
+        ];
+        for made in [tables(&[], &twice), tables(&twice, &[])] {
+            let made = made.expect("the later list is never read");
+            assert_eq!(
+                made.iter()
+                    .map(|(binding, _)| binding.written())
+                    .collect::<Vec<_>>(),
+                ["Leader+KeyU"],
+                "a command named twice was read where it is named last"
+            );
+        }
+        let made = tables(&defaults, &[twice[1].clone(), twice[0].clone()])
+            .expect("one list chosen in place of the defaults");
+        assert_eq!(
+            made.iter()
+                .map(|(binding, _)| binding.written())
+                .collect::<Vec<_>>(),
+            ["Leader+KeyV", "Leader+Chord+KeyZ"],
+            "the first list chosen did not replace the defaults"
+        );
     }
 
     /// A binding the system uses is kept and named in a warning, one per
@@ -1929,18 +1954,21 @@ mod tests {
     /// it against the source the row names.
     #[test]
     fn the_system_shortcuts_are_the_rows_their_sources_write() {
-        let written = |system: &str, source: &str| -> String {
-            SYSTEM_SHORTCUTS
+        let mut read = 0;
+        let mut written = |system: &str, source: &str| -> String {
+            let rows: Vec<String> = SYSTEM_SHORTCUTS
                 .iter()
-                .filter(|row| row.system == system && row.source.ends_with(source))
+                .filter(|row| row.system == system && row.source == source)
                 .map(|row| row.chord.written())
-                .collect::<Vec<_>>()
-                .join(" ")
+                .collect();
+            read += rows.len();
+            rows.join(" ")
         };
         assert_eq!(
             written(
                 "Windows",
-                "keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec"
+                "https://support.microsoft.com/en-us/windows/\
+                 keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec"
             ),
             "Alt+Space Alt+Tab Control+Alt+Tab Control+Space Super+Space Shift+Super+Space \
              Control+Super+Space Alt+Super+Digit0 Alt+Super+Digit1 Alt+Super+Digit2 \
@@ -1957,12 +1985,16 @@ mod tests {
              Alt+Super+KeyH Alt+Super+KeyK"
         );
         assert_eq!(
-            written("macOS", "support.apple.com/en-us/102650"),
+            written("macOS", "https://support.apple.com/en-us/102650"),
             "Super+Space Alt+Super+Space Control+Super+Space Control+Space Control+Alt+Space \
              Shift+Super+Space"
         );
         assert_eq!(
-            written("GNOME", "org.gnome.desktop.wm.keybindings.gschema.xml.in"),
+            written(
+                "GNOME",
+                "https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/\
+                 schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in"
+            ),
             "Alt+Space Super+Space Shift+Super+Space Alt+Tab Super+Tab Alt+Shift+Tab \
              Shift+Super+Tab Alt+Backquote Super+Backquote Alt+Super+ArrowLeft \
              Alt+Super+ArrowRight Control+Alt+ArrowLeft Control+Alt+ArrowRight \
@@ -1973,16 +2005,33 @@ mod tests {
              Alt+F10 Super+KeyH Super+Home Super+End Super+PageUp Super+PageDown"
         );
         assert_eq!(
-            written("KDE Plasma", "krunner/org.kde.krunner.desktop.cmake"),
+            written(
+                "KDE Plasma",
+                "https://raw.githubusercontent.com/KDE/plasma-workspace/master/\
+                 krunner/org.kde.krunner.desktop.cmake"
+            ),
             "Alt+Space Alt+F2"
         );
         assert_eq!(
-            written("KDE Plasma", "src/tabbox/tabbox.cpp"),
+            written(
+                "KDE Plasma",
+                "https://raw.githubusercontent.com/KDE/kwin/master/src/tabbox/tabbox.cpp"
+            ),
             "Alt+Tab Super+Tab Alt+Shift+Tab Shift+Super+Tab"
         );
-        assert_eq!(written("KDE Plasma", "src/useractions.cpp"), "Alt+F3");
+        assert_eq!(
+            written(
+                "KDE Plasma",
+                "https://raw.githubusercontent.com/KDE/kwin/master/src/useractions.cpp"
+            ),
+            "Alt+F3"
+        );
+        assert_eq!(
+            read,
+            SYSTEM_SHORTCUTS.len(),
+            "a row is filed under a system and a source no source here writes"
+        );
         for row in &SYSTEM_SHORTCUTS {
-            assert!(row.source.starts_with("https://"), "{row:?}");
             let keyboard = match row.system {
                 "Windows" => Keyboard::Windows,
                 "macOS" => Keyboard::Mac,

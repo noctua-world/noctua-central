@@ -3293,6 +3293,9 @@ WEAKENINGS = [
     ("schema_keys", "tables", "a command a person chose keys for is bound to those",
      "            let bindings = picked.get(command).copied().unwrap_or(bindings.as_slice());",
      "            let bindings = bindings.as_slice();"),
+    ("schema_keys", "tables", "a command chosen twice is read where it is named first",
+     "        picked.entry(*command).or_insert(bindings.as_slice());",
+     "        picked.insert(*command, bindings.as_slice());"),
     ("schema_keys", "tables", "a key bound twice is refused",
      "    if twice.is_empty() {",
      "    if true {"),
@@ -3305,6 +3308,9 @@ WEAKENINGS = [
     ("schema_keys", "SYSTEM_SHORTCUTS", "every row is the chord its source writes",
      "    gnome(&[Modifier::Alt, Modifier::Shift], Key::Tab),",
      "    gnome(&[Modifier::Shift], Key::Tab),"),
+    ("schema_keys", "SYSTEM_SHORTCUTS", "no row is filed under a source its system does not write",
+     "pub static SYSTEM_SHORTCUTS: [SystemShortcut; 98] = [\n    windows(&[Modifier::Alt], Key::Space),",
+     "pub static SYSTEM_SHORTCUTS: [SystemShortcut; 99] = [\n    kept(Keyboard::Windows, \"Windows\", APPLE, &[Modifier::Alt], Key::KeyQ),\n    windows(&[Modifier::Alt], Key::Space),"),
 
     # -- compiler_metadata: the catalog's texts handed to the judge, and wiki --
     ("compiler_metadata", "listed", "the wiki walk reads one order",
