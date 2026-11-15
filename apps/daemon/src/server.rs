@@ -850,12 +850,16 @@ mod tests {
     /// locale asked, listed, is no more than half of `ipc_frame_max_bytes`.
     ///
     /// **The answer as the daemon writes it, of an entry the judge admits**,
-    /// not a sum: every sentence at its bound in characters of `"` and `\`,
-    /// which JSON writes as two bytes each, and thirty-two tags of them
-    /// lengthened while the judge still admits the entry, each tag costing the
-    /// answer its quotation marks and its comma as well. A listing that
-    /// stopped escaping, a judge that stopped counting a tag's punctuation, or
-    /// an `entry_bytes` raised past the frame fails here.
+    /// not a sum. A byte of a sentence or a tag costs the entry one and the
+    /// answer at most two, which `"` and `\` reach, every other character
+    /// JSON writes longer being one the judge refuses as unseen; every
+    /// sentence is at its bound in characters of them. A tag's quotation marks
+    /// and comma cost the entry three bytes and the answer only three, so
+    /// fewer, longer tags list more: for every count of tags from one to
+    /// `TAGS_MAX`, the tags are made as long as the judge still admits the
+    /// entry, and the heaviest of those answers is the one held. A listing
+    /// that stopped escaping, a judge that stopped counting a tag's
+    /// punctuation, or an `entry_bytes` raised past the frame fails here.
     ///
     /// **And the bound the compiler holds**: texts of `entry_bytes`, every
     /// byte one JSON writes as two, fit half a frame exactly.
@@ -911,36 +915,50 @@ mod tests {
             )
             .is_ok()
         };
-        // Tags no fold of case makes one: each spells its place in `"` and `\`.
+        // Tags no fold of case makes one: each spells its place in `"` and `\`,
+        // then `long` more `"`, and one more again for the first `longer`.
         let width = TAGS_MAX.next_power_of_two().trailing_zeros();
-        let mut heaviest = EntryTexts {
+        let shaped = |count: usize, long: usize, longer: usize| EntryTexts {
             display_name: "\"".repeat(Text::DisplayName.bound()),
             line: "\\".repeat(Text::Line.bound()),
             paragraph: "\"".repeat(Text::Paragraph.bound()),
-            tags: (0..TAGS_MAX)
+            tags: (0..count)
                 .map(|at| {
-                    (0..width)
+                    let place: String = (0..width)
                         .map(|bit| if (at >> bit) % 2 == 1 { '\\' } else { '"' })
-                        .collect()
+                        .collect();
+                    place + &"\"".repeat(long + usize::from(at < longer))
                 })
                 .collect(),
         };
-        assert!(admitted(&heaviest), "{heaviest:?}");
-        let tags_of = |texts: &EntryTexts| texts.tags.iter().map(String::len).sum::<usize>();
-        loop {
-            let before = tags_of(&heaviest);
-            for at in 0..heaviest.tags.len() {
-                let mut longer = heaviest.clone();
-                longer.tags[at].push('"');
-                if admitted(&longer) {
-                    heaviest = longer;
+        // The largest number `admits` holds of below `refused`, found by
+        // halving: it holds of nought, and once it fails it fails of every
+        // larger one, since a longer tag is never admitted where a shorter one
+        // was refused.
+        let largest = |admits: &dyn Fn(usize) -> bool, mut refused: usize| {
+            let mut held = 0;
+            while refused - held > 1 {
+                let between = held + (refused - held) / 2;
+                if admits(between) {
+                    held = between;
+                } else {
+                    refused = between;
                 }
             }
-            if tags_of(&heaviest) == before {
-                break;
-            }
-        }
-        let listed = texts_alone(&heaviest);
+            held
+        };
+        let listed = (1..=TAGS_MAX)
+            .map(|count| {
+                assert!(admitted(&shaped(count, 0, 0)), "{count} tag(s)");
+                // Every tag as long as the judge admits, a tag `entry_bytes`
+                // longer being past the entry's bytes, and then as many of
+                // them as it admits a character longer still.
+                let long = largest(&|long| admitted(&shaped(count, long, 0)), most);
+                let longer = largest(&|longer| admitted(&shaped(count, long, longer)), count + 1);
+                texts_alone(&shaped(count, long, longer))
+            })
+            .max()
+            .expect("a count of tags");
         assert!(
             listed > most,
             "every `\"` and `\\` is written as two bytes, and {listed} are not"

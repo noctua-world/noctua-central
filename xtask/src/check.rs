@@ -19501,7 +19501,7 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
-        ("daemon/plugins.rs", 30, 6),
+        ("daemon/plugins.rs", 31, 6),
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
@@ -22475,8 +22475,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 761 scratches this tree
-    /// builds, 673 of the 761 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 762 scratches this tree
+    /// builds, 674 of the 762 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22553,7 +22553,7 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 5, 5),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
-        ("daemon/plugins.rs", 7, 7),
+        ("daemon/plugins.rs", 8, 8),
         ("daemon/profile.rs", 8, 8),
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
@@ -25544,7 +25544,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19092;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19094;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25563,7 +25563,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4880;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4881;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25614,7 +25614,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25741;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25745;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25668,7 +25668,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 25,741 are accepted by the first-line
+    /// rules the gates apply: **518 of 25,745 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37596,7 +37596,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2288] = [
+    static OPERATORS: [(&str, &str, &str); 2289] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46612,6 +46612,11 @@ Options:
             "daemon_plugins",
             "bounded",
             "an entries file past its bound is refused by its length, unread",
+        ),
+        (
+            "daemon_plugins",
+            "bounded",
+            "an entries file is read only as UTF-8",
         ),
         (
             "daemon_plugins",

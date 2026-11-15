@@ -1022,13 +1022,14 @@ shown before it is judged:
 
 **Enforced by** `crates/nc-kernel/src/entries.rs` and `crates/nc-kernel/src/registry.rs`,
 with a unit test per rule; `apps/daemon/src/plugins.rs`, whose tests remove each file,
-plant a stranger in `i18n/`, open each file to another account and write one past its
-bound; `crates/nc-kernel/tests/activation.rs` and
+plant a stranger in `i18n/`, open each file to another account, write one past its bound
+and write one that is not UTF-8; `crates/nc-kernel/tests/activation.rs` and
 `crates/nc-kernel/tests/the_reference_plugin_activates.rs`, which hold the reference
 plugin's entries to the commands it declares, both ways;
 `apps/daemon/tests/serves_its_kernel.rs`, where a plugin whose Portuguese texts miss a
-command is shown refused and the daemon runs without it; `a_plugins_entries_at_their_bound_fit_half_a_frame` in
-`apps/daemon/src/server.rs`, which lists the heaviest entry the judge admits, and the compiler's
+command is shown refused and the daemon runs without it;
+`a_plugins_entries_at_their_bound_fit_half_a_frame` in `apps/daemon/src/server.rs`, which
+lists the heaviest entry the judge admits over every count of tags, and the compiler's
 `an_entry_bound_that_lets_one_plugin_outgrow_half_a_frame_fails_the_build`; and the
 operators over those sources.
 

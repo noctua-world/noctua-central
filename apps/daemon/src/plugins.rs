@@ -568,6 +568,38 @@ mod tests {
         }
     }
 
+    /// An entries file that is not UTF-8 is refused naming it.
+    ///
+    /// The command table and one locale's texts, each within its bound and
+    /// holding one byte no UTF-8 text holds, in a comment that a reader
+    /// taking the bytes as nearly text would parse past.
+    #[test]
+    fn an_entries_file_that_is_not_utf8_is_refused_naming_it() {
+        let scratch = Scratch::new("not-utf8");
+        let user = scratch.user();
+        for (file, text) in [
+            (&[super::COMMANDS][..], COMMANDS),
+            (&[super::TEXTS, "pt-BR.toml"][..], PORTUGUESE),
+        ] {
+            let directory = scratch.plugin(&file.join("-"), REFERENCE, b"bytes");
+            // Joined a component at a time, as the reader joins them.
+            let path = file
+                .iter()
+                .fold(directory.clone(), |path, part| path.join(part));
+            std::fs::remove_file(&path).expect("removed");
+            let mut bytes = text.as_bytes().to_vec();
+            bytes.extend_from_slice(b"\n# \xff\n");
+            written(&path, &bytes);
+            let (code, sentence) = super::installed(&directory, &user).expect_err("not UTF-8");
+            assert_eq!(
+                code,
+                ErrorCode::PluginEntriesInvalid,
+                "{file:?}: {sentence}"
+            );
+            assert_eq!(sentence, format!("`{}` is not UTF-8", path.display()));
+        }
+    }
+
     /// Each refused load is logged with its code, and nothing is logged for
     /// one that loaded.
     #[test]
