@@ -1919,37 +1919,13 @@ fn every_command_publishes_its_metadata_in_both_locales() {
                 &format!("`{}`'s tags under `{tag}`", entry.name),
             );
         }
-        match entry.glyph.as_deref() {
-            Some(glyph) => counted.same(
-                &row(&mine, "Glyph")[1],
-                &format!("`{glyph}`"),
-                &format!("`{}`'s glyph", entry.name),
-            ),
-            None => assert!(
-                !mine.iter().any(|row| row[0] == "Glyph"),
-                "`{}` declares no glyph and the page publishes a row for one",
-                entry.name
-            ),
-        }
-        if entry.categories.is_empty() {
-            assert!(
-                !mine.iter().any(|row| row[0] == "Categories"),
-                "`{}` names no category and the page publishes a row for one",
-                entry.name
-            );
-        } else {
-            let named: Vec<String> = entry
-                .categories
-                .iter()
-                .map(|name| format!("`{name}`"))
-                .collect();
-            counted.same(
-                &row(&mine, "Categories")[1],
-                &named.join(", "),
-                &format!("`{}`'s categories", entry.name),
-            );
-        }
-        the_wiki_row_links_every_locale(&catalog, entry, &mine, &mut counted);
+        let held = Held {
+            registry: "commands",
+            name: &entry.name,
+            categories: &entry.categories,
+            glyph: entry.glyph.as_deref(),
+        };
+        the_rows_only_an_entry_holding_them_has(&catalog, &held, &mine, &mut counted);
     }
     counted.floor(
         catalog.commands.len() * catalog.locales.len() * 4,
@@ -2151,16 +2127,13 @@ fn every_external_identifier_is_on_its_page_with_each_systems_identification() {
                 &format!("`{}`'s tags under `{tag}`", entry.name),
             );
         }
-        let named: Vec<String> = entry
-            .categories
-            .iter()
-            .map(|name| format!("`{name}`"))
-            .collect();
-        counted.same(
-            &row(&mine, "Categories")[1],
-            &named.join(", "),
-            &format!("`{}`'s categories", entry.name),
-        );
+        let held = Held {
+            registry: "external-identifiers",
+            name: &entry.name,
+            categories: &entry.categories,
+            glyph: entry.glyph.as_deref(),
+        };
+        the_rows_only_an_entry_holding_them_has(&catalog, &held, &mine, &mut counted);
         let published: Vec<&Vec<String>> = mine
             .iter()
             .filter(|row| ["Linux", "macOS", "Windows"].contains(&row[0].as_str()))
@@ -2243,18 +2216,73 @@ fn identification_rows(
     declared
 }
 
-/// A command's wiki row, when it has a wiki text, links each locale's file
-/// and says its format; with none, there is no row.
+/// What an entry may carry beyond its texts, and the directory its registry's
+/// wiki texts sit under.
+struct Held<'a> {
+    registry: &'a str,
+    name: &'a str,
+    categories: &'a [String],
+    glyph: Option<&'a str>,
+}
+
+/// The rows an entry's table has only when the entry holds what they say: its
+/// categories, its glyph and its wiki text.
+///
+/// **Both ways, for every registry whose entries carry them**: what the entry
+/// holds is published as the registry wrote it, and what it does not hold has
+/// no row at all, so a page that dropped the row and one that wrote it for
+/// everyone are each a failure here.
+fn the_rows_only_an_entry_holding_them_has(
+    catalog: &Catalog,
+    entry: &Held<'_>,
+    mine: &[Vec<String>],
+    counted: &mut Counted,
+) {
+    match entry.glyph {
+        Some(glyph) => counted.same(
+            &row(mine, "Glyph")[1],
+            &format!("`{glyph}`"),
+            &format!("`{}`'s glyph", entry.name),
+        ),
+        None => assert!(
+            !mine.iter().any(|row| row[0] == "Glyph"),
+            "`{}` declares no glyph and the page publishes a row for one",
+            entry.name
+        ),
+    }
+    if entry.categories.is_empty() {
+        assert!(
+            !mine.iter().any(|row| row[0] == "Categories"),
+            "`{}` names no category and the page publishes a row for one",
+            entry.name
+        );
+    } else {
+        let named: Vec<String> = entry
+            .categories
+            .iter()
+            .map(|name| format!("`{name}`"))
+            .collect();
+        counted.same(
+            &row(mine, "Categories")[1],
+            &named.join(", "),
+            &format!("`{}`'s categories", entry.name),
+        );
+    }
+    the_wiki_row_links_every_locale(catalog, entry, mine, counted);
+}
+
+/// An entry's wiki row, when it has a wiki text, links each locale's file
+/// under its registry and says its format; with none, there is no row.
 fn the_wiki_row_links_every_locale(
     catalog: &Catalog,
-    entry: &nc_catalog_compiler::model::CommandEntry,
+    entry: &Held<'_>,
     mine: &[Vec<String>],
     counted: &mut Counted,
 ) {
     let Some(wiki) = catalog
         .wiki
         .iter()
-        .find(|wiki| wiki.registry == "commands" && wiki.name == entry.name)
+        .find(|wiki| wiki.registry == entry.registry && wiki.name == entry.name)
     else {
         assert!(
             !mine.iter().any(|row| row[0] == "Wiki"),
@@ -2267,22 +2295,18 @@ fn the_wiki_row_links_every_locale(
     let extension = wiki.format.extension();
     for locale in &catalog.locales {
         let tag = &locale.meta.bcp47;
-        let link = format!(
-            "[{tag}](../catalog/wiki/{tag}/commands/{}.{extension})",
-            entry.name
+        let path = format!(
+            "catalog/wiki/{tag}/{}/{}.{extension}",
+            entry.registry, entry.name
         );
+        let link = format!("[{tag}](../{path})");
         assert!(
             published.contains(&link),
             "`{}`'s wiki row does not link its `{tag}` text: {published}",
             entry.name
         );
         assert!(
-            root()
-                .join(format!(
-                    "catalog/wiki/{tag}/commands/{}.{extension}",
-                    entry.name
-                ))
-                .is_file(),
+            root().join(&path).is_file(),
             "`{}`'s wiki link names a file that is not there",
             entry.name
         );

@@ -27,12 +27,50 @@ pub struct ExternalIdentifier {
     pub categories: &'static [&'static str],
     /// The glyph it is shown with, a code point the Symbols-Only font draws.
     pub glyph: Option<char>,
+    /// The format of its wiki text, where it has one; [`crate::WIKI`] holds the text.
+    pub wiki: Option<crate::WikiFormat>,
     /// What identifies it on Linux, where it is identified there.
     pub linux: Option<OnLinux>,
     /// What identifies it on macOS, where it is identified there.
     pub macos: Option<OnMacOs>,
     /// What identifies it on Windows, where it is identified there.
     pub windows: Option<OnWindows>,
+}
+
+impl ExternalIdentifier {
+    /// What identifies it, field by field, in the registry's order.
+    ///
+    /// The system as a page names it, the field as the registry writes it,
+    /// and the field's values, a field with none included; a system it is
+    /// not identified on is not listed.
+    #[must_use]
+    pub fn identification(&self) -> Vec<(&'static str, &'static str, &'static [&'static str])> {
+        let mut held = Vec::new();
+        if let Some(on) = self.linux {
+            held.extend([
+                ("Linux", "executables", on.executables),
+                ("Linux", "desktop_ids", on.desktop_ids),
+                ("Linux", "flatpak_ids", on.flatpak_ids),
+                ("Linux", "snap_names", on.snap_names),
+                ("Linux", "paths", on.paths),
+            ]);
+        }
+        if let Some(on) = self.macos {
+            held.extend([
+                ("macOS", "bundle_ids", on.bundle_ids),
+                ("macOS", "app_paths", on.app_paths),
+                ("macOS", "executables", on.executables),
+            ]);
+        }
+        if let Some(on) = self.windows {
+            held.extend([
+                ("Windows", "executables", on.executables),
+                ("Windows", "app_paths_keys", on.app_paths_keys),
+                ("Windows", "paths", on.paths),
+            ]);
+        }
+        held
+    }
 }
 
 /// What identifies an external identifier on Linux.
@@ -85,6 +123,7 @@ pub const EXTERNAL_IDENTIFIERS: &[ExternalIdentifier] = &[
         tags_key: "external-identifier.chromium.tags",
         categories: &["freedesktop.network", "freedesktop.web-browser"],
         glyph: None,
+        wiki: None,
         linux: Some(OnLinux {
             executables: &["chromium", "chromium-browser"],
             desktop_ids: &[],
@@ -111,6 +150,7 @@ pub const EXTERNAL_IDENTIFIERS: &[ExternalIdentifier] = &[
         tags_key: "external-identifier.google-chrome.tags",
         categories: &["freedesktop.network", "freedesktop.web-browser"],
         glyph: None,
+        wiki: None,
         linux: Some(OnLinux {
             executables: &["google-chrome-stable", "google-chrome"],
             desktop_ids: &["google-chrome.desktop", "com.google.Chrome.desktop"],

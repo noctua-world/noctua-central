@@ -388,6 +388,12 @@ pub(crate) const EXTERNAL_IDENTIFIERS: &str = "catalog/external-identifiers.toml
 /// other field's values come near.
 const IDENTIFICATION_MAX: usize = 260;
 
+/// The longest Snap name, in characters.
+///
+/// Read by the check and stated by the fix it gives, so the two say one
+/// bound.
+const SNAP_NAME_MAX: usize = 40;
+
 /// The directories a Windows path may begin at.
 ///
 /// As the system's environment names them: the programs installed for every
@@ -439,6 +445,25 @@ impl Field {
             Self::AppPathsKey => "app_paths_keys",
         }
     }
+
+    /// Its values in an entry, none where the entry is not identified on its
+    /// system.
+    fn held_in(self, entry: &ExternalIdentifierEntry) -> &[String] {
+        let values = match self {
+            Self::LinuxExecutable => entry.linux.as_ref().map(|on| &on.executables),
+            Self::DesktopId => entry.linux.as_ref().map(|on| &on.desktop_ids),
+            Self::FlatpakId => entry.linux.as_ref().map(|on| &on.flatpak_ids),
+            Self::SnapName => entry.linux.as_ref().map(|on| &on.snap_names),
+            Self::LinuxPath => entry.linux.as_ref().map(|on| &on.paths),
+            Self::BundleId => entry.macos.as_ref().map(|on| &on.bundle_ids),
+            Self::AppPath => entry.macos.as_ref().map(|on| &on.app_paths),
+            Self::MacExecutable => entry.macos.as_ref().map(|on| &on.executables),
+            Self::WindowsExecutable => entry.windows.as_ref().map(|on| &on.executables),
+            Self::AppPathsKey => entry.windows.as_ref().map(|on| &on.app_paths_keys),
+            Self::WindowsPath => entry.windows.as_ref().map(|on| &on.paths),
+        };
+        values.map_or(&[], Vec::as_slice)
+    }
 }
 
 /// A system an external identifier is identified on.
@@ -470,49 +495,95 @@ impl System {
             Self::Windows => "Windows",
         }
     }
+
+    /// The generated type that holds what identifies an entry on it.
+    pub(crate) const fn generated(self) -> &'static str {
+        match self {
+            Self::Linux => "OnLinux",
+            Self::MacOs => "OnMacOs",
+            Self::Windows => "OnWindows",
+        }
+    }
+
+    /// Whether an entry is identified on it: whether the registry writes its
+    /// table for the entry.
+    const fn is_held_by(self, entry: &ExternalIdentifierEntry) -> bool {
+        match self {
+            Self::Linux => entry.linux.is_some(),
+            Self::MacOs => entry.macos.is_some(),
+            Self::Windows => entry.windows.is_some(),
+        }
+    }
 }
+
+/// Every system an entry may be identified on, and the fields of each.
+///
+/// **The one list**, in the order the registry writes them: the compiler
+/// judges, the generated crate holds and hands out through
+/// `ExternalIdentifier::identification`, a page publishes and help prints
+/// what it names, so a field added here is a field every one of them carries.
+pub(crate) const IDENTIFIED_BY: [(System, &[Field]); 3] = [
+    (
+        System::Linux,
+        &[
+            Field::LinuxExecutable,
+            Field::DesktopId,
+            Field::FlatpakId,
+            Field::SnapName,
+            Field::LinuxPath,
+        ],
+    ),
+    (
+        System::MacOs,
+        &[Field::BundleId, Field::AppPath, Field::MacExecutable],
+    ),
+    (
+        System::Windows,
+        &[
+            Field::WindowsExecutable,
+            Field::AppPathsKey,
+            Field::WindowsPath,
+        ],
+    ),
+];
 
 /// What identifies one entry on one system: the system, and each of its
 /// fields with its values.
 pub(crate) type OnASystem<'a> = (System, Option<Vec<(Field, &'a [String])>>);
 
-/// What identifies an entry on each system, in the order the registry and
-/// every page write them; `None` for a system it is not identified on.
+/// What identifies an entry on each system, in [`IDENTIFIED_BY`]'s order,
+/// and `None` for a system it is not identified on.
 pub(crate) fn on_each_system(entry: &ExternalIdentifierEntry) -> [OnASystem<'_>; 3] {
-    [
-        (
-            System::Linux,
-            entry.linux.as_ref().map(|on| {
-                vec![
-                    (Field::LinuxExecutable, on.executables.as_slice()),
-                    (Field::DesktopId, on.desktop_ids.as_slice()),
-                    (Field::FlatpakId, on.flatpak_ids.as_slice()),
-                    (Field::SnapName, on.snap_names.as_slice()),
-                    (Field::LinuxPath, on.paths.as_slice()),
-                ]
-            }),
-        ),
-        (
-            System::MacOs,
-            entry.macos.as_ref().map(|on| {
-                vec![
-                    (Field::BundleId, on.bundle_ids.as_slice()),
-                    (Field::AppPath, on.app_paths.as_slice()),
-                    (Field::MacExecutable, on.executables.as_slice()),
-                ]
-            }),
-        ),
-        (
-            System::Windows,
-            entry.windows.as_ref().map(|on| {
-                vec![
-                    (Field::WindowsExecutable, on.executables.as_slice()),
-                    (Field::AppPathsKey, on.app_paths_keys.as_slice()),
-                    (Field::WindowsPath, on.paths.as_slice()),
-                ]
-            }),
-        ),
-    ]
+    IDENTIFIED_BY.map(|(system, fields)| {
+        let held = system.is_held_by(entry).then(|| {
+            fields
+                .iter()
+                .map(|field| (*field, field.held_in(entry)))
+                .collect()
+        });
+        (system, held)
+    })
+}
+
+/// What identifies an entry, field by field, as the compiler reads the
+/// registry: the system as a page names it, the field as the registry writes
+/// it, and its values.
+///
+/// **The door a comparison outside this crate reads the one list through**,
+/// so `xtask`'s test of the generated `ExternalIdentifier::identification`
+/// holds it against `IDENTIFIED_BY` and names no field itself.
+#[doc(hidden)]
+#[must_use]
+pub fn identification_for_tests(entry: &ExternalIdentifierEntry) -> Vec<(&str, &str, &[String])> {
+    on_each_system(entry)
+        .into_iter()
+        .flat_map(|(system, fields)| {
+            fields
+                .into_iter()
+                .flatten()
+                .map(move |(field, values)| (system.word(), field.key(), values))
+        })
+        .collect()
 }
 
 /// The external-identifiers registry, read, parsed and held to the rules
@@ -703,7 +774,7 @@ pub(crate) fn identification(field: Field, value: &str) -> Result<(), Refused> {
             character.is_ascii_alphanumeric() || character == '_' || character == '-'
         }),
         Field::SnapName => {
-            value.chars().count() <= 40
+            value.chars().count() <= SNAP_NAME_MAX
                 && value.chars().all(|character| {
                     character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
                 })
@@ -847,19 +918,24 @@ fn a_standard_name(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Field, System, a_slug, a_standard_name, identification};
+    use super::{
+        Field, IDENTIFICATION_MAX, IDENTIFIED_BY, Refused, SNAP_NAME_MAX, System, a_slug,
+        a_standard_name, identification, the_shape_of,
+    };
+    use crate::model::ExternalIdentifierEntry;
 
     /// Every system is written as its table in the registry writes it, and
     /// called on a page what its makers call it.
     #[test]
     fn every_system_is_written_as_the_registry_and_a_page_write_it() {
-        for (system, table, word) in [
-            (System::Linux, "linux", "Linux"),
-            (System::MacOs, "macos", "macOS"),
-            (System::Windows, "windows", "Windows"),
+        for (system, table, word, generated) in [
+            (System::Linux, "linux", "Linux", "OnLinux"),
+            (System::MacOs, "macos", "macOS", "OnMacOs"),
+            (System::Windows, "windows", "Windows", "OnWindows"),
         ] {
             assert_eq!(system.table(), table, "{system:?}");
             assert_eq!(system.word(), word, "{system:?}");
+            assert_eq!(system.generated(), generated, "{system:?}");
         }
     }
 
@@ -984,10 +1060,78 @@ mod tests {
             }
         }
         let long = |length: usize| format!("{}{}", '/', "a".repeat(length - 1));
-        assert_eq!(identification(Field::LinuxPath, &long(260)), Ok(()));
-        assert!(identification(Field::LinuxPath, &long(261)).is_err());
-        assert_eq!(identification(Field::SnapName, &"a".repeat(40)), Ok(()));
-        assert!(identification(Field::SnapName, &"a".repeat(41)).is_err());
+        assert_eq!(
+            identification(Field::LinuxPath, &long(IDENTIFICATION_MAX)),
+            Ok(())
+        );
+        assert!(identification(Field::LinuxPath, &long(IDENTIFICATION_MAX + 1)).is_err());
+        let snap = |length: usize| "a".repeat(length);
+        assert_eq!(
+            identification(Field::SnapName, &snap(SNAP_NAME_MAX)),
+            Ok(())
+        );
+        assert!(identification(Field::SnapName, &snap(SNAP_NAME_MAX + 1)).is_err());
+    }
+
+    /// Every bound a refusal states is the bound its check holds.
+    ///
+    /// The fixes are constant texts, so each states its bound in words; a
+    /// bound moved without its sentence would tell a reader to shorten a value
+    /// to a length the build no longer holds it to.
+    #[test]
+    fn every_bound_a_refusal_states_is_the_bound_its_check_holds() {
+        let too_long = Refused::TooLong.fix();
+        assert!(
+            too_long.contains(&format!("at most {IDENTIFICATION_MAX} characters")),
+            "{too_long}"
+        );
+        let snap = the_shape_of(Field::SnapName);
+        assert!(snap.contains(&format!("at most {SNAP_NAME_MAX}")), "{snap}");
+        assert_eq!(Refused::Shape(Field::SnapName).fix(), snap);
+    }
+
+    /// Every field of a system's table is one [`IDENTIFIED_BY`] names, read
+    /// from the key the registry writes it under.
+    ///
+    /// **Both ways**: a table holding every key the list names, each with a
+    /// value of its own, hands each field its own value and no other system
+    /// any; and the key a table refuses is answered with exactly the list's
+    /// keys, so a field the table gains is one the list must name before the
+    /// generated crate, a page or help can carry it.
+    #[test]
+    fn every_field_of_a_systems_table_is_one_the_list_names_reading_its_own_key() {
+        for (system, fields) in IDENTIFIED_BY {
+            let written: Vec<String> = fields
+                .iter()
+                .map(|field| format!("{0} = [\"{0}\"]", field.key()))
+                .collect();
+            let text = format!(
+                "name = \"x\"\ntitle = \"t\"\ndescription = \"d\"\nparagraph = \"p\"\n\
+                 tags = \"g\"\n\n[{}]\n{}\n",
+                system.table(),
+                written.join("\n")
+            );
+            let entry: ExternalIdentifierEntry =
+                toml::from_str(&text).unwrap_or_else(|error| panic!("{error}\n{text}"));
+            for (other, _) in IDENTIFIED_BY {
+                assert_eq!(other.is_held_by(&entry), other == system, "{other:?}");
+            }
+            for field in fields {
+                assert_eq!(field.held_in(&entry), [field.key()], "{field:?}");
+            }
+            let refused =
+                toml::from_str::<ExternalIdentifierEntry>(&format!("{text}unlisted = []\n"))
+                    .expect_err("a key the list does not name is refused")
+                    .to_string();
+            let keys: Vec<String> = fields
+                .iter()
+                .map(|field| format!("`{}`", field.key()))
+                .collect();
+            assert!(
+                refused.contains(&format!("expected one of {}", keys.join(", "))),
+                "{system:?}'s table reads other keys than the list names: {refused}"
+            );
+        }
     }
 
     /// A slug is lower-case letters and digits in words joined by single

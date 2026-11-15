@@ -6169,3 +6169,192 @@ fn an_identification_value_written_twice_in_a_list_fails_and_across_entries_does
         "the shipped catalog was refused"
     );
 }
+
+/// One section of a page the scratch compiled, from its heading to the next.
+fn compiled_section(compiled: &nc_catalog_compiler::Compiled, page: &str, name: &str) -> String {
+    let text = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == page)
+        .unwrap_or_else(|| panic!("{page} is emitted"))
+        .contents;
+    let opening = format!("## `{name}`\n");
+    let at = text
+        .find(&opening)
+        .unwrap_or_else(|| panic!("{page} has no section for `{name}`"));
+    let rest = &text[at + opening.len()..];
+    rest.find("\n## ")
+        .map_or(rest, |end| &rest[..end])
+        .to_owned()
+}
+
+/// An external identifier's glyph and categories reach its page, each only
+/// when it has them.
+///
+/// **Driven over a copy that carries both shapes**, because no shipped
+/// identifier has a glyph and every one has categories: over the shipped
+/// catalog alone, a page that never wrote the glyph row, or wrote the
+/// categories row for an entry naming none, would pass.
+#[test]
+fn an_external_identifiers_glyph_and_categories_reach_its_page_only_when_it_has_them() {
+    let scratch = Scratch::new("identifier-page-rows");
+    scratch.edit("catalog/external-identifiers.toml", |text| {
+        let at = text
+            .find("name = \"chromium\"")
+            .expect("the registry holds chromium");
+        let (before, after) = text.split_at(at);
+        format!(
+            "{before}{}",
+            after.replacen(
+                "categories = [\"freedesktop.network\", \"freedesktop.web-browser\"]",
+                "glyph = \"U+F268\"",
+                1
+            )
+        )
+    });
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let page = "docs/external-identifiers.md";
+    let chromium = compiled_section(&compiled, page, "chromium");
+    assert!(
+        chromium.contains("\n| Glyph | `U+F268` |"),
+        "a glyph an external identifier carries did not reach its page: {chromium}"
+    );
+    assert!(
+        !chromium.contains("| Categories |"),
+        "an external identifier naming no category published a row for one: {chromium}"
+    );
+    let chrome = compiled_section(&compiled, page, "google-chrome");
+    assert!(
+        chrome.contains("\n| Categories | `freedesktop.network`, `freedesktop.web-browser` |"),
+        "the categories an external identifier names did not reach its page: {chrome}"
+    );
+    assert!(
+        !chrome.contains("| Glyph |"),
+        "an external identifier with no glyph published a row for one: {chrome}"
+    );
+}
+
+/// An external identifier's wiki text is compiled with the format its
+/// extension names, and its page links each locale's file.
+///
+/// **No identifier ships one**, so this is the only place the path is driven:
+/// the tree takes the registry's directory, the generated entry carries the
+/// format, the generated crate the text, and the page a link under the
+/// registry's own directory.
+#[test]
+fn an_external_identifiers_wiki_text_is_compiled_with_its_format_and_linked_from_its_page() {
+    let scratch = Scratch::new("identifier-wiki");
+    for (locale, words) in [
+        (
+            "en",
+            "Chromium is the open-source browser Chrome is built from.\n",
+        ),
+        (
+            "pt-BR",
+            "O Chromium é o navegador de código aberto do qual o Chrome é feito.\n",
+        ),
+    ] {
+        scratch.place(
+            &format!("catalog/wiki/{locale}/external-identifiers/chromium.txt"),
+            words,
+        );
+    }
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let held: Vec<(&str, &str, nc_schema::entry::WikiFormat)> = compiled
+        .catalog
+        .wiki
+        .iter()
+        .filter(|text| text.registry == "external-identifiers")
+        .map(|text| (text.registry.as_str(), text.name.as_str(), text.format))
+        .collect();
+    assert_eq!(
+        held,
+        [(
+            "external-identifiers",
+            "chromium",
+            nc_schema::entry::WikiFormat::PlainText
+        )]
+    );
+    let emitted = |path: &str| {
+        compiled
+            .files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("{path} is emitted"))
+            .contents
+            .clone()
+    };
+    let identifiers = emitted("crates/nc-catalog/src/external_identifiers.rs");
+    for (name, wiki) in [
+        ("chromium", "wiki: Some(crate::WikiFormat::PlainText)"),
+        ("google-chrome", "wiki: None"),
+    ] {
+        let row = identifiers
+            .split("ExternalIdentifier {")
+            .find(|row| row.contains(&format!("name: \"{name}\"")))
+            .unwrap_or_else(|| panic!("`{name}` has a row"));
+        assert!(
+            row.contains(wiki),
+            "`{name}`'s row does not carry `{wiki}`: {row}"
+        );
+    }
+    assert!(
+        emitted("crates/nc-catalog/src/wiki.rs").contains("registry: \"external-identifiers\""),
+        "the identifier's wiki text did not reach the generated crate"
+    );
+    let chromium = compiled_section(&compiled, "docs/external-identifiers.md", "chromium");
+    let links: Vec<String> = ["en", "pt-BR"]
+        .iter()
+        .map(|tag| format!("[{tag}](../catalog/wiki/{tag}/external-identifiers/chromium.txt)"))
+        .collect();
+    let row = format!("\n| Wiki | plain text (`.txt`): {} |", links.join(", "));
+    assert!(
+        chromium.contains(&row),
+        "the identifier's page does not link its wiki text as `{row}`: {chromium}"
+    );
+    let chrome = compiled_section(&compiled, "docs/external-identifiers.md", "google-chrome");
+    assert!(
+        !chrome.contains("| Wiki |"),
+        "an identifier with no wiki text published a row for one: {chrome}"
+    );
+}
+
+/// A wiki text names an entry of the registry it sits under, and of no other.
+///
+/// A command's name under the identifiers' directory and an identifier's under
+/// the commands' are each an orphan: a text whose page is another registry's
+/// is shown by nothing.
+#[test]
+fn a_wiki_text_names_an_entry_of_the_registry_it_sits_under() {
+    for (registry, name) in [
+        ("external-identifiers", "kernel.undo"),
+        ("commands", "chromium"),
+    ] {
+        let scratch = Scratch::new(&format!("wiki-elsewhere-{registry}"));
+        for (locale, words) in [("en", "# Elsewhere\n"), ("pt-BR", "# Em outro lugar\n")] {
+            scratch.place(
+                &format!("catalog/wiki/{locale}/{registry}/{name}.md"),
+                words,
+            );
+        }
+        scratch.must_fail_saying("wiki-orphan", &format!("`{name}`"));
+    }
+}
+
+/// An external identifier's wiki text missing from a locale fails the build,
+/// naming the identifier.
+#[test]
+fn an_external_identifiers_wiki_text_missing_from_a_locale_fails_naming_it() {
+    let scratch = Scratch::new("identifier-wiki-locale-missing");
+    scratch.place(
+        "catalog/wiki/en/external-identifiers/chromium.md",
+        "# Chromium\n",
+    );
+    scratch.must_fail_saying("wiki-locale-missing", "`chromium`");
+    scratch.must_fail(
+        "wiki-locale-missing",
+        "catalog/wiki/pt-BR/external-identifiers",
+    );
+}

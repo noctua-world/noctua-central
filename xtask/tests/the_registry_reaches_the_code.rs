@@ -1782,39 +1782,21 @@ fn every_row_of_the_sources_is_a_category_and_no_other() {
     );
 }
 
-/// What identifies one external identifier on each system, as one shape.
-///
-/// A system's fields, each with its values, or `None` where it is not
-/// identified there.
-type Identified<'a> = [Option<Vec<(&'a str, Vec<&'a str>)>>; 3];
+/// What identifies one external identifier, field by field: the system, the
+/// field and its values.
+type Identified<'a> = Vec<(&'a str, &'a str, Vec<&'a str>)>;
 
-/// What the generated crate holds of an entry's identification, field by field.
+/// What the generated crate hands out of an entry's identification.
+///
+/// **Through `ExternalIdentifier::identification`**, the list the compiler
+/// writes from the one it judges by, so a field the registry gains is a row
+/// here that nothing below names until it is written out.
 fn identified_in_the_code(identifier: &nc_catalog::ExternalIdentifier) -> Identified<'static> {
-    [
-        identifier.linux.map(|on| {
-            vec![
-                ("executables", on.executables.to_vec()),
-                ("desktop_ids", on.desktop_ids.to_vec()),
-                ("flatpak_ids", on.flatpak_ids.to_vec()),
-                ("snap_names", on.snap_names.to_vec()),
-                ("paths", on.paths.to_vec()),
-            ]
-        }),
-        identifier.macos.map(|on| {
-            vec![
-                ("bundle_ids", on.bundle_ids.to_vec()),
-                ("app_paths", on.app_paths.to_vec()),
-                ("executables", on.executables.to_vec()),
-            ]
-        }),
-        identifier.windows.map(|on| {
-            vec![
-                ("executables", on.executables.to_vec()),
-                ("app_paths_keys", on.app_paths_keys.to_vec()),
-                ("paths", on.paths.to_vec()),
-            ]
-        }),
-    ]
+    identifier
+        .identification()
+        .into_iter()
+        .map(|(system, field, values)| (system, field, values.to_vec()))
+        .collect()
 }
 
 /// Every external identifier reaches the code as the registry declares it.
@@ -1881,6 +1863,31 @@ fn every_external_identifier_reaches_the_code() {
             assert_eq!(on.app_paths_keys, declared.app_paths_keys, "{named}");
             assert_eq!(on.paths, declared.paths, "{named}");
         }
+        // **And every field as the one list names it**, which the typed
+        // comparisons above cannot be: a field the compiler judges and the
+        // generated walk leaves out, or hands out under another field's name, is
+        // a difference here whatever field it is.
+        let words: Vec<(&str, &str, Vec<&str>)> =
+            nc_catalog_compiler::identification_for_tests(entry)
+                .into_iter()
+                .map(|(system, field, values)| {
+                    (system, field, values.iter().map(String::as_str).collect())
+                })
+                .collect();
+        let declared: Vec<(&str, &str, &[&str])> = words
+            .iter()
+            .map(|(system, field, values)| (*system, *field, values.as_slice()))
+            .collect();
+        assert_eq!(generated.identification(), declared, "{named}");
+        assert_eq!(
+            generated.wiki,
+            catalog
+                .wiki
+                .iter()
+                .find(|text| text.registry == "external-identifiers" && text.name == entry.name)
+                .map(|text| wiki_format(text.format.extension())),
+            "{named}"
+        );
         compared += 1;
     }
     assert!(
@@ -1916,36 +1923,41 @@ fn the_external_identifiers_hold_chrome_and_chromium_on_every_system() {
     assert_eq!(
         identified_in_the_code(chrome),
         [
-            Some(vec![
-                ("executables", vec!["google-chrome-stable", "google-chrome"]),
-                (
-                    "desktop_ids",
-                    vec!["google-chrome.desktop", "com.google.Chrome.desktop"],
-                ),
-                ("flatpak_ids", none.clone()),
-                ("snap_names", none.clone()),
-                (
-                    "paths",
-                    vec![
-                        "/opt/google/chrome/google-chrome",
-                        "/usr/bin/google-chrome-stable",
-                        "/usr/bin/google-chrome",
-                    ],
-                ),
-            ]),
-            Some(vec![
-                ("bundle_ids", vec!["com.google.Chrome"]),
-                ("app_paths", vec!["/Applications/Google Chrome.app"]),
-                ("executables", vec!["Google Chrome"]),
-            ]),
-            Some(vec![
-                ("executables", vec!["chrome.exe"]),
-                ("app_paths_keys", vec!["chrome.exe"]),
-                (
-                    "paths",
-                    vec![r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"],
-                ),
-            ]),
+            (
+                "Linux",
+                "executables",
+                vec!["google-chrome-stable", "google-chrome"]
+            ),
+            (
+                "Linux",
+                "desktop_ids",
+                vec!["google-chrome.desktop", "com.google.Chrome.desktop"]
+            ),
+            ("Linux", "flatpak_ids", none.clone()),
+            ("Linux", "snap_names", none.clone()),
+            (
+                "Linux",
+                "paths",
+                vec![
+                    "/opt/google/chrome/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                    "/usr/bin/google-chrome"
+                ]
+            ),
+            ("macOS", "bundle_ids", vec!["com.google.Chrome"]),
+            (
+                "macOS",
+                "app_paths",
+                vec!["/Applications/Google Chrome.app"]
+            ),
+            ("macOS", "executables", vec!["Google Chrome"]),
+            ("Windows", "executables", vec!["chrome.exe"]),
+            ("Windows", "app_paths_keys", vec!["chrome.exe"]),
+            (
+                "Windows",
+                "paths",
+                vec![r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"]
+            ),
         ]
     );
     // `NOCTUA.md §20.4`'s own example.
@@ -1966,26 +1978,21 @@ fn the_external_identifiers_hold_chrome_and_chromium_on_every_system() {
     assert_eq!(
         identified_in_the_code(chromium),
         [
-            Some(vec![
-                ("executables", vec!["chromium", "chromium-browser"]),
-                ("desktop_ids", none.clone()),
-                ("flatpak_ids", none.clone()),
-                ("snap_names", none.clone()),
-                (
-                    "paths",
-                    vec!["/usr/bin/chromium", "/usr/bin/chromium-browser"]
-                ),
-            ]),
-            Some(vec![
-                ("bundle_ids", vec!["org.chromium.Chromium"]),
-                ("app_paths", none.clone()),
-                ("executables", vec!["Chromium"]),
-            ]),
-            Some(vec![
-                ("executables", vec!["chrome.exe"]),
-                ("app_paths_keys", none.clone()),
-                ("paths", none),
-            ]),
+            ("Linux", "executables", vec!["chromium", "chromium-browser"]),
+            ("Linux", "desktop_ids", none.clone()),
+            ("Linux", "flatpak_ids", none.clone()),
+            ("Linux", "snap_names", none.clone()),
+            (
+                "Linux",
+                "paths",
+                vec!["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+            ),
+            ("macOS", "bundle_ids", vec!["org.chromium.Chromium"]),
+            ("macOS", "app_paths", none.clone()),
+            ("macOS", "executables", vec!["Chromium"]),
+            ("Windows", "executables", vec!["chrome.exe"]),
+            ("Windows", "app_paths_keys", none.clone()),
+            ("Windows", "paths", none),
         ]
     );
 }

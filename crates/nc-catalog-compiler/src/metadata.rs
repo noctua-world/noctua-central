@@ -51,7 +51,7 @@ use crate::problem::{Problem, line_of};
 const WIKI: &str = "catalog/wiki";
 
 /// The registries a wiki text may belong to, as their directories are named.
-const REGISTRIES: [&str; 1] = ["commands"];
+const REGISTRIES: [&str; 2] = ["commands", "external-identifiers"];
 
 /// The texts a set of categories and a category carry: the two a list of
 /// them shows, a heading or a row.
@@ -512,11 +512,7 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         .iter()
         .map(|locale| locale.meta.bcp47.as_str())
         .collect();
-    let commands: Vec<&str> = catalog
-        .commands
-        .iter()
-        .map(|command| command.name.as_str())
-        .collect();
+    let registries = names_by_registry(catalog);
     let mut found: BTreeMap<(String, String), BTreeMap<String, Found>> = BTreeMap::new();
     let top = root.join(WIKI);
     // Asked of the path itself, as every entry below is: a link standing where
@@ -549,10 +545,13 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         }
         for (registry, kind, _) in listed(&top.join(&locale), &under, problems) {
             let under = format!("{under}/{registry}");
-            if !kind.is_dir() || !REGISTRIES.contains(&registry.as_str()) {
+            let Some((_, names)) = registries
+                .iter()
+                .find(|(named, _)| kind.is_dir() && *named == registry)
+            else {
                 misplaced(&under, "a directory named for a registry", problems);
                 continue;
-            }
+            };
             for (file, kind, path) in listed(&top.join(&locale).join(&registry), &under, problems) {
                 let relative = format!("{under}/{file}");
                 if !kind.is_file() {
@@ -563,7 +562,7 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
                     );
                     continue;
                 }
-                let Some((name, format)) = one_text(&relative, &file, &commands, problems) else {
+                let Some((name, format)) = one_text(&relative, &file, names, problems) else {
                     continue;
                 };
                 let Some(read) = judged_text(&relative, &path, problems) else {
@@ -596,6 +595,33 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         .into_iter()
         .filter_map(|((registry, name), held)| complete(&registry, &name, held, &tags, problems))
         .collect()
+}
+
+/// Each registry's entries by name, under the directory its wiki texts sit
+/// under.
+///
+/// A text names an entry of the registry it sits under, and of no other: a
+/// command's name under `external-identifiers` is an orphan, as an unknown
+/// name is.
+fn names_by_registry(catalog: &Catalog) -> [(&str, Vec<&str>); 2] {
+    [
+        (
+            REGISTRIES[0],
+            catalog
+                .commands
+                .iter()
+                .map(|command| command.name.as_str())
+                .collect(),
+        ),
+        (
+            REGISTRIES[1],
+            catalog
+                .external_identifiers
+                .iter()
+                .map(|identifier| identifier.name.as_str())
+                .collect(),
+        ),
+    ]
 }
 
 /// One wiki file's text, read as UTF-8 and held to the judge.
@@ -681,7 +707,7 @@ fn misplaced(relative: &str, belongs: &str, problems: &mut Vec<Problem>) {
 fn one_text(
     relative: &str,
     file: &str,
-    commands: &[&str],
+    names: &[&str],
     problems: &mut Vec<Problem>,
 ) -> Option<(String, WikiFormat)> {
     let Some((name, extension)) = file.rsplit_once('.') else {
@@ -705,7 +731,7 @@ fn one_text(
         ));
         return None;
     };
-    if !commands.contains(&name) {
+    if !names.contains(&name) {
         problems.push(Problem::in_file(
             relative,
             format!("is the wiki text of `{name}`, which the registry does not hold"),

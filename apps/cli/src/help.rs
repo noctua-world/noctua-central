@@ -257,37 +257,18 @@ pub fn external_identifiers(locale: Locale) -> String {
             line: said(identifier.description_key),
             categories: identifier.categories,
         }));
-        if let Some(on) = identifier.linux {
-            text.push_str(&identification_lines(
-                "Linux",
-                &[
-                    ("executables", on.executables),
-                    ("desktop_ids", on.desktop_ids),
-                    ("flatpak_ids", on.flatpak_ids),
-                    ("snap_names", on.snap_names),
-                    ("paths", on.paths),
-                ],
-            ));
-        }
-        if let Some(on) = identifier.macos {
-            text.push_str(&identification_lines(
-                "macOS",
-                &[
-                    ("bundle_ids", on.bundle_ids),
-                    ("app_paths", on.app_paths),
-                    ("executables", on.executables),
-                ],
-            ));
-        }
-        if let Some(on) = identifier.windows {
-            text.push_str(&identification_lines(
-                "Windows",
-                &[
-                    ("executables", on.executables),
-                    ("app_paths_keys", on.app_paths_keys),
-                    ("paths", on.paths),
-                ],
-            ));
+        // Walked as the generated crate hands it, one system's fields after
+        // another: help names no field, so it prints every one the registry has.
+        let identification = identifier.identification();
+        for on_one_system in identification.chunk_by(|one, next| one.0 == next.0) {
+            let Some((system, _, _)) = on_one_system.first() else {
+                continue;
+            };
+            let fields: Vec<(&str, &[&str])> = on_one_system
+                .iter()
+                .map(|(_, field, values)| (*field, *values))
+                .collect();
+            text.push_str(&identification_lines(system, &fields));
         }
     }
     text
@@ -736,50 +717,22 @@ mod tests {
         }
     }
 
-    /// What identifies one external identifier on each system, as the
-    /// generated crate holds it: the system, the field and the value, in order.
+    /// What identifies one external identifier on each system, value by value:
+    /// the system, the field and the value, in the order the generated crate
+    /// hands them out.
+    ///
+    /// **Read from `ExternalIdentifier::identification`, never named here**,
+    /// which the compiler writes from the one list it judges every field by:
+    /// a field this test named by hand would be a field help and its test
+    /// could forget together.
     fn identified_by(identifier: &nc_catalog::ExternalIdentifier) -> Vec<(&str, &str, &str)> {
-        let mut held = Vec::new();
-        let mut each = |system: &'static str, fields: &[(&'static str, &[&'static str])]| {
-            for (field, values) in fields {
-                for value in *values {
-                    held.push((system, *field, *value));
-                }
-            }
-        };
-        if let Some(on) = identifier.linux {
-            each(
-                "Linux",
-                &[
-                    ("executables", on.executables),
-                    ("desktop_ids", on.desktop_ids),
-                    ("flatpak_ids", on.flatpak_ids),
-                    ("snap_names", on.snap_names),
-                    ("paths", on.paths),
-                ],
-            );
-        }
-        if let Some(on) = identifier.macos {
-            each(
-                "macOS",
-                &[
-                    ("bundle_ids", on.bundle_ids),
-                    ("app_paths", on.app_paths),
-                    ("executables", on.executables),
-                ],
-            );
-        }
-        if let Some(on) = identifier.windows {
-            each(
-                "Windows",
-                &[
-                    ("executables", on.executables),
-                    ("app_paths_keys", on.app_paths_keys),
-                    ("paths", on.paths),
-                ],
-            );
-        }
-        held
+        identifier
+            .identification()
+            .into_iter()
+            .flat_map(|(system, field, values)| {
+                values.iter().map(move |value| (system, field, *value))
+            })
+            .collect()
     }
 
     /// Help on the external identifiers lists each one with what identifies it.

@@ -1091,7 +1091,15 @@ fn commands(catalog: &Catalog) -> String {
                 .map_or_else(String::new, |key| {
                     format!("\n| Keybinding | `{}` |", cell(key))
                 })
-                + &shown_with(catalog, entry)
+                + &shown_with(
+                    catalog,
+                    &Held {
+                        registry: "commands",
+                        name: &entry.name,
+                        categories: &entry.categories,
+                        glyph: entry.glyph.as_deref(),
+                    }
+                )
         );
         let keys = [
             &entry.title,
@@ -1105,13 +1113,26 @@ fn commands(catalog: &Catalog) -> String {
     out
 }
 
-/// The rows of a command's table that are there only when the entry has them:
+/// What an entry may carry beyond its texts, and where its wiki text sits.
+struct Held<'a> {
+    /// The directory its registry's wiki texts sit under.
+    registry: &'a str,
+    /// Its name.
+    name: &'a str,
+    /// The categories it names.
+    categories: &'a [String],
+    /// Its glyph, as written.
+    glyph: Option<&'a str>,
+}
+
+/// The rows of an entry's table that are there only when the entry has them:
 /// its categories, its glyph and its wiki text.
 ///
-/// **The wiki text is linked, never inlined**: it is a document in its own
-/// format, and a page of tables holding a Markdown or Typst document would be
-/// a page whose tables a heading inside it ends.
-fn shown_with(catalog: &Catalog, entry: &crate::model::CommandEntry) -> String {
+/// **One for every registry whose entries carry them**, a command and an
+/// external identifier alike. **The wiki text is linked, never inlined**: it
+/// is a document in its own format, and a page of tables holding a Markdown
+/// or Typst document would be a page whose tables a heading inside it ends.
+fn shown_with(catalog: &Catalog, entry: &Held<'_>) -> String {
     let mut rows = String::new();
     if !entry.categories.is_empty() {
         let named: Vec<String> = entry
@@ -1121,21 +1142,21 @@ fn shown_with(catalog: &Catalog, entry: &crate::model::CommandEntry) -> String {
             .collect();
         let _ = write!(rows, "\n| Categories | {} |", named.join(", "));
     }
-    if let Some(glyph) = &entry.glyph {
+    if let Some(glyph) = entry.glyph {
         let _ = write!(rows, "\n| Glyph | `{}` |", cell(glyph));
     }
     if let Some(text) = catalog
         .wiki
         .iter()
-        .find(|text| text.registry == "commands" && text.name == entry.name)
+        .find(|text| text.registry == entry.registry && text.name == entry.name)
     {
         let extension = text.format.extension();
         let links: Vec<String> = tags(catalog)
             .iter()
             .map(|tag| {
                 format!(
-                    "[{tag}](../catalog/wiki/{tag}/commands/{}.{extension})",
-                    entry.name
+                    "[{tag}](../catalog/wiki/{tag}/{}/{}.{extension})",
+                    entry.registry, entry.name
                 )
             })
             .collect();
@@ -1349,18 +1370,15 @@ fn external_identifiers(catalog: &Catalog) -> String {
     for entry in in_order {
         let _ = writeln!(out, "## `{}`\n", entry.name);
         // **A row only when there is one**, as on the commands page.
-        let mut rows = String::new();
-        if !entry.categories.is_empty() {
-            let named: Vec<String> = entry
-                .categories
-                .iter()
-                .map(|name| format!("`{}`", cell(name)))
-                .collect();
-            let _ = write!(rows, "\n| Categories | {} |", named.join(", "));
-        }
-        if let Some(glyph) = &entry.glyph {
-            let _ = write!(rows, "\n| Glyph | `{}` |", cell(glyph));
-        }
+        let rows = shown_with(
+            catalog,
+            &Held {
+                registry: "external-identifiers",
+                name: &entry.name,
+                categories: &entry.categories,
+                glyph: entry.glyph.as_deref(),
+            },
+        );
         if !rows.is_empty() {
             let _ = writeln!(out, "| | |\n|---|---|{rows}\n");
         }

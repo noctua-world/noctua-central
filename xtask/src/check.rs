@@ -13224,7 +13224,7 @@ fn a_step_that_did_not_run(opened: &[String]) -> Result<(), String> {
 /// twice. What a census of a private surface is for is telling a
 /// reviewer that the surface grew, and a phantom entry in it is an entry nobody
 /// can go and read.
-const DOORS: usize = 19;
+const DOORS: usize = 20;
 
 /// Whether a count taken from the tree disagrees with the number written down.
 ///
@@ -19505,17 +19505,17 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 31, 15),
-        ("nc-catalog-compiler/emit.rs", 36, 15),
+        ("nc-catalog-compiler/docs.rs", 32, 15),
+        ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 16),
         ("nc-catalog-compiler/load.rs", 61, 19),
         ("nc-catalog-compiler/messages.rs", 21, 3),
-        ("nc-catalog-compiler/metadata.rs", 23, 2),
+        ("nc-catalog-compiler/metadata.rs", 24, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/registries.rs", 34, 4),
-        ("nc-catalog-compiler/the_gates_fire.rs", 102, 113),
+        ("nc-catalog-compiler/registries.rs", 42, 4),
+        ("nc-catalog-compiler/the_gates_fire.rs", 107, 113),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             16,
@@ -19527,7 +19527,7 @@ mod the_frozen_path_rule {
         ("nc-catalog/emails.rs", 6, 1),
         ("nc-catalog/errors.rs", 13, 6),
         ("nc-catalog/events.rs", 6, 3),
-        ("nc-catalog/external_identifiers.rs", 6, 0),
+        ("nc-catalog/external_identifiers.rs", 7, 1),
         ("nc-catalog/i18n.rs", 16, 1),
         ("nc-catalog/lib.rs", 0, 11),
         ("nc-catalog/limits.rs", 18, 0),
@@ -19668,7 +19668,7 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 46, 20),
+        ("xtask/the_pages_reach_the_catalog.rs", 48, 20),
         ("xtask/the_registry_reaches_the_code.rs", 40, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
@@ -22456,8 +22456,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 799 scratches this tree
-    /// builds, 711 of the 799 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 803 scratches this tree
+    /// builds, 715 of the 803 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22541,7 +22541,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 247, 247),
+        ("nc-catalog-compiler/the_gates_fire.rs", 251, 251),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25525,7 +25525,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18842;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18879;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25544,7 +25544,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4854;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4867;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25561,7 +25561,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1634;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1638;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25595,7 +25595,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25427;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25490;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25649,7 +25649,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,427 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,490 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25682,7 +25682,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1634 of
+    /// this tree offers, **1638 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37554,7 +37554,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2271] = [
+    static OPERATORS: [(&str, &str, &str); 2286] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40655,6 +40655,16 @@ Options:
             "wiki",
             "a wiki text sits under a registry",
         ),
+        (
+            "compiler_metadata",
+            "REGISTRIES",
+            "an external identifier's wiki text sits in the tree",
+        ),
+        (
+            "compiler_metadata",
+            "names_by_registry",
+            "an external identifier's wiki text names an identifier",
+        ),
         ("compiler_metadata", "wiki", "a wiki text is a regular file"),
         (
             "compiler_metadata",
@@ -40843,18 +40853,48 @@ Options:
         ),
         (
             "compiler_registries",
-            "on_each_system",
+            "IDENTIFIED_BY",
             "every field of a Linux table is read",
         ),
         (
             "compiler_registries",
-            "on_each_system",
+            "IDENTIFIED_BY",
             "every field of a macOS table is read",
         ),
         (
             "compiler_registries",
-            "on_each_system",
+            "IDENTIFIED_BY",
             "every field of a Windows table is read",
+        ),
+        (
+            "compiler_registries",
+            "held_in",
+            "each field is read from its own key",
+        ),
+        (
+            "compiler_registries",
+            "is_held_by",
+            "an entry is identified on a system only where it writes its table",
+        ),
+        (
+            "compiler_registries",
+            "on_each_system",
+            "a system an entry writes no table for is not one it is identified on",
+        ),
+        (
+            "compiler_registries",
+            "generated",
+            "each system's generated type is named as the emitter declares it",
+        ),
+        (
+            "compiler_registries",
+            "SNAP_NAME_MAX",
+            "the Snap bound is the one its refusal states",
+        ),
+        (
+            "compiler_registries",
+            "IDENTIFICATION_MAX",
+            "the identification bound is the one its refusal states",
         ),
         (
             "compiler_registries",
@@ -41051,6 +41091,27 @@ Options:
             "code",
             "a value is padded where it ends with a backtick",
         ),
+        ("pages", "shown_with", "an entry's glyph is on its page"),
+        (
+            "pages",
+            "shown_with",
+            "an entry naming no category has no row for one",
+        ),
+        (
+            "pages",
+            "shown_with",
+            "a wiki link names the directory of its entry's registry",
+        ),
+        (
+            "pages",
+            "external_identifiers",
+            "an external identifier's wiki text is linked under its own registry",
+        ),
+        (
+            "emitter",
+            "external_identifiers",
+            "an external identifier carries its wiki format into the code",
+        ),
         (
             "cli_args",
             "topic",
@@ -41060,6 +41121,16 @@ Options:
             "cli_help",
             "external_identifiers",
             "help lists every system an external identifier is identified on",
+        ),
+        (
+            "cli_help",
+            "external_identifiers",
+            "help lists every field of a system",
+        ),
+        (
+            "cli_help",
+            "external_identifiers",
+            "help heads each system's fields with its own system",
         ),
         (
             "cli_help",

@@ -32,6 +32,7 @@ mod metadata;
 pub mod model;
 pub mod problem;
 mod registries;
+pub use registries::identification_for_tests;
 
 mod emit;
 

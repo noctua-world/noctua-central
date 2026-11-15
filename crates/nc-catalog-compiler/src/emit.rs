@@ -1510,10 +1510,12 @@ fn external_identifiers(catalog: &Catalog) -> String {
     out.push_str("    /// The key of its tags, which [`crate::tags`] resolves.\n    pub tags_key: &'static str,\n");
     out.push_str("    /// The categories it is listed under, by name.\n    pub categories: &'static [&'static str],\n");
     out.push_str("    /// The glyph it is shown with, a code point the Symbols-Only font draws.\n    pub glyph: Option<char>,\n");
+    out.push_str("    /// The format of its wiki text, where it has one; [`crate::WIKI`] holds the text.\n    pub wiki: Option<crate::WikiFormat>,\n");
     out.push_str("    /// What identifies it on Linux, where it is identified there.\n    pub linux: Option<OnLinux>,\n");
     out.push_str("    /// What identifies it on macOS, where it is identified there.\n    pub macos: Option<OnMacOs>,\n");
     out.push_str("    /// What identifies it on Windows, where it is identified there.\n    pub windows: Option<OnWindows>,\n");
     out.push_str("}\n\n");
+    out.push_str(&identification());
     out.push_str(&the_systems_tables());
 
     let mut identifiers = catalog.external_identifiers.clone();
@@ -1521,9 +1523,27 @@ fn external_identifiers(catalog: &Catalog) -> String {
     out.push_str("/// Every external identifier, in name order.\n");
     out.push_str("pub const EXTERNAL_IDENTIFIERS: &[ExternalIdentifier] = &[\n");
     for entry in &identifiers {
+        // Every system and field from the one list, so a table the registry
+        // gains is a field this literal writes and the type above must hold.
+        let systems: Vec<String> = crate::registries::on_each_system(entry)
+            .into_iter()
+            .map(|(system, fields)| {
+                let table = fields.map_or_else(
+                    || "None".to_owned(),
+                    |fields| {
+                        let written: Vec<String> = fields
+                            .iter()
+                            .map(|(field, values)| format!("{}: {}", field.key(), list(values)))
+                            .collect();
+                        format!("Some({} {{ {} }})", system.generated(), written.join(", "))
+                    },
+                );
+                format!("{}: {table}", system.table())
+            })
+            .collect();
         let _ = writeln!(
             out,
-            "    ExternalIdentifier {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, linux: {}, macos: {}, windows: {} }},",
+            "    ExternalIdentifier {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, wiki: {}, {} }},",
             quoted(&entry.name),
             quoted(&entry.title),
             quoted(&entry.description),
@@ -1531,35 +1551,15 @@ fn external_identifiers(catalog: &Catalog) -> String {
             quoted(&entry.tags),
             list(&entry.categories),
             glyph_literal(entry.glyph.as_deref()),
-            entry.linux.as_ref().map_or_else(
-                || "None".to_owned(),
-                |on| format!(
-                    "Some(OnLinux {{ executables: {}, desktop_ids: {}, flatpak_ids: {}, snap_names: {}, paths: {} }})",
-                    list(&on.executables),
-                    list(&on.desktop_ids),
-                    list(&on.flatpak_ids),
-                    list(&on.snap_names),
-                    list(&on.paths)
-                )
-            ),
-            entry.macos.as_ref().map_or_else(
-                || "None".to_owned(),
-                |on| format!(
-                    "Some(OnMacOs {{ bundle_ids: {}, app_paths: {}, executables: {} }})",
-                    list(&on.bundle_ids),
-                    list(&on.app_paths),
-                    list(&on.executables)
-                )
-            ),
-            entry.windows.as_ref().map_or_else(
-                || "None".to_owned(),
-                |on| format!(
-                    "Some(OnWindows {{ executables: {}, app_paths_keys: {}, paths: {} }})",
-                    list(&on.executables),
-                    list(&on.app_paths_keys),
-                    list(&on.paths)
-                )
-            )
+            catalog
+                .wiki
+                .iter()
+                .find(|text| text.registry == "external-identifiers" && text.name == entry.name)
+                .map_or_else(
+                    || "None".to_owned(),
+                    |text| format!("Some(crate::WikiFormat::{})", wiki_variant(text.format))
+                ),
+            systems.join(", ")
         );
     }
     out.push_str("];\n\n");
@@ -1570,6 +1570,44 @@ fn external_identifiers(catalog: &Catalog) -> String {
          \x20   EXTERNAL_IDENTIFIERS.iter().find(|candidate| candidate.name == name)\n\
          }\n",
     );
+    out
+}
+
+/// What identifies an external identifier, as one list a reader walks.
+///
+/// **Written from `IDENTIFIED_BY`**, the list the compiler judges and a page
+/// publishes by, so a reader that walks this — help does — carries every
+/// field the registry has without naming one.
+fn identification() -> String {
+    let mut out = String::from(
+        "impl ExternalIdentifier {\n\
+         \x20   /// What identifies it, field by field, in the registry's order.\n\
+         \x20   ///\n\
+         \x20   /// The system as a page names it, the field as the registry writes it,\n\
+         \x20   /// and the field's values, a field with none included; a system it is\n\
+         \x20   /// not identified on is not listed.\n\
+         \x20   #[must_use]\n\
+         \x20   pub fn identification(&self) -> Vec<(&'static str, &'static str, &'static [&'static str])> {\n\
+         \x20       let mut held = Vec::new();\n",
+    );
+    for (system, fields) in crate::registries::IDENTIFIED_BY {
+        let _ = writeln!(
+            out,
+            "        if let Some(on) = self.{} {{\n            held.extend([",
+            system.table()
+        );
+        for field in fields {
+            let _ = writeln!(
+                out,
+                "                ({}, {}, on.{}),",
+                quoted(system.word()),
+                quoted(field.key()),
+                field.key()
+            );
+        }
+        out.push_str("            ]);\n        }\n");
+    }
+    out.push_str("        held\n    }\n}\n\n");
     out
 }
 

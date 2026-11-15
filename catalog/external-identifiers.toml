@@ -20,8 +20,12 @@
 #   categories   optional: names `catalog/categories.toml` holds, at most four
 #   glyph        optional: a code point the Symbols-Only font draws, `U+F0E2`
 #
-# and a table for each system it is identified on, at least one, none empty —
-# a list left out is a list with nothing in it:
+# A wiki text, optional, is not a field: it is found at
+# `catalog/wiki/<locale>/external-identifiers/<name>.<md|txt|typ>`, in every
+# locale and in one format, as a command's is.
+#
+# An entry also carries a table for each system it is identified on, at least
+# one, none empty — a list left out is a list with nothing in it:
 #
 #   [identifier.linux]
 #   executables     the commands `PATH` finds it by: names, never paths
