@@ -995,8 +995,9 @@ shown before it is judged:
   is held to `nc_schema::entry::judge` — the judge every command of the catalog is held
   to: every text in every locale, nothing a reader cannot see, no placeholder, each text
   within its bound in characters and the locale's texts within `[kernel] entry_bytes`
-  together, a translation that is not the English again unless a reason says why, the
-  categories the catalog holds and a glyph the font draws. A text a locale misses is
+  together, each tag with the quotation marks and the comma it is listed in, a translation
+  that is not the English again unless a reason says why, the categories the catalog holds
+  and a glyph the font draws. A text a locale misses is
   refused naming the command and the locale.
 - **A plugin cannot describe what is not its own, nor pose as the kernel.** A row for a
   command the catalog describes is refused, and so is a display name a command of the
@@ -1006,8 +1007,12 @@ shown before it is judged:
   English display name, or the plugin is refused.
 - **One plugin's texts take at most half a frame.** The compiler holds
   `commands_per_plugin` × `entry_bytes` × 2 — every command at its bound, each byte one
-  JSON writes as two — to half of `ipc_frame_max_bytes`, and the catalog's commands are held
-  to `entry_bytes` too.
+  JSON writes as two — to half of `ipc_frame_max_bytes`, and the judge counts each tag in
+  those bytes with the quotation marks and the comma the answer lists it in, so no number
+  of short tags takes more of the frame than its bytes say. The catalog's commands are held
+  to `entry_bytes` too. A command's categories and glyph are not its texts — names the
+  catalog holds and one code point — and travel in the other half, with the names and the
+  schemas.
 - **Shown as text, whoever wrote it.** The registry is asked in one locale
   (`Request::Registry { locale }`), and the daemon resolves every command's texts in it,
   the catalog's as much as a plugin's; the CLI escapes every one it prints, as **The CLI
@@ -1023,15 +1028,16 @@ bound; `crates/nc-kernel/tests/activation.rs` and
 plugin's entries to the commands it declares, both ways;
 `apps/daemon/tests/serves_its_kernel.rs`, where a plugin whose Portuguese texts miss a
 command is shown refused and the daemon runs without it; `a_plugins_entries_at_their_bound_fit_half_a_frame` in
-`apps/daemon/src/server.rs` and the compiler's
+`apps/daemon/src/server.rs`, which lists the heaviest entry the judge admits, and the compiler's
 `an_entry_bound_that_lets_one_plugin_outgrow_half_a_frame_fails_the_build`; and the
 operators over those sources.
 
 **Not answered:** whether a plugin's texts are true or its translations faithful beyond not
 being the English again; display names that differ only by look-alike characters, which
 needs the confusable folding `BLANK_RANGES` says `nc-schema` does not carry; that the
-whole registry answer fits a frame (under **What is deliberately not claimed**); and that a
-glyph renders on a surface.
+whole registry answer fits a frame, its commands' categories and glyphs included, which no
+share of it counts (under **What is deliberately not claimed**); and that a glyph renders on
+a surface.
 
 **Not answered:** whether a registered command acts on the resource it is authorized for
 inside its own namespace — the plugin's code; and the dispatch itself, the next entry.
@@ -2928,7 +2934,8 @@ pairing reads those cases alone.
 paragraph and tags, in each locale — holds no character `nc_schema::unseen` answers for and
 no placeholder, and is bounded in characters: a display name 64, a line one terminal line of
 80, a paragraph 1,024, a tag 40, at most 32 tags — and a locale's texts together are bounded
-in bytes by `[kernel] entry_bytes`, the bound a plugin's are held to. A tag holds no brace
+in bytes by `[kernel] entry_bytes`, each tag counted with the quotation marks and the comma it
+is listed in, the bound a plugin's are held to. A tag holds no brace
 at all, and no comma,
 which a list of tags reads as two; a paragraph never says what its line says, and no two
 commands share a display name in a locale. A glyph is a code point the Symbols-Only font
@@ -3800,8 +3807,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   name holds `=`, is given as JSON — the object's flag, or `--` and one JSON object.
 - **The registry answer is bounded by the frame, not below it.** One plugin's texts take at
   most half of `ipc_frame_max_bytes`, which the compiler holds; the whole answer — the
-  catalog's commands, every plugin's texts, every argument schema, which no bound of its
-  own holds — is not, so a profile with enough plugins installed asks for a registry
+  catalog's commands, every plugin's texts, every command's categories and glyph, every
+  argument schema, which no bound of its own holds — is not, so a profile with enough plugins installed asks for a registry
   the daemon refuses to send (`NC-IPC-0016`), and help names no command until one is
   removed. Not taken: the answer paged, or a schema bounded on its own.
 

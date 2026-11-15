@@ -42,9 +42,10 @@
 //!   to, its texts in every locale — a text missing from one is refused naming
 //!   the command and the locale; a declaration the descriptor judge admitted
 //!   declares as its title the entry's English display name, so the component
-//!   and its directory cannot say two things; and no display name is one a
-//!   command of the catalog shows in the same locale (`the_same_sentence`). A
-//!   row no command claims is neither registered nor refused;
+//!   and its directory cannot say two things; and no display name, in any
+//!   locale, is one a command of the catalog shows in any locale, compared by
+//!   `the_same_sentence`. A row no command claims is neither registered nor
+//!   refused;
 //! - each subscription by the manifest, `[NC-PLUG-0009]`: one its
 //!   `[events] subscribe` declares, once;
 //! - and the count by the catalog: more than `commands_per_plugin` commands is
@@ -1957,7 +1958,9 @@ mod tests {
             "Mostra o que uma nota diz",
             "nota",
         );
-        let others = "Read a note".len() + "Shows what a note says".len() + "note".len();
+        // A tag is its own bytes and the quotation marks and the comma it is
+        // listed in.
+        let others = "Read a note".len() + "Shows what a note says".len() + "note".len() + 3;
         let written = |paragraph: &str| {
             format!(
                 "[command.\"note.get\"]\ndisplay_name = \"Read a note\"\nline = \"Shows what a \
@@ -1984,7 +1987,8 @@ mod tests {
                 ErrorCode::PluginEntriesInvalid,
                 format!(
                     "`notes.note.get` of `noctua:notes` has `en` texts of {} bytes together, \
-                     past the {most} an entry may hold in one locale",
+                     each tag with the quotation marks and the comma it is listed in, past the \
+                     {most} an entry may hold in one locale",
                     most + 1
                 )
             )]

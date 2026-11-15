@@ -25544,7 +25544,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19090;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19092;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25563,7 +25563,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4881;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4880;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25614,7 +25614,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25740;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25741;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25668,7 +25668,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 25,740 are accepted by the first-line
+    /// rules the gates apply: **518 of 25,741 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37596,7 +37596,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2287] = [
+    static OPERATORS: [(&str, &str, &str); 2288] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40710,6 +40710,11 @@ Options:
             "schema_entry",
             "bytes_of",
             "an entry's tags count toward its bytes",
+        ),
+        (
+            "schema_entry",
+            "bytes_of",
+            "a tag counts the quotation marks and the comma it is listed in",
         ),
         (
             "compiler_metadata",

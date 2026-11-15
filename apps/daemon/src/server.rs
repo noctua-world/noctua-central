@@ -846,44 +846,109 @@ mod tests {
     }
 
     /// A plugin's entries at their bound fit half a frame: every command one
-    /// plugin may declare, its texts at `entry_bytes` in the locale asked,
-    /// each byte one JSON writes as two, listed, is no more than half of
-    /// `ipc_frame_max_bytes`.
+    /// plugin may declare, its texts the heaviest the judge admits in the
+    /// locale asked, listed, is no more than half of `ipc_frame_max_bytes`.
     ///
-    /// **The answer as the daemon writes it**, not a sum: a listing that
-    /// stopped escaping, or an `entry_bytes` raised past the frame, fails here
-    /// before a plugin of long texts takes every frame a client could read.
+    /// **The answer as the daemon writes it, of an entry the judge admits**,
+    /// not a sum: every sentence at its bound in characters of `"` and `\`,
+    /// which JSON writes as two bytes each, and thirty-two tags of them
+    /// lengthened while the judge still admits the entry, each tag costing the
+    /// answer its quotation marks and its comma as well. A listing that
+    /// stopped escaping, a judge that stopped counting a tag's punctuation, or
+    /// an `entry_bytes` raised past the frame fails here.
+    ///
+    /// **And the bound the compiler holds**: texts of `entry_bytes`, every
+    /// byte one JSON writes as two, fit half a frame exactly.
     #[test]
     fn a_plugins_entries_at_their_bound_fit_half_a_frame() {
         use nc_kernel::registry::{CommandEntry, EntryTexts};
+        use nc_schema::entry::{self, Entry, InLocale, Rules, TAGS_MAX, Text, Texts};
         let most = usize::try_from(nc_catalog::KERNEL.entry_bytes).expect("fits");
         let commands = usize::try_from(nc_catalog::KERNEL.commands_per_plugin).expect("fits");
         let frame = usize::try_from(nc_catalog::DAEMON.ipc_frame_max_bytes).expect("fits");
-        let texts = EntryTexts {
-            display_name: String::new(),
-            line: String::new(),
-            paragraph: "\"".repeat(most),
-            tags: Vec::new(),
-        };
-        let one = CommandEntry::new(vec![texts], Vec::new(), None);
-        let texts_alone = |entry: CommandEntry| {
-            let command = nc_kernel::registry::RegisteredCommand {
-                entry,
-                ..a_command()
+        let texts_alone = |texts: &EntryTexts| {
+            let listed = |texts: &EntryTexts| {
+                let command = nc_kernel::registry::RegisteredCommand {
+                    entry: CommandEntry::new(vec![texts.clone()], Vec::new(), None),
+                    ..a_command()
+                };
+                super::listed(&command, Locale::En).to_canonical().len()
             };
-            super::listed(&command, Locale::En).to_canonical().len()
+            listed(texts) - listed(&EntryTexts::default())
         };
-        let empty = texts_alone(CommandEntry::new(
-            vec![EntryTexts::default()],
-            Vec::new(),
-            None,
-        ));
-        let at_the_bound = texts_alone(one) - empty;
-        assert_eq!(at_the_bound, most * 2, "each `\"` is written as two bytes");
+        let doubled = texts_alone(&EntryTexts {
+            paragraph: "\"".repeat(most),
+            ..EntryTexts::default()
+        });
+        assert_eq!(doubled, most * 2, "each `\"` is written as two bytes");
         assert!(
-            at_the_bound * commands <= frame / 2,
-            "{commands} commands of {at_the_bound} bytes of texts each are past half of a \
-             frame of {frame}"
+            doubled * commands <= frame / 2,
+            "{commands} commands of {doubled} bytes of texts each are past half of a frame of \
+             {frame}"
+        );
+
+        let admitted = |texts: &EntryTexts| {
+            entry::judge(
+                &Entry {
+                    locales: &[InLocale {
+                        locale: Locale::En.tag(),
+                        texts: Texts {
+                            display_name: Some(&texts.display_name),
+                            line: Some(&texts.line),
+                            paragraph: Some(&texts.paragraph),
+                            tags: Some(&texts.tags),
+                        },
+                    }],
+                    categories: &[],
+                    glyph: None,
+                    same_in_both: &[],
+                },
+                &Rules {
+                    requires: &Text::ALL,
+                    categories: &[],
+                    entry_bytes: nc_catalog::KERNEL.entry_bytes,
+                },
+            )
+            .is_ok()
+        };
+        // Tags no fold of case makes one: each spells its place in `"` and `\`.
+        let width = TAGS_MAX.next_power_of_two().trailing_zeros();
+        let mut heaviest = EntryTexts {
+            display_name: "\"".repeat(Text::DisplayName.bound()),
+            line: "\\".repeat(Text::Line.bound()),
+            paragraph: "\"".repeat(Text::Paragraph.bound()),
+            tags: (0..TAGS_MAX)
+                .map(|at| {
+                    (0..width)
+                        .map(|bit| if (at >> bit) % 2 == 1 { '\\' } else { '"' })
+                        .collect()
+                })
+                .collect(),
+        };
+        assert!(admitted(&heaviest), "{heaviest:?}");
+        let tags_of = |texts: &EntryTexts| texts.tags.iter().map(String::len).sum::<usize>();
+        loop {
+            let before = tags_of(&heaviest);
+            for at in 0..heaviest.tags.len() {
+                let mut longer = heaviest.clone();
+                longer.tags[at].push('"');
+                if admitted(&longer) {
+                    heaviest = longer;
+                }
+            }
+            if tags_of(&heaviest) == before {
+                break;
+            }
+        }
+        let listed = texts_alone(&heaviest);
+        assert!(
+            listed > most,
+            "every `\"` and `\\` is written as two bytes, and {listed} are not"
+        );
+        assert!(
+            listed * commands <= frame / 2,
+            "{commands} commands of the heaviest texts the judge admits, {listed} bytes each \
+             listed, are past half of a frame of {frame}"
         );
     }
 

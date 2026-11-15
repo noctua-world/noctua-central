@@ -167,7 +167,8 @@ pub struct Rules<'a> {
     pub requires: &'a [Text],
     /// The categories an entry may name.
     pub categories: &'a [&'a str],
-    /// The most bytes an entry's texts may hold in one locale, tags included.
+    /// The most bytes an entry's texts may hold in one locale, tags included,
+    /// each with the quotation marks and the comma it is listed in.
     ///
     /// `[kernel] entry_bytes`, which the caller reads from the catalog, so the
     /// compiler and the kernel hold one number.
@@ -335,8 +336,9 @@ impl fmt::Display for EntryProblem {
             ),
             Self::TooManyBytes { locale, held, most } => write!(
                 formatter,
-                "has `{locale}` texts of {held} bytes together, past the {most} an entry may \
-                 hold in one locale"
+                "has `{locale}` texts of {held} bytes together, each tag with the quotation \
+                 marks and the comma it is listed in, past the {most} an entry may hold in one \
+                 locale"
             ),
             Self::TooLong { locale, text, held } => write!(
                 formatter,
@@ -496,19 +498,30 @@ pub fn judge(entry: &Entry<'_>, rules: &Rules<'_>) -> Result<(), Vec<EntryProble
 }
 
 /// The bytes one locale's texts hold together, in UTF-8: every sentence
-/// written and every tag.
+/// written and every tag, each tag with the three bytes a list writes around
+/// it.
 ///
 /// **One sum for the whole locale, beside each text's own bound in
 /// characters**: a frame carries bytes, and a paragraph and thirty-two tags
 /// each at their bound in characters hold far more than an answer can carry
 /// for every command of a plugin, so the bytes are what bound one entry's
 /// share of it.
+///
+/// **A tag is counted with its two quotation marks and the comma after it**:
+/// thirty-two tags of one character are thirty-two bytes of text and
+/// ninety-five of the list around them. Left uncounted, an entry that spent
+/// its bytes on tags would take more of a frame than twice its bytes, the
+/// share the compiler holds every plugin's commands to.
 fn bytes_of(texts: &Texts<'_>) -> usize {
     let sentences = [texts.display_name, texts.line, texts.paragraph]
         .into_iter()
         .flatten()
         .map(str::len);
-    let tags = texts.tags.unwrap_or_default().iter().map(String::len);
+    let tags = texts
+        .tags
+        .unwrap_or_default()
+        .iter()
+        .map(|tag| tag.len() + 3);
     sentences.chain(tags).sum()
 }
 
@@ -1290,17 +1303,20 @@ mod tests {
     }
 
     /// One locale's texts are held to the entry's bytes together, its tags
-    /// included, and texts at the bound are not.
+    /// included with the quotation marks and the comma each is listed in, and
+    /// texts at the bound are not.
     ///
     /// **In bytes, not characters**: `ç` is two of them, so a paragraph of
     /// 1,024 of it is inside its bound in characters and twice that in bytes.
     #[test]
     fn an_entry_past_its_bytes_is_refused_and_one_at_them_is_not() {
         let mut locales = sound();
+        // Each tag is its own bytes and the two quotation marks and the comma
+        // the registry answer lists it in.
         let others: usize = ["Desfazer", "Desfazer o seu último passo."]
             .iter()
             .map(|text| text.len())
-            .chain(["desfazer", "voltar atrás"].iter().map(|tag| tag.len()))
+            .chain(["desfazer", "voltar atrás"].iter().map(|tag| tag.len() + 3))
             .sum();
         let room = usize::try_from(ENTRY_BYTES).expect("fits") - others;
         locales[1].paragraph = Some("ç".repeat(room / 2) + &"a".repeat(room % 2));
@@ -1314,10 +1330,10 @@ mod tests {
             judged(&locales),
             Err(vec![EntryProblem::TooManyBytes {
                 locale: "pt-BR".to_owned(),
-                held: ENTRY_BYTES + 1,
+                held: ENTRY_BYTES + 4,
                 most: ENTRY_BYTES,
             }]),
-            "one byte past it, in a tag"
+            "a tag of one character is four bytes past it, with the three it is listed in"
         );
         let said = EntryProblem::TooManyBytes {
             locale: "pt-BR".to_owned(),
@@ -1327,8 +1343,8 @@ mod tests {
         .to_string();
         assert_eq!(
             said,
-            "has `pt-BR` texts of 2049 bytes together, past the 2048 an entry may hold in one \
-             locale"
+            "has `pt-BR` texts of 2049 bytes together, each tag with the quotation marks and the \
+             comma it is listed in, past the 2048 an entry may hold in one locale"
         );
     }
 

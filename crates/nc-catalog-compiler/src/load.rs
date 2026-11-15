@@ -798,9 +798,11 @@ const PIPE_INSTANCES: u64 = 254;
 ///
 /// **And one plugin's texts take at most half a frame**: every command it may
 /// declare, at `[kernel] entry_bytes` in the one locale the registry is asked
-/// in, each byte a character JSON writes as two — `"` and `\` — so the
-/// registry answer always has the other half for the catalog's commands, the
-/// names, the schemas and the other plugins'.
+/// in — bytes `nc_schema::entry` counts each tag in with the quotation marks
+/// and the comma it is listed in — each byte a character JSON writes as two,
+/// `"` and `\`, so the registry answer always has the other half for the
+/// catalog's commands, the names, the schemas, the categories and glyphs, and
+/// the other plugins'.
 fn check_daemon_ipc(
     daemon: DaemonLimits,
     kernel: &KernelLimits,

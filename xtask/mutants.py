@@ -3239,6 +3239,9 @@ WEAKENINGS = [
     ("schema_entry", "bytes_of", "an entry's tags count toward its bytes",
      "    sentences.chain(tags).sum()",
      "    sentences.chain(tags.take(0)).sum()"),
+    ("schema_entry", "bytes_of", "a tag counts the quotation marks and the comma it is listed in",
+     "        .map(|tag| tag.len() + 3);",
+     "        .map(|tag| tag.len());"),
 
     # -- compiler_metadata: the catalog's texts handed to the judge, and wiki --
     ("compiler_metadata", "listed", "the wiki walk reads one order",

@@ -5167,7 +5167,8 @@ fn a_commands_texts_past_the_entry_bound_fail_the_build() {
     scratch.must_fail_saying("entry-too-many-bytes", "`kernel.undo` has `en` texts of ");
     scratch.must_fail_saying(
         "entry-too-many-bytes",
-        "bytes together, past the 64 an entry may hold in one locale",
+        "bytes together, each tag with the quotation marks and the comma it is listed in, past \
+         the 64 an entry may hold in one locale",
     );
     scratch.must_fail_saying(
         "entry-too-many-bytes",
