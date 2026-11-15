@@ -411,9 +411,9 @@ fn the_commands_the_schema_does_not_declare(
 /// the catalog compiler holds every command to and the kernel holds every
 /// plugin's to: `realm` is the `Realm` entity, `feature:<id>` the `Feature` it
 /// names, and `argument:<name>` the type the property's `x-entity` names —
-/// declared, required and bounded, or the compiler refuses the catalog. So every selector a compiled catalog carries
-/// names a type this can compare, the form that extracts from the arguments
-/// included.
+/// declared, required and bounded, or the compiler refuses the catalog. So
+/// every selector a compiled catalog carries names a type this can compare, the
+/// form that extracts from the arguments included.
 ///
 /// **`x-entity` is what lets it answer for that form.** Without it the type an
 /// argument names is known only at run time, and a step that refuses such a
