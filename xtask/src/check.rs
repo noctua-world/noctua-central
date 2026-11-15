@@ -19559,7 +19559,7 @@ mod the_frozen_path_rule {
             3,
         ),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 42, 12),
+        ("nc-channel/keys.rs", 46, 12),
         ("nc-channel/lib.rs", 54, 15),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 28, 0),
@@ -25564,7 +25564,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19703;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19711;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25634,7 +25634,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26250;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26270;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25688,7 +25688,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 26,250 are accepted by the first-line
+    /// rules the gates apply: **519 of 26,270 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37623,7 +37623,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2404] = [
+    static OPERATORS: [(&str, &str, &str); 2407] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47426,8 +47426,13 @@ Options:
         ),
         (
             "channel_keys",
-            "siblings",
+            "installed",
             "a channel counts only while its manifest is there",
+        ),
+        (
+            "channel_keys",
+            "installed",
+            "a manifest the disk did not answer for refuses the configured Leader",
         ),
         (
             "channel_keys",
@@ -47453,6 +47458,16 @@ Options:
             "channel_keys",
             "checkout_named",
             "a test install reads only its own namespace's profiles",
+        ),
+        (
+            "channel_keys",
+            "predecessor",
+            "a predecessor's file the disk did not answer for refuses the configured Leader",
+        ),
+        (
+            "channel_keys",
+            "refused",
+            "a file the disk did not answer for has a code of its own",
         ),
         (
             "channel_keys",

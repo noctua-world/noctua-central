@@ -50,8 +50,9 @@
 //! those before it, and every channel settles the same prefix from the same
 //! files. A file before this one that its own reader would refuse is its
 //! channel's defaults, as that reader takes it; one this build cannot judge —
-//! of a later format, not read because the disk did not answer, or beside more
-//! than [`CHANNELS_MAX`] checkouts — refuses this channel's configured Leader
+//! of a later format, not read because the disk did not answer, of a channel
+//! whose manifest the disk did not answer for, or beside more than
+//! [`CHANNELS_MAX`] checkouts — refuses this channel's configured Leader
 //! rather than guess. **Nothing of another channel is written, locked or
 //! removed**: its directory is listed, its manifest asked whether it is there,
 //! and its file judged and read.
@@ -60,9 +61,10 @@
 //!
 //! Another account choosing this user's keys: every file and its directory
 //! are judged this user's alone before they are read, a link however it
-//! points included. A file growing without bound: at most [`BYTES_MAX`] bytes
-//! are read, and a choice handed to [`Configuration::parse`] is held to the
-//! same bound, so no writer leaves a file its reader refuses for its size. A
+//! points included. A file growing without bound: it is read no further than
+//! one byte past [`BYTES_MAX`], and one longer than [`BYTES_MAX`] is refused;
+//! a choice handed to [`Configuration::parse`] is held to the same bound, so
+//! no writer leaves a file its reader refuses for its size. A
 //! text from the file forging what a refusal says: each piece a refusal quotes
 //! as it was written — a key, a word, a chord or a binding the grammar cannot
 //! read — is escaped and cut at 64 characters, as the manifest's are, and a
@@ -104,10 +106,11 @@ pub const FILE: &str = "keybindings.json";
 /// know that it cannot judge the file rather than read it as its own.
 pub const FORMAT: i64 = 1;
 
-/// The most bytes of the file that are read.
+/// The most bytes the file may hold.
 ///
-/// Far above any person's choice — a binding is about twenty bytes — and a
-/// bound on what one read costs, whoever wrote the file.
+/// One byte more is read, only to tell a file past it. Far above any person's
+/// choice — a binding is about twenty bytes — and a bound on what one read
+/// costs, whoever wrote the file.
 pub const BYTES_MAX: u64 = 16_384;
 
 /// The most development checkouts a configured Leader is judged beside.
@@ -713,7 +716,10 @@ fn settled(found: &Found, leader: Chord, chord: Modifier) -> Result<LeaderPart, 
         // settles to depends on what those settled to and on the defaults
         // after it, never on what a later channel configured.
         let configured = if channel < own {
-            predecessor(channel, &layout, &found.user)?
+            predecessor(
+                channel,
+                read(&layout.config, &layout.keybindings, &found.user),
+            )?
         } else {
             None
         };
@@ -747,26 +753,37 @@ fn siblings(install: &Install, user: &User) -> Result<Vec<(Channel, Layout)>, Ke
             },
             &user.to_string(),
         );
-        // **Asked whether it is there, and nothing more**: an install whose
-        // manifest is gone binds nothing, and a manifest's contents are its
-        // own binaries' to judge.
-        match std::fs::symlink_metadata(&names.manifest) {
-            Ok(_) => counted.push((channel, names)),
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-                ) => {}
-            Err(error) => {
-                return Err(KeysRefused::Unjudged(format!(
-                    "whether {} is installed could not be read at `{}`: {error}",
-                    named(channel),
-                    names.manifest.display()
-                )));
-            }
+        // **Asked whether it is there, and nothing more**: a manifest's
+        // contents are its own binaries' to judge.
+        let asked = std::fs::symlink_metadata(&names.manifest).map(drop);
+        if installed(asked, channel, &names.manifest)? {
+            counted.push((channel, names));
         }
     }
     Ok(counted)
+}
+
+/// Whether `channel` is installed, by what asking for its manifest answered.
+///
+/// An install whose manifest is gone binds nothing. **Any other answer
+/// refuses the configured Leader**, naming where the manifest was asked for,
+/// rather than guess whether that channel binds a Leader of its own.
+fn installed(
+    asked: std::io::Result<()>,
+    channel: Channel,
+    manifest: &Path,
+) -> Result<bool, KeysRefused> {
+    let Err(error) = asked else {
+        return Ok(true);
+    };
+    match error.kind() {
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => Ok(false),
+        _ => Err(KeysRefused::Unjudged(format!(
+            "whether {} is installed could not be read at `{}`: {error}",
+            named(channel),
+            manifest.display()
+        ))),
+    }
 }
 
 /// Every checkout whose profile directory sits under the state base `base`
@@ -822,8 +839,8 @@ fn checkout_named(name: &str, namespace: Option<&Namespace>) -> Option<Checkout>
     Checkout::parse(digits).ok()
 }
 
-/// The Leader part a channel settled before this one configures, as its own
-/// reader takes its file.
+/// The Leader part `channel`, settled before this one, configures: as its own
+/// reader takes the file whose reading `answered`.
 ///
 /// **What that reader would refuse is its defaults**, so it is `None` here:
 /// no file, one that is not private, larger than its bound or not one this
@@ -832,10 +849,9 @@ fn checkout_named(name: &str, namespace: Option<&Namespace>) -> Option<Checkout>
 /// and a file the disk did not answer for.
 fn predecessor(
     channel: Channel,
-    names: &Layout,
-    user: &User,
+    answered: Result<Option<String>, Unread>,
 ) -> Result<Option<LeaderPart>, KeysRefused> {
-    let text = match read(&names.config, &names.keybindings, user) {
+    let text = match answered {
         Ok(Some(text)) => text,
         Ok(None) | Err(Unread::NotPrivate(_) | Unread::Unreadable(_)) => return Ok(None),
         Err(Unread::Unavailable(what)) => {
@@ -927,7 +943,15 @@ fn bounded(bytes: usize) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BYTES_MAX, Configuration, KeysRefused, checkout_named};
+    use std::io::ErrorKind;
+    use std::path::Path;
+
+    use nc_catalog::ErrorCode;
+    use nc_schema::keys::{Chord, Leader, LeaderPart, Modifier};
+
+    use super::{
+        BYTES_MAX, Configuration, KeysRefused, Part, Unread, checkout_named, installed, predecessor,
+    };
     use crate::{Channel, Checkout, Namespace, leaf};
 
     fn namespace(text: &str) -> Namespace {
@@ -1072,6 +1096,121 @@ mod tests {
             Err(KeysRefused::Unreadable(format!(
                 "it holds more than {BYTES_MAX} bytes"
             )))
+        );
+    }
+
+    /// A file the disk did not answer for is a refusal of its own code.
+    ///
+    /// Each answer reading the channel's own file gives is refused with the
+    /// code a log is queried by, saying what was answered, and it leaves
+    /// both parts to their defaults.
+    #[test]
+    fn a_file_the_disk_did_not_answer_for_is_refused_with_its_own_code() {
+        let what = "`/scratch/keybindings.json` could not be read: the disk did not answer";
+        for (unread, refused, code) in [
+            (
+                Unread::Unavailable(what.to_owned()),
+                KeysRefused::Unavailable(what.to_owned()),
+                ErrorCode::ChannelKeybindingsUnavailable,
+            ),
+            (
+                Unread::NotPrivate(what.to_owned()),
+                KeysRefused::NotPrivate(what.to_owned()),
+                ErrorCode::ChannelKeybindingsNotPrivate,
+            ),
+            (
+                Unread::Unreadable(what.to_owned()),
+                KeysRefused::Unreadable(what.to_owned()),
+                ErrorCode::ChannelKeybindingsUnreadable,
+            ),
+        ] {
+            let said = unread.refused();
+            assert_eq!(said, refused);
+            assert_eq!(said.code(), code);
+            assert_eq!(said.part(), Part::Whole);
+            assert!(
+                said.to_string().starts_with(&format!("[{}] ", code.code())),
+                "{said}"
+            );
+            assert!(said.to_string().contains(what), "{said}");
+        }
+    }
+
+    /// A channel is installed while its manifest is there and not while
+    /// nothing is.
+    ///
+    /// Any other answer from the disk refuses the configured Leader, naming
+    /// the channel and where its manifest was asked for.
+    #[test]
+    fn a_manifest_the_disk_did_not_answer_for_refuses_the_configured_leader() {
+        let manifest = Path::new("/scratch/s/noctua-dev-0123abcd-k7/bin/manifest");
+        let checkout = Channel::Development(Checkout::parse("0123abcd").expect("eight digits"));
+        assert_eq!(installed(Ok(()), checkout, manifest), Ok(true));
+        for gone in [ErrorKind::NotFound, ErrorKind::NotADirectory] {
+            assert_eq!(installed(Err(gone.into()), checkout, manifest), Ok(false));
+        }
+        for unanswered in [
+            ErrorKind::PermissionDenied.into(),
+            ErrorKind::InvalidFilename.into(),
+            std::io::Error::other("the disk did not answer"),
+        ] {
+            let refused =
+                installed(Err(unanswered), checkout, manifest).expect_err("not known either way");
+            assert_eq!(refused.code(), ErrorCode::ChannelKeybindingsUnjudged);
+            assert_eq!(refused.part(), Part::Leader);
+            let said = refused.to_string();
+            assert!(
+                said.contains("whether the development checkout 0123abcd is installed")
+                    && said.contains(&manifest.display().to_string()),
+                "{said}"
+            );
+        }
+    }
+
+    /// A predecessor's file the disk did not answer for refuses this
+    /// channel's configured Leader, naming whose file it is.
+    ///
+    /// What that channel's own reader refuses — no file, one another account
+    /// can reach, one not read as a configuration — is its defaults instead,
+    /// and a file it reads is the Leader part it configures.
+    #[test]
+    fn a_predecessors_file_the_disk_did_not_answer_for_refuses_the_configured_leader() {
+        let what =
+            "`/scratch/c/noctua-k7/keybindings.json` could not be read: the disk did not answer";
+        let refused = predecessor(
+            Channel::Production,
+            Err(Unread::Unavailable(what.to_owned())),
+        )
+        .expect_err("not judged");
+        assert_eq!(refused.code(), ErrorCode::ChannelKeybindingsUnjudged);
+        assert_eq!(refused.part(), Part::Leader);
+        assert!(
+            refused.to_string().contains(&format!(
+                "production's keybinding configuration was not read: {what}"
+            )),
+            "{refused}"
+        );
+        for defaults in [
+            Ok(None),
+            Err(Unread::NotPrivate(what.to_owned())),
+            Err(Unread::Unreadable(what.to_owned())),
+            Ok(Some(r#"{"format":1,"anything":true}"#.to_owned())),
+            Ok(Some(r#"{"format":1,"leader":"Space"}"#.to_owned())),
+        ] {
+            assert_eq!(predecessor(Channel::Production, defaults), Ok(None));
+        }
+        let chord = Chord::parse("Control+Super+Space").expect("a chord");
+        assert_eq!(
+            predecessor(
+                Channel::Production,
+                Ok(Some(
+                    r#"{"format":1,"leader":"Control+Super+Space"}"#.to_owned()
+                ))
+            ),
+            Ok(Some(LeaderPart {
+                leader: Leader::of(chord).expect("a Leader"),
+                chord: Modifier::Shift,
+            }))
         );
     }
 }

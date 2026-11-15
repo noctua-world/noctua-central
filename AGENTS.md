@@ -2991,15 +2991,17 @@ channel's configuration directory (`Layout.keybindings`), read by `nc_channel::k
 `effective` for the keys in force, `judged` for a choice proposed before anything writes
 it — and shown by `noctua help keybindings`, which asks no daemon. The file and its
 directory are judged this user's alone by `nc_platform::judge` before a byte is read, a
-link refused however it points (`NC-CHAN-0009`), and each is left as it was; at most
-`BYTES_MAX` bytes are read, through `Read::take`, and a disk that does not answer is
+link refused however it points (`NC-CHAN-0009`), and each is left as it was; a file is
+read through `Read::take` no further than one byte past `BYTES_MAX`, one longer than
+`BYTES_MAX` is refused (`NC-CHAN-0011`), and a disk that does not answer is
 `NC-CHAN-0010`. A choice is held to the same bound when `Configuration::parse` reads it,
 before `judged` weighs it, and its canonical form is never longer than its text, so a
-choice judged in force is a file its reader reads. The text is read only as `nc-canon` reads JSON, a key written twice
-refused, into a closed shape: `format` required and this build's, `leader` a chord and
-`chord` a modifier in the Leader's grammar, and `bindings` each command's name — one a
-command can have — beside bindings in the grammar; anything else, a later format among it,
-refuses the file whole and every default stands (`NC-CHAN-0011`). The Leader part and the
+choice judged in force is a file its reader reads. The text is read only as `nc-canon`
+reads JSON, a key written twice refused, into a closed shape: `format` required and this
+build's, `leader` a chord and `chord` a modifier in the Leader's grammar, and `bindings`
+each command's name — one a command can have — beside bindings in the grammar; anything
+else, a later format among it, refuses the file whole and every default stands
+(`NC-CHAN-0011`). The Leader part and the
 bindings part are then judged apart by `nc_schema::keys`, the rule the catalog compiler
 reads every binding by: a Leader holding no modifier, holding its own chord modifier, or
 meeting another channel's Leader refuses the Leader part alone (`NC-CHAN-0012` to
@@ -3026,9 +3028,9 @@ after it, so production reads no other channel's file and no channel reads one a
 A Leader holding no modifier or its own chord modifier is refused for that before any
 other channel is listed or read, so what another channel's file says never changes that
 refusal. A file before it that its own reader would refuse is that channel's defaults; one this
-build cannot judge — of a later format, or one the disk did not answer for — and a state
-base that will not list or holds more than `CHANNELS_MAX` checkouts refuse the configured
-Leader rather than guess (`NC-CHAN-0017`). Nothing of another channel is written, locked or
+build cannot judge — of a later format, or one the disk did not answer for — a manifest
+the disk did not answer for, and a state base that will not list or holds more than
+`CHANNELS_MAX` checkouts refuse the configured Leader rather than guess (`NC-CHAN-0017`). Nothing of another channel is written, locked or
 removed: its profile directories are listed, its manifest asked whether it is there, and
 its file judged and read.
 
@@ -3054,7 +3056,10 @@ that channel's defaults, while one of a later format, more checkouts than are re
 base that will not list refuse the configured Leader; another namespace's installs are
 never read; and a read leaves every file and directory under the bases as it was — by the
 unit tests of `crates/nc-channel/src/keys.rs`, which hold a profile directory's name to
-the leaf `layout` writes in both directions and a configuration to the file's bound, by
+the leaf `layout` writes in both directions and a configuration to the file's bound, and
+hand each answer a disk can give — for a manifest, for another channel's file and for the
+channel's own — to the decision that reads it, a disk that does not answer refused with
+its own code (no test makes a disk fail; the decision is what is held), by
 `help_on_the_keybindings_needs_no_daemon` and
 `help_on_the_keybindings_says_why_a_configuration_was_refused_and_shows_the_defaults` in
 `apps/cli/src/run.rs`, and by the operators over `keys.rs` and the CLI's help in
