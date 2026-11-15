@@ -12,6 +12,12 @@
 //! through the daemon's endpoint as one JSON object — a raw dispatch, the path
 //! `noctua mcp` will take — each decided on the platform's `naming` feature.
 //!
+//! **And acceptance 5, end to end**: `kernel.find` run through the CLI finds a
+//! command by a Portuguese synonym and by its English name, every word at its
+//! own positions, a plugin's command by its own entry's texts, and nothing
+//! where one word matches nothing — decided on the platform's `registry`
+//! feature.
+//!
 //! **The CLI in-process** (`nc_cli::run`), so no `noctua` a build left behind
 //! is ever what runs, against the daemon this build made, copied where an
 //! installer puts it beside a manifest under a scratch root and a namespace
@@ -151,6 +157,7 @@ const ROWS: &[Row] = &[
     ran("journal.verify", &["--from", "0"]),
     ran("naming.propose", PROPOSED),
     ran("naming.read", &["--name", THE_EXAMPLE]),
+    ran("kernel.find", &["--query", "procurar comando"]),
     ended(
         "limits.prune",
         &["--dry_run"],
@@ -828,9 +835,9 @@ fn read_as_proposed(reading: &Value) -> (Value, Option<Value>) {
     (Value::Object(fields), canonical)
 }
 
-/// Every naming command the daemon's journal holds, allowed, by the policy
-/// that decided it.
-fn naming_decided(serving: &Serving) -> Vec<String> {
+/// Every command whose name begins `prefix` the daemon's journal holds,
+/// allowed, by the policy that decided it.
+fn allowed_by(serving: &Serving, prefix: &str) -> Vec<String> {
     let store = serving
         .runtime
         .block_on(nc_local::LocalStore::open(&serving.installed.layout.data))
@@ -845,7 +852,7 @@ fn naming_decided(serving: &Serving) -> Vec<String> {
         .map(|entry| &entry.record)
         .filter(|record| {
             record.result == Outcome::Allowed
-                && command_of(record).is_some_and(|command| command.starts_with("naming."))
+                && command_of(record).is_some_and(|command| command.starts_with(prefix))
         })
         .map(|record| record.deciding_policy.clone().unwrap_or_default())
         .collect()
@@ -921,7 +928,7 @@ fn a_name_the_cli_proposes_is_read_back_by_the_cli_as_the_fields_that_built_it()
         "{}",
         unread.stderr
     );
-    let decided = naming_decided(&serving);
+    let decided = allowed_by(&serving, "naming.");
     assert_eq!(decided.len(), 4, "{decided:?}");
     assert!(
         decided.iter().all(|rule| rule == NAMES_FILES),
@@ -1005,10 +1012,152 @@ fn a_name_proposed_over_the_endpoint_as_one_json_object_is_read_back_the_same() 
         "{}",
         refusal.sentence
     );
-    let decided = naming_decided(&serving);
+    let decided = allowed_by(&serving, "naming.");
     assert_eq!(
         decided,
         [NAMES_FILES, NAMES_FILES, NAMES_FILES],
+        "{decided:?}"
+    );
+    serving.stopped();
+}
+
+/// One word a command was found by: its field, locale, text and positions.
+type Word = (String, Option<String>, String, Vec<i64>);
+
+/// The commands a `kernel.find` answer found, with the words of each.
+fn found_in(answer: &Value) -> Vec<(String, String, Vec<Word>)> {
+    let list = |value: &Value, name: &str| -> Vec<Value> {
+        value
+            .clone()
+            .into_object()
+            .and_then(|mut fields| fields.remove(name))
+            .and_then(Value::into_array)
+            .unwrap_or_else(|| panic!("`{name}` of {value:?} is not a list"))
+    };
+    list(answer, "found")
+        .iter()
+        .map(|one| {
+            let words = list(one, "words")
+                .iter()
+                .map(|word| {
+                    let locale = word
+                        .clone()
+                        .into_object()
+                        .and_then(|mut fields| fields.remove("locale"))
+                        .and_then(Value::into_text);
+                    let positions = list(word, "positions")
+                        .into_iter()
+                        .map(|at| match at {
+                            Value::Integer(at) => at,
+                            other => panic!("a position is an integer: {other:?}"),
+                        })
+                        .collect();
+                    (
+                        text_of(word, "field"),
+                        locale,
+                        text_of(word, "text"),
+                        positions,
+                    )
+                })
+                .collect();
+            (text_of(one, "name"), text_of(one, "owner"), words)
+        })
+        .collect()
+}
+
+/// The CLI finds a command by a Portuguese synonym and by its English name,
+/// with each word's positions (Stage 14, acceptance 5, end to end).
+///
+/// **Through `nc_cli::run`, as a person types it, against the daemon's whole
+/// registry.** `procurar comando` finds `kernel.find` by its Portuguese tag
+/// and its Portuguese display name, and `find command` by its English display
+/// name, each word at the characters it matched in that field's own text — the
+/// second past the space and the article; `ler nota` finds the reference
+/// plugin's `note.get` by the tags its own entry gives it; a word that matches
+/// nothing finds nothing; and `--limit` cuts the list and not the count. Every
+/// search was decided by the finding permit and no other rule.
+#[test]
+fn the_cli_finds_a_command_by_a_portuguese_synonym_and_by_its_english_name_with_each_words_positions()
+ {
+    let serving = Serving::new();
+    let find = |words: &[&str]| -> Value {
+        let line: Vec<&str> = std::iter::once("kernel.find")
+            .chain(words.iter().copied())
+            .collect();
+        answered_to(&serving, &line)
+    };
+    let word = |field: &str, locale: &str, text: &str, from: i64, to: i64| -> Word {
+        (
+            field.to_owned(),
+            Some(locale.to_owned()),
+            text.to_owned(),
+            (from..to).collect(),
+        )
+    };
+    let first = |answer: &Value| {
+        found_in(answer)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("nothing was found: {answer:?}"))
+    };
+    assert_eq!(
+        first(&find(&["--query", "procurar comando"])),
+        (
+            "kernel.find".to_owned(),
+            "kernel".to_owned(),
+            vec![
+                word("tag", "pt-BR", "procurar", 0, 8),
+                word("display_name", "pt-BR", "Encontrar um comando", 13, 20),
+            ]
+        )
+    );
+    assert_eq!(
+        first(&find(&["--query", "find command"])),
+        (
+            "kernel.find".to_owned(),
+            "kernel".to_owned(),
+            vec![
+                word("display_name", "en", "Find a command", 0, 4),
+                word("display_name", "en", "Find a command", 7, 14),
+            ]
+        )
+    );
+    assert_eq!(
+        first(&find(&["--query", "ler nota"])),
+        (
+            "reference.note.get".to_owned(),
+            "plugin".to_owned(),
+            vec![
+                word("tag", "pt-BR", "ler", 0, 3),
+                word("tag", "pt-BR", "nota", 0, 4),
+            ]
+        )
+    );
+    let nothing = find(&["--query", "find zzz"]);
+    assert_eq!(found_in(&nothing), [], "{nothing:?}");
+    assert_eq!(
+        nothing
+            .clone()
+            .into_object()
+            .and_then(|mut fields| fields.remove("total")),
+        Some(Value::Integer(0))
+    );
+    let one = find(&["--query", "", "--limit", "1"]);
+    assert_eq!(found_in(&one).len(), 1, "{one:?}");
+    assert_eq!(
+        one.into_object()
+            .and_then(|mut fields| fields.remove("total")),
+        Some(Value::Integer(
+            i64::try_from(serving.registry.len()).expect("fits")
+        )),
+        "the empty query counts every registered command"
+    );
+    let decided = allowed_by(&serving, "kernel.find");
+    assert_eq!(decided.len(), 5, "{decided:?}");
+    assert!(
+        decided
+            .iter()
+            .all(|rule| rule == "family.a_member_finds_commands"),
         "{decided:?}"
     );
     serving.stopped();

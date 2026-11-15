@@ -31,6 +31,27 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"from":{"type":"integer","minimum":0}},"additionalProperties":false}
 ```
 
+## `kernel.find`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:registry` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it changes nothing |
+| Glyph | `U+F002` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Find a command | Encontrar um comando |
+| Line description | Find commands by any word of their names or tags, in English or Portuguese. | Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas. |
+| Paragraph | Looks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing. | Procura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada. |
+| Tags | search, filter, look up, list of commands | procurar, pesquisar, buscar, filtrar, comandos disponíveis |
+
+```json
+{"type":"object","properties":{"query":{"type":"string","maxLength":64},"limit":{"type":"integer","minimum":1,"maximum":32}},"required":["query"],"additionalProperties":false}
+```
+
 ## `kernel.redo`
 
 | | |

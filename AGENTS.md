@@ -896,6 +896,7 @@ entry owns.
 | A forged principal, confirmation or approval | `context` is read-only; a confirmation and an approval are the kernel's alone, bound to one dispatch — its command by the plugin that holds it — and one whole principal, used once and only on a dispatch the kernel decided, short-lived and never inherited | the same entry, and "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A command declared in another plugin's name | a namespace one loaded plugin holds, and the ones the kernel keeps | "A plugin is loaded with the commands it may have, and only those" |
 | A person's permit for a feature of the platform borrowed by a plugin, a file's name that is a path, or a caller's text turned into a logged identifier | `feature:` refused in a plugin's declaration at `activate`; one builder and one parser, every name one path component; and the kernel handed text only | "A file's name is proposed and read by one function, decided and journaled like any command" |
+| A query that costs the daemon unbounded work | a query bounded by its schema and by the core alike, every field read to its bound, the registry's lock let go before anything is matched, and an answer cut to its limit, whose widest fits one frame | "A command is found by its names and tags in bounded work, decided and journaled like any command", and "A query is matched in bounded work, and an item's text is read up to its bound" |
 | A plugin that will not stop | the epoch, fuel, memory, a host call's deadline, the tree's deadline, depth and count, the refusal of re-entry, bounded queues, timers, surfaces and log, the restart budget and quarantine | "A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else" |
 | Half-applied state | writes staged and committed whole, recovery each time a kernel opens, and an undo that is a unit of its own | "A command runs only when it is decided, and the journal hears of it first", and "A person undoes their own steps, with the authority they hold now" |
 | A request to somewhere it should not go | names the manifest declares, public addresses only, no redirect and no proxy, bounds, and only `GET` and `HEAD` where nothing changes | "A plugin reaches the network its manifest names, and nothing else" |
@@ -1450,6 +1451,47 @@ through the CLI and over the endpoint as one JSON dispatch.
 **Not answered:** see "What is deliberately not claimed": a proposal reserves nothing, a
 kept identifier is not vouched for, whether a file of that name exists or collides is the
 saving feature's, and an agent reaches naming only once Stage 15 gives it a permit.
+
+### A command is found by its names and tags in bounded work, decided and journaled like any command
+
+**Guaranteed.** `kernel.find` is the registry filtered by the one fuzzy core
+(`NOCTUA.md §12.4`), a command of the kernel's own (`crates/nc-kernel/src/find.rs` says
+what it reads and answers):
+
+- **Decided at the one door and journaled**, as every command is: `Read` on
+  `Feature::"registry"`, which `family.a_member_finds_commands` gives every person of the
+  realm. A frozen account is refused by the floor; a device and an agent by the permit's
+  `principal is User`, pinned by cases; a person of another realm by the decision point's
+  slice. It opens no unit, and its entry names the command and the feature, never the
+  query.
+- **Bounded work, whatever is typed.** The schema refuses a query past
+  `nc_fuzzy::QUERY_CHARS_MAX` characters before the handler runs — its `maxLength`, which a
+  test beside the handler holds equal to the core's bound — and the handler refuses one
+  again rather than cut it. Every field is read to `nc_fuzzy::FIELD_CHARS_MAX` characters,
+  which every text a registry may hold fits within, and one matcher's scratch serves every
+  command. The registry's lock is let go before anything is matched, so no load and no
+  dispatch waits on a search.
+- **A bounded answer.** At most `find::LISTED_MAX` commands, the schema's `maximum` for
+  `limit` and the most listed whatever `limit` says; the widest answer those can make —
+  every word echoing a whole field of the character canonical JSON writes longest — fits the
+  kernel's `payload_bytes`, which the compiler holds within one frame with its envelope.
+- **Nothing new is shown.** The texts it echoes are the registry's, judged at the build or
+  at `activate`, and listed already to the same person by `Request::Registry`; the CLI
+  escapes them as it escapes every text from the daemon. Each command found says whether it
+  is a plugin's (`owner`), so a surface can tell a plugin's tags from the platform's.
+
+**Enforced by** the tests beside the handler in `crates/nc-kernel/src/find.rs` — the query
+bound held to the schema's, every registry bound within the core's, the widest answer, the
+limit and the count, the registry's order among equal scores, and both languages' texts
+over the catalog's own registry — `crates/nc-kernel/tests/the_decision_point.rs` over the
+real pack and world — every person answered, a frozen account, a device and an agent
+refused, and a plugin's command found by its own entry — `policy/packs/family/tests/features.toml`,
+and `apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
+daemon.
+
+**Not answered:** see "What is deliberately not claimed": how many commands the registry
+holds, which commands the asker may dispatch, and an agent finding commands only once
+Stage 15 gives it a permit.
 
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
@@ -2785,7 +2827,8 @@ fields past the bound (`no_text_and_no_query_makes_the_matcher_panic`) and whose
 holds every alignment chosen to an exhaustive search.
 
 **Not answered:** how many items a caller hands it — a list of a million costs a million
-matches, and a surface that matches a registry bounds the list and its answer itself —
+matches, and a surface that matches a registry bounds the list and its answer itself, as
+`kernel.find` bounds its answer and not the registry —
 and which characters look alike, and a text's graphemes, which **What is deliberately not
 claimed** says the core does not read.
 
@@ -3943,7 +3986,16 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **No lookalike is folded.** A Cyrillic `а` does not find a Latin `a`, on purpose: a name
   that only looks like another is not found by it.
 - **The ranking reads text alone.** Whoever writes an item's names and tags decides what
-  finds it and how high, within the bounds its registry holds those texts to.
+  finds it and how high, within the bounds its registry holds those texts to; `kernel.find`
+  says of each command it found whether a plugin wrote it.
+- **`kernel.find` finds every registered command, not what the asker may dispatch.** Its
+  answer is the registry `Request::Registry` already lists to the same person; whether an
+  agent's search is cut to what the agent may run is Stage 15's (`NOCTUA-PLAN.md`), and no
+  agent finds a command until then.
+- **A search does not bound the registry it reads.** Its work grows with the commands
+  registered — the kernel's, and each plugin's a person installed, each held to
+  `commands_per_plugin` — and nothing caps how many plugins are installed; a search is
+  matched inline in its dispatch.
 - **Matching is not constant-time.** It handles nothing secret.
 
 **The gate and its run**

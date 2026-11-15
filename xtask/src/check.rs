@@ -11254,7 +11254,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 755] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11453,6 +11453,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "a `static` or `const` of the type is a value a caller can copy; a `pub type` alias opens an inherent impl the constructor rule resolves by name and would not recognise; and a `Deref` whose target is `{kind}` gives a caller `*wrapper`, which is a `{kind}` because it is `Copy`. `{kind}::of::<S>()` is the only way in (NOCTUA.md §15.4)",
     "a canary carries exactly what a gate refuses, and the gate is told to ignore findings in it — so anything cargo compiles from there ships the defect with the run still green. Measured: five lines of `#[path]` put a real registry code into `libnc_canon.rlib` and every printed count rose. A canary is read by `cargo xtask check` and by nothing else",
     "a check CI runs has to run. Every reader in this file sees the command and counts its verdict, and a condition or a loop around it means the verdict may be of nothing — measured, the determinism job wrapped in `while false; do … done` left every count in this gate unchanged. Write the commands at the top level of the step",
+    "a child of the house finds a command too",
     "a child of the house reads what the house shares",
     "a citation is how one file sends a reader to the rule it obeys, and a wrong number sends them to a different rule that reads as though it were the right one. Check the number, or mark the line `allow-reference: <reason>` naming the section it excuses",
     "a clock and a timezone, so the output differs by where the machine is",
@@ -11466,6 +11467,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "a declared field type is not a guarantee when the value is built out of text at the call — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for, and `FileName::parse` reaches the same constructor one hop away. Log an identifier the platform minted, or declare what you mean as a field of its own. If this `{minted}` cannot carry caller text — `Duration::new` is the case — say so with `{ALLOW}` on this line and name `{minted}` in the reason",
     "a declared field type is not a guarantee when the value is built out of text — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for. The value need not be built at the call: a `let` on the line above, or a helper in this file, reaches the same field. Log an identifier the platform minted. If this one cannot carry caller text, say so with `allow-logging:` on this line — and name `{minted}` in the reason, because `cargo fmt` joins lines and a marker that names nothing excuses whatever lands beside it",
     "a device in the realm steps through no history, however attested",
+    "a device of the house finds no command, however attested",
     "a device of the house has no file named, however attested",
     "a device is the machine's, and reading one at build time is the machine reaching the output",
     "a device nobody attested reads nothing, not even what the house has made public",
@@ -11516,7 +11518,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "a log event carries declared fields, never a sentence a caller wrote — the description a reader sees lives in `catalog/log-events.toml` beside the declaration. Pass the values themselves and let the registry say what they mean. If this one cannot, say so with `{ALLOW}` on this line and name `{needle}` in the reason, because a marker that names nothing excuses whatever else lands beside it",
     "a manual grant with no end is refused, however recently it was written",
     "a marker that names nothing excuses whatever else lands on its line, and `cargo fmt` moves things onto lines. Say `{ALLOW} …{needle}…` so an excuse that arrived by reformatting fails rather than widens",
+    "a member finds a command and writes nothing to the registry",
     "a member has a file named and writes nothing to the feature",
+    "a member of the house finds a command",
     "a member of the house has a file named",
     "a member reads her own account",
     "a member reads her own account and does not rewrite it",
@@ -11550,6 +11554,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "a subprocess answers with whatever is installed on this machine — `date` being the shortest way to put a clock in a file. Everything the output depends on arrives through the catalog",
     "a suite that is present but inert is announced exactly like one that ran, so the floor that names the suites cannot see it — nineteen ignored tamper tests left `check passed` with acceptance criterion 3 enforced by nothing. If a test cannot run here, make it say so and return, the way the workspace-document tests do",
     "a suspended account does not read even its own account",
+    "a suspended account finds no command",
     "a suspended account has no file named",
     "a suspended account steps through no history, not even its own",
     "a suspended account writes nothing, not even what it owns",
@@ -11581,6 +11586,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "an error's identity is data, not a string at a call site (NOCTUA.md §15.1). The code travels through every layer and is what the central log is queried by, so one spelled out here is one the registry cannot renumber, cannot translate and cannot publish. Use the `ErrorCode` variant `catalog/errors.toml` declares; if the code does not exist yet, declare it there",
     "an image named here is a second definition of a service `docker-compose.yml` already defines, and CI cannot reproduce what that file gives it — a service container has no command, so the log store loses the retention flags the gate reads back, and nothing applies the migrations. Delete it and let `cargo xtask dev` bring up the stack",
     "an import of `{name}`",
+    "an outsider finds a command, which only the decision point refuses",
     "an outsider has a file named, which only the decision point refuses",
     "an outsider reads what this household shares, which is the gap invariant 4 leaves",
     "an owner governs her own content and does not grant over it",
@@ -11721,6 +11727,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "no rules expected `leaked`",
     "no such command",
     "nor does an agent acting openly as one, until it has a permit of its own",
+    "nor does an agent finding commands openly, until it has a permit of its own",
     "nor does an agent, even one acting openly as an agent",
     "nor revoke from herself, which is how a constraint is removed rather than added",
     "nothing here reads a `FROM` line, so a Dockerfile naming an unpinned tag is invisible to this gate. This stack pulls two pinned images (`§18.4`, `§18.5`) and builds nothing; if that changes, the pin moves to the Dockerfile and this gate has to follow it there. The line number is in `docker compose config`'s output, which is what the stack actually runs",
@@ -11800,6 +11807,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 747] = [
     "the field is the constructor. `{kind}(a string the caller leaked)` compiles the moment it is `pub`, and no fixture can see that happen — a tuple struct with a public field is valid Rust, so rustc has nothing to refuse. Keep the field private and let `{kind}::of::<S>()` be the only way in (NOCTUA.md §15.4)",
     "the file's row in `ASSERTED_STATEMENTS` names `{value}`, and no statement here is built from it any more",
     "the filesystem hands entries over in its own order, which differs between two machines and sometimes between two runs. Collect and sort before using them, and mark the line saying where the sort is",
+    "the finding permit reaches no other feature",
     "the gate reads the database and the store while it runs, so a stack started afterwards is a stack it never saw",
     "the gate's verdict is the point of running it, and `||` throws it away while every check in this file still sees the command. This read `|| true`, and `|| :` is the same line with the shell's other no-op — so what it asks now is that a command CI runs has no alternative at all",
     "the identifier of the running program differs on every run by definition, and a child command answers with whatever is installed on this machine rather than with the catalog",
@@ -19478,7 +19486,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 210] = [
+    const DOCUMENTED: [(&str, usize, usize); 211] = [
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 39, 13),
@@ -19494,7 +19502,7 @@ mod the_frozen_path_rule {
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 14, 16),
-        ("daemon/every_command_from_the_cli.rs", 38, 2),
+        ("daemon/every_command_from_the_cli.rs", 41, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/lib.rs", 7, 14),
@@ -19595,6 +19603,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
+        ("nc-kernel/find.rs", 34, 2),
         ("nc-kernel/history.rs", 48, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
@@ -19607,7 +19616,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 46),
-        ("nc-kernel/lib.rs", 59, 54),
+        ("nc-kernel/lib.rs", 59, 55),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19617,7 +19626,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 63, 25),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 188, 80),
+        ("nc-kernel/the_decision_point.rs", 193, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
         ("nc-kernel/timers.rs", 18, 5),
@@ -25544,7 +25553,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19094;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19168;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25563,7 +25572,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4881;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4883;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25614,7 +25623,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25745;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25823;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25668,7 +25677,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 25,745 are accepted by the first-line
+    /// rules the gates apply: **518 of 25,823 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -28203,7 +28212,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 747;
+    const THE_REST_IT_SAYS: usize = 755;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -37556,7 +37565,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 224,
+            walked, 225,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37596,7 +37605,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2289] = [
+    static OPERATORS: [(&str, &str, &str); 2303] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42749,6 +42758,56 @@ Options:
             "kernel_dispatch",
             "builtin",
             "a name is read from the arguments it was asked with",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "a command is found among the registry's commands",
+        ),
+        (
+            "kernel_builtin",
+            "name",
+            "the finder is the catalog's kernel.find",
+        ),
+        (
+            "kernel_find",
+            "fields_of",
+            "a display name is read in every locale",
+        ),
+        ("kernel_find", "fields_of", "a tag is read in every locale"),
+        (
+            "kernel_find",
+            "fields_of",
+            "a tag is labelled with the locale it was read in",
+        ),
+        ("kernel_find", "role", "a tag is weighed below a name"),
+        ("kernel_find", "word", "a display name is answered as one"),
+        (
+            "kernel_find",
+            "found",
+            "a query past its bound is refused rather than cut",
+        ),
+        (
+            "kernel_find",
+            "found",
+            "no limit lists the most an answer may",
+        ),
+        (
+            "kernel_find",
+            "found",
+            "a limit past the most is held to it",
+        ),
+        (
+            "kernel_find",
+            "found",
+            "the total counts every match and not what is listed",
+        ),
+        ("kernel_find", "found", "the answer is cut to its limit"),
+        ("kernel_find", "answer_of", "a word's locale is answered"),
+        (
+            "kernel_find",
+            "answer_of",
+            "a plugin's command is said to be one",
         ),
         (
             "kernel_dispatch",

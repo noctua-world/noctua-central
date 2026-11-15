@@ -59,7 +59,8 @@
 #
 # The commands below are the kernel's own operations: verifying the journal's
 # chain, pruning a table that has passed its limit, stepping back and forward
-# through a person's own history, and proposing and reading a file's name. The
+# through a person's own history, proposing and reading a file's name, and
+# finding a command by any word of its names and tags. The
 # kernel registers every one as its own — a command in the namespaces it keeps,
 # `kernel.`, `journal.`, `limits.` and `naming.`, is the kernel's — decides
 # each at its decision point as it decides
@@ -185,3 +186,29 @@ reversibility = "read"
 mutating = false
 args_schema = """
 {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}"""
+
+# Finding a command (`NOCTUA.md §12.4`): the registry filtered by the one fuzzy
+# core, every command's names and tags in both languages at once, each word
+# answered with the field it matched and its positions there. Like naming, it
+# reads nothing of the realm's data, so it selects the platform's `registry`
+# feature — `Read` on `Feature::"registry"`, which the family pack gives every
+# person of the realm — and it is a read. The query is never journaled.
+#
+# The bounds: `query` is held to the matcher's own, `nc_fuzzy::QUERY_CHARS_MAX`
+# characters, so the schema refuses what the matcher would; `limit` to the most
+# an answer lists, whose widest answer fits one frame, and that many are listed
+# when it is not given. A test beside the handler holds both
+# (`crates/nc-kernel/src/find.rs`).
+[[command]]
+name = "kernel.find"
+title = "command.kernel.find.title"
+description = "command.kernel.find.description"
+paragraph = "command.kernel.find.paragraph"
+tags = "command.kernel.find.tags"
+glyph = "U+F002"   # nf-fa-search
+action = "Read"
+resource_selector = "feature:registry"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"query":{"type":"string","maxLength":64},"limit":{"type":"integer","minimum":1,"maximum":32}},"required":["query"],"additionalProperties":false}"""

@@ -579,7 +579,7 @@ command goes through, `dispatch.rs`, the units of work its writes are kept in,
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
 `history.rs`, the commands the catalog gives the kernel to run, `builtin.rs`,
-what a plugin announces, is woken by and shows, `events.rs`,
+the registry filtered by the fuzzy core, `find.rs`, what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's

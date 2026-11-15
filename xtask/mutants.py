@@ -451,6 +451,12 @@ SOURCES = {
     # `crates/nc-kernel/tests/the_decision_point.rs`, which dispatches each as
     # a guardian and as people the pack does not let.
     "kernel_builtin": os.path.join(ROOT, "crates/nc-kernel/src/builtin.rs"),
+    # **The registry filtered by the fuzzy core**: which fields of a command are
+    # read, in which locale, how each is weighed, and what the answer lists and
+    # counts. Decided by the unit tests beside it, over the catalog's own
+    # registry and over registries they build, and by
+    # `crates/nc-kernel/tests/the_decision_point.rs`, which dispatches it.
+    "kernel_find": os.path.join(ROOT, "crates/nc-kernel/src/find.rs"),
     # **The rest of the world, and what runs it between call trees.** The
     # topics and the event queue's bounds, the timers' bounds and their table,
     # the closed set of nodes a surface shows and the pump that fires and
@@ -4712,6 +4718,52 @@ WEAKENINGS = [
     ("kernel_dispatch", "builtin", "a name is read from the arguments it was asked with",
      "        Some(Builtin::ReadName) => builtin::read_back(&asked.json),",
      "        Some(Builtin::ReadName) => builtin::read_back(&serde_json::Value::Null),"),
+    # `kernel.find`: every locale's display names and tags read, each labelled
+    # with its own locale and weighed by its role, the answer cut to its limit
+    # and counting every match, and a query past its bound refused.
+    ("kernel_dispatch", "builtin", "a command is found among the registry's commands",
+     "            let listed = shared.plugins().registry.listed();",
+     "            let listed: Vec<crate::registry::RegisteredCommand> = Vec::new();"),
+    ("kernel_builtin", "name", "the finder is the catalog's kernel.find",
+     "            Self::Find => crate::find::FIND,",
+     "            Self::Find => READ,"),
+    ("kernel_find", "fields_of", "a display name is read in every locale",
+     "            text: command.entry.in_locale(locale).display_name.as_str(),",
+     "            text: command.entry.in_locale(Locale::En).display_name.as_str(),"),
+    ("kernel_find", "fields_of", "a tag is read in every locale",
+     "        for tag in &command.entry.in_locale(locale).tags {",
+     "        for tag in &command.entry.in_locale(Locale::En).tags {"),
+    ("kernel_find", "fields_of", "a tag is labelled with the locale it was read in",
+     "                locale: Some(locale),\n                text: tag.as_str(),",
+     "                locale: Some(Locale::En),\n                text: tag.as_str(),"),
+    ("kernel_find", "role", "a tag is weighed below a name",
+     "            Self::Tag => Role::Tag,",
+     "            Self::Tag => Role::Name,"),
+    ("kernel_find", "word", "a display name is answered as one",
+     "            Self::DisplayName => \"display_name\",",
+     "            Self::DisplayName => \"name\","),
+    ("kernel_find", "found", "a query past its bound is refused rather than cut",
+     "    let query = Query::parse(typed).map_err(|_| too_long())?;",
+     "    let query = Query::parse(&typed.chars().take(nc_fuzzy::QUERY_CHARS_MAX).collect::<String>())\n"
+     "        .map_err(|_| too_long())?;"),
+    ("kernel_find", "found", "no limit lists the most an answer may",
+     "        .map_or(LISTED_MAX, |asked| {",
+     "        .map_or(1, |asked| {"),
+    ("kernel_find", "found", "a limit past the most is held to it",
+     "            usize::try_from(asked).map_or(LISTED_MAX, |asked| asked.min(LISTED_MAX))",
+     "            usize::try_from(asked).map_or(LISTED_MAX, |asked| asked)"),
+    ("kernel_find", "found", "the total counts every match and not what is listed",
+     "    let total = ranked.len();",
+     "    let total = ranked.len().min(most);"),
+    ("kernel_find", "found", "the answer is cut to its limit",
+     "        .take(most)",
+     "        .take(usize::MAX)"),
+    ("kernel_find", "answer_of", "a word's locale is answered",
+     "            if let Some(locale) = field.locale {",
+     "            if let Some(locale) = field.locale.filter(|_| false) {"),
+    ("kernel_find", "answer_of", "a plugin's command is said to be one",
+     "                Owner::Plugin(_) => \"plugin\",",
+     "                Owner::Plugin(_) => \"kernel\","),
     ("kernel_dispatch", "refused_in_the_log", "a refusal is logged with its own code",
      "        code: refusal.code(),\n        reason: reason.variant(),",
      "        code: ErrorCode::PolicyDenied,\n        reason: reason.variant(),"),
@@ -8477,6 +8529,7 @@ ELSEWHERE = {
     "kernel_net_ureq": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "kernel_history": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "kernel_builtin": ["cargo", "test", "-q", "-p", "nc-kernel"],
+    "kernel_find": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "kernel_events": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "kernel_timers": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "kernel_ui": ["cargo", "test", "-q", "-p", "nc-kernel"],

@@ -36,7 +36,9 @@
 //! with none is one undo does not pass. A plugin groups what it does with
 //! `commands.begin`, flattened into the unit of the command it runs in. The
 //! kernel's own commands — the journal's chain verified, the local tables
-//! pruned — run through the same door, as a guardian's (`crate::builtin`). A plugin
+//! pruned, a file's name proposed and read, a command found by the words of
+//! its names and tags (`crate::find`) — run through the same door, each decided
+//! as a plugin's is (`crate::builtin`). A plugin
 //! announces what happened in its own namespace, and an event published in a
 //! unit is queued only when the unit is kept; it sets timers, and is woken as
 //! the person it set them for; it describes what it shows in surfaces, in a
@@ -87,6 +89,7 @@ mod dispatch;
 pub mod engine;
 pub mod entries;
 mod events;
+mod find;
 mod history;
 mod host;
 pub mod limits;
