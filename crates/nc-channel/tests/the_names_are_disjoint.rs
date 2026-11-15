@@ -84,6 +84,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         device_key,
         device,
         world,
+        keybindings,
         mark,
         stopped,
         instance_lock,
@@ -122,6 +123,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("device_key".to_owned(), device_key),
         ("device".to_owned(), device),
         ("world".to_owned(), world),
+        ("keybindings".to_owned(), keybindings),
         ("mark".to_owned(), mark),
         ("stopped".to_owned(), stopped),
         ("instance_lock".to_owned(), instance_lock),
@@ -333,6 +335,10 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ),
         ("device", root.join("data").join(leaf).join("device.json")),
         ("world", root.join("config").join(leaf).join("world.json")),
+        (
+            "keybindings",
+            root.join("config").join(leaf).join("keybindings.json"),
+        ),
         ("mark", state.join("ids.mark")),
         ("stopped", state.join("stopped")),
         ("instance_lock", state.join("instance.lock")),
@@ -427,7 +433,7 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
             log_endpoint: None,
         };
         let (paths, _) = parts(&layout(&install, "1000"));
-        assert_eq!(paths.len(), 20);
+        assert_eq!(paths.len(), 21);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),

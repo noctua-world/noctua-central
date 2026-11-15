@@ -45,7 +45,9 @@
 # `KeyboardEvent.code` names it — `Leader+Chord+KeyQ`. Any other spelling fails
 # the build, and so does one key of one table bound twice; the same key in two
 # tables is two bindings. None is written here: the catalog's bindings arrive
-# with the layer that binds them (`§15.2`).
+# with the layer that binds them (`§15.2`). They are the defaults: a person's
+# own configuration replaces a command's list in their channel, and
+# `nc_channel::keys` judges it by the same grammar.
 #
 # Four fields are required and none of them is optional at `activate`
 # (`§11.7`, `reference/identity-and-authorization.md §2`):

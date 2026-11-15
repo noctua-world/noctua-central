@@ -89,6 +89,28 @@ pub enum ErrorCode {
     ChannelManifestNotPrivate,
     /// NC-CHAN-0008 — The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer
     ChannelManifestUnavailable,
+    /// NC-CHAN-0009 — The keybinding configuration, or the directory holding it, is not this user's alone, so it was not read and the channel's defaults stand
+    ChannelKeybindingsNotPrivate,
+    /// NC-CHAN-0010 — The keybinding configuration, or the directory holding it, could not be read: the filesystem did not answer, and the channel's defaults stand
+    ChannelKeybindingsUnavailable,
+    /// NC-CHAN-0011 — The keybinding configuration is not one this build reads: larger than its bound, not canonical JSON, a key it does not read, a value of the wrong type, another format, or a chord, a binding or a command's name outside the grammar; the channel's defaults stand
+    ChannelKeybindingsUnreadable,
+    /// NC-CHAN-0012 — The configured Leader holds its own chord modifier, so a key held with the Leader and one held with the chord as well would be one chord; the channel's default Leader stands
+    ChannelLeaderHoldsTheChordModifier,
+    /// NC-CHAN-0013 — The configured Leader holds no modifier, so it would take a bare key from every program; the channel's default Leader stands
+    ChannelLeaderWithoutAModifier,
+    /// NC-CHAN-0014 — The configured Leader held with its chord modifier is another channel's Leader, or another's held with its chord is this one; the channel's default Leader stands
+    ChannelLeaderHeldWithTheChordIsAnothers,
+    /// NC-CHAN-0015 — The configured Leader is another channel's Leader; the channel's default Leader stands
+    ChannelLeaderOfAnotherChannel,
+    /// NC-CHAN-0016 — The configured bindings bind one key of one table twice; the catalog's bindings stand
+    ChannelKeyBoundTwice,
+    /// NC-CHAN-0017 — Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands
+    ChannelKeybindingsUnjudged,
+    /// NC-CHAN-0018 — A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so
+    ChannelKeyTheSystemUses,
+    /// NC-CHAN-0019 — A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept
+    ChannelKeyUnpressable,
     /// NC-CLI-0001 — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object
     CliCommandLineUnreadable,
     /// NC-CLI-0002 — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent
@@ -368,6 +390,17 @@ impl ErrorCode {
         Self::ChannelNoManifest,
         Self::ChannelManifestNotPrivate,
         Self::ChannelManifestUnavailable,
+        Self::ChannelKeybindingsNotPrivate,
+        Self::ChannelKeybindingsUnavailable,
+        Self::ChannelKeybindingsUnreadable,
+        Self::ChannelLeaderHoldsTheChordModifier,
+        Self::ChannelLeaderWithoutAModifier,
+        Self::ChannelLeaderHeldWithTheChordIsAnothers,
+        Self::ChannelLeaderOfAnotherChannel,
+        Self::ChannelKeyBoundTwice,
+        Self::ChannelKeybindingsUnjudged,
+        Self::ChannelKeyTheSystemUses,
+        Self::ChannelKeyUnpressable,
         Self::CliCommandLineUnreadable,
         Self::CliTokenNotPrivate,
         Self::CliTokenUnreadable,
@@ -519,6 +552,17 @@ impl ErrorCode {
             Self::ChannelNoManifest => "NC-CHAN-0006",
             Self::ChannelManifestNotPrivate => "NC-CHAN-0007",
             Self::ChannelManifestUnavailable => "NC-CHAN-0008",
+            Self::ChannelKeybindingsNotPrivate => "NC-CHAN-0009",
+            Self::ChannelKeybindingsUnavailable => "NC-CHAN-0010",
+            Self::ChannelKeybindingsUnreadable => "NC-CHAN-0011",
+            Self::ChannelLeaderHoldsTheChordModifier => "NC-CHAN-0012",
+            Self::ChannelLeaderWithoutAModifier => "NC-CHAN-0013",
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => "NC-CHAN-0014",
+            Self::ChannelLeaderOfAnotherChannel => "NC-CHAN-0015",
+            Self::ChannelKeyBoundTwice => "NC-CHAN-0016",
+            Self::ChannelKeybindingsUnjudged => "NC-CHAN-0017",
+            Self::ChannelKeyTheSystemUses => "NC-CHAN-0018",
+            Self::ChannelKeyUnpressable => "NC-CHAN-0019",
             Self::CliCommandLineUnreadable => "NC-CLI-0001",
             Self::CliTokenNotPrivate => "NC-CLI-0002",
             Self::CliTokenUnreadable => "NC-CLI-0003",
@@ -671,6 +715,17 @@ impl ErrorCode {
             Self::ChannelNoManifest => "CHAN",
             Self::ChannelManifestNotPrivate => "CHAN",
             Self::ChannelManifestUnavailable => "CHAN",
+            Self::ChannelKeybindingsNotPrivate => "CHAN",
+            Self::ChannelKeybindingsUnavailable => "CHAN",
+            Self::ChannelKeybindingsUnreadable => "CHAN",
+            Self::ChannelLeaderHoldsTheChordModifier => "CHAN",
+            Self::ChannelLeaderWithoutAModifier => "CHAN",
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => "CHAN",
+            Self::ChannelLeaderOfAnotherChannel => "CHAN",
+            Self::ChannelKeyBoundTwice => "CHAN",
+            Self::ChannelKeybindingsUnjudged => "CHAN",
+            Self::ChannelKeyTheSystemUses => "CHAN",
+            Self::ChannelKeyUnpressable => "CHAN",
             Self::CliCommandLineUnreadable => "CLI",
             Self::CliTokenNotPrivate => "CLI",
             Self::CliTokenUnreadable => "CLI",
@@ -838,6 +893,39 @@ impl ErrorCode {
             }
             Self::ChannelManifestUnavailable => {
                 "The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer"
+            }
+            Self::ChannelKeybindingsNotPrivate => {
+                "The keybinding configuration, or the directory holding it, is not this user's alone, so it was not read and the channel's defaults stand"
+            }
+            Self::ChannelKeybindingsUnavailable => {
+                "The keybinding configuration, or the directory holding it, could not be read: the filesystem did not answer, and the channel's defaults stand"
+            }
+            Self::ChannelKeybindingsUnreadable => {
+                "The keybinding configuration is not one this build reads: larger than its bound, not canonical JSON, a key it does not read, a value of the wrong type, another format, or a chord, a binding or a command's name outside the grammar; the channel's defaults stand"
+            }
+            Self::ChannelLeaderHoldsTheChordModifier => {
+                "The configured Leader holds its own chord modifier, so a key held with the Leader and one held with the chord as well would be one chord; the channel's default Leader stands"
+            }
+            Self::ChannelLeaderWithoutAModifier => {
+                "The configured Leader holds no modifier, so it would take a bare key from every program; the channel's default Leader stands"
+            }
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => {
+                "The configured Leader held with its chord modifier is another channel's Leader, or another's held with its chord is this one; the channel's default Leader stands"
+            }
+            Self::ChannelLeaderOfAnotherChannel => {
+                "The configured Leader is another channel's Leader; the channel's default Leader stands"
+            }
+            Self::ChannelKeyBoundTwice => {
+                "The configured bindings bind one key of one table twice; the catalog's bindings stand"
+            }
+            Self::ChannelKeybindingsUnjudged => {
+                "Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands"
+            }
+            Self::ChannelKeyTheSystemUses => {
+                "A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so"
+            }
+            Self::ChannelKeyUnpressable => {
+                "A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
             }
             Self::CliCommandLineUnreadable => {
                 "A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
@@ -1193,6 +1281,21 @@ impl ErrorCode {
             Self::ChannelNoManifest => "error.channel.no-manifest",
             Self::ChannelManifestNotPrivate => "error.channel.manifest-not-private",
             Self::ChannelManifestUnavailable => "error.channel.manifest-unavailable",
+            Self::ChannelKeybindingsNotPrivate => "error.channel.keybindings-not-private",
+            Self::ChannelKeybindingsUnavailable => "error.channel.keybindings-unavailable",
+            Self::ChannelKeybindingsUnreadable => "error.channel.keybindings-unreadable",
+            Self::ChannelLeaderHoldsTheChordModifier => {
+                "error.channel.leader-holds-the-chord-modifier"
+            }
+            Self::ChannelLeaderWithoutAModifier => "error.channel.leader-without-a-modifier",
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => {
+                "error.channel.leader-held-with-the-chord-is-anothers"
+            }
+            Self::ChannelLeaderOfAnotherChannel => "error.channel.leader-of-another-channel",
+            Self::ChannelKeyBoundTwice => "error.channel.key-bound-twice",
+            Self::ChannelKeybindingsUnjudged => "error.channel.keybindings-unjudged",
+            Self::ChannelKeyTheSystemUses => "error.channel.key-the-system-uses",
+            Self::ChannelKeyUnpressable => "error.channel.key-unpressable",
             Self::CliCommandLineUnreadable => "error.cli.command-line-unreadable",
             Self::CliTokenNotPrivate => "error.cli.token-not-private",
             Self::CliTokenUnreadable => "error.cli.token-unreadable",
@@ -1345,6 +1448,17 @@ impl ErrorCode {
             Self::ChannelNoManifest => Severity::Error,
             Self::ChannelManifestNotPrivate => Severity::Critical,
             Self::ChannelManifestUnavailable => Severity::Error,
+            Self::ChannelKeybindingsNotPrivate => Severity::Critical,
+            Self::ChannelKeybindingsUnavailable => Severity::Error,
+            Self::ChannelKeybindingsUnreadable => Severity::Error,
+            Self::ChannelLeaderHoldsTheChordModifier => Severity::Error,
+            Self::ChannelLeaderWithoutAModifier => Severity::Error,
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => Severity::Error,
+            Self::ChannelLeaderOfAnotherChannel => Severity::Error,
+            Self::ChannelKeyBoundTwice => Severity::Error,
+            Self::ChannelKeybindingsUnjudged => Severity::Error,
+            Self::ChannelKeyTheSystemUses => Severity::Warning,
+            Self::ChannelKeyUnpressable => Severity::Warning,
             Self::CliCommandLineUnreadable => Severity::Warning,
             Self::CliTokenNotPrivate => Severity::Critical,
             Self::CliTokenUnreadable => Severity::Error,
@@ -1497,6 +1611,17 @@ impl ErrorCode {
             Self::ChannelNoManifest => false,
             Self::ChannelManifestNotPrivate => false,
             Self::ChannelManifestUnavailable => true,
+            Self::ChannelKeybindingsNotPrivate => false,
+            Self::ChannelKeybindingsUnavailable => true,
+            Self::ChannelKeybindingsUnreadable => false,
+            Self::ChannelLeaderHoldsTheChordModifier => false,
+            Self::ChannelLeaderWithoutAModifier => false,
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => false,
+            Self::ChannelLeaderOfAnotherChannel => false,
+            Self::ChannelKeyBoundTwice => false,
+            Self::ChannelKeybindingsUnjudged => false,
+            Self::ChannelKeyTheSystemUses => false,
+            Self::ChannelKeyUnpressable => false,
             Self::CliCommandLineUnreadable => false,
             Self::CliTokenNotPrivate => false,
             Self::CliTokenUnreadable => true,
@@ -1649,6 +1774,17 @@ impl ErrorCode {
             Self::ChannelNoManifest => &[],
             Self::ChannelManifestNotPrivate => &[],
             Self::ChannelManifestUnavailable => &[],
+            Self::ChannelKeybindingsNotPrivate => &[],
+            Self::ChannelKeybindingsUnavailable => &[],
+            Self::ChannelKeybindingsUnreadable => &[],
+            Self::ChannelLeaderHoldsTheChordModifier => &[],
+            Self::ChannelLeaderWithoutAModifier => &[],
+            Self::ChannelLeaderHeldWithTheChordIsAnothers => &[],
+            Self::ChannelLeaderOfAnotherChannel => &[],
+            Self::ChannelKeyBoundTwice => &[],
+            Self::ChannelKeybindingsUnjudged => &[],
+            Self::ChannelKeyTheSystemUses => &[],
+            Self::ChannelKeyUnpressable => &[],
             Self::CliCommandLineUnreadable => &[],
             Self::CliTokenNotPrivate => &[],
             Self::CliTokenUnreadable => &[],
@@ -1820,7 +1956,7 @@ pub const AREAS: &[(&str, &str)] = &[
     ),
     (
         "CHAN",
-        "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)",
+        "Channels and installs: the manifest an install names itself by, every name derived from it (§17.1), and the keys a channel is reached and driven by, as a person configures them (§12.8)",
     ),
     (
         "CLI",

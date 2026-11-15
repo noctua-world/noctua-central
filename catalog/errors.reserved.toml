@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "6a57732754804d3d333f8cd671d2023003f137d22e6139c9b42c54bcc7c0ca43"
-count = 145
+checksum = "c3b8e41d583349c5a90e34d3822430948bbbe0c40c0f8e67eae989addb87bfda"
+count = 156
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -39,6 +39,17 @@ count = 145
 "NC-CHAN-0006" = "error.channel.no-manifest — error — retryable:false — params:[] — No install manifest is beside this executable, so it names no channel and does not run"
 "NC-CHAN-0007" = "error.channel.manifest-not-private — critical — retryable:false — params:[] — The install manifest, or the directory holding it, is not this user's alone, so it was not read"
 "NC-CHAN-0008" = "error.channel.manifest-unavailable — error — retryable:true — params:[] — The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer"
+"NC-CHAN-0009" = "error.channel.keybindings-not-private — critical — retryable:false — params:[] — The keybinding configuration, or the directory holding it, is not this user's alone, so it was not read and the channel's defaults stand"
+"NC-CHAN-0010" = "error.channel.keybindings-unavailable — error — retryable:true — params:[] — The keybinding configuration, or the directory holding it, could not be read: the filesystem did not answer, and the channel's defaults stand"
+"NC-CHAN-0011" = "error.channel.keybindings-unreadable — error — retryable:false — params:[] — The keybinding configuration is not one this build reads: larger than its bound, not canonical JSON, a key it does not read, a value of the wrong type, another format, or a chord, a binding or a command's name outside the grammar; the channel's defaults stand"
+"NC-CHAN-0012" = "error.channel.leader-holds-the-chord-modifier — error — retryable:false — params:[] — The configured Leader holds its own chord modifier, so a key held with the Leader and one held with the chord as well would be one chord; the channel's default Leader stands"
+"NC-CHAN-0013" = "error.channel.leader-without-a-modifier — error — retryable:false — params:[] — The configured Leader holds no modifier, so it would take a bare key from every program; the channel's default Leader stands"
+"NC-CHAN-0014" = "error.channel.leader-held-with-the-chord-is-anothers — error — retryable:false — params:[] — The configured Leader held with its chord modifier is another channel's Leader, or another's held with its chord is this one; the channel's default Leader stands"
+"NC-CHAN-0015" = "error.channel.leader-of-another-channel — error — retryable:false — params:[] — The configured Leader is another channel's Leader; the channel's default Leader stands"
+"NC-CHAN-0016" = "error.channel.key-bound-twice — error — retryable:false — params:[] — The configured bindings bind one key of one table twice; the catalog's bindings stand"
+"NC-CHAN-0017" = "error.channel.keybindings-unjudged — error — retryable:false — params:[] — Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands"
+"NC-CHAN-0018" = "error.channel.key-the-system-uses — warning — retryable:false — params:[] — A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so"
+"NC-CHAN-0019" = "error.channel.key-unpressable — warning — retryable:false — params:[] — A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
 "NC-CLI-0001" = "error.cli.command-line-unreadable — warning — retryable:false — params:[] — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
 "NC-CLI-0002" = "error.cli.token-not-private — critical — retryable:false — params:[] — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
 "NC-CLI-0003" = "error.cli.token-unreadable — error — retryable:true — params:[] — The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"

@@ -84,8 +84,10 @@
 //!
 //! It reads no environment, and writes nothing. Its ways to the disk are
 //! [`Checkout::of`], which canonicalizes the checkout's path, [`found`], which
-//! reads the manifest beside an executable, and [`record`], which reads the
-//! daemon's PID record; [`layout`] touches none.
+//! reads the manifest beside an executable, [`record`], which reads the
+//! daemon's PID record, and [`keys`], which reads a person's keybinding
+//! configuration and the other channels' beside it, writing none of them;
+//! [`layout`] touches none.
 //! Which base directories a system has is `nc-platform`'s, asked by an
 //! installer; this crate is handed them.
 
@@ -95,6 +97,7 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod found;
+pub mod keys;
 pub mod record;
 
 use core::fmt::{self, Write as _};
@@ -165,7 +168,10 @@ const BASE_KEYS: [&str; 4] = ["cache", "config", "data", "state"];
 const QUOTED_AT_MOST: usize = 64;
 
 /// One of the three channels an install belongs to (`NOCTUA.md §17.1`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// Ordered as their Leaders are settled ([`keys`]): production, then staging,
+/// then each development checkout by its digest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Channel {
     /// What a person runs every day, installed from its releases.
     Production,
@@ -190,7 +196,7 @@ impl Channel {
     ///
     /// **One per channel, and the checkout plays no part**: two development
     /// checkouts share the development chord until one is configured, and the
-    /// configuration refuses the collision (Stage 16) — a default derived from
+    /// configuration refuses the collision ([`keys`]) — a default derived from
     /// the checkout would be a chord nobody chose.
     #[must_use]
     pub const fn leader(self) -> Leader {
@@ -825,6 +831,8 @@ pub struct Layout {
     pub device: PathBuf,
     /// The realm and person the profile decides as: `<config>/world.json`.
     pub world: PathBuf,
+    /// The keybinding configuration [`keys`] reads: `<config>/keybindings.json`.
+    pub keybindings: PathBuf,
     /// The identifiers' persisted high-water mark: `<state>/ids.mark`.
     pub mark: PathBuf,
     /// The explicit-stop mark every restorer honours: `<state>/stopped`, in
@@ -901,6 +909,7 @@ pub fn layout(install: &Install, user: &str) -> Layout {
         device_key: data.join("device.key"),
         device: data.join("device.json"),
         world: config.join("world.json"),
+        keybindings: config.join(keys::FILE),
         mark: state.join("ids.mark"),
         stopped: state.join("stopped"),
         instance_lock: state.join("instance.lock"),

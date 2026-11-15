@@ -1,8 +1,9 @@
 //! What help says (`NOCTUA.md §20.2`, `§20.5`): the CLI's own grammar and
 //! verbs, fixed and in English, shown whether a daemon answers or not; the
 //! registries the catalog holds, which this binary carries and no daemon is
-//! asked for; and every command the daemon's registry holds, with the
-//! arguments its schema declares.
+//! asked for; this channel's keys, read from the install's own configuration;
+//! and every command the daemon's registry holds, with the arguments its
+//! schema declares.
 //!
 //! **The registry is the one list**: help names every command the daemon
 //! would run and none it would not, and a command's arguments are read from
@@ -13,17 +14,20 @@
 //! escaped** ([`crate::render::escaped`]) — a name, a label, a title, a
 //! description, an option, an entity type — so a plugin's schema prints
 //! nothing a terminal acts on. **And every text of a registry the catalog
-//! holds**, which the compiler judged, is escaped the same way: one rule for
-//! every text help prints that it did not write.
+//! holds**, which the compiler judged, is escaped the same way, as is every
+//! text a keybinding configuration gave a refusal: one rule for every text
+//! help prints that it did not write.
 
 use core::fmt::Write as _;
 
-use nc_catalog::Locale;
+use nc_catalog::{ErrorCode, Locale};
+use nc_channel::keys::Effective;
+use nc_schema::keys::{Keyboard, Table};
 use nc_schema::{Argument, Schema, Shape};
 
-use crate::args::{CATEGORIES, EXIT_CODES, EXTERNAL_IDENTIFIERS, VERBS};
+use crate::args::{CATEGORIES, EXIT_CODES, EXTERNAL_IDENTIFIERS, KEYBINDINGS, VERBS};
 use crate::client::Listed;
-use crate::render::escaped;
+use crate::render::{escaped, without_code};
 
 /// What a verb does, as help says it.
 #[must_use]
@@ -31,8 +35,8 @@ pub const fn what_it_does(verb: &str) -> &'static str {
     match verb.as_bytes() {
         b"help" => {
             "say what this CLI and each command take; `help exit-codes` lists the exit codes, \
-             `help categories` the categories and `help external-identifiers` the external \
-             identifiers"
+             `help categories` the categories, `help external-identifiers` the external \
+             identifiers and `help keybindings` the keys this channel is driven by"
         }
         b"start" => "start this channel's daemon, unless it runs, and wait for it to answer",
         b"stop" => {
@@ -50,7 +54,7 @@ pub const fn what_it_does(verb: &str) -> &'static str {
 pub fn usage(cli: &str) -> String {
     format!(
         "Usage:\n  {cli} [--json] <command> [arguments]\n  {cli} [--json] help [<command> | \
-         <verb> | {EXIT_CODES} | {CATEGORIES} | {EXTERNAL_IDENTIFIERS}]\n\nOptions, before the command:\n  --json   write the answer \
+         <verb> | {EXIT_CODES} | {CATEGORIES} | {EXTERNAL_IDENTIFIERS} | {KEYBINDINGS}]\n\nOptions, before the command:\n  --json   write the answer \
          as one JSON document on standard output\n  --help   ask for help\n\nArguments follow \
          a command's name: `--<name> <value>`, `--<name>=<value>`, `--<boolean>` or \
          `--<boolean>=false`, a list's flag once for each item, or `--` and one JSON object.\n"
@@ -118,8 +122,9 @@ pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
     let _ = write!(
         text,
         "\n`{cli} help <command>` says what a command takes, `{cli} help {EXIT_CODES}` what each \
-         exit code means, `{cli} help {CATEGORIES}` what a command is listed under, and \
-         `{cli} help {EXTERNAL_IDENTIFIERS}` what the platform knows of the things outside it.\n"
+         exit code means, `{cli} help {CATEGORIES}` what a command is listed under, \
+         `{cli} help {EXTERNAL_IDENTIFIERS}` what the platform knows of the things outside it, \
+         and `{cli} help {KEYBINDINGS}` the keys this channel is driven by.\n"
     );
     text
 }
@@ -326,6 +331,116 @@ fn identification_lines(system: &str, fields: &[(&str, &[&str])]) -> String {
         }
     }
     text
+}
+
+/// Help on this channel's keys: the forms a binding takes, the Leader and the
+/// chord modifier on each keyboard, every binding in force, and each refusal
+/// and warning with its code and the catalog's message in `locale`.
+///
+/// **From the install's own configuration and the catalog this binary
+/// carries** (`nc_channel::keys::effective`), so it is shown with no daemon;
+/// the defaults it shows beside a refusal are the keys in force. Every text it
+/// did not write is escaped: the file's path, each refusal and warning, and
+/// the catalog's messages and titles.
+#[must_use]
+pub fn keybindings(keys: &Effective, locale: Locale) -> String {
+    let whose = |configured: bool| {
+        if configured {
+            "as configured"
+        } else {
+            "the channel's default"
+        }
+    };
+    let mut text = format!(
+        "Keybindings, read from `{}`.\n\nA binding is one of three forms, its key named as \
+         `KeyboardEvent.code` names it (`KeyS`, `Digit1`, `ArrowLeft`):\n",
+        escaped(&keys.file.to_string_lossy())
+    );
+    for table in Table::ALL {
+        let form = format!("{}<key>", table.opening());
+        let _ = writeln!(text, "  {form:<20} {}", what_a_table_is(table));
+    }
+    let _ = writeln!(
+        text,
+        "\nThe Leader, {}, and the Leader held with the chord modifier, `{}`:",
+        whose(keys.leader_configured),
+        keys.chord.word()
+    );
+    for keyboard in Keyboard::ALL {
+        let leader = keys.leader.written_for(keyboard);
+        let _ = writeln!(
+            text,
+            "  {:<8} {leader:<22} {}",
+            keyboard_named(keyboard),
+            keys.leader.with(keys.chord).written_for(keyboard)
+        );
+    }
+    let _ = writeln!(
+        text,
+        "\nBindings, {}:",
+        if keys.bindings_configured {
+            "as configured over the catalog's"
+        } else {
+            "the catalog's"
+        }
+    );
+    if keys.tables.is_empty() {
+        text.push_str("  none: no command is bound to a key\n");
+    }
+    for (binding, command) in keys.tables.iter() {
+        let shown = nc_catalog::command(command)
+            .and_then(|declared| nc_catalog::message(declared.title_key, locale))
+            .map_or_else(String::new, |title| format!("   {}", escaped(title)));
+        let _ = writeln!(
+            text,
+            "  {:<22} {}{shown}",
+            binding.written(),
+            escaped(command)
+        );
+    }
+    if !keys.refused.is_empty() {
+        text.push_str("\nRefused, and what stands instead:\n");
+        for refused in &keys.refused {
+            text.push_str(&said(refused.code(), &refused.to_string(), locale));
+        }
+    }
+    if !keys.warnings.is_empty() {
+        text.push_str("\nWarnings, each kept:\n");
+        for warning in &keys.warnings {
+            text.push_str(&said(warning.code(), &warning.to_string(), locale));
+        }
+    }
+    text
+}
+
+/// What a binding of `table` is pressed as, as help says it.
+const fn what_a_table_is(table: Table) -> &'static str {
+    match table {
+        Table::Menu => "a key in the leader menu, after the Leader",
+        Table::Held => "a key pressed with the Leader held",
+        Table::HeldWithChord => "a key pressed with the Leader and the chord modifier held",
+    }
+}
+
+/// How help names `keyboard`.
+const fn keyboard_named(keyboard: Keyboard) -> &'static str {
+    match keyboard {
+        Keyboard::Linux => "Linux",
+        Keyboard::Windows => "Windows",
+        Keyboard::Mac => "macOS",
+    }
+}
+
+/// One refusal or warning: its code and the catalog's message in `locale`,
+/// then what it says in English beneath — both escaped.
+fn said(code: ErrorCode, detail: &str, locale: Locale) -> String {
+    let message = nc_catalog::message(code.message_key(), locale).unwrap_or_default();
+    format!(
+        "  {}: {}\n    {}\n",
+        code.code(),
+        escaped(message),
+        escaped(&without_code(detail, code))
+    )
 }
 
 /// Help on one command: its name, its title and description, and each
@@ -894,5 +1009,153 @@ mod tests {
             }
             assert!(text.contains("Arguments:\n  none\n"), "{text}");
         }
+    }
+
+    /// Staging's keys as a refused configuration leaves them: its defaults,
+    /// two bindings, a refusal of the whole file and one of a Leader, and the
+    /// warnings the defaults raise.
+    fn a_refused_configuration() -> nc_channel::keys::Effective {
+        use nc_channel::Channel;
+        use nc_channel::keys::{Effective, KeysRefused, KeysWarning};
+        use nc_schema::keys::{Binding, LeaderPart, LeaderRule, Modifier, tables, warnings};
+
+        let read = |text: &str| Binding::parse(text).expect("a binding");
+        let tables = tables(
+            &[
+                ("journal.verify", vec![read("Leader KeyV")]),
+                ("reference.note.get", vec![read("Leader+Space")]),
+            ],
+            &[],
+        )
+        .expect("tables");
+        let part = LeaderPart {
+            leader: Channel::Staging.leader(),
+            chord: Modifier::Shift,
+        };
+        Effective {
+            channel: Channel::Staging,
+            file: "/profiles/noctua-staging\u{1b}[2J/keybindings.json".into(),
+            leader: part.leader,
+            chord: part.chord,
+            warnings: warnings(part, &tables)
+                .into_iter()
+                .map(|warning| KeysWarning { warning, part })
+                .collect(),
+            tables,
+            leader_configured: false,
+            bindings_configured: true,
+            refused: vec![
+                KeysRefused::Unreadable("it holds `\u{202e}x`, a key it does not read".to_owned()),
+                KeysRefused::Leader {
+                    leader: Channel::Production.leader().chord(),
+                    chord: Modifier::Shift,
+                    rule: LeaderRule::SharedWithAnother,
+                    by: Some(Channel::Production),
+                },
+            ],
+        }
+    }
+
+    /// Help on the keybindings shows the grammar, the Leader on each keyboard
+    /// and every binding in force, and each refusal and warning by its code
+    /// and the catalog's message in the environment's language.
+    ///
+    /// Whatever came from a file is shown escaped: the path, and what a
+    /// refusal repeats of the file.
+    #[test]
+    fn help_on_the_keybindings_shows_the_grammar_the_leader_on_each_keyboard_and_every_binding() {
+        use nc_channel::keys::Effective;
+
+        let keys = a_refused_configuration();
+        assert!(
+            keys.warnings.len() >= 2,
+            "a held Space under a Space Leader, and staging's Leader on a Mac: {:?}",
+            keys.warnings
+        );
+        for locale in [Locale::En, Locale::PtBR] {
+            let text = super::keybindings(&keys, locale);
+            for form in ["Leader <key>", "Leader+<key>", "Leader+Chord+<key>"] {
+                assert!(text.contains(&format!("  {form} ")), "{form}: {text}");
+            }
+            for (keyboard, leader, held) in [
+                ("Linux", "Ctrl+Alt+Space", "Ctrl+Alt+Shift+Space"),
+                ("Windows", "Ctrl+Alt+Space", "Ctrl+Alt+Shift+Space"),
+                (
+                    "macOS",
+                    "Control+Option+Space",
+                    "Control+Option+Shift+Space",
+                ),
+            ] {
+                let row = text
+                    .lines()
+                    .find(|line| line.starts_with(&format!("  {keyboard} ")))
+                    .unwrap_or_else(|| panic!("no row for {keyboard}: {text}"));
+                assert!(row.contains(leader) && row.ends_with(held), "{row}");
+            }
+            assert!(
+                text.contains("The Leader, the channel's default,"),
+                "{text}"
+            );
+            assert!(
+                text.contains("Bindings, as configured over the catalog's:"),
+                "{text}"
+            );
+            let verify = nc_catalog::message("command.journal.verify.title", locale)
+                .expect("the catalog's title");
+            for row in [
+                "Leader KeyV".to_owned(),
+                format!("journal.verify   {verify}"),
+                "Leader+Space".to_owned(),
+                "reference.note.get".to_owned(),
+            ] {
+                assert!(text.contains(&row), "{row}: {text}");
+            }
+            for (code, said) in keys
+                .refused
+                .iter()
+                .map(|refused| (refused.code(), refused.to_string()))
+                .chain(
+                    keys.warnings
+                        .iter()
+                        .map(|warning| (warning.code(), warning.to_string())),
+                )
+            {
+                let message = nc_catalog::message(code.message_key(), locale).expect("a message");
+                assert!(
+                    text.contains(&format!("  {}: {message}\n", code.code())),
+                    "{}: {text}",
+                    code.code()
+                );
+                let detail = crate::render::without_code(&said, code);
+                assert!(
+                    text.contains(&crate::render::escaped(&detail)),
+                    "{detail}: {text}"
+                );
+            }
+            assert!(text.contains("Refused, and what stands instead:"), "{text}");
+            assert!(text.contains("Warnings, each kept:"), "{text}");
+            assert!(text.contains("noctua-staging\\u{1b}[2J"), "{text}");
+            assert!(text.contains("\\u{202e}x"), "{text}");
+            assert!(
+                !text.contains('\u{1b}') && !text.contains('\u{202e}'),
+                "{text}"
+            );
+        }
+        let none = Effective {
+            tables: nc_schema::keys::Tables::default(),
+            refused: Vec::new(),
+            warnings: Vec::new(),
+            bindings_configured: false,
+            ..keys
+        };
+        let text = super::keybindings(&none, Locale::En);
+        assert!(
+            text.contains("Bindings, the catalog's:\n  none: no command is bound to a key\n"),
+            "{text}"
+        );
+        assert!(
+            !text.contains("Refused") && !text.contains("Warnings"),
+            "{text}"
+        );
     }
 }
