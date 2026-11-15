@@ -562,11 +562,12 @@ mod tests {
     ///
     /// **The worst a registry can be made to answer**: [`LISTED_MAX`]
     /// commands, each found by a query of as many one-character words as its
-    /// bound holds, every word matching a different field of
+    /// bound holds, every word echoing a whole field of at least
     /// `nc_fuzzy::FIELD_CHARS_MAX` characters of the character canonical JSON
-    /// writes longest — more than any text a registry holds, so this bounds
-    /// every answer. It must be a payload the kernel hands on, which the
-    /// compiler holds within one frame with its envelope.
+    /// writes longest (equal words claim one field, the dotted name) — more
+    /// than any text a registry holds, so this bounds every answer. It must be
+    /// a payload the kernel hands on, which the compiler holds within one frame
+    /// with its envelope.
     #[test]
     fn the_widest_answer_fits_one_frame() {
         let words = nc_fuzzy::WORDS_MAX;
