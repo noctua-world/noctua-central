@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc aa3204183e29456bc656f70e89db3819e6054e81693e4631d64acebcdc01be43 # shrinks to fields = [(Name, "éé é")], words = ["ééé"]
+cc 871205cd50ab7eef95585da7cadf0605e63b9b7955bd93623c3188925f6c2351 # shrinks to (items, words) = ([[(Name, " 가")]], ["가"])
+cc 9b749414b116073c2bb9f3ea840110635fbbe69793468238f78ab1c2c45dc15e # shrinks to (items, words) = ([[(Name, "aaa   aaa   aaaa         aaa  aaaa  aaj    aaa  aaa aaaa aaaa  a a   aaa  aaaa aaaa   aa a aaa  aa  aa a      a a a  a a")]], ["j"])

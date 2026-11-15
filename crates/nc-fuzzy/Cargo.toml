@@ -1,0 +1,31 @@
+[package]
+name = "nc-fuzzy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The one fuzzy matcher: every word of a query a subsequence of an item's names and tags, ranked, with the positions each word matched."
+
+[dependencies]
+# **The base letter of a character, from the same table the browser reads.**
+# A query typed without accents finds the text that has them by folding each
+# character to the first scalar of its canonical decomposition — the rule
+# `noctua-design`'s matcher writes as `normalize("NFD")[0]` — and that table is
+# Unicode's, not something to transcribe: a hand-written one has already turned
+# `Łódź` into `łody` in this tree, two entries out of step. Nothing else of the
+# crate is taken, and the workspace line says why each feature is off.
+unicode-normalization.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice — the same line every
+# member of this workspace carries.
+nc-fuzzy = { path = "." }
+# `NOCTUA.md §19.2`: the matcher has laws — every position it returns holds its
+# word's character, removing a word never removes a result, and the ranking is
+# the same whatever order the words are typed in — and examples find only the
+# cases somebody thought of.
+proptest.workspace = true
+
+[lints]
+workspace = true

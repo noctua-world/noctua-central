@@ -597,8 +597,9 @@ daemon's `lib.rs`, `main.rs`, `profile.rs`, `device.rs` and
 `testing.rs`, which process it is, `nc-platform`'s `process.rs`, the CLI's
 `lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`, `exit.rs`, `client.rs`
 and `run.rs`, its process control, `control.rs`, and its installer, `install.rs`,
-`nc-prune`'s `sqlite.rs`, and
-`local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
+`nc-prune`'s `sqlite.rs`,
+`local.rs`, which builds that database's schema from its migrations, and the fuzzy
+core's `lib.rs`, `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.
 
