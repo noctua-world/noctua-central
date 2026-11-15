@@ -19648,7 +19648,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 685, 57),
+        ("xtask/check.rs", 686, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -25525,7 +25525,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18879;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 18881;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25595,7 +25595,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25490;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25495;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25649,7 +25649,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,490 are accepted by the first-line
+    /// rules the gates apply: **519 of 25,495 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37554,7 +37554,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2286] = [
+    static OPERATORS: [(&str, &str, &str); 2287] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40885,6 +40885,11 @@ Options:
             "compiler_registries",
             "generated",
             "each system's generated type is named as the emitter declares it",
+        ),
+        (
+            "compiler_model",
+            "OnMacOs",
+            "a key a table gains past the list's last is one the list must name",
         ),
         (
             "compiler_registries",
@@ -48068,7 +48073,7 @@ Options:
         "the first part is `env`",
     ];
 
-    /// The lines of one item — `fn`, `const`, `static` or `mod` — named `name`.
+    /// The lines of one item — `fn`, `const`, `static`, `mod` or `struct` — named `name`.
     ///
     /// **The `predicate` column of an operator has to decide something.** An
     /// applicability check that asks only whether the `from` text occurs
@@ -48142,7 +48147,23 @@ Options:
                         .find(name)
                         .is_some_and(|at| bounded(line, at, name.len())))
         };
-        let from = bare.iter().position(|line| declares(line))?;
+        // **And a struct, whose fields are the keys a registry's file may
+        // write**, read only where nothing above declares the name. A key a
+        // table gains past the last one its readers name is a field appended
+        // to the struct and nowhere else, so the weakening that plants one has
+        // no other item to name. A struct's name is also its `impl` blocks',
+        // which hold the clauses most operators over a type weaken: measured,
+        // the struct read first takes 23 of them away from the blocks they
+        // name, `OpaqueId`'s among them.
+        let a_struct = |line: &str| {
+            let needle = format!("struct {name}");
+            line.find(&needle)
+                .is_some_and(|at| bounded(line, at, needle.len()))
+        };
+        let from = bare
+            .iter()
+            .position(|line| declares(line))
+            .or_else(|| bare.iter().position(|line| a_struct(line)))?;
         // **Where it closes, by the shape `cargo fmt` guarantees.** Counting
         // brackets needs the string literals spent, so a count is exactly as
         // right as the stripper under it: one that loses a line hands back a
@@ -48180,6 +48201,28 @@ Options:
         assert_eq!(
             the_item_called(source, "inline").as_deref(),
             Some("pub mod inline {\n    pub fn inside() {}\n}")
+        );
+    }
+
+    /// A struct is an item, read to its own closing brace, where no `impl` of
+    /// it answers the name first.
+    ///
+    /// It names the clause an operator over a registry's model weakens: a
+    /// field appended to a table is a key the file may write that no reader of
+    /// the table names. An `impl` block keeps the name it already answered.
+    #[test]
+    fn the_item_reader_names_a_struct() {
+        let source = "pub struct Table {\n    pub first: u8,\n    pub last: u8,\n}\n\n\
+                      pub struct Held {\n    pub last: u8,\n}\n\n\
+                      impl Held {\n    fn last(&self) -> u8 {\n        self.last\n    }\n}\n";
+        assert_eq!(
+            the_item_called(source, "Table").as_deref(),
+            Some("pub struct Table {\n    pub first: u8,\n    pub last: u8,\n}")
+        );
+        assert!(the_item_called(source, "Tab").is_none());
+        assert_eq!(
+            the_item_called(source, "Held").as_deref(),
+            Some("impl Held {\n    fn last(&self) -> u8 {\n        self.last\n    }\n}")
         );
     }
 

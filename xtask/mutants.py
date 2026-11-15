@@ -3392,6 +3392,13 @@ WEAKENINGS = [
     ("compiler_registries", "generated", "each system's generated type is named as the emitter declares it",
      "            Self::MacOs => \"OnMacOs\",",
      "            Self::MacOs => \"OnMacOS\","),
+    # A key a system's table gains after the last one the list names: serde
+    # names it last, so only the whole list compared, never its prefix, sees it.
+    # Written on the line it follows and with no doc, so no census of lines or
+    # doc blocks in xtask's own suite kills it before the list is asked.
+    ("compiler_model", "OnMacOs", "a key a table gains past the list's last is one the list must name",
+     "    pub executables: Vec<String>,\n}",
+     "    pub executables: Vec<String>, #[serde(default)] pub planted_ids: Vec<String>,\n}"),
     # Each bound a refusal states is the one its check holds.
     ("compiler_registries", "SNAP_NAME_MAX", "the Snap bound is the one its refusal states",
      "const SNAP_NAME_MAX: usize = 40;",

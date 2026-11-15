@@ -1123,12 +1123,20 @@ mod tests {
                 toml::from_str::<ExternalIdentifierEntry>(&format!("{text}unlisted = []\n"))
                     .expect_err("a key the list does not name is refused")
                     .to_string();
-            let keys: Vec<String> = fields
-                .iter()
-                .map(|field| format!("`{}`", field.key()))
+            // Every key serde names, to the end of its line: a key the table
+            // gains after the list's last is one more name here, which a
+            // comparison of the list's keys as a prefix would let through.
+            let expected: Vec<&str> = refused
+                .lines()
+                .find_map(|line| line.strip_prefix("unknown field `unlisted`, expected "))
+                .unwrap_or_else(|| panic!("the refusal names no key it expects: {refused}"))
+                .split('`')
+                .skip(1)
+                .step_by(2)
                 .collect();
-            assert!(
-                refused.contains(&format!("expected one of {}", keys.join(", "))),
+            let keys: Vec<&str> = fields.iter().map(|field| field.key()).collect();
+            assert_eq!(
+                expected, keys,
                 "{system:?}'s table reads other keys than the list names: {refused}"
             );
         }
