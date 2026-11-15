@@ -572,8 +572,12 @@ pub fn effective(found: &Found) -> Effective {
 pub fn judged(
     found: &Found,
     own: Option<&Configuration>,
-    catalog: &[(&str, Vec<Binding>)],
+    catalog: &[(String, Vec<Binding>)],
 ) -> Effective {
+    let catalog: Vec<(&str, Vec<Binding>)> = catalog
+        .iter()
+        .map(|(command, bound)| (command.as_str(), bound.clone()))
+        .collect();
     let channel = found.install.channel;
     let default = default_of(channel);
     let mut refused = Vec::new();
@@ -590,7 +594,7 @@ pub fn judged(
     // The catalog's own tables: the compiler refuses a catalog binding a key
     // twice (`duplicate-keybinding`), by this same judge, so its defaults
     // always make tables.
-    let defaults = || keys::tables(catalog, &[]).unwrap_or_default();
+    let defaults = || keys::tables(&catalog, &[]).unwrap_or_default();
     let (tables, bindings_configured) = match own.and_then(Configuration::bindings) {
         None => (defaults(), false),
         Some(chosen) => {
@@ -598,7 +602,7 @@ pub fn judged(
                 .iter()
                 .map(|(command, bound)| (command.as_str(), bound.clone()))
                 .collect();
-            match keys::tables(catalog, &chosen) {
+            match keys::tables(&catalog, &chosen) {
                 Ok(tables) => (tables, true),
                 Err(twice) => {
                     refused.push(KeysRefused::KeyBoundTwice(twice));
@@ -631,12 +635,12 @@ pub fn judged(
 /// and refuses the catalog otherwise (`malformed-keybinding`), so none is
 /// left out here.
 #[must_use]
-pub fn catalog_bindings() -> Vec<(&'static str, Vec<Binding>)> {
+pub fn catalog_bindings() -> Vec<(String, Vec<Binding>)> {
     nc_catalog::COMMANDS
         .iter()
         .map(|command| {
             (
-                command.name,
+                command.name.to_owned(),
                 command
                     .keybindings
                     .iter()

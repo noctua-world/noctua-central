@@ -167,7 +167,12 @@ fn leader_of(leader: &str) -> String {
 
 /// The tables the catalog this build carries makes on its own.
 fn the_catalogs_tables() -> nc_schema::keys::Tables {
-    nc_schema::keys::tables(&keys::catalog_bindings(), &[]).expect("the catalog's tables")
+    let catalog = keys::catalog_bindings();
+    let read: Vec<(&str, Vec<Binding>)> = catalog
+        .iter()
+        .map(|(command, bound)| (command.as_str(), bound.clone()))
+        .collect();
+    nc_schema::keys::tables(&read, &[]).expect("the catalog's tables")
 }
 
 /// The keys in force are the channel's defaults: its Leader and its chord
@@ -311,9 +316,9 @@ fn a_configuration_overrides_the_catalogs_bindings_in_its_channel() {
     assert!(theirs.refused.is_empty(), "{theirs:?}");
 
     let catalog = vec![
-        ("journal.verify", bound(&["Leader KeyV"])),
-        ("kernel.redo", bound(&["Leader+Chord+KeyZ"])),
-        ("kernel.undo", bound(&["Leader+KeyZ"])),
+        ("journal.verify".to_owned(), bound(&["Leader KeyV"])),
+        ("kernel.redo".to_owned(), bound(&["Leader+Chord+KeyZ"])),
+        ("kernel.undo".to_owned(), bound(&["Leader+KeyZ"])),
     ];
     let chosen = Configuration::parse(
         r#"{"bindings":{"kernel.redo":[],"kernel.undo":["Leader+KeyU"]},"format":1}"#,
@@ -606,12 +611,12 @@ fn a_file_that_is_a_link_is_refused() {
 ///
 /// Each is `good`'s fields with one thing wrong, in each way a writer could get
 /// one wrong.
-fn the_files_this_build_does_not_read(good: &str) -> Vec<(String, &'static str)> {
+fn the_files_this_build_does_not_read(good: &str) -> Vec<(String, String)> {
     let over = format!(
         r#"{{"bindings":{{"kernel.undo":["Leader+KeyU"]}},"format":1,"leader":"Control+Super+Space"{}}}"#,
         " ".repeat(usize::try_from(keys::BYTES_MAX).expect("a bound that fits"))
     );
-    vec![
+    let files: Vec<(String, &str)> = vec![
         ("not json".to_owned(), "it is not JSON this build reads"),
         ("[1]".to_owned(), "it is not a JSON object"),
         (
@@ -678,7 +683,11 @@ fn the_files_this_build_does_not_read(good: &str) -> Vec<(String, &'static str)>
             "it has no `format`",
         ),
         (over, "it holds more than 16384 bytes"),
-    ]
+    ];
+    files
+        .into_iter()
+        .map(|(text, said)| (text, said.to_owned()))
+        .collect()
 }
 
 /// A file this build does not read is refused whole, naming what it could not
@@ -695,7 +704,7 @@ fn a_malformed_file_is_refused_whole_naming_what_it_could_not_read() {
         let refused = the_refusal(&effective, ErrorCode::ChannelKeybindingsUnreadable);
         assert_eq!(refused.part(), Part::Whole, "{text}");
         assert!(
-            refused.to_string().contains(said),
+            refused.to_string().contains(&said),
             "{text}: the refusal does not say `{said}`: {refused}"
         );
         assert!(
