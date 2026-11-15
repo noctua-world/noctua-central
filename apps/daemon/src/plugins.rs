@@ -454,18 +454,28 @@ mod tests {
     fn a_plugin_missing_a_locales_texts_is_refused_naming_the_file() {
         let scratch = Scratch::new("missing-texts");
         let user = scratch.user();
-        for file in ["i18n/pt-BR.toml", "i18n/en.toml", super::COMMANDS] {
-            let directory = scratch.plugin(&file.replace('/', "-"), REFERENCE, b"bytes");
-            std::fs::remove_file(directory.join(file)).expect("removed");
+        for file in [
+            &[super::TEXTS, "pt-BR.toml"][..],
+            &[super::TEXTS, "en.toml"][..],
+            &[super::COMMANDS][..],
+        ] {
+            let directory = scratch.plugin(&file.join("-"), REFERENCE, b"bytes");
+            // Joined a component at a time, as the reader joins them, so the
+            // path the refusal names is spelt with this system's separator.
+            let path = file
+                .iter()
+                .fold(directory.clone(), |path, part| path.join(part));
+            std::fs::remove_file(&path).expect("removed");
             std::fs::remove_file(directory.join(super::COMPONENT)).expect("removed");
-            let (code, sentence) = super::installed(&directory, &user).expect_err(file);
-            assert_eq!(code, ErrorCode::PluginEntriesInvalid, "{file}: {sentence}");
+            let (code, sentence) = super::installed(&directory, &user).expect_err("missing");
+            assert_eq!(
+                code,
+                ErrorCode::PluginEntriesInvalid,
+                "{file:?}: {sentence}"
+            );
             assert!(
-                sentence.contains(&format!(
-                    "{}` is not there",
-                    std::path::Path::new(file).display()
-                )),
-                "{file}: {sentence}"
+                sentence.contains(&format!("{}` is not there", path.display())),
+                "{file:?}: {sentence}"
             );
         }
     }
@@ -481,6 +491,13 @@ mod tests {
             .enumerate()
         {
             let directory = scratch.plugin(&format!("p{at}"), REFERENCE, b"bytes");
+            if stranger.eq_ignore_ascii_case("pt-BR.toml") {
+                // **One file to a system that folds case**, which a second
+                // spelling beside the first could not be created on: the
+                // Portuguese texts are written under the other spelling alone.
+                std::fs::remove_file(directory.join(super::TEXTS).join("pt-BR.toml"))
+                    .expect("removed");
+            }
             written(&directory.join(super::TEXTS).join(stranger), b"");
             let (code, sentence) = super::installed(&directory, &user).expect_err(stranger);
             assert_eq!(code, ErrorCode::PluginEntriesInvalid, "{stranger}");

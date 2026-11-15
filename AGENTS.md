@@ -297,8 +297,8 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
 │   └── nc-schema/                  a command's schema subset, selector and judge (§11.4)
 ├── plugins/                        WASM components, one directory each (§11.3)
-│   └── reference/                  the plugin the kernel is proven with, and its entries in `commands.toml`
-│       └── i18n/                   what its commands say in each locale, one file per locale (§20.4)
+│   └── reference/                  the plugin the kernel is proven with, its entries beside its manifest
+│       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
 │   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves (§11.1, §16.2)
 │   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, and the installer (§20.2, §17.1)
@@ -957,7 +957,8 @@ one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`), declared onc
 matches the catalog where the
 catalog describes it. Each of its own is shown by its entry, a row of the plugin's
 `commands.toml` under the name it has inside the namespace, judged as the next entry says
-(`[NC-PLUG-0029]`); a command the catalog describes is shown by the catalog's entry alone. A namespace and an identity belong to one loaded plugin at a time,
+(`[NC-PLUG-0029]`); a command the catalog describes is shown by the catalog's entry
+alone. A namespace and an identity belong to one loaded plugin at a time,
 so a second cannot declare commands in the first one's name (`[NC-PLUG-0022]`, before
 anything is compiled and again after it activates). `activate` runs in a store of its own
 on the activation's fuel and memory bound, in no call tree, so it writes nothing and
@@ -1009,8 +1010,9 @@ shown before it is judged:
   to `entry_bytes` too.
 - **Shown as text, whoever wrote it.** The registry is asked in one locale
   (`Request::Registry { locale }`), and the daemon resolves every command's texts in it,
-  the catalog's as much as a plugin's; the CLI escapes every one it prints, as the next
-  entry but one says, and prints no glyph. A refusal cuts and escapes whatever it repeats
+  the catalog's as much as a plugin's; the CLI escapes every one it prints, as **The CLI
+  sends nothing until both ends are proven, and prints nothing a terminal acts on** says,
+  and prints no glyph. A refusal cuts and escapes whatever it repeats
   of a plugin's text.
 
 **Enforced by** `crates/nc-kernel/src/entries.rs` and `crates/nc-kernel/src/registry.rs`,
@@ -1018,9 +1020,9 @@ with a unit test per rule; `apps/daemon/src/plugins.rs`, whose tests remove each
 plant a stranger in `i18n/`, open each file to another account and write one past its
 bound; `crates/nc-kernel/tests/activation.rs` and
 `crates/nc-kernel/tests/the_reference_plugin_activates.rs`, which hold the reference
-plugin's entries to the commands it declares, both ways; `apps/daemon/tests/serves_its_kernel.rs`,
-where a plugin whose Portuguese texts miss a command is shown refused and the daemon runs
-without it; `a_plugins_entries_at_their_bound_fit_half_a_frame` in
+plugin's entries to the commands it declares, both ways;
+`apps/daemon/tests/serves_its_kernel.rs`, where a plugin whose Portuguese texts miss a
+command is shown refused and the daemon runs without it; `a_plugins_entries_at_their_bound_fit_half_a_frame` in
 `apps/daemon/src/server.rs` and the compiler's
 `an_entry_bound_that_lets_one_plugin_outgrow_half_a_frame_fails_the_build`; and the
 operators over those sources.
@@ -2518,7 +2520,8 @@ program reach a channel's daemon through.
   tags and categories — a command of the catalog's as much as a plugin's, since the daemon
   sends both — a refusal's sentence, a result, a schema's annotations, names and options,
   and every word a person typed that a refusal repeats are printed with each character
-  `nc_schema::unseen` answers for written as `\u{…}`, so nothing printed moves the cursor, clears the screen, starts a
+  `nc_schema::unseen` answers for written as `\u{…}`, so nothing printed moves the
+  cursor, clears the screen, starts a
   forged line or turns the rest of one around; and `nc_schema` already refuses those
   characters in a schema's titles, descriptions, names and options once their escapes are
   decoded.
@@ -3797,8 +3800,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   name holds `=`, is given as JSON — the object's flag, or `--` and one JSON object.
 - **The registry answer is bounded by the frame, not below it.** One plugin's texts take at
   most half of `ipc_frame_max_bytes`, which the compiler holds; the whole answer — the
-  catalog's commands, every plugin's texts, every argument schema, which no bound but the
-  payload's holds — is not, so a profile with enough plugins installed asks for a registry
+  catalog's commands, every plugin's texts, every argument schema, which no bound of its
+  own holds — is not, so a profile with enough plugins installed asks for a registry
   the daemon refuses to send (`NC-IPC-0016`), and help names no command until one is
   removed. Not taken: the answer paged, or a schema bounded on its own.
 
