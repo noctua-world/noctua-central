@@ -83,7 +83,8 @@ the target directory cargo built them in — `target/`, or wherever `CARGO_TARGE
 `plugins` folder, where the plugin build writes them whatever the environment says, into
 the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
 `%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
-(`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
+(`policy/world.json`, as `ana` in `home`) and the plugins, each with the manifest and the
+entries its directory holds, and stops a daemon an earlier
 install left running first — once it has reached your service manager: run from an
 environment that does not, it stops nothing, installs nothing, and says so. **Then it
 registers the daemon with your service manager** — a systemd user unit in your
@@ -102,7 +103,10 @@ profile, your own `stop` with it; on Linux, once your user
 manager has read the unit's link at a login or a boot, unregistering it asks for one
 `systemctl --user daemon-reload`, the only reload anything here asks for. Run from an
 environment that does not reach the service manager — no `systemctl` on `PATH` by an
-absolute entry, no `SystemRoot` — it removes nothing, and says so.
+absolute entry, no `SystemRoot` — it removes nothing, and says so. **A CLI and a daemon that
+speak different versions of the protocol refuse each other** at the handshake
+(`NC-IPC-0004`), so after pulling a change to the protocol, `cargo xtask dev --install`
+again, which replaces the daemon the install runs.
 
 ## What the gate checks, and where
 
@@ -186,7 +190,7 @@ Linux job runs it; the verdict names each one, and on Linux it holds the run to 
 | `docs/` | This manual, and every error code, notification, email, limit, command, log event and capability, as Markdown — the pages generated from `catalog/` by `cargo xtask docs` and committed. Editing a page by hand fails the gate; edit the registry instead. This file is the one written by hand |
 | `migrations/` | The schema, forward-only and applied in numeric order by `cargo xtask dev` |
 | `local-migrations/` | The local app database's schema — SQLite, on the user's own machine — applied by `crates/nc-local` when it opens the file, and never mixed with `migrations/` |
-| `plugins/` | The WASM plugins, one directory each. `reference` is the component the kernel's suites load, and `cargo xtask build --plugins` builds every plugin for `wasm32` |
+| `plugins/` | The WASM plugins, one directory each, every one with its entries — `commands.toml` and `i18n/`, what its commands say in each locale — beside its manifest. `reference` is the component the kernel's suites load, and `cargo xtask build --plugins` builds every plugin for `wasm32`, again after any edit to its entries, which it is built from too |
 | `policy/` | The Cedar pack: `core/` holds the invariants no pack may narrow, `packs/` the ones that may |
 | `docker-compose.yml` | The local stack. Both services bind to loopback only |
 | `xtask/` | The five verbs |

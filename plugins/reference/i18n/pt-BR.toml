@@ -1,0 +1,236 @@
+# The reference plugin's commands in Portuguese, one table per row of
+# `commands.toml`, by the same name.
+
+[command."note.get"]
+display_name = "Ler uma nota"
+line = "Mostrar o que uma nota guarda, sem mudar nada."
+paragraph = "Lê no armazenamento do próprio plugin a nota que o argumento `note` indica e responde o texto dela. É a leitura simples da qual partem os conjuntos de testes do kernel."
+tags = ["nota", "ler", "mostrar"]
+
+[command."probe"]
+display_name = "Chamar todas as funções do mundo"
+line = "Alcançar cada função do host uma vez, para mostrar quais foram concedidas."
+paragraph = "Chama todas as funções que o mundo dos plugins oferece, uma após a outra, e responde o que cada uma disse. Um conjunto de testes lê de volta quais chamadas passaram e quais foram recusadas por falta de uma capacidade."
+tags = ["sonda", "capacidade", "função do host"]
+
+[command."note.put"]
+display_name = "Escrever uma nota"
+line = "Salvar um texto com o nome da nota no armazenamento do plugin."
+paragraph = "Grava o argumento `text` na nota que o argumento `note` indica, substituindo o que havia ali. O passo pode ser desfeito, o que devolve o texto que a nota tinha antes."
+tags = ["nota", "escrever", "salvar"]
+
+[command."note.put-then-fail"]
+display_name = "Escrever uma nota e depois recusar"
+line = "Salvar uma nota e então responder com uma recusa, para que nada fique."
+paragraph = "Grava a nota como `note.put` faz e depois recusa o comando. Um conjunto de testes o usa para mostrar que um comando que recusa não guarda nada do que escreveu."
+tags = ["nota", "recusa", "reversão"]
+
+[command."note.put-then-trap"]
+display_name = "Escrever uma nota e depois quebrar"
+line = "Salvar uma nota e então quebrar, para que nada fique."
+paragraph = "Grava a nota como `note.put` faz e então gera um trap, do jeito que um plugin com defeito quebra. Um conjunto de testes o usa para mostrar que o que um comando quebrado escreveu é descartado e o plugin é iniciado de novo."
+tags = ["nota", "trap", "quebra"]
+
+[command."note.delete"]
+display_name = "Apagar uma nota"
+line = "Remover uma nota do armazenamento do plugin."
+paragraph = "Apaga a nota que o argumento `note` indica. Desfazer o passo grava a nota de volta com o texto que ela tinha."
+tags = ["nota", "apagar", "remover"]
+
+[command."note.share"]
+display_name = "Compartilhar uma nota"
+line = "Compartilhar uma nota, o que as regras da casa podem pedir que outros aprovem."
+paragraph = "Grava a nota e é decidido como um compartilhamento, então o pacote da família pode exigir um quórum quando a nota ainda não estava compartilhada. Ele registra o que o desfaz, e essa compensação é decidida de novo quando um desfazer a despacha."
+tags = ["nota", "compartilhar", "aprovação"]
+
+[command."note.scribble"]
+display_name = "Ler uma nota e tentar escrever outra"
+line = "Ler uma nota e então tentar uma escrita que uma leitura não pode fazer."
+paragraph = "É declarado como leitura e mesmo assim tenta escrever. Um conjunto de testes o usa para mostrar o kernel recusando uma escrita dentro de um quadro que só pode ler."
+tags = ["nota", "ler", "escrita proibida"]
+
+[command."executions.count"]
+display_name = "Contar os comandos que esta instância executou"
+line = "Responder quantos comandos esta instância do plugin já executou."
+paragraph = "Responde um número guardado na memória do plugin e nunca no armazenamento. Mostra se o kernel iniciou o plugin de novo, já que uma instância nova conta desde o começo."
+tags = ["contar", "instância", "reinício"]
+
+[command."irreversible.do"]
+display_name = "Fazer algo que não pode ser desfeito"
+line = "Fazer uma mudança que nenhum desfazer reverte, depois que uma pessoa confirma."
+paragraph = "É declarado irreversível, então o kernel emite uma confirmação antes de executá-lo e um desfazer para nele. Um conjunto de testes o usa para mostrar as duas coisas."
+tags = ["irreversível", "confirmar", "permanente"]
+
+[command."relay.write"]
+display_name = "Despachar um comando, mudando o estado"
+line = "Executar outro comando pela porta do kernel, como um passo que escreve."
+paragraph = "Despacha o comando que os argumentos indicam, com os argumentos que eles dão, de dentro de um comando que muda o estado. O despacho é decidido e registrado no diário como qualquer outro, dentro da mesma árvore de chamadas."
+tags = ["repasse", "despachar", "escrever"]
+
+[command."relay.read"]
+display_name = "Despachar um comando, só lendo"
+line = "Executar outro comando pela porta do kernel, como um passo que só lê."
+paragraph = "Despacha o comando que os argumentos indicam de dentro de uma leitura. Um conjunto de testes o usa para mostrar que uma leitura não alcança uma escrita por meio de outro comando."
+tags = ["repasse", "despachar", "ler"]
+
+[command."echo"]
+display_name = "Responder com o texto recebido"
+line = "Devolver o texto que os argumentos trazem."
+paragraph = "Responde o argumento `text` como chegou, sem mudar nada. Um conjunto de testes o usa para ver um argumento atravessar a fronteira e voltar inteiro."
+tags = ["eco", "repetir", "texto"]
+
+[command."abuse.trap"]
+display_name = "Quebrar de imediato"
+line = "Quebrar assim que executa, do jeito que um plugin com defeito quebra."
+paragraph = "Gera um trap na primeira instrução. Um conjunto de testes o usa para mostrar o kernel parando o plugin, iniciando-o de novo e contando a quebra no orçamento dele."
+tags = ["trap", "quebra", "abuso"]
+
+[command."abuse.spin"]
+display_name = "Rodar para sempre, sem calcular nada"
+line = "Repetir sem fim até que o prazo do kernel o interrompa."
+paragraph = "Nunca retorna e quase não gasta combustível enquanto espera. Um conjunto de testes o usa para mostrar o prazo por época parando um plugin que trava."
+tags = ["girar", "travar", "prazo"]
+
+[command."abuse.burn"]
+display_name = "Calcular para sempre"
+line = "Calcular sem fim até o combustível acabar."
+paragraph = "Nunca retorna e gasta combustível a cada passo que dá. Um conjunto de testes o usa para mostrar o kernel parando um plugin que esgota o combustível."
+tags = ["queimar", "combustível", "laço"]
+
+[command."abuse.grow"]
+display_name = "Aumentar a memória até ser parado"
+line = "Pedir mais memória até o limite do manifesto recusar."
+paragraph = "Aumenta a memória linear de novo e de novo. Um conjunto de testes o usa para mostrar o kernel mantendo um plugin dentro da memória que o manifesto permite."
+tags = ["memória", "crescer", "limite"]
+
+[command."abuse.reenter"]
+display_name = "Despachar para o próprio plugin enquanto roda"
+line = "Chamar um comando do próprio plugin de dentro de outro, o que é recusado."
+paragraph = "Despacha um comando do plugin ao qual pertence enquanto esse plugin já está rodando. Um conjunto de testes o usa para mostrar o kernel recusando a chamada em vez de esperar por si mesmo."
+tags = ["reentrada", "despachar", "recusa"]
+
+[command."note.put-then-abuse"]
+display_name = "Escrever uma nota e parar como mandado"
+line = "Salvar uma nota e então parar do jeito que os argumentos mandam."
+paragraph = "Grava a nota e então gera um trap, gira, queima ou cresce, como o argumento `abuse` manda. Um conjunto de testes o usa para mostrar que o que um comando parado escreveu nunca é guardado."
+tags = ["nota", "abuso", "parar"]
+
+[command."note.put-many"]
+display_name = "Escrever as partes numeradas de uma nota"
+line = "Salvar uma nota como muitas chaves numeradas em um passo."
+paragraph = "Grava a nota em tantas partes quanto o argumento `parts` pede, cada uma com a própria chave. Um conjunto de testes o usa para mostrar o que um passo pode preparar contido no limite da unidade."
+tags = ["nota", "partes", "muitas chaves"]
+
+[command."pair.put"]
+display_name = "Escrever uma nota aqui e no par"
+line = "Salvar uma nota neste plugin e no par, como um só passo."
+paragraph = "Grava a nota no próprio armazenamento e despacha a mesma escrita para o plugin par. As duas escritas ficam juntas, ou nenhuma fica."
+tags = ["nota", "par", "dupla"]
+
+[command."pair.put-then-trap"]
+display_name = "Escrever uma nota aqui e no par, que então quebra"
+line = "Salvar uma nota nos dois plugins e então quebrar no par."
+paragraph = "Grava a nota como `pair.put` faz, e o par gera um trap depois de escrever. Um conjunto de testes o usa para mostrar que nenhuma das escritas sobrevive à quebra."
+tags = ["nota", "par", "trap"]
+
+[command."blob.put"]
+display_name = "Gravar um blob e parar como mandado"
+line = "Enviar bytes para um novo blob e então terminar ou parar como mandado."
+paragraph = "Grava em um blob o texto que os argumentos dão, tantas vezes quanto dizem, e então termina, recusa ou para do jeito que pedem. Um conjunto de testes o usa para mostrar quais blobs ficam com a unidade e quais são descartados."
+tags = ["blob", "gravar", "arquivo"]
+
+[command."blob.get"]
+display_name = "Ler um blob inteiro de volta"
+line = "Ler cada byte de um blob, pedaço por pedaço."
+paragraph = "Lê até o fim o blob que o argumento `hash` indica e responde o que ele guardava. Um conjunto de testes o usa para mostrar um blob lido de volta como foi gravado."
+tags = ["blob", "ler", "arquivo"]
+
+[command."blob.locate"]
+display_name = "Perguntar onde está um blob"
+line = "Responder se um blob está nesta máquina."
+paragraph = "Pergunta ao host onde fica o blob que o argumento `hash` indica. A resposta diz esta máquina só quando os bytes estão aqui, e nunca indica outra."
+tags = ["blob", "localizar", "onde"]
+
+[command."abuse.fetch"]
+display_name = "Buscar uma URL como mandado"
+line = "Enviar a requisição que os argumentos descrevem, de dentro de uma leitura."
+paragraph = "Envia uma requisição para a URL que os argumentos indicam, com o método, os cabeçalhos e o corpo que eles dão. Um conjunto de testes o usa para mostrar o que uma leitura pode enviar, e o que o kernel recusa antes de algo sair."
+tags = ["buscar", "rede", "requisição"]
+
+[command."effect.post"]
+display_name = "Enviar uma requisição que muda algo em outro lugar"
+line = "Enviar uma requisição que muda o estado em outra máquina."
+paragraph = "Envia uma requisição que grava em algum lugar que o kernel não alcança de volta. Um desfazer para em um passo assim, já que nada registrado o corrige."
+tags = ["enviar", "rede", "efeito"]
+
+[command."compensated.post"]
+display_name = "Enviar uma requisição e registrar o que a corrige"
+line = "Enviar uma requisição que muda o estado lá fora, com o desfazer registrado."
+paragraph = "Envia uma requisição que grava em outro lugar e registra o comando que a reverte. Um desfazer passa pelo passo despachando essa compensação."
+tags = ["enviar", "compensação", "desfazer"]
+
+[command."unit.commit"]
+display_name = "Escrever uma nota em uma unidade e confirmá-la"
+line = "Começar uma unidade, salvar uma nota nela e mantê-la."
+paragraph = "Começa uma unidade de trabalho própria, grava a nota dentro dela e a confirma, então a nota fica junto com a unidade do comando."
+tags = ["unidade", "confirmar", "manter"]
+
+[command."unit.abort"]
+display_name = "Escrever uma nota em uma unidade e abortá-la"
+line = "Começar uma unidade, salvar uma nota nela e descartá-la."
+paragraph = "Começa uma unidade de trabalho própria, grava a nota dentro dela e a aborta, então a nota nunca é guardada."
+tags = ["unidade", "abortar", "descartar"]
+
+[command."unit.drop"]
+display_name = "Escrever uma nota em uma unidade e largá-la"
+line = "Começar uma unidade, salvar uma nota nela e soltar o identificador dela."
+paragraph = "Começa uma unidade de trabalho, grava a nota dentro dela e solta o identificador sem confirmar nem abortar. Um conjunto de testes o usa para mostrar o que o kernel faz com uma unidade que ninguém fechou."
+tags = ["unidade", "soltar", "identificador"]
+
+[command."event.publish"]
+display_name = "Publicar um evento, mudando o estado"
+line = "Anunciar um evento dentro de um passo que escreve."
+paragraph = "Publica um evento com um tópico do próprio namespace de dentro de um comando que muda o estado. O evento só entra na fila quando a unidade do comando é mantida."
+tags = ["evento", "publicar", "tópico"]
+
+[command."event.announce"]
+display_name = "Publicar um evento, só lendo"
+line = "Anunciar um evento a partir de um passo que só lê."
+paragraph = "Publica um evento de dentro de uma leitura. Um conjunto de testes o usa para mostrar o que uma leitura pode anunciar."
+tags = ["evento", "anunciar", "ler"]
+
+[command."timer.set"]
+display_name = "Definir um temporizador"
+line = "Armar um temporizador que acorda o plugin mais tarde, para a mesma pessoa."
+paragraph = "Arma um temporizador com o atraso que os argumentos dão. Quando vence, o retorno dele roda para a pessoa que o definiu, decidido de novo antes."
+tags = ["temporizador", "alarme", "depois"]
+
+[command."timer.remind"]
+display_name = "Definir um temporizador, só lendo"
+line = "Armar um temporizador a partir de um passo que só lê."
+paragraph = "Arma um temporizador de dentro de uma leitura. Um conjunto de testes o usa para mostrar o que uma leitura pode armar, e como o retorno dele é decidido."
+tags = ["temporizador", "lembrete", "ler"]
+
+[command."timer.cancel"]
+display_name = "Cancelar um temporizador"
+line = "Desarmar um temporizador que o plugin definiu, antes que dispare."
+paragraph = "Cancela o temporizador que o argumento `timer` indica, então o retorno dele nunca roda."
+tags = ["temporizador", "cancelar", "desarmar"]
+
+[command."ui.show"]
+display_name = "Mostrar uma superfície"
+line = "Descrever uma superfície para o kernel julgar e guardar."
+paragraph = "Desenha uma árvore de nós do tipo que os argumentos indicam. O kernel julga a árvore antes de guardá-la, e cada comando que a árvore cita precisa ser um que o registro tem."
+tags = ["superfície", "mostrar", "interface"]
+
+[command."context.read"]
+display_name = "Ler para quem a chamada roda"
+line = "Responder para quem a chamada atual roda."
+paragraph = "Lê o contexto que o kernel dá à chamada e o responde como chegou. Um conjunto de testes o usa para ver para quem um despacho, um temporizador ou um evento roda."
+tags = ["contexto", "quem", "principal"]
+
+[command."log.write"]
+display_name = "Escrever linhas no log do próprio plugin"
+line = "Acrescentar linhas ao anel de linhas de log do próprio plugin."
+paragraph = "Escreve as linhas que os argumentos dão no log do próprio plugin, que nunca chega ao log central. Um conjunto de testes as lê de volta do anel."
+tags = ["log", "escrever", "linhas"]

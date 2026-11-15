@@ -114,6 +114,43 @@ pub const PLUGIN_MANIFEST: &str = "plugin.toml";
 /// The name of a plugin's component, beside its manifest.
 pub const PLUGIN_COMPONENT: &str = "component.wasm";
 
+/// The name of a plugin's command table, beside its manifest: one row for
+/// each command it declares, by the name it has inside the plugin's namespace
+/// (`NOCTUA.md §20.4`).
+pub const PLUGIN_COMMANDS: &str = "commands.toml";
+
+/// The name of the directory beside a plugin's manifest that holds its
+/// commands' texts, one file per locale, each named by [`plugin_texts`].
+pub const PLUGIN_TEXTS: &str = "i18n";
+
+/// The name of a plugin's texts in `locale`, inside [`PLUGIN_TEXTS`]: the
+/// locale's BCP 47 tag, exactly as the catalog writes it, and `.toml`.
+#[must_use]
+pub fn plugin_texts(locale: nc_catalog::Locale) -> String {
+    format!("{}.toml", locale.tag())
+}
+
+/// Every file of a plugin's directory but its component, relative to the
+/// directory: its manifest, its command table, and its texts in every locale
+/// this build ships, in that order.
+///
+/// **The one list an installer copies and the daemon reads**, so a file one
+/// of them learns of the other cannot miss: a plugin installed without a
+/// locale's texts is refused at `activate` for every command it declares.
+#[must_use]
+pub fn plugin_files() -> Vec<PathBuf> {
+    let mut files = vec![
+        PathBuf::from(PLUGIN_MANIFEST),
+        PathBuf::from(PLUGIN_COMMANDS),
+    ];
+    files.extend(
+        nc_catalog::Locale::ALL
+            .iter()
+            .map(|&locale| Path::new(PLUGIN_TEXTS).join(plugin_texts(locale))),
+    );
+    files
+}
+
 /// The one manifest format this build reads and writes.
 ///
 /// A manifest of another format is refused rather than read as this one: an
@@ -1021,7 +1058,24 @@ fn spelled(user: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{digest_of, spelled};
+    use std::path::Path;
+
+    use super::{digest_of, plugin_files, spelled};
+
+    /// A plugin's files are its manifest, its command table and its texts in
+    /// every locale the build ships, each named by its locale's exact tag.
+    #[test]
+    fn a_plugins_files_are_its_manifest_its_command_table_and_its_texts_in_every_locale() {
+        assert_eq!(
+            plugin_files(),
+            [
+                Path::new("plugin.toml").to_path_buf(),
+                Path::new("commands.toml").to_path_buf(),
+                Path::new("i18n").join("en.toml"),
+                Path::new("i18n").join("pt-BR.toml"),
+            ]
+        );
+    }
 
     /// The digest is the one `cargo xtask dev` named every stack with.
     ///

@@ -14,7 +14,8 @@
 # What a person is shown of a command is its entry (`§20.4`): four keys into
 # `catalog/i18n/`, each required and resolved in every locale, and three
 # optional fields. Every text is held to `nc_schema::entry`, the judge the kernel
-# holds a plugin's entries to as well:
+# holds a plugin's entries to as well, and a locale's texts together to
+# `[kernel] entry_bytes`, the bound a plugin's are held to:
 #
 #   title              the display name, at most 64 characters
 #   description        the line description, one line of at most 80 characters

@@ -1,0 +1,129 @@
+# What the reference plugin says of each command it declares (`NOCTUA.md
+# §20.4`), one row per command, by the name it has inside the plugin's
+# namespace: `note.get` is registered as `reference.note.get`, or as
+# `peer.note.get` when a store gives the plugin that namespace, so one table
+# serves both. Each row's texts are in `i18n/`, one file per locale.
+#
+# A row names its categories and its glyph when it has them, and none of
+# these does. The kernel holds every row to the judge the catalog's commands
+# are held to, at `activate`; a command declared with no row is refused, and
+# the English display name of each is the title the component declares.
+# Editing any of these files makes the component stale: `cargo xtask build
+# --plugins` builds it again.
+
+[[command]]
+name = "note.get"
+
+[[command]]
+name = "probe"
+
+[[command]]
+name = "note.put"
+
+[[command]]
+name = "note.put-then-fail"
+
+[[command]]
+name = "note.put-then-trap"
+
+[[command]]
+name = "note.delete"
+
+[[command]]
+name = "note.share"
+
+[[command]]
+name = "note.scribble"
+
+[[command]]
+name = "executions.count"
+
+[[command]]
+name = "irreversible.do"
+
+[[command]]
+name = "relay.write"
+
+[[command]]
+name = "relay.read"
+
+[[command]]
+name = "echo"
+
+[[command]]
+name = "abuse.trap"
+
+[[command]]
+name = "abuse.spin"
+
+[[command]]
+name = "abuse.burn"
+
+[[command]]
+name = "abuse.grow"
+
+[[command]]
+name = "abuse.reenter"
+
+[[command]]
+name = "note.put-then-abuse"
+
+[[command]]
+name = "note.put-many"
+
+[[command]]
+name = "pair.put"
+
+[[command]]
+name = "pair.put-then-trap"
+
+[[command]]
+name = "blob.put"
+
+[[command]]
+name = "blob.get"
+
+[[command]]
+name = "blob.locate"
+
+[[command]]
+name = "abuse.fetch"
+
+[[command]]
+name = "effect.post"
+
+[[command]]
+name = "compensated.post"
+
+[[command]]
+name = "unit.commit"
+
+[[command]]
+name = "unit.abort"
+
+[[command]]
+name = "unit.drop"
+
+[[command]]
+name = "event.publish"
+
+[[command]]
+name = "event.announce"
+
+[[command]]
+name = "timer.set"
+
+[[command]]
+name = "timer.remind"
+
+[[command]]
+name = "timer.cancel"
+
+[[command]]
+name = "ui.show"
+
+[[command]]
+name = "context.read"
+
+[[command]]
+name = "log.write"

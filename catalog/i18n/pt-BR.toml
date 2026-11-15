@@ -142,6 +142,7 @@ dir   = "ltr"
 "error.plugin.topic-refused" = "Uma parte do Noctua tentou anunciar algo com um nome que não pode usar, e foi recusada."
 "error.plugin.not-a-revision" = "Uma parte do Noctua tentou salvar por cima de uma versão de algo com um nome que nenhuma versão tem, e foi recusada. Nada foi salvo."
 "error.plugin.unit-ended" = "Uma parte do Noctua tentou concluir um trabalho que já tinha terminado, e foi recusada. Nada mudou por causa disso."
+"error.plugin.entries-invalid" = "Uma parte do Noctua descreve os seus comandos de um jeito que o Noctua não aceita, ou não em todos os idiomas, então ela não foi iniciada."
 
 # --- Blobs ---
 "error.blob.malformed-hash" = "Esse não é o nome de um arquivo que o Noctua consiga procurar."

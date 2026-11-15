@@ -1,10 +1,26 @@
 //! The plugins installed in the profile, loaded at each start (`NOCTUA.md
-//! §11.3`): `<data>/plugins/<name>/plugin.toml` and `component.wasm` beside it.
+//! §11.3`): `<data>/plugins/<name>/plugin.toml`, and beside it the entries its
+//! commands are shown by — `commands.toml` and `i18n/<tag>.toml` for every
+//! locale this build ships (`§20.4`) — and `component.wasm`.
 //!
 //! **Each judged this user's alone before it is read**: the plugins directory
-//! the profile makes private, each plugin's directory, its manifest and its
-//! component. A plugin is code the kernel runs with the grants its manifest
-//! names, so one another account could write is one that account chose.
+//! the profile makes private, each plugin's directory, its manifest, its
+//! entries and its component. A plugin is code the kernel runs with the grants
+//! its manifest names, so one another account could write is one that account
+//! chose.
+//!
+//! **In this order, each step refusing before the next is read**: the
+//! directory and the manifest, so a manifest that does not parse keeps its own
+//! code; the command table; the `i18n/` directory, listed, a file in it named
+//! for no locale this build ships refused rather than left unread; each
+//! locale's texts; and the component last. An entries file is read no further
+//! than `PluginEntries::most_bytes` — its length asked of the file first, and
+//! the read itself held to one byte past it — so a file of any size costs the
+//! daemon that bound and no more, and it must be UTF-8. What refuses the
+//! entries, a file of them missing included, carries `[NC-PLUG-0029]`; a path
+//! another account can reach, and one the filesystem cannot answer for, keep
+//! the profile's codes. Whether the texts are what every command's must be is
+//! the kernel's, at `activate`.
 //!
 //! **A plugin refused is logged and shown, never fatal.** Each is loaded on
 //! its own, in the order of its name: one whose directory, manifest or
@@ -13,10 +29,12 @@
 //! status with its sentence, and the daemon runs without it — the kernel and
 //! every other plugin are still the person's.
 
+use std::io::Read as _;
 use std::path::Path;
 
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_kernel::Kernel;
+use nc_kernel::entries::PluginEntries;
 use nc_kernel::logging::LogSink;
 use nc_kernel::manifest::PluginManifest;
 use nc_platform::{Kind, User};
@@ -29,6 +47,12 @@ pub const MANIFEST: &str = nc_channel::PLUGIN_MANIFEST;
 
 /// The name of a plugin's component in its directory.
 pub const COMPONENT: &str = nc_channel::PLUGIN_COMPONENT;
+
+/// The name of a plugin's command table in its directory.
+pub const COMMANDS: &str = nc_channel::PLUGIN_COMMANDS;
+
+/// The name of the directory a plugin's texts are in, one file per locale.
+pub const TEXTS: &str = nc_channel::PLUGIN_TEXTS;
 
 /// How one installed plugin's load ended, as the status shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,11 +111,135 @@ fn installed(directory: &Path, user: &User) -> Result<Installed, (ErrorCode, Str
     })?;
     let manifest = PluginManifest::parse(&manifest)
         .map_err(|refused| (refused.code(), refused.to_string()))?;
+    let entries = entries(directory, user)?;
     let component = read(&directory.join(COMPONENT), user)?;
     Ok(Installed {
-        manifest,
+        manifest: manifest.described_by(entries),
         component,
     })
+}
+
+/// The entries the plugin in `directory` describes its commands with.
+///
+/// Its command table and its texts in every locale, each judged, read
+/// within its bound, and read for its shape.
+fn entries(directory: &Path, user: &User) -> Result<PluginEntries, (ErrorCode, String)> {
+    let commands = bounded(&directory.join(COMMANDS), user)?;
+    let texts = directory.join(TEXTS);
+    nc_platform::judge(&texts, Kind::Directory, user)
+        .map_err(|refused| missing(&texts, refused))?;
+    let listed = std::fs::read_dir(&texts)
+        .and_then(|listing| {
+            listing
+                .map(|entry| entry.map(|entry| entry.file_name()))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .map_err(|error| {
+            (
+                ErrorCode::DaemonProfileUnavailable,
+                format!("`{}` could not be listed: {error}", texts.display()),
+            )
+        })?;
+    let named: Vec<String> = Locale::ALL
+        .iter()
+        .map(|&locale| nc_channel::plugin_texts(locale))
+        .collect();
+    let mut unread: Vec<String> = listed
+        .iter()
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !named.contains(name))
+        .collect();
+    unread.sort();
+    if let Some(stranger) = unread.first() {
+        return Err((
+            ErrorCode::PluginEntriesInvalid,
+            format!(
+                "`{}` holds `{}`, which names no locale this build ships: a plugin's texts are \
+                 one file per locale, named `{}`",
+                texts.display(),
+                stranger.escape_debug(),
+                named.join("`, `")
+            ),
+        ));
+    }
+    let mut read = Vec::with_capacity(Locale::ALL.len());
+    for (&locale, name) in Locale::ALL.iter().zip(&named) {
+        read.push((locale, bounded(&texts.join(name), user)?));
+    }
+    let handed: Vec<(Locale, &str)> = read
+        .iter()
+        .map(|(locale, text)| (*locale, text.as_str()))
+        .collect();
+    PluginEntries::parse(&commands, &handed).map_err(|refused| {
+        (
+            refused.code(),
+            format!("`{}`: {refused}", directory.display()),
+        )
+    })
+}
+
+/// The entries file at `path`, judged this user's alone and read as UTF-8,
+/// no further than one byte past what a plugin's entries may hold.
+fn bounded(path: &Path, user: &User) -> Result<String, (ErrorCode, String)> {
+    nc_platform::judge(path, Kind::File, user).map_err(|refused| missing(path, refused))?;
+    let most = PluginEntries::most_bytes();
+    let unread = |error: std::io::Error| {
+        (
+            ErrorCode::DaemonProfileUnavailable,
+            format!("`{}` could not be read: {error}", path.display()),
+        )
+    };
+    let past = |bytes: u64| {
+        (
+            ErrorCode::PluginEntriesInvalid,
+            format!(
+                "`{}` holds {bytes} bytes, past the {most} a plugin's entries may hold in one \
+                 file, and was not read",
+                path.display()
+            ),
+        )
+    };
+    let file = std::fs::File::open(path).map_err(unread)?;
+    let length = file.metadata().map_err(unread)?.len();
+    let bound = u64::try_from(most).unwrap_or(u64::MAX);
+    if length > bound {
+        return Err(past(length));
+    }
+    let mut bytes = Vec::new();
+    file.take(bound.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(unread)?;
+    if bytes.len() > most {
+        // **Grown since its length was asked**: the read stopped a byte past
+        // the bound, and what it read is all this says of it.
+        return Err(past(u64::try_from(bytes.len()).unwrap_or(u64::MAX)));
+    }
+    String::from_utf8(bytes).map_err(|_| {
+        (
+            ErrorCode::PluginEntriesInvalid,
+            format!("`{}` is not UTF-8", path.display()),
+        )
+    })
+}
+
+/// An entries path judged and not taken: one that is not there is the
+/// entries' own refusal, and anything else keeps the profile's code.
+fn missing(path: &Path, refused: nc_platform::Judged) -> (ErrorCode, String) {
+    match &refused {
+        nc_platform::Judged::Failed(failed)
+            if failed.error().kind() == std::io::ErrorKind::NotFound =>
+        {
+            (
+                ErrorCode::PluginEntriesInvalid,
+                format!(
+                    "`{}` is not there: a plugin describes every command it declares, in \
+                     every locale, beside its manifest",
+                    path.display()
+                ),
+            )
+        }
+        _ => judged(refused),
+    }
 }
 
 /// The file at `path`, judged this user's alone and read.
@@ -199,24 +347,46 @@ mod tests {
             nc_platform::user_in(&self.0).expect("the scratch is private")
         }
 
-        /// A plugin's directory under the scratch, holding `manifest` and
-        /// `component` as an installer writes them.
+        /// A plugin's directory under the scratch, holding `manifest`, the
+        /// reference plugin's entries and `component` as an installer writes
+        /// them.
         fn plugin(&self, name: &str, manifest: &str, component: &[u8]) -> PathBuf {
-            use std::io::Write as _;
             let directory = self.0.join(name);
             nc_platform::create_private_directory(&directory).expect("a plugin's directory");
-            nc_platform::create_private(&directory.join(super::MANIFEST))
-                .and_then(|mut file| file.write_all(manifest.as_bytes()))
-                .expect("a manifest");
-            nc_platform::create_private(&directory.join(super::COMPONENT))
-                .and_then(|mut file| file.write_all(component))
-                .expect("a component");
+            nc_platform::create_private_directory(&directory.join(super::TEXTS))
+                .expect("the texts' directory");
+            for (file, text) in [
+                (super::MANIFEST, manifest.as_bytes()),
+                (super::COMMANDS, COMMANDS.as_bytes()),
+                ("i18n/en.toml", ENGLISH.as_bytes()),
+                ("i18n/pt-BR.toml", PORTUGUESE.as_bytes()),
+                (super::COMPONENT, component),
+            ] {
+                written(&directory.join(file), text);
+            }
             directory
         }
     }
 
+    /// `bytes` written to a new file at `path`, this user's alone.
+    fn written(path: &std::path::Path, bytes: &[u8]) {
+        use std::io::Write as _;
+        nc_platform::create_private(path)
+            .and_then(|mut file| file.write_all(bytes))
+            .expect("a file of the plugin's");
+    }
+
     /// The reference plugin's manifest, as the plugin ships it.
     const REFERENCE: &str = include_str!("../../../plugins/reference/plugin.toml");
+
+    /// The reference plugin's command table, as it ships it.
+    const COMMANDS: &str = include_str!("../../../plugins/reference/commands.toml");
+
+    /// The reference plugin's English texts.
+    const ENGLISH: &str = include_str!("../../../plugins/reference/i18n/en.toml");
+
+    /// The reference plugin's Portuguese texts.
+    const PORTUGUESE: &str = include_str!("../../../plugins/reference/i18n/pt-BR.toml");
 
     /// The names in the plugins directory are read in order, and a directory
     /// another account can reach is refused before anything in it is read.
@@ -247,9 +417,18 @@ mod tests {
         let read = super::installed(&good, &user).expect("read");
         assert_eq!(read.component, b"bytes");
         assert_eq!(read.manifest.id(), "noctua:reference");
+        assert_eq!(
+            read.manifest.entries(),
+            &nc_kernel::entries_for_tests("reference"),
+            "the manifest is described by the entries beside it"
+        );
         for (name, file) in [
             ("open-dir", None),
             ("open-manifest", Some(super::MANIFEST)),
+            ("open-commands", Some(super::COMMANDS)),
+            ("open-texts", Some(super::TEXTS)),
+            ("open-english", Some("i18n/en.toml")),
+            ("open-portuguese", Some("i18n/pt-BR.toml")),
             ("open-component", Some(super::COMPONENT)),
         ] {
             let directory = scratch.plugin(name, REFERENCE, b"bytes");
@@ -265,6 +444,111 @@ mod tests {
         std::fs::remove_file(missing.join(super::COMPONENT)).expect("removed");
         let (code, _) = super::installed(&missing, &user).expect_err("missing");
         assert_eq!(code, ErrorCode::DaemonProfileUnavailable);
+    }
+
+    /// A plugin missing a file of its entries is refused naming the file.
+    ///
+    /// Its texts in one locale or its command table, each with the entries'
+    /// code, and before its component is read.
+    #[test]
+    fn a_plugin_missing_a_locales_texts_is_refused_naming_the_file() {
+        let scratch = Scratch::new("missing-texts");
+        let user = scratch.user();
+        for file in ["i18n/pt-BR.toml", "i18n/en.toml", super::COMMANDS] {
+            let directory = scratch.plugin(&file.replace('/', "-"), REFERENCE, b"bytes");
+            std::fs::remove_file(directory.join(file)).expect("removed");
+            std::fs::remove_file(directory.join(super::COMPONENT)).expect("removed");
+            let (code, sentence) = super::installed(&directory, &user).expect_err(file);
+            assert_eq!(code, ErrorCode::PluginEntriesInvalid, "{file}: {sentence}");
+            assert!(
+                sentence.contains(&format!(
+                    "{}` is not there",
+                    std::path::Path::new(file).display()
+                )),
+                "{file}: {sentence}"
+            );
+        }
+    }
+
+    /// A file in `i18n/` named for no locale this build ships is refused,
+    /// a tag written in another case among them, rather than left unread.
+    #[test]
+    fn a_file_in_i18n_named_for_no_locale_is_refused() {
+        let scratch = Scratch::new("stranger");
+        let user = scratch.user();
+        for (at, stranger) in ["fr.toml", "pt-br.toml", "en.toml.orig", "notes"]
+            .into_iter()
+            .enumerate()
+        {
+            let directory = scratch.plugin(&format!("p{at}"), REFERENCE, b"bytes");
+            written(&directory.join(super::TEXTS).join(stranger), b"");
+            let (code, sentence) = super::installed(&directory, &user).expect_err(stranger);
+            assert_eq!(code, ErrorCode::PluginEntriesInvalid, "{stranger}");
+            assert!(
+                sentence.contains(&format!("holds `{stranger}`, which names no locale"))
+                    && sentence.contains("`en.toml`, `pt-BR.toml`"),
+                "{stranger}: {sentence}"
+            );
+        }
+    }
+
+    /// An entries file another account can reach is refused for that, before
+    /// a byte of it is read — one that would not parse included.
+    #[test]
+    fn an_entries_file_another_account_can_reach_is_refused_before_it_is_read() {
+        let scratch = Scratch::new("reachable-entries");
+        let user = scratch.user();
+        for file in [super::COMMANDS, "i18n/pt-BR.toml"] {
+            let directory = scratch.plugin(&file.replace('/', "-"), REFERENCE, b"bytes");
+            std::fs::remove_file(directory.join(file)).expect("removed");
+            written(&directory.join(file), b"not = [toml");
+            nc_platform::testing::open_to_another_user(&directory.join(file)).expect("opened");
+            let (code, sentence) = super::installed(&directory, &user).expect_err(file);
+            assert_eq!(
+                code,
+                ErrorCode::DaemonProfileNotPrivate,
+                "{file}: {sentence}"
+            );
+        }
+    }
+
+    /// An entries file past what a plugin's entries may hold is refused
+    /// unread, and one at it is read and judged for its shape.
+    #[test]
+    fn an_entries_file_past_its_bound_is_refused_unread() {
+        let scratch = Scratch::new("large-entries");
+        let user = scratch.user();
+        let most = nc_kernel::entries::PluginEntries::most_bytes();
+        // **Past it by more than a byte**, so a refusal that read the file to
+        // the bound and a byte more says a size other than the file's.
+        for (bytes, refused_unread) in [(most + 64, true), (most, false)] {
+            let directory = scratch.plugin(&format!("b{bytes}"), REFERENCE, b"bytes");
+            let file = directory.join(super::COMMANDS);
+            std::fs::remove_file(&file).expect("removed");
+            let mut padded = COMMANDS.to_owned();
+            padded.push_str(&"#".repeat(bytes - COMMANDS.len()));
+            // Not UTF-8 past the bound, so a read that went past it would
+            // say so rather than how large the file is.
+            let mut written_bytes = padded.into_bytes();
+            if refused_unread {
+                written_bytes[most] = 0xff;
+            }
+            written(&file, &written_bytes);
+            let (code, sentence) = match super::installed(&directory, &user) {
+                Ok(_) => (None, String::new()),
+                Err((code, sentence)) => (Some(code), sentence),
+            };
+            if refused_unread {
+                assert_eq!(code, Some(ErrorCode::PluginEntriesInvalid), "{sentence}");
+                assert!(
+                    sentence.contains(&format!("holds {bytes} bytes, past the {most}"))
+                        && sentence.contains("was not read"),
+                    "{sentence}"
+                );
+            } else {
+                assert_eq!(code, None, "a file at the bound is read: {sentence}");
+            }
+        }
     }
 
     /// Each refused load is logged with its code, and nothing is logged for

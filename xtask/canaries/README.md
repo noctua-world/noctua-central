@@ -572,7 +572,8 @@ manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 `store.rs`, `blobs.rs`, `commands.rs`, `events.rs`, `ui.rs`, `net.rs` and
 `timers.rs`, the store a plugin's data is kept in, `backend.rs`, where the
 bytes of its blobs are, `blobs.rs`, the
-registry its commands are judged into, `registry.rs`, the decision point every
+registry its commands are judged into, `registry.rs`, what it says of them,
+read from its directory, `entries.rs`, the decision point every
 command goes through, `dispatch.rs`, the units of work its writes are kept in,
 `units.rs`, where its events go, `logging.rs`, what becomes of a plugin
 that is stopped, `supervisor.rs`, what a plugin may ask of the network

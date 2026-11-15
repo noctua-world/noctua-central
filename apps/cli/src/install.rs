@@ -192,8 +192,11 @@ pub const fn development_plan<'a>(
 pub struct Plugin<'a> {
     /// The directory it is installed in, under the profile's plugins.
     pub name: &'a str,
-    /// Its manifest.
-    pub manifest: &'a Path,
+    /// The directory its manifest and its entries are copied from.
+    ///
+    /// Each of `nc_channel::plugin_files`, relative to it, is copied from
+    /// there.
+    pub directory: &'a Path,
     /// Its component.
     pub component: &'a Path,
 }
@@ -377,12 +380,21 @@ fn install_restored_by<R: Restoring>(
     for plugin in &plan.plugins {
         let directory_of = layout.plugins.join(plugin.name);
         directory(&directory_of, Some(&user))?;
-        replaced(
-            &directory_of.join(nc_channel::PLUGIN_MANIFEST),
-            &read_whole(plugin.manifest)?,
-            &user,
-            false,
-        )?;
+        // **Every file the daemon reads, from the one list it reads them by**:
+        // a plugin installed without a locale's texts would be refused at
+        // `activate` for every command it declares.
+        for file in nc_channel::plugin_files() {
+            let into = directory_of.join(&file);
+            if let Some(parent) = into.parent() {
+                directory(parent, Some(&user))?;
+            }
+            replaced(
+                &into,
+                &read_whole(&plugin.directory.join(&file))?,
+                &user,
+                false,
+            )?;
+        }
         replaced(
             &directory_of.join(nc_channel::PLUGIN_COMPONENT),
             &read_whole(plugin.component)?,
@@ -925,8 +937,9 @@ mod tests {
     ///
     /// The binaries are copied under the layout's names, the manifest written
     /// and read back as the binaries read it, the world handed to the daemon's
-    /// initialize and removed, and each plugin written into its own directory —
-    /// every file private, every missing base made.
+    /// initialize and removed, and each plugin written into its own directory
+    /// — its manifest, its entries and its component — every file private,
+    /// every missing base made.
     #[test]
     fn an_install_is_its_binaries_its_manifest_its_world_and_its_plugins() {
         let scratch = Scratch::new("made");
@@ -934,7 +947,23 @@ mod tests {
             scratch.file("noctua", "cli"),
             scratch.file("noctua-daemon", "dmn"),
         );
-        let manifest = scratch.file("plugin.toml", "id = \"x\"\n");
+        let source = scratch.0.join("plugin");
+        for directory in [source.clone(), source.join(nc_channel::PLUGIN_TEXTS)] {
+            nc_platform::create_private_directory(&directory).expect("the plugin's sources");
+        }
+        let files: Vec<(std::path::PathBuf, String)> = nc_channel::plugin_files()
+            .into_iter()
+            .map(|file| {
+                let text = format!("the {}\n", file.display());
+                (file, text)
+            })
+            .collect();
+        for (file, text) in &files {
+            use std::io::Write as _;
+            nc_platform::create_private(&source.join(file))
+                .and_then(|mut written| written.write_all(text.as_bytes()))
+                .expect("a file of the plugin's");
+        }
         let component = scratch.file("x.wasm", "wasm");
         let install = scratch.install("ti1");
         let plan = Plan {
@@ -944,7 +973,7 @@ mod tests {
             world: "{\"world\":1}",
             plugins: vec![Plugin {
                 name: "x",
-                manifest: &manifest,
+                directory: &source,
                 component: &component,
             }],
             restorer: false,
@@ -968,10 +997,6 @@ mod tests {
                 "dmn",
             ),
             (
-                layout.plugins.join("x").join(nc_channel::PLUGIN_MANIFEST),
-                "id = \"x\"\n",
-            ),
-            (
                 layout.plugins.join("x").join(nc_channel::PLUGIN_COMPONENT),
                 "wasm",
             ),
@@ -979,6 +1004,18 @@ mod tests {
             assert_eq!(std::fs::read_to_string(&path).expect("there"), holds);
             nc_platform::judge(&path, nc_platform::Kind::File, &user).expect("private");
         }
+        assert!(files.len() > 2, "{files:?}");
+        for (file, text) in &files {
+            let path = layout.plugins.join("x").join(file);
+            assert_eq!(&std::fs::read_to_string(&path).expect("there"), text);
+            nc_platform::judge(&path, nc_platform::Kind::File, &user).expect("private");
+        }
+        nc_platform::judge(
+            &layout.plugins.join("x").join(nc_channel::PLUGIN_TEXTS),
+            nc_platform::Kind::Directory,
+            &user,
+        )
+        .expect("the texts' directory is private");
         assert_eq!(
             std::fs::read_to_string(&layout.manifest).expect("a manifest"),
             install.to_canonical()

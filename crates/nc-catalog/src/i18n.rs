@@ -1071,6 +1071,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.plugin.entries-invalid",
+        [
+            "A part of Noctua describes its commands in a way Noctua does not accept, or not in every language, so it was not started.",
+            "Uma parte do Noctua descreve os seus comandos de um jeito que o Noctua não aceita, ou não em todos os idiomas, então ela não foi iniciada.",
+        ],
+    ),
+    (
         "error.plugin.epoch-deadline",
         [
             "A part of Noctua took too long and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again.",
@@ -1441,6 +1448,7 @@ pub const KEYS: &[&str] = &[
     "error.plugin.descriptor-invalid",
     "error.plugin.descriptor-missing-field",
     "error.plugin.domain-not-declared",
+    "error.plugin.entries-invalid",
     "error.plugin.epoch-deadline",
     "error.plugin.host-call-deadline",
     "error.plugin.identity-taken",

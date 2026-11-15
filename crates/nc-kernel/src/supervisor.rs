@@ -1379,7 +1379,8 @@ mod tests {
         let manifest = crate::manifest::PluginManifest::parse(
             "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\"]\n",
         )
-        .expect("a manifest the kernel reads");
+        .expect("a manifest the kernel reads")
+        .described_by(crate::entries_for_tests("reference"));
         let slot = kernel
             .load(manifest, &crate::built::component("reference"))
             .await

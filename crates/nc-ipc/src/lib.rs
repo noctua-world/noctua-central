@@ -76,7 +76,12 @@ use nc_catalog::ErrorCode;
 
 /// The version of the protocol this build speaks, which each end names in its
 /// handshake and the other refuses unless it is its own.
-pub const PROTOCOL: u32 = 1;
+///
+/// **2 since the registry is asked in a locale** and answers each command's
+/// texts in it: a client of 1 asks for the registry with no locale and reads
+/// a title the answer no longer carries, so the two builds are refused at the
+/// handshake rather than disagree about a message.
+pub const PROTOCOL: u32 = 2;
 
 /// The secret a channel's connections are proven by: 32 bytes the daemon
 /// draws at each start, which neither end ever sends.

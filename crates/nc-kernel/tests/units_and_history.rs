@@ -357,6 +357,7 @@ fn manifest_granting(id: &str, namespace: &str, limits: &str, granted: &str) -> 
          [net]\ndomains = [\"example.com\"]\n[limits]\n{limits}"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// A kernel over `store` with the reference plugin loaded under `limits`, and

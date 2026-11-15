@@ -275,6 +275,8 @@ pub struct KernelLimits {
     pub payload_bytes: u64,
     /// How many commands one plugin may declare.
     pub commands_per_plugin: u32,
+    /// How many bytes one command's texts may hold in one locale.
+    pub entry_bytes: u64,
     /// How long one store key may be.
     pub store_key_bytes: u64,
     /// How large one store value may be.
@@ -413,6 +415,7 @@ impl KernelLimits {
             restart_window_ms,
             payload_bytes,
             commands_per_plugin,
+            entry_bytes,
             store_key_bytes,
             store_value_bytes,
             unit_bytes,
@@ -552,6 +555,12 @@ impl KernelLimits {
                 "commands_per_plugin",
                 commands_per_plugin,
                 "How many commands one plugin may declare",
+            ),
+            wide(
+                "entry_bytes",
+                entry_bytes,
+                Unit::Bytes,
+                "How many bytes one command's texts may hold in one locale",
             ),
             wide(
                 "store_key_bytes",

@@ -348,6 +348,12 @@ restart_window_ms = 60_000
 # What crosses the boundary.
 payload_bytes = 1_048_576
 commands_per_plugin = 256
+# What one command's texts may hold in one locale — its display name, line
+# description, paragraph and tags together, in UTF-8 — the catalog's commands
+# and every plugin's alike, judged by `nc_schema::entry`. Every command of one
+# plugin at this bound, each byte a character JSON writes as two, fills half of
+# `[daemon] ipc_frame_max_bytes` and no more, which the compiler holds.
+entry_bytes = 2_048
 store_key_bytes = 256
 store_value_bytes = 1_048_576
 # What one unit of work may stage, its keys and values counted together, before

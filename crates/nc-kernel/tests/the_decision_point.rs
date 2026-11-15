@@ -681,6 +681,7 @@ fn manifest(id: &str, namespace: &str, tail: &str) -> PluginManifest {
          \"commands.dispatch\"{putting_off}]\n{tail}"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// The manifests' tail of a test about what a command puts off: the peer
@@ -2539,7 +2540,8 @@ async fn a_surface_rendered_by_a_read_the_journal_did_not_take_is_never_shown() 
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"ui\"]\n",
     )
-    .expect("a manifest granting the ui");
+    .expect("a manifest granting the ui")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -2609,7 +2611,8 @@ async fn a_surface_rendered_in_a_unit_the_journal_did_not_keep_is_never_shown() 
         let manifest = PluginManifest::parse(&format!(
             "id = \"{id}\"\nnamespace = \"{namespace}\"\ncapabilities = [{granted}]\n"
         ))
-        .expect("a manifest");
+        .expect("a manifest")
+        .described_by(nc_kernel::entries_for_tests("reference"));
         fixture
             .kernel
             .load(manifest, &component)
@@ -2655,7 +2658,8 @@ async fn a_unit_the_journal_did_not_close_takes_the_pins_off_the_blobs_it_made()
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -2732,7 +2736,8 @@ async fn a_blob_made_again_after_its_pin_came_off_is_unpinned_by_the_next_revers
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -5545,7 +5550,8 @@ async fn a_capability_refused_in_activate_is_logged_once_the_plugin_is_loaded() 
             PluginManifest::parse(
                 "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = []\n",
             )
-            .expect("a manifest the kernel reads"),
+            .expect("a manifest the kernel reads")
+            .described_by(nc_kernel::entries_for_tests("reference")),
             &nc_kernel::component_for_tests("reference"),
         )
         .await
@@ -5780,7 +5786,8 @@ async fn with_the_blobs() -> (Fixture<Failing<nc_journal::InMemory>>, Arc<Mutex<
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -5887,7 +5894,8 @@ async fn a_unit_not_kept_names_the_compensations_registered_in_it() {
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"commands.begin\"]\n",
     )
-    .expect("a manifest granting units");
+    .expect("a manifest granting units")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -6302,7 +6310,8 @@ async fn a_kernel_with_a_device_of_anas_id() -> (Kernel<Env<nc_journal::InMemory
                 "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = \
                  [\"store\", \"context\"]\n",
             )
-            .expect("a manifest"),
+            .expect("a manifest")
+            .described_by(nc_kernel::entries_for_tests("reference")),
             &nc_kernel::component_for_tests("reference"),
         )
         .await
@@ -6445,7 +6454,8 @@ async fn a_unit_recovered_on_open_keeps_the_pin_a_step_kept_since_holds() {
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))

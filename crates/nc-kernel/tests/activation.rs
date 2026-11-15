@@ -9,11 +9,18 @@
 //! namespace to declare under, and the one way to break its first command. So
 //! every refusal below crossed the boundary as a declaration the component
 //! made, was judged by the kernel, and left nothing registered.
+//!
+//! **Described by the plugin's own entries**, read from `plugins/reference/`
+//! as a daemon reads them from an install: every command the component
+//! declares is shown by a row of its `commands.toml`, and a text that row
+//! misses in a locale is refused at `activate`, naming the command and the
+//! locale (`NOCTUA.md §20.4`, acceptance criterion 6).
 
 use nc_authz::{MemoryDirectory, Pdp, PrincipalKind};
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_ids::{MachineFlake, Minter, OpaqueId, Snowflake, SystemClock};
 use nc_kernel::backend::{MemoryBackend, StoreBackend};
+use nc_kernel::entries::PluginEntries;
 use nc_kernel::manifest::PluginManifest;
 use nc_kernel::registry::Owner;
 use nc_kernel::{Environment, Kernel, KernelConfig, LoadError};
@@ -77,12 +84,14 @@ fn written_under(namespace: &str) -> Vec<String> {
 }
 
 /// The reference plugin's manifest, granted its store so `activate` can read
-/// how to activate, under `namespace` and the identity `id`.
+/// how to activate, under `namespace` and the identity `id`, and described by
+/// its own entries.
 fn manifest(id: &str, namespace: &str) -> PluginManifest {
     PluginManifest::parse(&format!(
         "id = \"{id}\"\nnamespace = \"{namespace}\"\ncapabilities = [\"store\"]\n"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// What a seed is committed as: one unit of the realm `home`, by `ana`, with
@@ -272,7 +281,10 @@ async fn a_plugin_activating_as_written_registers_every_command_it_declares() {
     assert!(registered.len() > 2, "{registered:?}");
     for (registered, declared) in registered.iter().zip(&declared) {
         assert_eq!(registered.name, declared.name);
-        assert_eq!(registered.title, declared.title);
+        assert_eq!(
+            registered.entry.in_locale(Locale::En).display_name,
+            declared.title
+        );
         assert_eq!(registered.args_schema, declared.args_schema);
         assert_eq!(registered.action, declared.action);
         assert_eq!(registered.resource_selector, declared.resource_selector);
@@ -332,7 +344,8 @@ async fn a_plugin_not_granted_its_store_activates_as_written_under_its_own_names
     let ungranted = PluginManifest::parse(
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = []\n",
     )
-    .expect("a manifest the kernel reads");
+    .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     let slot = kernel
         .load(ungranted, &component())
         .await
@@ -344,6 +357,173 @@ async fn a_plugin_not_granted_its_store_activates_as_written_under_its_own_names
         .map(|command| command.name)
         .collect();
     assert_eq!(names, written_under("reference"));
+}
+
+/// `text` without the table of `name`: one locale's texts of the reference
+/// plugin with one command's left out.
+fn without_the_texts_of(text: &str, name: &str) -> String {
+    let opening = format!("[command.\"{name}\"]\n");
+    let at = text.find(&opening).expect("the command has texts");
+    let rest = &text[at + opening.len()..];
+    let end = rest
+        .find("\n[command.")
+        .map_or(text.len(), |next| at + opening.len() + next + 1);
+    format!("{}{}", &text[..at], &text[end..])
+}
+
+/// The reference plugin's entries, each file as `edit` leaves it.
+fn entries_edited(edit: impl Fn(&str, String) -> String) -> PluginEntries {
+    let (commands, texts) = nc_kernel::entry_files_for_tests("reference");
+    let commands = edit("commands", commands);
+    let texts: Vec<(Locale, String)> = texts
+        .into_iter()
+        .map(|(locale, text)| (locale, edit(locale.tag(), text)))
+        .collect();
+    let handed: Vec<(Locale, &str)> = texts
+        .iter()
+        .map(|(locale, text)| (*locale, text.as_str()))
+        .collect();
+    PluginEntries::parse(&commands, &handed).expect("entries of the shape the kernel reads")
+}
+
+/// What loading the reference plugin as written, described by `entries`, was
+/// refused for — after holding the refusal to leaving nothing registered.
+async fn refused_described_by(entries: PluginEntries) -> Vec<(ErrorCode, String)> {
+    let kernel = kernel::<InMemory>(MemoryBackend::default()).await;
+    let described = PluginManifest::parse(
+        "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = []\n",
+    )
+    .expect("a manifest the kernel reads")
+    .described_by(entries);
+    let refused = kernel
+        .load(described, &component())
+        .await
+        .expect_err("the plugin's entries do not describe what it declares");
+    assert!(
+        kernel
+            .registry()
+            .iter()
+            .all(|command| command.owner == Owner::Kernel),
+        "a refused plugin left commands registered: {:?}",
+        kernel.registry()
+    );
+    problems(&refused)
+}
+
+/// A plugin whose Portuguese texts miss a command is refused at `activate`.
+///
+/// The refusal names the command and the locale, and nothing of the plugin
+/// is registered.
+#[tokio::test]
+async fn a_plugin_whose_portuguese_texts_miss_a_command_is_refused_at_activate_naming_the_command_and_the_locale()
+ {
+    let entries = entries_edited(|file, text| {
+        if file == "pt-BR" {
+            without_the_texts_of(&text, "executions.count")
+        } else {
+            text
+        }
+    });
+    assert_eq!(
+        refused_described_by(entries).await,
+        [(
+            ErrorCode::PluginEntriesInvalid,
+            "`reference.executions.count` of `noctua:reference` says nothing at all in `pt-BR`"
+                .to_owned()
+        )]
+    );
+}
+
+/// A plugin whose command table misses a command is refused, naming it.
+///
+/// At `activate`, with the entries' code, before anything of it is
+/// registered.
+#[tokio::test]
+async fn a_plugin_whose_metadata_misses_a_command_is_refused_at_activate_naming_it() {
+    let entries = entries_edited(|file, text| {
+        if file == "commands" {
+            text.replace("[[command]]\nname = \"probe\"\n", "")
+        } else {
+            without_the_texts_of(&text, "probe")
+        }
+    });
+    assert_eq!(
+        refused_described_by(entries).await,
+        [(
+            ErrorCode::PluginEntriesInvalid,
+            "`reference.probe` of `noctua:reference` has no entry: its plugin's \
+             `commands.toml` lists no `probe`"
+                .to_owned()
+        )]
+    );
+}
+
+/// A plugin whose English display name is not the title its component
+/// declares is refused, naming both: the component and its directory said two
+/// things.
+#[tokio::test]
+async fn a_plugin_whose_title_is_not_its_english_display_name_is_refused() {
+    let entries = entries_edited(|file, text| {
+        if file == "en" {
+            text.replace(
+                "display_name = \"Answer with the text given\"",
+                "display_name = \"Answer with what was given\"",
+            )
+        } else {
+            text
+        }
+    });
+    assert_eq!(
+        refused_described_by(entries).await,
+        [(
+            ErrorCode::PluginEntriesInvalid,
+            "`reference.echo` of `noctua:reference` declares the title `Answer with the text \
+             given`, and its English display name is `Answer with what was given`: the two are \
+             one text, written in the component and in its directory"
+                .to_owned()
+        )]
+    );
+}
+
+/// A plugin loaded under another namespace finds its entries by the names
+/// its commands have inside it, and every command is shown by its own.
+#[tokio::test]
+async fn a_plugin_under_another_namespace_finds_its_entries_by_their_relative_names() {
+    let store = MemoryBackend::default();
+    let activation = Activation {
+        namespace: "peer".to_owned(),
+        variant: Variant::Normal,
+        subscribe: Vec::new(),
+    };
+    Seeder::new()
+        .seed(&store, "noctua:peer", activation.written())
+        .await;
+    let kernel = kernel::<InMemory>(store).await;
+    let slot = kernel
+        .load(manifest("noctua:peer", "peer"), &component())
+        .await
+        .expect("the entries are keyed inside the namespace, whichever it is");
+    let registered: Vec<_> = kernel
+        .registry()
+        .into_iter()
+        .filter(|command| command.owner == Owner::Plugin(slot))
+        .collect();
+    assert_eq!(
+        registered
+            .iter()
+            .map(|command| command.name.clone())
+            .collect::<Vec<_>>(),
+        written_under("peer")
+    );
+    let read = registered
+        .iter()
+        .find(|command| command.name == "peer.note.get")
+        .expect("the read is registered");
+    assert_eq!(read.entry.in_locale(Locale::En).display_name, "Read a note");
+    assert_eq!(
+        read.entry.in_locale(Locale::PtBR).display_name,
+        "Ler uma nota"
+    );
 }
 
 #[tokio::test]
@@ -585,7 +765,8 @@ async fn a_plugin_whose_memory_is_lowered_below_what_it_starts_with_is_not_loade
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = []\n\
          [limits]\nmemory_bytes = 65536\n",
     )
-    .expect("a lowering within the catalog");
+    .expect("a lowering within the catalog")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     let refused = kernel
         .load(small, &component())
         .await

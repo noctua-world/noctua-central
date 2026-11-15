@@ -166,7 +166,9 @@ async fn opened_under(manifest: &str, heard: &[&str]) -> Fixture {
     .expect("the kernel opens");
     let reference = kernel
         .load(
-            PluginManifest::parse(manifest).expect("a manifest the kernel reads"),
+            PluginManifest::parse(manifest)
+                .expect("a manifest the kernel reads")
+                .described_by(nc_kernel::entries_for_tests("reference")),
             &nc_kernel::component_for_tests("reference"),
         )
         .await

@@ -74,6 +74,9 @@ pub(crate) fn check(
             (file, text)
         })
         .collect();
+    // The bound the kernel holds a plugin's entries to, read from the catalog
+    // being compiled rather than the crate the last build generated.
+    let entry_bytes = catalog.limits.kernel.entry_bytes;
     for command in &catalog.commands {
         let in_locales: Vec<InLocale<'_>> = catalog
             .locales
@@ -98,6 +101,7 @@ pub(crate) fn check(
             &Rules {
                 requires: &Text::ALL,
                 categories: &CATEGORIES,
+                entry_bytes,
             },
         );
         let Err(found) = judged else {
@@ -187,6 +191,12 @@ const fn the_check_for(problem: &EntryProblem) -> Option<(&'static str, &'static
             "entry-text-not-carried",
             "a registry says which texts its entries carry, and a text none of its \
              surfaces shows is one nobody keeps true. Remove it from every locale",
+        )),
+        EntryProblem::TooManyBytes { .. } => Some((
+            "entry-too-many-bytes",
+            "one command's texts in one locale travel together in the daemon's registry \
+             answer, and `[kernel] entry_bytes` is their share of it, the same for the \
+             catalog and for every plugin. Shorten the paragraph, or keep fewer tags",
         )),
         EntryProblem::TooLong { .. } => Some((
             "entry-text-too-long",

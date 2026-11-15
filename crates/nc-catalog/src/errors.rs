@@ -327,6 +327,8 @@ pub enum ErrorCode {
     PluginNotARevision,
     /// NC-PLUG-0028 — A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing
     PluginUnitEnded,
+    /// NC-PLUG-0029 — A plugin's entries — its commands' texts in every locale — are refused, missing or not what its commands declare
+    PluginEntriesInvalid,
     /// NC-POL-0001 — A policy pack could not be read
     PolicyUnreadable,
     /// NC-POL-0002 — A policy pack does not validate against the Cedar schema
@@ -487,6 +489,7 @@ impl ErrorCode {
         Self::PluginTopicRefused,
         Self::PluginNotARevision,
         Self::PluginUnitEnded,
+        Self::PluginEntriesInvalid,
         Self::PolicyUnreadable,
         Self::PolicyInvalid,
         Self::PolicyDenied,
@@ -638,6 +641,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => "NC-PLUG-0026",
             Self::PluginNotARevision => "NC-PLUG-0027",
             Self::PluginUnitEnded => "NC-PLUG-0028",
+            Self::PluginEntriesInvalid => "NC-PLUG-0029",
             Self::PolicyUnreadable => "NC-POL-0001",
             Self::PolicyInvalid => "NC-POL-0002",
             Self::PolicyDenied => "NC-POL-0003",
@@ -790,6 +794,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => "PLUG",
             Self::PluginNotARevision => "PLUG",
             Self::PluginUnitEnded => "PLUG",
+            Self::PluginEntriesInvalid => "PLUG",
             Self::PolicyUnreadable => "POL",
             Self::PolicyInvalid => "POL",
             Self::PolicyDenied => "POL",
@@ -1150,6 +1155,9 @@ impl ErrorCode {
             Self::PluginUnitEnded => {
                 "A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing"
             }
+            Self::PluginEntriesInvalid => {
+                "A plugin's entries — its commands' texts in every locale — are refused, missing or not what its commands declare"
+            }
             Self::PolicyUnreadable => "A policy pack could not be read",
             Self::PolicyInvalid => "A policy pack does not validate against the Cedar schema",
             Self::PolicyDenied => "The decision point denied a request",
@@ -1312,6 +1320,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => "error.plugin.topic-refused",
             Self::PluginNotARevision => "error.plugin.not-a-revision",
             Self::PluginUnitEnded => "error.plugin.unit-ended",
+            Self::PluginEntriesInvalid => "error.plugin.entries-invalid",
             Self::PolicyUnreadable => "error.policy.unreadable",
             Self::PolicyInvalid => "error.policy.invalid",
             Self::PolicyDenied => "error.policy.denied",
@@ -1464,6 +1473,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => Severity::Warning,
             Self::PluginNotARevision => Severity::Warning,
             Self::PluginUnitEnded => Severity::Warning,
+            Self::PluginEntriesInvalid => Severity::Error,
             Self::PolicyUnreadable => Severity::Critical,
             Self::PolicyInvalid => Severity::Critical,
             Self::PolicyDenied => Severity::Warning,
@@ -1616,6 +1626,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => false,
             Self::PluginNotARevision => false,
             Self::PluginUnitEnded => false,
+            Self::PluginEntriesInvalid => false,
             Self::PolicyUnreadable => false,
             Self::PolicyInvalid => false,
             Self::PolicyDenied => false,
@@ -1768,6 +1779,7 @@ impl ErrorCode {
             Self::PluginTopicRefused => &[],
             Self::PluginNotARevision => &[],
             Self::PluginUnitEnded => &[],
+            Self::PluginEntriesInvalid => &[],
             Self::PolicyUnreadable => &[],
             Self::PolicyInvalid => &[],
             Self::PolicyDenied => &[],

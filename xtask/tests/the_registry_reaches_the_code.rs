@@ -1747,6 +1747,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.restart_window_ms, declared.restart_window_ms);
     assert_eq!(generated.payload_bytes, declared.payload_bytes);
     assert_eq!(generated.commands_per_plugin, declared.commands_per_plugin);
+    assert_eq!(generated.entry_bytes, declared.entry_bytes);
     assert_eq!(generated.store_key_bytes, declared.store_key_bytes);
     assert_eq!(generated.store_value_bytes, declared.store_value_bytes);
     assert_eq!(generated.unit_bytes, declared.unit_bytes);
@@ -1797,7 +1798,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        44,
+        45,
         "a kernel limit was added or lost"
     );
 }

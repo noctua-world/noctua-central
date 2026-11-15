@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "6a57732754804d3d333f8cd671d2023003f137d22e6139c9b42c54bcc7c0ca43"
-count = 145
+checksum = "ecb97282bc4881e4d9e79d0089eaa53ac0e64904eea9659f956d21f4844d1db8"
+count = 146
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -158,6 +158,7 @@ count = 145
 "NC-PLUG-0026" = "error.plugin.topic-refused — warning — retryable:false — params:[] — A plugin published an event under a topic that is not one, or that is outside its namespace"
 "NC-PLUG-0027" = "error.plugin.not-a-revision — warning — retryable:false — params:[] — A plugin's write named, as the revision it expects to replace, text that is not a revision"
 "NC-PLUG-0028" = "error.plugin.unit-ended — warning — retryable:false — params:[] — A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing"
+"NC-PLUG-0029" = "error.plugin.entries-invalid — error — retryable:false — params:[] — A plugin's entries — its commands' texts in every locale — are refused, missing or not what its commands declare"
 "NC-POL-0001" = "error.policy.unreadable — critical — retryable:false — params:[] — A policy pack could not be read"
 "NC-POL-0002" = "error.policy.invalid — critical — retryable:false — params:[] — A policy pack does not validate against the Cedar schema"
 "NC-POL-0003" = "error.policy.denied — warning — retryable:false — params:[] — The decision point denied a request"

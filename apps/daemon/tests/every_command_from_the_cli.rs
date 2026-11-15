@@ -3,7 +3,9 @@
 //! Stage 13, acceptance 2): each decided as the person the profile's world
 //! names, with the grant and the epoch it names, and found in the journal
 //! afterwards; and help printed from the daemon's registry, each command by
-//! its name and its title and each argument from its command's schema.
+//! its name, its display name and its line in the environment's language,
+//! help on each with its paragraph, tags and categories and each argument
+//! from its command's schema (Stage 14, acceptance 4 for commands).
 //!
 //! **Acceptance 8 of Stage 14 here too**: a name `naming.propose` answers is
 //! read back by `naming.read` as the fields that built it, through the CLI and
@@ -308,7 +310,6 @@ const ROWS: &[Row] = &[
 
 /// A command as the daemon's registry lists it: the fields this suite reads.
 struct Registered {
-    title: String,
     args_schema: String,
     action: String,
     resource_selector: String,
@@ -334,6 +335,7 @@ impl Serving {
         installed.install_plugin(
             "reference",
             GRANTED,
+            &nc_daemon::testing::entries_of("reference"),
             &nc_kernel::component_for_tests("reference"),
         );
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -344,7 +346,14 @@ impl Serving {
         let (mut client, registry) = runtime.block_on(async {
             let (mut client, _) = daemon.connected().await;
             running(&mut client).await;
-            let Answer::Registry(entries) = asked(&mut client, Request::Registry).await else {
+            let Answer::Registry(entries) = asked(
+                &mut client,
+                Request::Registry {
+                    locale: nc_catalog::Locale::En,
+                },
+            )
+            .await
+            else {
                 panic!("the registry was not answered");
             };
             (client, entries)
@@ -369,6 +378,18 @@ impl Serving {
             registry,
             installed,
         }
+    }
+
+    /// Every command's texts, by its name, as the registry answers them asked
+    /// in `locale`.
+    fn shown_in(&mut self, locale: Locale) -> BTreeMap<String, Shown> {
+        let Answer::Registry(entries) = self
+            .runtime
+            .block_on(asked(&mut self.client, Request::Registry { locale }))
+        else {
+            panic!("the registry was not answered");
+        };
+        entries.iter().map(shown).collect()
     }
 
     /// The CLI run with `words`, in the language `env` names.
@@ -434,10 +455,51 @@ fn registered(entry: &Value) -> (String, Registered) {
     (
         text("name"),
         Registered {
-            title: text("title"),
             args_schema: text("args_schema"),
             action: text("action"),
             resource_selector: text("resource_selector"),
+        },
+    )
+}
+
+/// What a command shows a person in one locale, as the registry answers it.
+#[derive(Debug)]
+struct Shown {
+    display_name: String,
+    line: String,
+    paragraph: String,
+    tags: Vec<String>,
+    categories: Vec<String>,
+}
+
+/// A registry entry's texts, by its name.
+fn shown(entry: &Value) -> (String, Shown) {
+    let fields = entry.clone().into_object().expect("an entry is an object");
+    let text = |key: &str| {
+        fields
+            .get(key)
+            .cloned()
+            .and_then(Value::into_text)
+            .unwrap_or_else(|| panic!("an entry's {key} is text: {entry:?}"))
+    };
+    let texts = |key: &str| -> Vec<String> {
+        fields
+            .get(key)
+            .cloned()
+            .and_then(Value::into_array)
+            .unwrap_or_else(|| panic!("an entry's {key} is a list: {entry:?}"))
+            .into_iter()
+            .map(|one| one.into_text().expect("a list of text"))
+            .collect()
+    };
+    (
+        text("name"),
+        Shown {
+            display_name: text("display_name"),
+            line: text("line"),
+            paragraph: text("paragraph"),
+            tags: texts("tags"),
+            categories: texts("categories"),
         },
     )
 }
@@ -618,65 +680,98 @@ fn held_to(row: &Row, record: &nc_journal::Record, registered: &Registered) {
     }
 }
 
-/// Help lists every command the registry holds, and each one's arguments.
+/// Help lists every command by its display name and line in the
+/// environment's language, and each argument from its schema.
 ///
-/// Each command by its name and its title — the catalog's in the environment's
-/// language, a plugin's label as it declared it — and help on each command
-/// shows a flag for each argument its schema declares; nothing help prints is
-/// dispatched.
+/// **Through the CLI, as a person runs it, in both languages.** The registry
+/// is asked in the environment's, and every command is shown by the texts the
+/// daemon resolved in it: a command of the catalog by the catalog's, a
+/// command of the plugin by its own entries. Help on each command shows its
+/// paragraph, its tags and its categories, and a flag for each argument its
+/// schema declares; nothing help prints is dispatched.
 #[test]
-fn help_lists_every_command_by_its_name_and_title_and_each_argument_from_its_schema() {
-    let serving = Serving::new();
+fn help_lists_every_command_by_its_display_name_and_line_in_the_environments_language_and_each_argument_from_its_schema()
+ {
+    let mut serving = Serving::new();
     let portuguese = nc_cli::Env::of(|name| (name == "LANG").then(|| "pt_BR.UTF-8".to_owned()));
-    for (env, locale) in [(english(), Locale::En), (portuguese, Locale::PtBR)] {
+    for (env, locale, read) in [
+        (english(), Locale::En, "Read a note"),
+        (portuguese, Locale::PtBR, "Ler uma nota"),
+    ] {
+        let shown = serving.shown_in(locale);
+        assert_eq!(
+            shown.keys().collect::<Vec<_>>(),
+            serving.registry.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            shown["reference.note.get"].display_name,
+            read,
+            "the plugin's command is shown by its own entry in `{}`",
+            locale.tag()
+        );
         let help = serving.run(&["help".to_owned()], &env);
         assert_eq!(help.exit, Exit::Success, "{help:?}");
-        for (name, registered) in &serving.registry {
-            let title = nc_catalog::command(name).map_or_else(
-                || registered.title.clone(),
-                |command| {
-                    nc_catalog::message(command.title_key, locale)
-                        .expect("the catalog's title")
-                        .to_owned()
-                },
-            );
+        for (name, texts) in &shown {
+            if let Some(command) = nc_catalog::command(name) {
+                let resolved = |key| nc_catalog::message(key, locale).expect("the catalog's text");
+                assert_eq!(texts.display_name, resolved(command.title_key), "{name}");
+                assert_eq!(texts.line, resolved(command.description_key), "{name}");
+                assert_eq!(texts.paragraph, resolved(command.paragraph_key), "{name}");
+                assert_eq!(
+                    texts.tags,
+                    nc_catalog::tags(command.tags_key, locale).expect("the catalog's tags"),
+                    "{name}"
+                );
+            }
+            let listed = format!("{} — {}", texts.display_name, texts.line);
             assert!(
                 help.stdout
                     .lines()
                     .any(|line| line.trim_start().starts_with(&format!("{name} "))
-                        && line.trim_end().ends_with(&title)),
-                "{name} is not listed with its title {title:?}:\n{}",
+                        && line.trim_end().ends_with(&listed)),
+                "{name} is not listed as {listed:?}:\n{}",
                 help.stdout
             );
-        }
-    }
-    for (name, registered) in &serving.registry {
-        let one = serving.run(&["help".to_owned(), name.clone()], &english());
-        assert_eq!(one.exit, Exit::Success, "{name}: {one:?}");
-        let schema = nc_canon::parse(&registered.args_schema).expect("a schema is JSON");
-        let properties = schema
-            .into_object()
-            .and_then(|fields| fields.get("properties").cloned())
-            .and_then(Value::into_object)
-            .unwrap_or_default();
-        for property in properties.keys() {
-            assert!(
-                one.stdout.contains(&format!("\n  --{property}")),
-                "{name}'s help shows no flag for `{property}`:\n{}",
-                one.stdout
-            );
-        }
-        if properties.is_empty() {
-            assert!(
-                one.stdout.contains("Arguments:\n  none\n"),
-                "{}",
-                one.stdout
-            );
-        }
-        if let Some(command) = nc_catalog::command(name) {
-            let description = nc_catalog::message(command.description_key, Locale::En)
-                .expect("the catalog's description");
-            assert!(one.stdout.contains(description), "{}", one.stdout);
+            let one = serving.run(&["help".to_owned(), name.clone()], &env);
+            assert_eq!(one.exit, Exit::Success, "{name}: {one:?}");
+            let categories = if texts.categories.is_empty() {
+                "none".to_owned()
+            } else {
+                texts.categories.join(", ")
+            };
+            for said in [
+                format!("{name} — {}\n{}\n", texts.display_name, texts.line),
+                format!("\n{}\n", texts.paragraph),
+                format!("\nTags: {}\n", texts.tags.join(", ")),
+                format!("\nCategories: {categories}\n"),
+            ] {
+                assert!(
+                    one.stdout.contains(&said),
+                    "{name}: `{said}` in:\n{}",
+                    one.stdout
+                );
+            }
+            let schema =
+                nc_canon::parse(&serving.registry[name].args_schema).expect("a schema is JSON");
+            let properties = schema
+                .into_object()
+                .and_then(|fields| fields.get("properties").cloned())
+                .and_then(Value::into_object)
+                .unwrap_or_default();
+            for property in properties.keys() {
+                assert!(
+                    one.stdout.contains(&format!("\n  --{property}")),
+                    "{name}'s help shows no flag for `{property}`:\n{}",
+                    one.stdout
+                );
+            }
+            if properties.is_empty() {
+                assert!(
+                    one.stdout.contains("Arguments:\n  none\n"),
+                    "{}",
+                    one.stdout
+                );
+            }
         }
     }
     let store = serving

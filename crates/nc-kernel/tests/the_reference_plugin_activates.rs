@@ -64,6 +64,49 @@ async fn the_reference_plugin_activates_and_declares_its_commands() {
     );
 }
 
+/// The reference plugin's entries describe every command it declares and no
+/// other, and each command's English display name is the title it declares.
+///
+/// **Both ways, and by the names inside the namespace**: a command added to
+/// the table with no row is refused at `activate`, and a row left behind by a
+/// command taken out is one no list shows and nobody keeps true — which the
+/// kernel tolerates, since a plugin may declare a command on one activation
+/// and not on another, and this tree does not.
+#[test]
+fn the_reference_plugins_entries_describe_every_command_it_declares_and_no_other() {
+    use nc_plugin_reference::behaviour::{NAMESPACE, commands};
+
+    let entries = nc_kernel::entries_for_tests("reference");
+    let described: std::collections::BTreeSet<String> = entries
+        .names()
+        .map(|name| format!("{NAMESPACE}.{name}"))
+        .collect();
+    let declared: std::collections::BTreeSet<String> =
+        commands().into_iter().map(|command| command.name).collect();
+    assert_eq!(
+        described.difference(&declared).collect::<Vec<_>>(),
+        Vec::<&String>::new(),
+        "rows no command the plugin declares claims"
+    );
+    assert_eq!(
+        declared.difference(&described).collect::<Vec<_>>(),
+        Vec::<&String>::new(),
+        "commands the plugin declares with no row"
+    );
+    assert!(declared.len() > 2, "{declared:?}");
+    let (_, texts) = nc_kernel::entry_files_for_tests("reference");
+    let english: toml::Table = texts
+        .iter()
+        .find(|(locale, _)| *locale == nc_catalog::Locale::En)
+        .map(|(_, text)| toml::from_str(text).expect("the English texts are TOML"))
+        .expect("the English texts are read");
+    for command in commands() {
+        let relative = &command.name[NAMESPACE.len() + 1..];
+        let shown = english["command"][relative]["display_name"].as_str();
+        assert_eq!(shown, Some(command.title), "`{}`", command.name);
+    }
+}
+
 /// A plugin imports what it calls, and the reference plugin calls everything.
 ///
 /// Its probe calls every function of the world, so its component imports each
