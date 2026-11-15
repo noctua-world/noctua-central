@@ -8937,7 +8937,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1072] = [
     "{} declares no `//! EXPECT: <substring>`. Without one, \"it failed\" is all this gate can check — and a fixture that stopped testing what it is named for still fails, for a typo",
     "{} dependency warning(s), and criterion 1 is no failures and no warnings. Each names a `deny.toml` entry to correct",
     "{} does not match the catalog",
-    "{} error code(s), {} notification(s), {} email(s), {} command(s), {} log event(s), {} table(s), {} capability(ies), {} locale(s)",
+    "{} error code(s), {} notification(s), {} email(s), {} command(s), {} log event(s), {} table(s), {} capability(ies), {} category(ies) in {} set(s), {} external identifier(s), {} locale(s)",
     "{} failed. Docker's own words are above this line and they are the diagnosis; the three this fails for are an image that could not be fetched — a first run on a machine that has never had them pulls both — a daemon that is not running or that your user may not reach, and a port already taken, which `POSTGRES_PORT` and `LOGS_PORT` are for",
     "{} failed: {}",
     "{} finding(s) about {subject}",
@@ -13244,7 +13244,7 @@ fn a_step_that_did_not_run(opened: &[String]) -> Result<(), String> {
 /// twice. What a census of a private surface is for is telling a
 /// reviewer that the surface grew, and a phantom entry in it is an entry nobody
 /// can go and read.
-const DOORS: usize = 21;
+const DOORS: usize = 22;
 
 /// Whether a count taken from the tree disagrees with the number written down.
 ///
@@ -19486,18 +19486,18 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 211] = [
-        ("cli/args.rs", 40, 10),
+    const DOCUMENTED: [(&str, usize, usize); 214] = [
+        ("cli/args.rs", 43, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
-        ("cli/help.rs", 19, 3),
+        ("cli/help.rs", 35, 3),
         ("cli/install.rs", 68, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
-        ("cli/run.rs", 23, 5),
+        ("cli/run.rs", 24, 5),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
@@ -19526,28 +19526,31 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 26, 15),
-        ("nc-catalog-compiler/emit.rs", 32, 15),
+        ("nc-catalog-compiler/docs.rs", 32, 15),
+        ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
-        ("nc-catalog-compiler/lib.rs", 22, 15),
-        ("nc-catalog-compiler/load.rs", 60, 19),
+        ("nc-catalog-compiler/lib.rs", 22, 16),
+        ("nc-catalog-compiler/load.rs", 61, 19),
         ("nc-catalog-compiler/messages.rs", 21, 3),
-        ("nc-catalog-compiler/metadata.rs", 15, 1),
-        ("nc-catalog-compiler/model.rs", 54, 19),
+        ("nc-catalog-compiler/metadata.rs", 24, 2),
+        ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 83, 113),
+        ("nc-catalog-compiler/registries.rs", 42, 4),
+        ("nc-catalog-compiler/the_gates_fire.rs", 109, 113),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             16,
             2,
         ),
         ("nc-catalog/capabilities.rs", 7, 1),
+        ("nc-catalog/categories.rs", 6, 0),
         ("nc-catalog/commands.rs", 4, 0),
         ("nc-catalog/emails.rs", 6, 1),
         ("nc-catalog/errors.rs", 13, 6),
         ("nc-catalog/events.rs", 6, 3),
+        ("nc-catalog/external_identifiers.rs", 7, 1),
         ("nc-catalog/i18n.rs", 16, 1),
-        ("nc-catalog/lib.rs", 0, 9),
+        ("nc-catalog/lib.rs", 0, 11),
         ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
@@ -19624,7 +19627,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 63, 25),
+        ("nc-kernel/registry.rs", 62, 25),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 193, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -19676,7 +19679,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 685, 57),
+        ("xtask/check.rs", 686, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19696,8 +19699,8 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 40, 21),
-        ("xtask/the_registry_reaches_the_code.rs", 30, 22),
+        ("xtask/the_pages_reach_the_catalog.rs", 48, 20),
+        ("xtask/the_registry_reaches_the_code.rs", 40, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -22484,8 +22487,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 762 scratches this tree
-    /// builds, 674 of the 762 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 812 scratches this tree
+    /// builds, 724 of the 812 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22555,7 +22558,7 @@ mod the_frozen_path_rule {
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 15, 15),
-        ("cli/run.rs", 6, 6),
+        ("cli/run.rs", 7, 7),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
@@ -22569,7 +22572,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 206, 206),
+        ("nc-catalog-compiler/the_gates_fire.rs", 255, 255),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25553,7 +25556,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19170;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19518;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25572,7 +25575,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4883;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5014;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25589,7 +25592,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1639;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1684;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25623,7 +25626,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25828;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26172;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25677,7 +25680,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 25,828 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,172 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25710,7 +25713,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1639 of
+    /// this tree offers, **1684 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28364,7 +28367,7 @@ mod the_frozen_path_rule {
         ("—", "compiled catalog/"),
         (
             "—",
-            "{} error code(s), {} notification(s), {} email(s), {} command(s), {} log event(s), {} table(s), {} capability(ies), {} locale(s)",
+            "{} error code(s), {} notification(s), {} email(s), {} command(s), {} log event(s), {} table(s), {} capability(ies), {} category(ies) in {} set(s), {} external identifier(s), {} locale(s)",
         ),
         ("—", "build"),
         (
@@ -32944,9 +32947,9 @@ mod the_frozen_path_rule {
     /// hand-written TOML file in `catalog/`, holding a credential, wears the
     /// extension that tree is allowed to hold, in the directory that holds the registries — so
     /// the kind rule admits it, and `ONLY_UNDER_THIS_NAME` cannot pin `toml`
-    /// here to one name because eight files wear it: the seven registries the
-    /// compiler reads and the reservation ledger, which the list below and
-    /// `counts.rs` both keep apart from them.
+    /// here to one name because every registry the compiler reads wears it,
+    /// and so does the reservation ledger, which the list below and `counts.rs`
+    /// both keep apart from them.
     ///
     /// A *name* list is what that leaves, which is the shape
     /// [`WHAT_MAY_SIT_AT_THE_ROOT`] already has and for the mirror reason: the
@@ -32962,12 +32965,14 @@ mod the_frozen_path_rule {
     /// a registry and an entry, in a format, or the build fails with
     /// `wiki-misplaced`, `wiki-orphan` or `wiki-format-unknown`. What is
     /// asserted below is that `i18n` holds nothing but files.
-    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 10] = [
-        // The seven registries the compiler reads.
+    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 12] = [
+        // The registries the compiler reads.
         "capabilities.toml",
+        "categories.toml",
         "commands.toml",
         "emails.toml",
         "errors.toml",
+        "external-identifiers.toml",
         "limits.toml",
         "log-events.toml",
         "notifications.toml",
@@ -37565,7 +37570,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 225,
+            walked, 228,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37605,7 +37610,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2304] = [
+    static OPERATORS: [(&str, &str, &str); 2407] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40756,10 +40761,20 @@ Options:
             "wiki",
             "a wiki text sits under a registry",
         ),
+        (
+            "compiler_metadata",
+            "REGISTRIES",
+            "an external identifier's wiki text sits in the tree",
+        ),
+        (
+            "compiler_metadata",
+            "names_by_registry",
+            "an external identifier's wiki text names an identifier",
+        ),
         ("compiler_metadata", "wiki", "a wiki text is a regular file"),
         (
             "compiler_metadata",
-            "one_command_per_display_name",
+            "one_entry_per_display_name",
             "two display names are compared as a reader reads them",
         ),
         (
@@ -40781,6 +40796,482 @@ Options:
             "compiler_metadata",
             "check",
             "a command of the catalog is held to the kernel's bound in bytes",
+        ),
+        (
+            "compiler_metadata",
+            "category",
+            "a category's line description is judged",
+        ),
+        (
+            "compiler_metadata",
+            "category",
+            "a category's display name is judged",
+        ),
+        ("compiler_metadata", "set", "a set's display name is judged"),
+        (
+            "compiler_metadata",
+            "set",
+            "a set's line description is judged",
+        ),
+        (
+            "compiler_metadata",
+            "check",
+            "a command's categories are the registry's",
+        ),
+        (
+            "compiler_metadata",
+            "check",
+            "each set's categories are a list of their own",
+        ),
+        (
+            "compiler_registries",
+            "check_categories",
+            "a set declared twice is refused",
+        ),
+        (
+            "compiler_registries",
+            "check_categories",
+            "a category declared twice is refused",
+        ),
+        (
+            "compiler_registries",
+            "check_categories",
+            "a standard name is counted once per set",
+        ),
+        (
+            "compiler_registries",
+            "check_one_set",
+            "a set's name is a slug",
+        ),
+        (
+            "compiler_registries",
+            "check_one_set",
+            "what defines a set says something a reader sees",
+        ),
+        (
+            "compiler_registries",
+            "check_one_set",
+            "a standard's version says something a reader sees",
+        ),
+        (
+            "compiler_registries",
+            "check_one_set",
+            "the platform's own set names no version",
+        ),
+        (
+            "compiler_registries",
+            "check_the_name",
+            "a category's slug is lower-case words",
+        ),
+        (
+            "compiler_registries",
+            "check_what_the_standard_says",
+            "a standard name is printable ASCII",
+        ),
+        (
+            "compiler_registries",
+            "check_what_the_standard_says",
+            "the platform's own category carries no role",
+        ),
+        (
+            "compiler_registries",
+            "every_set_holds_a_category_and_ranks_all_or_none",
+            "a ranked set ranks every category",
+        ),
+        (
+            "compiler_registries",
+            "every_set_holds_a_category_and_ranks_all_or_none",
+            "a set holds a category",
+        ),
+        ("compiler_registries", "a_slug", "a slug has no empty word"),
+        ("compiler_registries", "a_slug", "a slug is lower case"),
+        (
+            "compiler_registries",
+            "a_standard_name",
+            "a standard name holds no space",
+        ),
+        (
+            "compiler_messages",
+            "no_value_is_the_source_sentence_except",
+            "an exemption over a sentence the locales do not share is reported",
+        ),
+        (
+            "compiler_messages",
+            "no_value_is_the_source_sentence_except",
+            "an exemption is used only by a sentence the locales share",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "a category's line description takes no placeholder",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "a set's display name takes no placeholder",
+        ),
+        (
+            "compiler_model",
+            "word",
+            "a role is published as the word its registry writes",
+        ),
+        (
+            "cli_args",
+            "topic",
+            "help on the categories is a topic of its own",
+        ),
+        (
+            "cli_help",
+            "categories",
+            "help lists a set's categories under it alone",
+        ),
+        (
+            "cli_help",
+            "category_lines",
+            "a category's display name is escaped",
+        ),
+        ("cli_help", "set_heading", "what defines a set is escaped"),
+        ("cli_run", "run", "help on the categories needs no daemon"),
+        (
+            "compiler_registries",
+            "check_external_identifiers",
+            "an external identifier declared twice is refused",
+        ),
+        (
+            "compiler_registries",
+            "check_external_identifiers",
+            "an external identifier's name is a slug",
+        ),
+        (
+            "compiler_registries",
+            "check_the_identification",
+            "an entry identified on no system is refused",
+        ),
+        (
+            "compiler_registries",
+            "check_the_identification",
+            "a system's table naming nothing is refused",
+        ),
+        (
+            "compiler_registries",
+            "check_the_identification",
+            "every value is held to its field's shape",
+        ),
+        (
+            "compiler_registries",
+            "check_the_identification",
+            "a value is written once in its list",
+        ),
+        (
+            "compiler_registries",
+            "IDENTIFIED_BY",
+            "every field of a Linux table is read",
+        ),
+        (
+            "compiler_registries",
+            "IDENTIFIED_BY",
+            "every field of a macOS table is read",
+        ),
+        (
+            "compiler_registries",
+            "IDENTIFIED_BY",
+            "every field of a Windows table is read",
+        ),
+        (
+            "compiler_registries",
+            "held_in",
+            "each field is read from its own key",
+        ),
+        (
+            "compiler_registries",
+            "is_held_by",
+            "an entry is identified on a system only where it writes its table",
+        ),
+        (
+            "compiler_registries",
+            "on_each_system",
+            "a system an entry writes no table for is not one it is identified on",
+        ),
+        (
+            "compiler_registries",
+            "generated",
+            "each system's generated type is named as the emitter declares it",
+        ),
+        (
+            "compiler_model",
+            "OnMacOs",
+            "a key a table gains past the list's last is one the list must name",
+        ),
+        (
+            "compiler_registries",
+            "SNAP_NAME_MAX",
+            "the Snap bound is the one its refusal states",
+        ),
+        (
+            "compiler_registries",
+            "IDENTIFICATION_MAX",
+            "the identification bound is the one its refusal states",
+        ),
+        (
+            "compiler_registries",
+            "table",
+            "a system is written as its table in the registry writes it",
+        ),
+        (
+            "compiler_registries",
+            "word",
+            "a system is called on a page what its makers call it",
+        ),
+        (
+            "compiler_registries",
+            "key",
+            "a field is named as its system's table writes it",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a value with anything around it is refused",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a value that says nothing is refused",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a value holding what a reader sees nothing of is refused",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a value is bounded",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "no value holds two dots in a row",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "an executable is a name and not a path",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a desktop file's name holds no separator",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a desktop file is named before `.desktop`",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Flatpak identifier is three words at least",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Snap name is at most 40 characters",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Snap name is lower case",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a path on Linux begins at the root",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a bundle identifier is two words at least",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "an application bundle's path begins at the root",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "an application bundle has a name before `.app`",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Windows executable holds no separator of either kind",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Windows executable is named before `.exe`",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Windows path is written with backslashes",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "a Windows path names something past its anchor",
+        ),
+        (
+            "compiler_registries",
+            "identification",
+            "an anchor is written as the environment writes it",
+        ),
+        (
+            "compiler_registries",
+            "dotted",
+            "a dotted word is never empty",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's display name is judged",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's line description is judged",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's paragraph is judged",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's tags are judged",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's categories are the registry's",
+        ),
+        (
+            "compiler_metadata",
+            "identifier",
+            "an external identifier's glyph is judged",
+        ),
+        (
+            "compiler_metadata",
+            "check",
+            "the external identifiers are a list of their own",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "an external identifier's display name takes no placeholder",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "an external identifier's line description takes no placeholder",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "an external identifier's paragraph takes no placeholder",
+        ),
+        (
+            "loader",
+            "every_reference",
+            "an external identifier's tags are its own",
+        ),
+        (
+            "pages",
+            "code",
+            "a bar inside a value is escaped as a table reads one",
+        ),
+        (
+            "pages",
+            "code",
+            "what a reader sees nothing of in a value becomes a space",
+        ),
+        (
+            "pages",
+            "code",
+            "a value's fence is longer than any run of backticks in it",
+        ),
+        (
+            "pages",
+            "code",
+            "a value is padded where it ends with a backtick",
+        ),
+        ("pages", "shown_with", "an entry's glyph is on its page"),
+        (
+            "pages",
+            "shown_with",
+            "an entry naming no category has no row for one",
+        ),
+        (
+            "pages",
+            "shown_with",
+            "a wiki link names the directory of its entry's registry",
+        ),
+        (
+            "pages",
+            "external_identifiers",
+            "an external identifier's wiki text is linked under its own registry",
+        ),
+        (
+            "emitter",
+            "external_identifiers",
+            "an external identifier carries its wiki format into the code",
+        ),
+        (
+            "cli_args",
+            "topic",
+            "help on the external identifiers is a topic of its own",
+        ),
+        (
+            "cli_help",
+            "external_identifiers",
+            "help lists every system an external identifier is identified on",
+        ),
+        (
+            "cli_help",
+            "external_identifiers",
+            "help lists every field of a system",
+        ),
+        (
+            "cli_help",
+            "external_identifiers",
+            "help heads each system's fields with its own system",
+        ),
+        (
+            "cli_help",
+            "identifier_heading",
+            "an external identifier's display name is escaped",
+        ),
+        (
+            "cli_help",
+            "identifier_heading",
+            "an external identifier's line is escaped",
+        ),
+        (
+            "cli_help",
+            "identifier_heading",
+            "a category an external identifier is listed under is escaped",
+        ),
+        (
+            "cli_help",
+            "identification_lines",
+            "every value an external identifier is identified by is escaped",
+        ),
+        (
+            "cli_run",
+            "run",
+            "help on the external identifiers needs no daemon",
         ),
         (
             "pack",
@@ -41710,6 +42201,11 @@ Options:
             "kernel_registry",
             "entry_of",
             "a plugin's entry is held to the catalog's bound in bytes",
+        ),
+        (
+            "kernel_registry",
+            "entry_of",
+            "a plugin's entry may name a category the catalog holds",
         ),
         (
             "kernel_registry",
@@ -48177,7 +48673,7 @@ Options:
         "the first part is `env`",
     ];
 
-    /// The lines of one item — `fn`, `const`, `static` or `mod` — named `name`.
+    /// The lines of one item — `fn`, `const`, `static`, `mod` or `struct` — named `name`.
     ///
     /// **The `predicate` column of an operator has to decide something.** An
     /// applicability check that asks only whether the `from` text occurs
@@ -48251,7 +48747,23 @@ Options:
                         .find(name)
                         .is_some_and(|at| bounded(line, at, name.len())))
         };
-        let from = bare.iter().position(|line| declares(line))?;
+        // **And a struct, whose fields are the keys a registry's file may
+        // write**, read only where nothing above declares the name. A key a
+        // table gains past the last one its readers name is a field appended
+        // to the struct and nowhere else, so the weakening that plants one has
+        // no other item to name. A struct's name is also its `impl` blocks',
+        // which hold the clauses most operators over a type weaken: measured,
+        // the struct read first takes 23 of them away from the blocks they
+        // name, `OpaqueId`'s among them.
+        let a_struct = |line: &str| {
+            let needle = format!("struct {name}");
+            line.find(&needle)
+                .is_some_and(|at| bounded(line, at, needle.len()))
+        };
+        let from = bare
+            .iter()
+            .position(|line| declares(line))
+            .or_else(|| bare.iter().position(|line| a_struct(line)))?;
         // **Where it closes, by the shape `cargo fmt` guarantees.** Counting
         // brackets needs the string literals spent, so a count is exactly as
         // right as the stripper under it: one that loses a line hands back a
@@ -48289,6 +48801,28 @@ Options:
         assert_eq!(
             the_item_called(source, "inline").as_deref(),
             Some("pub mod inline {\n    pub fn inside() {}\n}")
+        );
+    }
+
+    /// A struct is an item, read to its own closing brace, where no `impl` of
+    /// it answers the name first.
+    ///
+    /// It names the clause an operator over a registry's model weakens: a
+    /// field appended to a table is a key the file may write that no reader of
+    /// the table names. An `impl` block keeps the name it already answered.
+    #[test]
+    fn the_item_reader_names_a_struct() {
+        let source = "pub struct Table {\n    pub first: u8,\n    pub last: u8,\n}\n\n\
+                      pub struct Held {\n    pub last: u8,\n}\n\n\
+                      impl Held {\n    fn last(&self) -> u8 {\n        self.last\n    }\n}\n";
+        assert_eq!(
+            the_item_called(source, "Table").as_deref(),
+            Some("pub struct Table {\n    pub first: u8,\n    pub last: u8,\n}")
+        );
+        assert!(the_item_called(source, "Tab").is_none());
+        assert_eq!(
+            the_item_called(source, "Held").as_deref(),
+            Some("impl Held {\n    fn last(&self) -> u8 {\n        self.last\n    }\n}")
         );
     }
 

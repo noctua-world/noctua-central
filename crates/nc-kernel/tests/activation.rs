@@ -442,7 +442,9 @@ async fn a_plugin_whose_portuguese_texts_miss_a_command_is_refused_at_activate_n
 async fn a_plugin_whose_metadata_misses_a_command_is_refused_at_activate_naming_it() {
     let entries = entries_edited(|file, text| {
         if file == "commands" {
-            text.replace("[[command]]\nname = \"probe\"\n", "")
+            let row = "[[command]]\nname = \"probe\"\ncategories = [\"noctua.reference\"]\n";
+            assert!(text.contains(row), "{text}");
+            text.replace(row, "")
         } else {
             without_the_texts_of(&text, "probe")
         }

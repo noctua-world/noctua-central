@@ -26,7 +26,8 @@
 #                      characters each, none twice, and none holding a comma
 #                      or a brace, so no tag holds a placeholder either
 #   categories         optional: the names of the categories it is listed under,
-#                      at most four, each one the categories registry holds
+#                      at most four, none twice, each one `catalog/categories.toml`
+#                      holds — the kernel's own are the `noctua` set's
 #   glyph              optional: the code point it is shown with, written
 #                      `U+` and upper-case hex, four digits at least and no
 #                      leading zero past them — `U+F0E2`, never `U+0F0E2` —
@@ -79,6 +80,7 @@ title = "command.journal.verify.title"
 description = "command.journal.verify.description"
 paragraph = "command.journal.verify.paragraph"
 tags = "command.journal.verify.tags"
+categories = ["noctua.history"]
 glyph = "U+F058"   # nf-fa-check_circle
 action = "Read"
 resource_selector = "realm"
@@ -93,6 +95,7 @@ title = "command.limits.prune.title"
 description = "command.limits.prune.description"
 paragraph = "command.limits.prune.paragraph"
 tags = "command.limits.prune.tags"
+categories = ["noctua.maintenance"]
 glyph = "U+F1F8"   # nf-fa-trash
 action = "Delete"
 resource_selector = "realm"
@@ -120,6 +123,7 @@ title = "command.kernel.undo.title"
 description = "command.kernel.undo.description"
 paragraph = "command.kernel.undo.paragraph"
 tags = "command.kernel.undo.tags"
+categories = ["noctua.history"]
 glyph = "U+F0E2"   # nf-fa-undo
 action = "Write"
 resource_selector = "realm"
@@ -134,6 +138,7 @@ title = "command.kernel.redo.title"
 description = "command.kernel.redo.description"
 paragraph = "command.kernel.redo.paragraph"
 tags = "command.kernel.redo.tags"
+categories = ["noctua.history"]
 glyph = "U+F01E"   # nf-fa-repeat
 action = "Write"
 resource_selector = "realm"
@@ -165,6 +170,7 @@ title = "command.naming.propose.title"
 description = "command.naming.propose.description"
 paragraph = "command.naming.propose.paragraph"
 tags = "command.naming.propose.tags"
+categories = ["noctua.files"]
 glyph = "U+F040"   # nf-fa-pencil
 action = "Read"
 resource_selector = "feature:naming"
@@ -179,6 +185,7 @@ title = "command.naming.read.title"
 description = "command.naming.read.description"
 paragraph = "command.naming.read.paragraph"
 tags = "command.naming.read.tags"
+categories = ["noctua.files"]
 glyph = "U+F06E"   # nf-fa-eye
 action = "Read"
 resource_selector = "feature:naming"

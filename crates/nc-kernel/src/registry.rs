@@ -106,13 +106,6 @@ pub enum Owner {
     Plugin(PluginSlot),
 }
 
-/// The categories a plugin's entry may name.
-///
-/// **None yet, as for the catalog's commands**: the categories registry is
-/// what a name is held to, and until the catalog carries it every category an
-/// entry names is one no list can show it under, which the judge refuses.
-const CATEGORIES: [&str; 0] = [];
-
 /// What a command shows a person, in every locale (`NOCTUA.md §20.4`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandEntry {
@@ -518,10 +511,17 @@ impl Registry {
                 "has no entry: its plugin's `commands.toml` lists no `{relative}`"
             )]);
         };
+        // The categories an entry may name are the ones the catalog's categories
+        // registry holds, the list a command of the catalog is held to: one no
+        // set holds is one no list can show the command under.
+        let categories: Vec<&str> = nc_catalog::CATEGORIES
+            .iter()
+            .map(|category| category.name)
+            .collect();
         let entry = row
             .judged(&Rules {
                 requires: &Text::ALL,
-                categories: &CATEGORIES,
+                categories: &categories,
                 entry_bytes: KERNEL.entry_bytes,
             })
             .map_err(|found| found.iter().map(ToString::to_string).collect::<Vec<_>>())?;
@@ -1997,6 +1997,9 @@ mod tests {
 
     /// A category a plugin's entry names is held to the catalog's, as a
     /// command of the catalog's is.
+    ///
+    /// One the categories registry holds is admitted and listed as the entry
+    /// names it; one no set holds refuses the command, naming the category.
     #[test]
     fn a_category_a_plugins_entry_names_is_one_the_catalog_holds() {
         let english = row_of("note.get", "Read a note", "Shows what a note says", "note");
@@ -2006,20 +2009,32 @@ mod tests {
             "Mostra o que uma nota diz",
             "nota",
         );
-        let filed = PluginEntries::parse(
-            "[[command]]\nname = \"note.get\"\ncategories = [\"noctua.reference\"]\n",
-            &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
-        )
-        .expect("entries of the shape the kernel reads");
+        let filed = |category: &str| {
+            PluginEntries::parse(
+                &format!("[[command]]\nname = \"note.get\"\ncategories = [\"{category}\"]\n"),
+                &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
+            )
+            .expect("entries of the shape the kernel reads")
+        };
+        let admitted = Registry::from_catalog()
+            .admit(
+                &notes().described_by(filed("noctua.reference")),
+                PluginSlot(0),
+                &[a_read("notes.note.get")],
+                &[],
+                &pdp(),
+            )
+            .expect("a category the registry holds");
+        assert_eq!(admitted[0].listed.entry.categories, ["noctua.reference"]);
         assert_eq!(
             refused_with(
                 &Registry::from_catalog(),
-                filed,
+                filed("noctua.unheard-of"),
                 &[a_read("notes.note.get")]
             ),
             [(
                 ErrorCode::PluginEntriesInvalid,
-                "`notes.note.get` of `noctua:notes` names the category `noctua.reference`, \
+                "`notes.note.get` of `noctua:notes` names the category `noctua.unheard-of`, \
                  which its registry does not hold"
                     .to_owned()
             )]

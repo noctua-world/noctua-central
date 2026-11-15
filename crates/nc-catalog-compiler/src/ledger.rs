@@ -728,6 +728,9 @@ mod tests {
             events: Vec::new(),
             capabilities: Vec::new(),
             ungated: Vec::new(),
+            category_sets: Vec::new(),
+            categories: Vec::new(),
+            external_identifiers: Vec::new(),
             locales: Vec::new(),
             wiki: Vec::new(),
         }

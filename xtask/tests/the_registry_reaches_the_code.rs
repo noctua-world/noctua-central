@@ -667,6 +667,27 @@ fn every_constant_that_claims_an_order_is_in_it() {
         nc_catalog::AREAS.iter().map(|(name, _)| *name).collect(),
         "AREAS",
     );
+    sorted(
+        nc_catalog::CATEGORY_SETS
+            .iter()
+            .map(|set| set.name)
+            .collect(),
+        "CATEGORY_SETS",
+    );
+    sorted(
+        nc_catalog::CATEGORIES
+            .iter()
+            .map(|category| category.name)
+            .collect(),
+        "CATEGORIES",
+    );
+    sorted(
+        nc_catalog::EXTERNAL_IDENTIFIERS
+            .iter()
+            .map(|identifier| identifier.name)
+            .collect(),
+        "EXTERNAL_IDENTIFIERS",
+    );
 }
 
 /// `ErrorCode`'s variants are in code order, and `ALL` says so.
@@ -1282,6 +1303,697 @@ fn every_command_carries_its_metadata_into_the_code() {
         "{with_a_wiki} of {} command(s) carry a wiki text, so `None` or `Some` alone would \
          pass",
         catalog.commands.len()
+    );
+}
+
+/// Every set of categories and every category reaches the code as the
+/// registry declares it, and every category a command names is one the code
+/// holds.
+///
+/// **Each value against the registry**: an emitter writing every standard name
+/// as `None`, every role as `main` or every set as the platform's own would
+/// agree with the files it wrote and with nothing else.
+#[test]
+fn every_category_reaches_the_code() {
+    let catalog = catalog();
+    assert!(!catalog.category_sets.is_empty(), "no set was compared");
+    for set in &catalog.category_sets {
+        let generated = nc_catalog::category_set(&set.name)
+            .unwrap_or_else(|| panic!("the set `{}` never reached the code", set.name));
+        assert_eq!(generated.name, set.name);
+        assert_eq!(generated.title_key, set.title, "{}", set.name);
+        assert_eq!(generated.description_key, set.description, "{}", set.name);
+        assert_eq!(generated.standard, set.standard, "{}", set.name);
+        assert_eq!(generated.defined_by, set.defined_by.trim(), "{}", set.name);
+        assert_eq!(generated.version, set.version.as_deref(), "{}", set.name);
+    }
+    let mut compared = 0_usize;
+    for category in &catalog.categories {
+        let generated = nc_catalog::category(&category.name)
+            .unwrap_or_else(|| panic!("`{}` never reached the code", category.name));
+        assert_eq!(generated.name, category.name);
+        assert_eq!(generated.set, category.set, "{}", category.name);
+        assert_eq!(
+            generated.standard_name,
+            category.standard_name.as_deref(),
+            "{}",
+            category.name
+        );
+        // The role as the registry writes it, spelled out here rather than
+        // asked of the model's own spelling.
+        let role = category.role.map(|role| match role {
+            nc_catalog_compiler::model::Role::Main => "main",
+            nc_catalog_compiler::model::Role::Additional => "additional",
+            nc_catalog_compiler::model::Role::Reserved => "reserved",
+        });
+        assert_eq!(generated.role, role, "{}", category.name);
+        assert_eq!(generated.title_key, category.title, "{}", category.name);
+        assert_eq!(
+            generated.description_key, category.description,
+            "{}",
+            category.name
+        );
+        compared += 1;
+    }
+    // The registry has to hold more than one answer for each, or a constant
+    // would pass.
+    for (what, distinct) in [
+        (
+            "standard",
+            nc_catalog::CATEGORY_SETS
+                .iter()
+                .map(|set| set.standard.to_string())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        ),
+        (
+            "role",
+            nc_catalog::CATEGORIES
+                .iter()
+                .map(|category| category.role)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        ),
+        (
+            "standard name",
+            nc_catalog::CATEGORIES
+                .iter()
+                .map(|category| category.standard_name.is_some())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        ),
+    ] {
+        assert!(
+            distinct > 1,
+            "every category carries one {what}, so a constant would pass"
+        );
+    }
+    assert!(compared > 1, "{compared} categor(ies) were compared");
+    for command in nc_catalog::COMMANDS {
+        for named in command.categories {
+            assert!(
+                nc_catalog::category(named).is_some(),
+                "`{}` names `{named}`, which the code does not hold",
+                command.name
+            );
+        }
+    }
+    assert_eq!(nc_catalog::category("noctua.nothing"), None);
+    assert_eq!(nc_catalog::category_set("nothing"), None);
+}
+
+/// A category's name in `kebab-case`, as the registry slugs a standard name:
+/// split where a lower-case letter meets a capital and where a letter meets a
+/// digit, an acronym kept whole.
+///
+/// Written here, once, and never asked of the compiler: the registry's slugs
+/// are hand-written, and this is the rule they are held to.
+fn kebab(standard_name: &str) -> String {
+    let characters: Vec<char> = standard_name.chars().collect();
+    let mut words: Vec<String> = vec![String::new()];
+    for (at, &here) in characters.iter().enumerate() {
+        let before = at.checked_sub(1).map(|at| characters[at]);
+        let after = characters.get(at + 1).copied();
+        let boundary = before.is_some_and(|before| {
+            (before.is_ascii_lowercase() && here.is_ascii_uppercase())
+                || (before.is_ascii_alphabetic() && here.is_ascii_digit())
+                || (before.is_ascii_uppercase()
+                    && here.is_ascii_uppercase()
+                    && after.is_some_and(|after| after.is_ascii_lowercase()))
+        });
+        if boundary {
+            words.push(String::new());
+        }
+        if let Some(word) = words.last_mut() {
+            word.push(here.to_ascii_lowercase());
+        }
+    }
+    words.join("-")
+}
+
+/// Every category of a standard is named for its standard name: a freedesktop
+/// category's slug is its standard name in `kebab-case`, and an Apple one's is
+/// what follows `public.app-category.`.
+#[test]
+fn every_category_slug_is_its_standard_name_in_kebab_case() {
+    for (written, slugged) in [
+        ("AudioVideo", "audio-video"),
+        ("2DGraphics", "2d-graphics"),
+        ("IRCClient", "irc-client"),
+        ("GUIDesigner", "gui-designer"),
+        ("KDE", "kde"),
+        ("TV", "tv"),
+        ("P2P", "p-2p"),
+        ("LXQt", "lx-qt"),
+        ("WebBrowser", "web-browser"),
+    ] {
+        assert_eq!(kebab(written), slugged, "{written}");
+    }
+    let mut held = 0_usize;
+    for category in nc_catalog::CATEGORIES {
+        let slug = category
+            .name
+            .strip_prefix(&format!("{}.", category.set))
+            .unwrap_or_else(|| panic!("`{}` is not named under its set", category.name));
+        match category.set {
+            "freedesktop" => {
+                let standard = category
+                    .standard_name
+                    .expect("a freedesktop category is named");
+                assert_eq!(slug, kebab(standard), "{}", category.name);
+            }
+            "apple" => {
+                let standard = category.standard_name.expect("an Apple category is named");
+                assert_eq!(
+                    Some(slug),
+                    standard.strip_prefix("public.app-category."),
+                    "{}",
+                    category.name
+                );
+            }
+            _ => {
+                assert_eq!(category.standard_name, None, "{}", category.name);
+                continue;
+            }
+        }
+        held += 1;
+    }
+    assert!(held > 1, "{held} slug(s) were held to a standard name");
+}
+
+/// The freedesktop.org Desktop Menu Specification 1.1's registered
+/// categories, in its order, each under the role its registry gives it: read
+/// from the specification's three registry pages when the set was written,
+/// which this test cannot read, so they are written here.
+const DESKTOP_MENU_SPECIFICATION: [(&str, &[&str]); 3] = [
+    (
+        "main",
+        &[
+            "AudioVideo",
+            "Audio",
+            "Video",
+            "Development",
+            "Education",
+            "HealthFitness",
+            "Game",
+            "Graphics",
+            "Network",
+            "Office",
+            "Science",
+            "Settings",
+            "System",
+            "Utility",
+        ],
+    ),
+    (
+        "additional",
+        &[
+            "Building",
+            "Debugger",
+            "IDE",
+            "GUIDesigner",
+            "Profiling",
+            "RevisionControl",
+            "Translation",
+            "Calendar",
+            "ContactManagement",
+            "Database",
+            "Dictionary",
+            "Chart",
+            "Email",
+            "Finance",
+            "FlowChart",
+            "PDA",
+            "ProjectManagement",
+            "Presentation",
+            "Spreadsheet",
+            "WordProcessor",
+            "2DGraphics",
+            "VectorGraphics",
+            "RasterGraphics",
+            "3DGraphics",
+            "Scanning",
+            "OCR",
+            "Photography",
+            "Publishing",
+            "Viewer",
+            "TextTools",
+            "DesktopSettings",
+            "HardwareSettings",
+            "Printing",
+            "PackageManager",
+            "Dialup",
+            "InstantMessaging",
+            "Chat",
+            "IRCClient",
+            "Feed",
+            "FileTransfer",
+            "HamRadio",
+            "News",
+            "P2P",
+            "RemoteAccess",
+            "Telephony",
+            "TelephonyTools",
+            "VideoConference",
+            "WebBrowser",
+            "WebDevelopment",
+            "Midi",
+            "Mixer",
+            "Sequencer",
+            "Tuner",
+            "TV",
+            "AudioVideoEditing",
+            "Player",
+            "Recorder",
+            "DiscBurning",
+            "ActionGame",
+            "AdventureGame",
+            "ArcadeGame",
+            "BoardGame",
+            "BlocksGame",
+            "CardGame",
+            "KidsGame",
+            "LogicGame",
+            "RolePlaying",
+            "Shooter",
+            "Simulation",
+            "SportsGame",
+            "StrategyGame",
+            "LauncherStore",
+            "GameTool",
+            "Exercise",
+            "Medication",
+            "Mindfulness",
+            "Nutrition",
+            "CareProvider",
+            "Sleep",
+            "Art",
+            "Construction",
+            "Music",
+            "Languages",
+            "ArtificialIntelligence",
+            "Astronomy",
+            "Biology",
+            "Chemistry",
+            "ComputerScience",
+            "DataVisualization",
+            "Economy",
+            "Electricity",
+            "Geography",
+            "Geology",
+            "Geoscience",
+            "History",
+            "Humanities",
+            "ImageProcessing",
+            "Literature",
+            "Maps",
+            "Math",
+            "NumericalAnalysis",
+            "MedicalSoftware",
+            "Physics",
+            "Robotics",
+            "Spirituality",
+            "Sports",
+            "ParallelComputing",
+            "Amusement",
+            "Archiving",
+            "Compression",
+            "Electronics",
+            "Emulator",
+            "Engineering",
+            "FileTools",
+            "FileManager",
+            "TerminalEmulator",
+            "Filesystem",
+            "Monitor",
+            "Security",
+            "Accessibility",
+            "Calculator",
+            "Clock",
+            "TextEditor",
+            "Documentation",
+            "Adult",
+            "Core",
+            "KDE",
+            "COSMIC",
+            "GNOME",
+            "LXQt",
+            "XFCE",
+            "DDE",
+            "GTK",
+            "Qt",
+            "Motif",
+            "Java",
+            "ConsoleOnly",
+        ],
+    ),
+    ("reserved", &["Screensaver", "TrayIcon", "Applet", "Shell"]),
+];
+
+/// Apple's `LSApplicationCategoryType` values, without their common prefix,
+/// in the order Apple's page lists them.
+const LS_APPLICATION_CATEGORY_TYPE: [&str; 40] = [
+    "business",
+    "developer-tools",
+    "education",
+    "entertainment",
+    "finance",
+    "games",
+    "action-games",
+    "adventure-games",
+    "arcade-games",
+    "board-games",
+    "card-games",
+    "casino-games",
+    "dice-games",
+    "educational-games",
+    "family-games",
+    "kids-games",
+    "music-games",
+    "puzzle-games",
+    "racing-games",
+    "role-playing-games",
+    "simulation-games",
+    "sports-games",
+    "strategy-games",
+    "trivia-games",
+    "word-games",
+    "graphics-design",
+    "healthcare-fitness",
+    "lifestyle",
+    "medical",
+    "music",
+    "news",
+    "photography",
+    "productivity",
+    "reference",
+    "social-networking",
+    "sports",
+    "travel",
+    "utilities",
+    "video",
+    "weather",
+];
+
+/// Every row of the two standards' sources is a category, with its role, and
+/// no category of a standard set is anything else.
+///
+/// **Counted per role and compared as sets**, because the test reads nothing
+/// outside the repository: the sources' rows are written above, and a row
+/// the registry drops, adds, renames or ranks otherwise is a difference here.
+#[test]
+fn every_row_of_the_sources_is_a_category_and_no_other() {
+    let counted: Vec<(&str, usize)> = DESKTOP_MENU_SPECIFICATION
+        .iter()
+        .map(|(role, rows)| (*role, rows.len()))
+        .collect();
+    assert_eq!(
+        counted,
+        [("main", 14), ("additional", 137), ("reserved", 4)],
+        "the Desktop Menu Specification 1.1 registers 14 main, 137 additional and 4 \
+         reserved categories"
+    );
+    let written: std::collections::BTreeSet<(&str, Option<&str>)> = DESKTOP_MENU_SPECIFICATION
+        .iter()
+        .flat_map(|(role, rows)| rows.iter().map(move |row| (*row, Some(*role))))
+        .collect();
+    let held: std::collections::BTreeSet<(&str, Option<&str>)> = nc_catalog::CATEGORIES
+        .iter()
+        .filter(|category| category.set == "freedesktop")
+        .map(|category| {
+            (
+                category
+                    .standard_name
+                    .expect("a freedesktop category is named"),
+                category.role,
+            )
+        })
+        .collect();
+    assert_eq!(
+        held, written,
+        "the freedesktop set is not the specification's"
+    );
+    assert_eq!(held.len(), 155);
+
+    let written: std::collections::BTreeSet<String> = LS_APPLICATION_CATEGORY_TYPE
+        .iter()
+        .map(|value| format!("public.app-category.{value}"))
+        .collect();
+    let held: std::collections::BTreeSet<String> = nc_catalog::CATEGORIES
+        .iter()
+        .filter(|category| category.set == "apple")
+        .map(|category| {
+            assert_eq!(category.role, None, "{}", category.name);
+            category
+                .standard_name
+                .expect("an Apple category is named")
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(held, written, "the apple set is not Apple's list");
+    assert_eq!(held.len(), 40);
+
+    let sets: Vec<(&str, bool)> = nc_catalog::CATEGORY_SETS
+        .iter()
+        .map(|set| (set.name, set.standard))
+        .collect();
+    assert_eq!(
+        sets,
+        [("apple", true), ("freedesktop", true), ("noctua", false)],
+        "the sets are the two standards' and the platform's own"
+    );
+    let noctua: Vec<&str> = nc_catalog::CATEGORIES
+        .iter()
+        .filter(|category| category.set == "noctua")
+        .map(|category| category.name)
+        .collect();
+    assert_eq!(
+        noctua,
+        [
+            "noctua.files",
+            "noctua.history",
+            "noctua.maintenance",
+            "noctua.reference"
+        ]
+    );
+    assert_eq!(
+        nc_catalog::category_set("freedesktop").and_then(|set| set.version),
+        Some("1.1")
+    );
+}
+
+/// What identifies one external identifier, field by field: the system, the
+/// field and its values.
+type Identified<'a> = Vec<(&'a str, &'a str, Vec<&'a str>)>;
+
+/// What the generated crate hands out of an entry's identification.
+///
+/// **Through `ExternalIdentifier::identification`**, the list the compiler
+/// writes from the one it judges by, so a field the registry gains is a row
+/// here that nothing below names until it is written out.
+fn identified_in_the_code(identifier: &nc_catalog::ExternalIdentifier) -> Identified<'static> {
+    identifier
+        .identification()
+        .into_iter()
+        .map(|(system, field, values)| (system, field, values.to_vec()))
+        .collect()
+}
+
+/// Every external identifier reaches the code as the registry declares it.
+///
+/// **Each value against the registry**, every text key, category, glyph and
+/// value of every field of every system: an emitter writing one system's table
+/// as another's, or dropping a field to an empty list, would agree with the
+/// file it wrote and with nothing else.
+#[test]
+fn every_external_identifier_reaches_the_code() {
+    let catalog = catalog();
+    let mut compared = 0_usize;
+    for entry in &catalog.external_identifiers {
+        let named = entry.name.as_str();
+        let generated = nc_catalog::external_identifier(named)
+            .unwrap_or_else(|| panic!("`{named}` never reached the code"));
+        assert_eq!(generated.name, named);
+        assert_eq!(generated.title_key, entry.title, "{named}");
+        assert_eq!(generated.description_key, entry.description, "{named}");
+        assert_eq!(generated.paragraph_key, entry.paragraph, "{named}");
+        assert_eq!(generated.tags_key, entry.tags, "{named}");
+        assert_eq!(generated.categories, entry.categories, "{named}");
+        assert_eq!(
+            generated
+                .glyph
+                .map(|glyph| format!("U+{:04X}", u32::from(glyph))),
+            entry.glyph,
+            "{named}"
+        );
+        // A system the registry identifies the entry on is one the code holds
+        // a table for, and only those.
+        assert_eq!(
+            Option::is_some(&generated.linux),
+            entry.linux.is_some(),
+            "{named}"
+        );
+        assert_eq!(
+            Option::is_some(&generated.macos),
+            entry.macos.is_some(),
+            "{named}"
+        );
+        assert_eq!(
+            Option::is_some(&generated.windows),
+            entry.windows.is_some(),
+            "{named}"
+        );
+        let on_linux: Option<nc_catalog::OnLinux> = generated.linux;
+        if let (Some(on), Some(declared)) = (on_linux, &entry.linux) {
+            assert_eq!(on.executables, declared.executables, "{named}");
+            assert_eq!(on.desktop_ids, declared.desktop_ids, "{named}");
+            assert_eq!(on.flatpak_ids, declared.flatpak_ids, "{named}");
+            assert_eq!(on.snap_names, declared.snap_names, "{named}");
+            assert_eq!(on.paths, declared.paths, "{named}");
+        }
+        let on_macos: Option<nc_catalog::OnMacOs> = generated.macos;
+        if let (Some(on), Some(declared)) = (on_macos, &entry.macos) {
+            assert_eq!(on.bundle_ids, declared.bundle_ids, "{named}");
+            assert_eq!(on.app_paths, declared.app_paths, "{named}");
+            assert_eq!(on.executables, declared.executables, "{named}");
+        }
+        let on_windows: Option<nc_catalog::OnWindows> = generated.windows;
+        if let (Some(on), Some(declared)) = (on_windows, &entry.windows) {
+            assert_eq!(on.executables, declared.executables, "{named}");
+            assert_eq!(on.app_paths_keys, declared.app_paths_keys, "{named}");
+            assert_eq!(on.paths, declared.paths, "{named}");
+        }
+        // **And every field as the one list names it**, which the typed
+        // comparisons above cannot be: a field the compiler judges and the
+        // generated walk leaves out, or hands out under another field's name, is
+        // a difference here whatever field it is.
+        let words: Vec<(&str, &str, Vec<&str>)> =
+            nc_catalog_compiler::identification_for_tests(entry)
+                .into_iter()
+                .map(|(system, field, values)| {
+                    (system, field, values.iter().map(String::as_str).collect())
+                })
+                .collect();
+        let declared: Vec<(&str, &str, &[&str])> = words
+            .iter()
+            .map(|(system, field, values)| (*system, *field, values.as_slice()))
+            .collect();
+        assert_eq!(generated.identification(), declared, "{named}");
+        assert_eq!(
+            generated.wiki,
+            catalog
+                .wiki
+                .iter()
+                .find(|text| text.registry == "external-identifiers" && text.name == entry.name)
+                .map(|text| wiki_format(text.format.extension())),
+            "{named}"
+        );
+        compared += 1;
+    }
+    assert!(
+        compared > 1,
+        "{compared} external identifier(s) were compared"
+    );
+    assert_eq!(nc_catalog::external_identifier("nothing"), None);
+}
+
+/// The external-identifier registry holds Google Chrome and Chromium, each
+/// identified on Linux, macOS and Windows.
+///
+/// **Written out, value by value**, as measured on GitHub's hosted runners or
+/// read from Chromium's own sources when the registry was seeded, which this
+/// test cannot read: a value added, dropped, moved or misspelt is a difference
+/// here, and so is a system left out.
+#[test]
+fn the_external_identifiers_hold_chrome_and_chromium_on_every_system() {
+    let names: Vec<&str> = nc_catalog::EXTERNAL_IDENTIFIERS
+        .iter()
+        .map(|identifier| identifier.name)
+        .collect();
+    assert_eq!(names, ["chromium", "google-chrome"]);
+    let none: Vec<&str> = Vec::new();
+
+    let chrome = nc_catalog::external_identifier("google-chrome").expect("Google Chrome");
+    assert_eq!(
+        chrome.categories,
+        ["freedesktop.network", "freedesktop.web-browser"],
+        "what Google Chrome's own desktop file declares, and no `apple` category: its \
+         Info.plist declares none"
+    );
+    assert_eq!(
+        identified_in_the_code(chrome),
+        [
+            (
+                "Linux",
+                "executables",
+                vec!["google-chrome-stable", "google-chrome"]
+            ),
+            (
+                "Linux",
+                "desktop_ids",
+                vec!["google-chrome.desktop", "com.google.Chrome.desktop"]
+            ),
+            ("Linux", "flatpak_ids", none.clone()),
+            ("Linux", "snap_names", none.clone()),
+            (
+                "Linux",
+                "paths",
+                vec![
+                    "/opt/google/chrome/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                    "/usr/bin/google-chrome"
+                ]
+            ),
+            ("macOS", "bundle_ids", vec!["com.google.Chrome"]),
+            (
+                "macOS",
+                "app_paths",
+                vec!["/Applications/Google Chrome.app"]
+            ),
+            ("macOS", "executables", vec!["Google Chrome"]),
+            ("Windows", "executables", vec!["chrome.exe"]),
+            ("Windows", "app_paths_keys", vec!["chrome.exe"]),
+            (
+                "Windows",
+                "paths",
+                vec![r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"]
+            ),
+        ]
+    );
+    // `NOCTUA.md §20.4`'s own example.
+    assert_eq!(
+        nc_catalog::message(chrome.title_key, nc_catalog::Locale::En),
+        Some("Google Chrome")
+    );
+    assert_eq!(
+        nc_catalog::message(chrome.description_key, nc_catalog::Locale::En),
+        Some("Web browser")
+    );
+
+    let chromium = nc_catalog::external_identifier("chromium").expect("Chromium");
+    assert_eq!(
+        chromium.categories,
+        ["freedesktop.network", "freedesktop.web-browser"]
+    );
+    assert_eq!(
+        identified_in_the_code(chromium),
+        [
+            ("Linux", "executables", vec!["chromium", "chromium-browser"]),
+            ("Linux", "desktop_ids", none.clone()),
+            ("Linux", "flatpak_ids", none.clone()),
+            ("Linux", "snap_names", none.clone()),
+            (
+                "Linux",
+                "paths",
+                vec!["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+            ),
+            ("macOS", "bundle_ids", vec!["org.chromium.Chromium"]),
+            ("macOS", "app_paths", none.clone()),
+            ("macOS", "executables", vec!["Chromium"]),
+            ("Windows", "executables", vec!["chrome.exe"]),
+            ("Windows", "app_paths_keys", none.clone()),
+            ("Windows", "paths", none),
+        ]
     );
 }
 
@@ -2164,6 +2876,11 @@ fn every_generated_module_names_the_registry_it_came_from() {
         ("i18n.rs", "catalog/i18n/"),
         ("capabilities.rs", "catalog/capabilities.toml"),
         ("wiki.rs", "catalog/wiki/"),
+        ("categories.rs", "catalog/categories.toml"),
+        (
+            "external_identifiers.rs",
+            "catalog/external-identifiers.toml",
+        ),
     ] {
         let path = root().join("crates/nc-catalog/src").join(module);
         let text = std::fs::read_to_string(&path)
@@ -2266,11 +2983,26 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
     // these already has a per-entry test walking the other way: the two together
     // are a bijection, and either alone is not.
     let catalog = catalog();
-    let counted: [(&str, usize, usize); 8] = [
+    let counted: [(&str, usize, usize); 11] = [
         (
             "commands",
             nc_catalog::COMMANDS.len(),
             catalog.commands.len(),
+        ),
+        (
+            "categories",
+            nc_catalog::CATEGORIES.len(),
+            catalog.categories.len(),
+        ),
+        (
+            "sets of categories",
+            nc_catalog::CATEGORY_SETS.len(),
+            catalog.category_sets.len(),
+        ),
+        (
+            "external identifiers",
+            nc_catalog::EXTERNAL_IDENTIFIERS.len(),
+            catalog.external_identifiers.len(),
         ),
         ("wiki texts", nc_catalog::WIKI.len(), catalog.wiki.len()),
         (

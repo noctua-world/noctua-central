@@ -1357,7 +1357,7 @@ fn two_names_that_differ_only_in_a_hyphen_collide() {
 /// one per nested table crosses the hundred-line budget `clippy.toml` sets, and
 /// a budget met by *reaching fewer structs* is the defect this table exists to
 /// close.
-const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
+const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 28] = [
     (
         "lockout-typo",
         "catalog/limits.toml",
@@ -1555,6 +1555,54 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
         "interface = \"types\"\nreasonz = \"extra\"",
         "reasonz",
     ),
+    // A set and a category, each a struct of its own: a standard name or a
+    // version written under a misspelt key would be a claim about a standard
+    // silently dropped.
+    (
+        "category-set-typo",
+        "catalog/categories.toml",
+        "version = \"1.1\"",
+        "versionn = \"1.1\"",
+        "versionn",
+    ),
+    (
+        "category-typo",
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"",
+        "standard_namez = \"WebBrowser\"",
+        "standard_namez",
+    ),
+    // An external identifier and each system's table, each a struct of its
+    // own: a value written under a misspelt field would be a measurement
+    // silently dropped, and the table it belongs to read as naming nothing.
+    (
+        "external-identifier-typo",
+        "catalog/external-identifiers.toml",
+        "paragraph = \"external-identifier.chromium.paragraph\"",
+        "paragrah = \"external-identifier.chromium.paragraph\"",
+        "paragrah",
+    ),
+    (
+        "on-linux-typo",
+        "catalog/external-identifiers.toml",
+        "desktop_ids = [",
+        "desktop_id = [",
+        "desktop_id",
+    ),
+    (
+        "on-macos-typo",
+        "catalog/external-identifiers.toml",
+        "bundle_ids = [",
+        "bundle_id = [",
+        "bundle_id",
+    ),
+    (
+        "on-windows-typo",
+        "catalog/external-identifiers.toml",
+        "app_paths_keys = [",
+        "app_path_keys = [",
+        "app_path_keys",
+    ),
 ];
 
 /// The registry files, each of whose file-level struct no typo row reaches.
@@ -1570,7 +1618,7 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 22] = [
 /// is missing. That is what this list is: one unknown key at the top of each
 /// registry, where the top is the file-level struct that no row above reaches,
 /// among them `LocaleFile`, the one `check.rs` delegates a rule to by name.
-const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
+const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 10] = [
     ("errors", "catalog/errors.toml"),
     ("notifications", "catalog/notifications.toml"),
     ("emails", "catalog/emails.toml"),
@@ -1579,6 +1627,8 @@ const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
     ("limits", "catalog/limits.toml"),
     ("locale", "catalog/i18n/en.toml"),
     ("capabilities", "catalog/capabilities.toml"),
+    ("categories", "catalog/categories.toml"),
+    ("external-identifiers", "catalog/external-identifiers.toml"),
 ];
 
 #[test]
@@ -4018,6 +4068,11 @@ fn an_empty_registry_fails_the_build() {
             "catalog/capabilities.toml",
             "capabilities",
         ),
+        (
+            "empty-external-identifiers",
+            "catalog/external-identifiers.toml",
+            "declares no external identifier",
+        ),
     ] {
         let scratch = Scratch::new(name);
         scratch.edit(file, |text| {
@@ -4109,6 +4164,28 @@ fn an_empty_registry_fails_the_build() {
     }
 }
 
+/// The categories registry with nothing in it, or with sets and no category,
+/// fails the build saying what it lacks — each a floor of its own.
+#[test]
+fn an_empty_categories_registry_fails_the_build() {
+    let emptied = Scratch::new("empty-categories");
+    emptied.edit("catalog/categories.toml", |text| {
+        text.lines()
+            .filter(|line| line.trim_start().starts_with('#') || line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    emptied.must_fail_saying("empty-registry", "declares no set of categories");
+    let no_category = Scratch::new("empty-category-entries");
+    no_category.edit("catalog/categories.toml", |text| {
+        let first = text
+            .find("[[category]]")
+            .expect("the registry holds a category");
+        text[..first].to_owned()
+    });
+    no_category.must_fail_saying("empty-registry", "declares no category");
+}
+
 #[test]
 fn a_missing_registry_fails_the_build() {
     // **Every registry, each naming its own path.** Removing one file and
@@ -4131,6 +4208,8 @@ fn a_missing_registry_fails_the_build() {
         "catalog/commands.toml",
         "catalog/log-events.toml",
         "catalog/capabilities.toml",
+        "catalog/categories.toml",
+        "catalog/external-identifiers.toml",
     ] {
         let leaf = relative
             .rsplit('/')
@@ -4211,6 +4290,35 @@ fn a_duplicate_name_in_every_registry_that_has_one_fails_the_build() {
              description = \"capability.ui.description\"\n",
             "duplicate-capability",
             "`net` is declared twice",
+        ),
+        (
+            "dup-category",
+            "catalog/categories.toml",
+            "\n[[category]]\nname = \"noctua.files\"\nset = \"noctua\"\n\
+             title = \"category.noctua.files.title\"\n\
+             description = \"category.noctua.files.description\"\n",
+            "duplicate-category",
+            "`noctua.files` is declared twice",
+        ),
+        (
+            "dup-category-set",
+            "catalog/categories.toml",
+            "\n[[set]]\nname = \"noctua\"\ntitle = \"category-set.noctua.title\"\n\
+             description = \"category-set.noctua.description\"\nstandard = false\n\
+             defined_by = \"this catalog\"\n",
+            "duplicate-category-set",
+            "`noctua` is declared twice",
+        ),
+        (
+            "dup-external-identifier",
+            "catalog/external-identifiers.toml",
+            "\n[[identifier]]\nname = \"chromium\"\ntitle = \"external-identifier.chromium.title\"\n\
+             description = \"external-identifier.chromium.description\"\n\
+             paragraph = \"external-identifier.chromium.paragraph\"\n\
+             tags = \"external-identifier.chromium.tags\"\n\n\
+             [identifier.windows]\nexecutables = [\"chrome.exe\"]\n",
+            "duplicate-external-identifier",
+            "`chromium` is declared twice",
         ),
     ] {
         let scratch = Scratch::new(name);
@@ -5276,10 +5384,24 @@ fn a_category_the_registry_does_not_hold_fails_the_build() {
     let scratch = Scratch::new("category-unknown");
     scratch.replacing(
         "catalog/commands.toml",
-        "glyph = \"U+F0E2\"",
-        "glyph = \"U+F0E2\"\ncategories = [\"noctua.everything\"]",
+        "categories = [\"noctua.history\"]\nglyph = \"U+F0E2\"",
+        "categories = [\"noctua.everything\"]\nglyph = \"U+F0E2\"",
     );
     scratch.must_fail_saying("unknown-category", "`noctua.everything`");
+    scratch.must_fail_saying("unknown-category", "`kernel.undo`");
+}
+
+/// A category a command names twice fails the build, naming the command.
+#[test]
+fn a_category_a_command_names_twice_fails_the_build() {
+    let scratch = Scratch::new("category-twice");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "categories = [\"noctua.history\"]\nglyph = \"U+F0E2\"",
+        "categories = [\"noctua.history\", \"noctua.history\"]\nglyph = \"U+F0E2\"",
+    );
+    scratch.must_fail_saying("category-twice", "`noctua.history`");
+    scratch.must_fail_saying("category-twice", "`kernel.undo`");
 }
 
 /// The format a wiki text is recorded in is the one its extension names, and
@@ -5504,4 +5626,801 @@ fn a_wiki_text_the_judge_refuses_or_one_left_untranslated_fails_the_build() {
         english.clone()
     });
     untranslated.must_fail_saying("untranslated", "`kernel.undo`");
+}
+
+// --- the categories ---
+
+/// A category's display name missing from a locale fails the build naming
+/// the category and the text, and so does a set's line description.
+#[test]
+fn a_categorys_name_missing_from_a_locale_fails_naming_it() {
+    let scratch = Scratch::new("category-name-missing");
+    scratch.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "category.freedesktop.network.title")
+    });
+    scratch.must_fail_saying(
+        "missing-key",
+        "category freedesktop.network's display name has no pt-BR text",
+    );
+    // Reported once: the judge's own missing text is the message rule's.
+    let missing = scratch
+        .problems()
+        .into_iter()
+        .filter(|problem| problem.what.contains("freedesktop.network"))
+        .count();
+    assert_eq!(missing, 1, "{}", render(&scratch.problems()));
+    let set = Scratch::new("category-set-line-missing");
+    set.edit("catalog/i18n/pt-BR.toml", |text| {
+        without_the_line_of(&text, "category-set.apple.description")
+    });
+    set.must_fail_saying(
+        "missing-key",
+        "category set apple's line description has no pt-BR text",
+    );
+}
+
+/// A set's and a category's texts take no parameter: each sentence is broken
+/// alone, in both locales, and one left out of the declaration passes here.
+#[test]
+fn a_categorys_texts_may_not_interpolate_anything() {
+    for key in [
+        "category.noctua.history.title",
+        "category.noctua.history.description",
+        "category-set.noctua.title",
+        "category-set.noctua.description",
+    ] {
+        let scratch = Scratch::new(&format!("params-{key}"));
+        for locale in ["en", "pt-BR"] {
+            scratch.replacing(
+                &format!("catalog/i18n/{locale}.toml"),
+                &format!("\"{key}\" = \""),
+                &format!("\"{key}\" = \"{{who}} "),
+            );
+        }
+        scratch.must_fail("param-not-declared", key);
+    }
+}
+
+/// A category's line longer than one terminal line fails the build naming the
+/// category, filed on the line that declares it.
+#[test]
+fn a_categorys_line_longer_than_a_line_fails_naming_it() {
+    let scratch = Scratch::new("category-line-long");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.weather.description\" = \"",
+        &format!(
+            "\"category.apple.weather.description\" = \"{} ",
+            "palavra ".repeat(10)
+        ),
+    );
+    scratch.must_fail_saying("entry-text-too-long", "the category `apple.weather`");
+    scratch
+        .points_at_the_line_declaring("entry-text-too-long", "category.apple.weather.description");
+    let unseen = Scratch::new("category-set-unseen");
+    unseen.replacing(
+        "catalog/i18n/en.toml",
+        "\"category-set.apple.title\" = \"Apple",
+        "\"category-set.apple.title\" = \"\u{202e}Apple",
+    );
+    unseen.must_fail_saying("entry-invisible-character", "the category set `apple`");
+}
+
+/// A category's display name and a set's line are judged as well.
+///
+/// Each fails the build naming its owner, filed on the line that declares it:
+/// the judge is the only reader of either text, so one not handed to it is
+/// shown as written.
+#[test]
+fn a_categorys_display_name_and_a_sets_line_are_judged_naming_their_owner() {
+    let long = Scratch::new("category-display-name-long");
+    long.replacing(
+        "catalog/i18n/en.toml",
+        "\"category.apple.weather.title\" = \"",
+        &format!(
+            "\"category.apple.weather.title\" = \"{}",
+            "Weather ".repeat(8)
+        ),
+    );
+    long.must_fail_saying("entry-text-too-long", "the category `apple.weather`");
+    long.points_at_the_line_declaring("entry-text-too-long", "category.apple.weather.title");
+    let unseen = Scratch::new("category-display-name-unseen");
+    unseen.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.weather.title\" = \"",
+        "\"category.apple.weather.title\" = \"\u{202e}",
+    );
+    unseen.must_fail_saying("entry-invisible-character", "the category `apple.weather`");
+    let set_line = Scratch::new("category-set-line-long");
+    set_line.replacing(
+        "catalog/i18n/en.toml",
+        "\"category-set.apple.description\" = \"",
+        &format!(
+            "\"category-set.apple.description\" = \"{}",
+            "word ".repeat(10)
+        ),
+    );
+    set_line.must_fail_saying("entry-text-too-long", "the category set `apple`");
+    set_line.points_at_the_line_declaring("entry-text-too-long", "category-set.apple.description");
+}
+
+/// Two categories of one set shown by one display name fail the build, and
+/// two sets each naming one category alike do not.
+#[test]
+fn two_categories_of_one_set_shown_by_one_display_name_fail() {
+    let scratch = Scratch::new("category-display-name-twice");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.apple.games.title\" = \"Jogos\"",
+        "\"category.apple.games.title\" = \"jogos de ação.\"",
+    );
+    scratch.must_fail_saying(
+        "display-name-twice",
+        "`apple.games` and `apple.action-games`",
+    );
+    scratch.must_fail_saying("display-name-twice", "the set `apple`");
+    // `apple.games` and `freedesktop.game` are both "Games" in the shipped
+    // catalog, under two sets.
+    let shipped = Scratch::new("category-display-name-across-sets");
+    shipped.edit("catalog/i18n/en.toml", |text| {
+        text.replace(
+            "\"category.freedesktop.game.title\" = \"Games\"",
+            "\"category.freedesktop.game.title\" = \"games.\"",
+        )
+    });
+    assert_eq!(
+        shipped.problems(),
+        Vec::new(),
+        "two sets each holding a category called Games were refused"
+    );
+}
+
+/// A category's name is its set's, a dot and a slug, under the set it is in,
+/// and the set is one the registry declares.
+#[test]
+fn a_category_named_outside_its_set_or_in_no_set_fails_the_build() {
+    let outside = Scratch::new("category-outside-its-set");
+    outside.replacing(
+        "catalog/categories.toml",
+        "name = \"freedesktop.web-browser\"",
+        "name = \"apple.web-browser\"",
+    );
+    outside.must_fail_saying("category-outside-its-set", "`apple.web-browser`");
+    for (name, written) in [
+        ("category-name-capital", "freedesktop.Web-browser"),
+        ("category-name-no-dot", "freedesktop-web-browser"),
+        ("category-name-double-hyphen", "freedesktop.web--browser"),
+        ("category-name-underscore", "freedesktop.web_browser"),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing(
+            "catalog/categories.toml",
+            "name = \"freedesktop.web-browser\"",
+            &format!("name = \"{written}\""),
+        );
+        scratch.must_fail_saying("category-name-malformed", written);
+    }
+    let unknown = Scratch::new("category-set-unknown");
+    unknown.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"kde-desktop\"",
+    );
+    unknown.must_fail_saying("unknown-category-set", "`kde-desktop`");
+}
+
+/// A standard set's category carries its standard name, one the standard
+/// writes and once in its set; the platform's own carries none.
+#[test]
+fn a_standard_name_is_required_if_and_only_if_the_set_is_a_standard() {
+    let missing = Scratch::new("standard-name-missing");
+    missing.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\n",
+        "",
+    );
+    missing.must_fail_saying("standard-name-missing", "`freedesktop.web-browser`");
+    let unexpected = Scratch::new("standard-name-unexpected");
+    unexpected.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"noctua\"\nstandard_name = \"Files\"",
+    );
+    unexpected.must_fail_saying("standard-name-unexpected", "`noctua.files`");
+    let twice = Scratch::new("standard-name-twice");
+    twice.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"Chat\"",
+        "standard_name = \"WebBrowser\"",
+    );
+    twice.must_fail_saying("standard-name-twice", "`WebBrowser`");
+    for (name, written) in [
+        ("standard-name-space", "Web Browser"),
+        ("standard-name-unseen", "Web\u{200b}Browser"),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing(
+            "catalog/categories.toml",
+            "standard_name = \"WebBrowser\"",
+            &format!("standard_name = \"{written}\""),
+        );
+        scratch.must_fail_saying("standard-name-malformed", "`freedesktop.web-browser`");
+    }
+}
+
+/// A set whose standard ranks its categories ranks every one, and the
+/// platform's own set ranks none.
+#[test]
+fn a_role_is_required_in_a_ranked_set_and_refused_in_the_platforms_own() {
+    let missing = Scratch::new("role-missing");
+    missing.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\nrole = \"additional\"\n",
+        "standard_name = \"WebBrowser\"\n",
+    );
+    missing.must_fail_saying("role-missing", "`freedesktop.web-browser`");
+    let unexpected = Scratch::new("role-unexpected");
+    unexpected.replacing(
+        "catalog/categories.toml",
+        "name = \"noctua.files\"\nset = \"noctua\"",
+        "name = \"noctua.files\"\nset = \"noctua\"\nrole = \"main\"",
+    );
+    unexpected.must_fail_saying("role-unexpected", "`noctua.files`");
+    let unknown = Scratch::new("role-unknown");
+    unknown.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"WebBrowser\"\nrole = \"additional\"",
+        "standard_name = \"WebBrowser\"\nrole = \"secondary\"",
+    );
+    unknown.must_fail("registry-malformed", "secondary");
+}
+
+/// A set is named as a category's first part, and says what defines it.
+///
+/// It names its standard's version when it is a standard's and none when it
+/// is the platform's own, and holds a category.
+#[test]
+fn a_set_says_what_defines_it_and_holds_a_category() {
+    let malformed = Scratch::new("category-set-name-malformed");
+    malformed.edit("catalog/categories.toml", |text| {
+        format!(
+            "{text}\n[[set]]\nname = \"Kde Desktop\"\ntitle = \"category-set.noctua.title\"\n\
+             description = \"category-set.noctua.description\"\nstandard = false\n\
+             defined_by = \"this catalog\"\n"
+        )
+    });
+    malformed.must_fail_saying("category-set-name-malformed", "`Kde Desktop`");
+    malformed.must_fail_saying("category-set-empty", "`Kde Desktop`");
+    let undefined = Scratch::new("category-set-undefined");
+    undefined.replacing(
+        "catalog/categories.toml",
+        "defined_by = \"this catalog\"",
+        "defined_by = \" \"",
+    );
+    undefined.must_fail_saying("category-set-undefined", "`noctua`");
+    let no_version = Scratch::new("category-set-version-missing");
+    no_version.replacing("catalog/categories.toml", "version = \"1.1\"\n", "");
+    no_version.must_fail_saying("category-set-version-missing", "`freedesktop`");
+    let blank_version = Scratch::new("category-set-version-blank");
+    blank_version.replacing(
+        "catalog/categories.toml",
+        "version = \"1.1\"",
+        "version = \"\u{2063}\"",
+    );
+    blank_version.must_fail_saying("category-set-version-missing", "`freedesktop`");
+    let own_version = Scratch::new("category-set-version-unexpected");
+    own_version.replacing(
+        "catalog/categories.toml",
+        "defined_by = \"this catalog\"",
+        "defined_by = \"this catalog\"\nversion = \"1\"",
+    );
+    own_version.must_fail_saying("category-set-version-unexpected", "`noctua`");
+}
+
+/// An exemption over a name the locales no longer share fails the build.
+///
+/// And the shipped exemptions are what let the projects' names stand in
+/// both, while a name not exempt is untranslated.
+#[test]
+fn an_exemption_over_a_name_the_locales_no_longer_share_fails_the_build() {
+    let scratch = Scratch::new("exemption-unused");
+    scratch.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.freedesktop.kde.title\" = \"KDE\"",
+        "\"category.freedesktop.kde.title\" = \"Projeto KDE\"",
+    );
+    scratch.must_fail_saying("exemption-unused", "category.freedesktop.kde.title");
+    scratch.points_at_the_line_declaring("exemption-unused", "category.freedesktop.kde.title");
+    // A name not exempt, written the same in both, is untranslated.
+    let untranslated = Scratch::new("category-untranslated");
+    untranslated.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"category.freedesktop.audio.title\" = \"Áudio\"",
+        "\"category.freedesktop.audio.title\" = \"Audio\"",
+    );
+    untranslated.must_fail_saying("untranslated", "category.freedesktop.audio.title");
+}
+
+// --- the external identifiers ---
+
+/// An external identifier's display name missing from a locale fails the build
+/// naming it and the text, and so does each of its other texts.
+#[test]
+fn an_external_identifiers_display_name_missing_from_a_locale_fails_naming_it() {
+    for (key, text) in [
+        ("external-identifier.google-chrome.title", "display name"),
+        (
+            "external-identifier.google-chrome.description",
+            "line description",
+        ),
+        ("external-identifier.google-chrome.paragraph", "paragraph"),
+        ("external-identifier.google-chrome.tags", "tags"),
+    ] {
+        let scratch = Scratch::new(&format!("identifier-missing-{text}"));
+        scratch.edit("catalog/i18n/pt-BR.toml", |locale| {
+            without_the_line_of(&locale, key)
+        });
+        scratch.must_fail_saying(
+            "missing-key",
+            &format!("external identifier google-chrome's {text} has no pt-BR text"),
+        );
+        // Reported once: the judge's own missing text is the message rule's.
+        // The display name's exemption is reported as well, as one the locales
+        // no longer share, and is not a second report of the missing text.
+        let missing = scratch
+            .problems()
+            .into_iter()
+            .filter(|problem| {
+                problem.what.contains("google-chrome") && problem.check != "exemption-unused"
+            })
+            .count();
+        assert_eq!(missing, 1, "{text}: {}", render(&scratch.problems()));
+    }
+}
+
+/// An external identifier's three sentences take no parameter: each is broken
+/// alone, in both locales, and one left out of the declaration passes here.
+#[test]
+fn an_external_identifiers_texts_may_not_interpolate_anything() {
+    for slot in ["title", "description", "paragraph"] {
+        let key = format!("external-identifier.chromium.{slot}");
+        let scratch = Scratch::new(&format!("params-identifier-{slot}"));
+        for locale in ["en", "pt-BR"] {
+            scratch.replacing(
+                &format!("catalog/i18n/{locale}.toml"),
+                &format!("\"{key}\" = \""),
+                &format!("\"{key}\" = \"{{who}} "),
+            );
+        }
+        scratch.must_fail("param-not-declared", &key);
+    }
+}
+
+/// Every text an external identifier carries reaches the judge.
+///
+/// Its display name, its line, its paragraph and its tags, each broken alone,
+/// fail the build naming the identifier, filed on the line that declares the
+/// text: the judge is the only reader of each, so one not handed to it is
+/// shown as written.
+#[test]
+fn every_text_an_external_identifier_carries_is_judged_naming_it() {
+    let named = "the external identifier `google-chrome`";
+    let long = Scratch::new("identifier-display-name-long");
+    long.replacing(
+        "catalog/i18n/en.toml",
+        "\"external-identifier.google-chrome.title\" = \"",
+        &format!(
+            "\"external-identifier.google-chrome.title\" = \"{}",
+            "Browser ".repeat(8)
+        ),
+    );
+    long.must_fail_saying("entry-text-too-long", named);
+    long.points_at_the_line_declaring(
+        "entry-text-too-long",
+        "external-identifier.google-chrome.title",
+    );
+    let line = Scratch::new("identifier-line-long");
+    line.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "\"external-identifier.google-chrome.description\" = \"",
+        &format!(
+            "\"external-identifier.google-chrome.description\" = \"{}",
+            "palavra ".repeat(10)
+        ),
+    );
+    line.must_fail_saying("entry-text-too-long", named);
+    line.points_at_the_line_declaring(
+        "entry-text-too-long",
+        "external-identifier.google-chrome.description",
+    );
+    let paragraph = Scratch::new("identifier-paragraph-repeats-line");
+    paragraph.edit("catalog/i18n/en.toml", |text| {
+        text.lines()
+            .map(|line| {
+                if line.starts_with("\"external-identifier.google-chrome.paragraph\"") {
+                    "\"external-identifier.google-chrome.paragraph\" = \"Web browser.\"".to_owned()
+                } else {
+                    line.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n"
+    });
+    paragraph.must_fail_saying("paragraph-repeats-line", named);
+    paragraph.points_at_the_line_declaring(
+        "paragraph-repeats-line",
+        "external-identifier.google-chrome.paragraph",
+    );
+    let tags = Scratch::new("identifier-tag-twice");
+    tags.replacing(
+        "catalog/i18n/pt-BR.toml",
+        "[\"navegador\", \"navegador da web\", \"web\", \"internet\", \"google\"]",
+        "[\"navegador\", \"navegador da web\", \"web\", \"internet\", \"Navegador\"]",
+    );
+    tags.must_fail_saying("tag-twice", named);
+    tags.points_at_the_line_declaring("tag-twice", "external-identifier.google-chrome.tags");
+}
+
+/// An external identifier's categories are the registry's, and its glyph one
+/// the font draws, as a command's are.
+#[test]
+fn an_external_identifiers_categories_and_glyph_are_judged_as_a_commands() {
+    let glyph = Scratch::new("identifier-glyph-not-in-the-font");
+    glyph.replacing(
+        "catalog/external-identifiers.toml",
+        "name = \"chromium\"\ntitle = \"external-identifier.chromium.title\"",
+        "name = \"chromium\"\ntitle = \"external-identifier.chromium.title\"\nglyph = \"U+F382\"",
+    );
+    glyph.must_fail_saying(
+        "glyph-not-in-the-font",
+        "the external identifier `chromium`",
+    );
+    let category = Scratch::new("identifier-category-not-held");
+    category.edit("catalog/external-identifiers.toml", |text| {
+        text.replacen(
+            "categories = [\"freedesktop.network\", \"freedesktop.web-browser\"]",
+            "categories = [\"freedesktop.network\", \"freedesktop.browser\"]",
+            1,
+        )
+    });
+    category.must_fail_saying("unknown-category", "`freedesktop.browser`");
+    category.must_fail_saying(
+        "unknown-category",
+        "the external identifier `google-chrome`",
+    );
+}
+
+/// Two external identifiers shown by one display name fail the build.
+#[test]
+fn two_external_identifiers_shown_by_one_display_name_fail() {
+    let scratch = Scratch::new("identifier-display-name-twice");
+    scratch.replacing(
+        "catalog/i18n/en.toml",
+        "\"external-identifier.chromium.title\" = \"Chromium\"",
+        "\"external-identifier.chromium.title\" = \"google chrome.\"",
+    );
+    scratch.must_fail_saying("display-name-twice", "`google-chrome` and `chromium`");
+    scratch.must_fail_saying("display-name-twice", "the external identifiers");
+}
+
+/// An external identifier is named as a word a command line carries, once.
+#[test]
+fn an_external_identifiers_name_is_a_slug() {
+    for written in [
+        "Chromium",
+        "chromium browser",
+        "chromium.browser",
+        "chromium--browser",
+    ] {
+        let scratch = Scratch::new(&format!("identifier-name-{}", written.len()));
+        scratch.replacing(
+            "catalog/external-identifiers.toml",
+            "name = \"chromium\"",
+            &format!("name = \"{written}\""),
+        );
+        scratch.must_fail_saying(
+            "external-identifier-name-malformed",
+            &format!("`{written}`"),
+        );
+    }
+}
+
+/// An external identifier identified on no system fails the build, and so does
+/// a system's table that names nothing.
+#[test]
+fn an_external_identifier_identified_on_no_system_fails() {
+    let nowhere = Scratch::new("identified-on-no-system");
+    nowhere.edit("catalog/external-identifiers.toml", |text| {
+        let at = text
+            .find("name = \"chromium\"")
+            .expect("the registry holds chromium");
+        let tables = at + text[at..].find("\n[identifier.").expect("a system's table");
+        text[..=tables].to_owned()
+    });
+    nowhere.must_fail_saying("identified-on-no-system", "`chromium`");
+    let empty = Scratch::new("identification-empty");
+    empty.replacing(
+        "catalog/external-identifiers.toml",
+        "[identifier.windows]\nexecutables = [\"chrome.exe\"]\n",
+        "[identifier.windows]\n",
+    );
+    empty.must_fail_saying("identification-empty", "`chromium`'s `windows` table");
+}
+
+/// Every field of every system is held to its shape, naming the identifier
+/// and the field.
+///
+/// One value in each of the eleven fields, each malformed for that field
+/// alone, and the build names every one: a field the registry stopped
+/// reading, or read under another field's name, is a value nothing judges.
+#[test]
+fn every_identification_field_is_held_to_its_shape_naming_the_identifier_and_the_field() {
+    let scratch = Scratch::new("identification-malformed");
+    scratch.edit("catalog/external-identifiers.toml", |text| {
+        let at = text
+            .find("name = \"chromium\"")
+            .expect("the registry holds chromium");
+        let tables = at + text[at..].find("\n[identifier.").expect("a system's table");
+        format!(
+            "{}\n[identifier.linux]\nexecutables = [\"/usr/bin/chromium\"]\n\
+             desktop_ids = [\"chromium\"]\nflatpak_ids = [\"org.chromium\"]\n\
+             snap_names = [\"Chromium\"]\npaths = [\"usr/bin/chromium\"]\n\n\
+             [identifier.macos]\nbundle_ids = [\"Chromium\"]\n\
+             app_paths = [\"/Applications/Chromium\"]\n\
+             executables = [\"Contents/MacOS/Chromium\"]\n\n\
+             [identifier.windows]\nexecutables = [\"chrome\"]\n\
+             app_paths_keys = [\"chrome.com\"]\n\
+             paths = ['C:\\Program Files\\Chromium\\Application\\chrome.exe']\n",
+            &text[..=tables]
+        )
+    });
+    let problems = scratch.problems();
+    let malformed: Vec<&Problem> = problems
+        .iter()
+        .filter(|problem| problem.check == "identification-malformed")
+        .collect();
+    for field in [
+        "linux.executables",
+        "linux.desktop_ids",
+        "linux.flatpak_ids",
+        "linux.snap_names",
+        "linux.paths",
+        "macos.bundle_ids",
+        "macos.app_paths",
+        "macos.executables",
+        "windows.executables",
+        "windows.app_paths_keys",
+        "windows.paths",
+    ] {
+        let named = format!("`chromium`'s `{field}`");
+        assert!(
+            malformed
+                .iter()
+                .any(|problem| problem.what.contains(&named)),
+            "nothing reported {named}:\n{}",
+            render(&problems)
+        );
+    }
+    assert_eq!(malformed.len(), 11, "{}", render(&problems));
+    for problem in malformed {
+        assert!(problem.fix.len() > 40, "{problem}");
+        assert_eq!(
+            problem.file, "catalog/external-identifiers.toml",
+            "{problem}"
+        );
+    }
+}
+
+/// A value written twice in one list fails the build; the same value in two
+/// entries does not.
+#[test]
+fn an_identification_value_written_twice_in_a_list_fails_and_across_entries_does_not() {
+    let twice = Scratch::new("identification-twice");
+    twice.replacing(
+        "catalog/external-identifiers.toml",
+        "executables = [\"chromium\", \"chromium-browser\"]",
+        "executables = [\"chromium\", \"chromium-browser\", \"chromium\"]",
+    );
+    twice.must_fail_saying(
+        "identification-twice",
+        "`chromium`'s `linux.executables` holds \"chromium\" twice",
+    );
+    // Both entries' Windows executables are `chrome.exe` in the shipped
+    // catalog, and it builds.
+    let shipped = Scratch::new("identification-across-entries");
+    assert_eq!(
+        shipped.problems(),
+        Vec::new(),
+        "the shipped catalog was refused"
+    );
+}
+
+/// One section of a page the scratch compiled, from its heading to the next.
+fn compiled_section(compiled: &nc_catalog_compiler::Compiled, page: &str, name: &str) -> String {
+    let text = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == page)
+        .unwrap_or_else(|| panic!("{page} is emitted"))
+        .contents;
+    let opening = format!("## `{name}`\n");
+    let at = text
+        .find(&opening)
+        .unwrap_or_else(|| panic!("{page} has no section for `{name}`"));
+    let rest = &text[at + opening.len()..];
+    rest.find("\n## ")
+        .map_or(rest, |end| &rest[..end])
+        .to_owned()
+}
+
+/// An external identifier's glyph and categories reach its page, each only
+/// when it has them.
+///
+/// **Driven over a copy that carries both shapes**, because no shipped
+/// identifier has a glyph and every one has categories: over the shipped
+/// catalog alone, a page that never wrote the glyph row, or wrote the
+/// categories row for an entry naming none, would pass.
+#[test]
+fn an_external_identifiers_glyph_and_categories_reach_its_page_only_when_it_has_them() {
+    let scratch = Scratch::new("identifier-page-rows");
+    scratch.edit("catalog/external-identifiers.toml", |text| {
+        let at = text
+            .find("name = \"chromium\"")
+            .expect("the registry holds chromium");
+        let (before, after) = text.split_at(at);
+        format!(
+            "{before}{}",
+            after.replacen(
+                "categories = [\"freedesktop.network\", \"freedesktop.web-browser\"]",
+                "glyph = \"U+F268\"",
+                1
+            )
+        )
+    });
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let page = "docs/external-identifiers.md";
+    let chromium = compiled_section(&compiled, page, "chromium");
+    assert!(
+        chromium.contains("\n| Glyph | `U+F268` |"),
+        "a glyph an external identifier carries did not reach its page: {chromium}"
+    );
+    assert!(
+        !chromium.contains("| Categories |"),
+        "an external identifier naming no category published a row for one: {chromium}"
+    );
+    let chrome = compiled_section(&compiled, page, "google-chrome");
+    assert!(
+        chrome.contains("\n| Categories | `freedesktop.network`, `freedesktop.web-browser` |"),
+        "the categories an external identifier names did not reach its page: {chrome}"
+    );
+    assert!(
+        !chrome.contains("| Glyph |"),
+        "an external identifier with no glyph published a row for one: {chrome}"
+    );
+}
+
+/// An external identifier's wiki text is compiled with the format its
+/// extension names, and its page links each locale's file.
+///
+/// **No identifier ships one**, so this is the only place the path is driven:
+/// the tree takes the registry's directory, the generated entry carries the
+/// format, the generated crate the text, and the page a link under the
+/// registry's own directory.
+#[test]
+fn an_external_identifiers_wiki_text_is_compiled_with_its_format_and_linked_from_its_page() {
+    let scratch = Scratch::new("identifier-wiki");
+    for (locale, words) in [
+        (
+            "en",
+            "Chromium is the open-source browser Chrome is built from.\n",
+        ),
+        (
+            "pt-BR",
+            "O Chromium é o navegador de código aberto do qual o Chrome é feito.\n",
+        ),
+    ] {
+        scratch.place(
+            &format!("catalog/wiki/{locale}/external-identifiers/chromium.txt"),
+            words,
+        );
+    }
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let held: Vec<(&str, &str, nc_schema::entry::WikiFormat)> = compiled
+        .catalog
+        .wiki
+        .iter()
+        .filter(|text| text.registry == "external-identifiers")
+        .map(|text| (text.registry.as_str(), text.name.as_str(), text.format))
+        .collect();
+    assert_eq!(
+        held,
+        [(
+            "external-identifiers",
+            "chromium",
+            nc_schema::entry::WikiFormat::PlainText
+        )]
+    );
+    let emitted = |path: &str| {
+        compiled
+            .files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("{path} is emitted"))
+            .contents
+            .clone()
+    };
+    let identifiers = emitted("crates/nc-catalog/src/external_identifiers.rs");
+    for (name, wiki) in [
+        ("chromium", "wiki: Some(crate::WikiFormat::PlainText)"),
+        ("google-chrome", "wiki: None"),
+    ] {
+        let row = identifiers
+            .split("ExternalIdentifier {")
+            .find(|row| row.contains(&format!("name: \"{name}\"")))
+            .unwrap_or_else(|| panic!("`{name}` has a row"));
+        assert!(
+            row.contains(wiki),
+            "`{name}`'s row does not carry `{wiki}`: {row}"
+        );
+    }
+    assert!(
+        emitted("crates/nc-catalog/src/wiki.rs").contains("registry: \"external-identifiers\""),
+        "the identifier's wiki text did not reach the generated crate"
+    );
+    let chromium = compiled_section(&compiled, "docs/external-identifiers.md", "chromium");
+    let links: Vec<String> = ["en", "pt-BR"]
+        .iter()
+        .map(|tag| format!("[{tag}](../catalog/wiki/{tag}/external-identifiers/chromium.txt)"))
+        .collect();
+    let row = format!("\n| Wiki | plain text (`.txt`): {} |", links.join(", "));
+    assert!(
+        chromium.contains(&row),
+        "the identifier's page does not link its wiki text as `{row}`: {chromium}"
+    );
+    let chrome = compiled_section(&compiled, "docs/external-identifiers.md", "google-chrome");
+    assert!(
+        !chrome.contains("| Wiki |"),
+        "an identifier with no wiki text published a row for one: {chrome}"
+    );
+}
+
+/// A wiki text names an entry of the registry it sits under, and of no other.
+///
+/// A command's name under the identifiers' directory and an identifier's under
+/// the commands' are each an orphan: a text whose page is another registry's
+/// is shown by nothing.
+#[test]
+fn a_wiki_text_names_an_entry_of_the_registry_it_sits_under() {
+    for (registry, name) in [
+        ("external-identifiers", "kernel.undo"),
+        ("commands", "chromium"),
+    ] {
+        let scratch = Scratch::new(&format!("wiki-elsewhere-{registry}"));
+        for (locale, words) in [("en", "# Elsewhere\n"), ("pt-BR", "# Em outro lugar\n")] {
+            scratch.place(
+                &format!("catalog/wiki/{locale}/{registry}/{name}.md"),
+                words,
+            );
+        }
+        scratch.must_fail_saying("wiki-orphan", &format!("`{name}`"));
+    }
+}
+
+/// An external identifier's wiki text missing from a locale fails the build,
+/// naming the identifier.
+#[test]
+fn an_external_identifiers_wiki_text_missing_from_a_locale_fails_naming_it() {
+    let scratch = Scratch::new("identifier-wiki-locale-missing");
+    scratch.place(
+        "catalog/wiki/en/external-identifiers/chromium.md",
+        "# Chromium\n",
+    );
+    scratch.must_fail_saying("wiki-locale-missing", "`chromium`");
+    scratch.must_fail(
+        "wiki-locale-missing",
+        "catalog/wiki/pt-BR/external-identifiers",
+    );
 }
