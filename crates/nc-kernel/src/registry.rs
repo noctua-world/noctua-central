@@ -3,13 +3,13 @@
 //!
 //! **The kernel's own come from the catalog.** Every command of
 //! `catalog/commands.toml` whose namespace is one the kernel keeps —
-//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.` — is a built-in, registered
-//! when the registry is made. A catalog command in any other namespace is one
-//! the catalog describes for a plugin to implement (`NOCTUA.md §15.2`): it is
-//! registered when a plugin declares it, matching the catalog in every field a
-//! dispatch is decided by, and is not registered otherwise. The title is the
-//! one field not compared — the catalog's is a message key both locales
-//! translate, and it is the one listed.
+//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.` — is a built-in,
+//! registered when the registry is made. A catalog command in any other
+//! namespace is one the catalog describes for a plugin to implement
+//! (`NOCTUA.md §15.2`): it is registered when a plugin declares it, matching
+//! the catalog in every field a dispatch is decided by, and is not registered
+//! otherwise. The title is the one field not compared — the catalog's is a
+//! message key both locales translate, and it is the one listed.
 //!
 //! **A plugin's commands are judged at `activate`, whole** (`NOCTUA.md §11.7`),
 //! and every problem is reported rather than the first, each with its own code:

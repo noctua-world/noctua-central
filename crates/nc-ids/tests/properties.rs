@@ -506,14 +506,14 @@ proptest! {
 /// How many of the generated cases actually exercise criterion 8.
 ///
 /// **Three of the properties above return early, and this says how often.**
-/// `parsing_a_built_name_returns_what_built_it` skips a case whose signature and
-/// keywords alone will not fit, `a_proposed_name_reads_back_as_the_fields_that_built_it`
-/// skips the same case met through `propose`, and
-/// `parsing_any_name_reaches_a_fixed_point` skips one the parser refuses. Each
-/// skip is correct — the refusal is the law too — but a property that asserts
-/// nothing in half its cases is a property
-/// running at half the strength its name claims, and `§19.5` is that the count
-/// of things examined is part of what a test claims.
+/// `parsing_a_built_name_returns_what_built_it` skips a case whose signature
+/// and keywords alone will not fit,
+/// `a_proposed_name_reads_back_as_the_fields_that_built_it` skips the same case
+/// met through `propose`, and `parsing_any_name_reaches_a_fixed_point` skips
+/// one the parser refuses. Each skip is correct — the refusal is the law too —
+/// but a property that asserts nothing in half its cases is a property running
+/// at half the strength its name claims, and `§19.5` is that the count of
+/// things examined is part of what a test claims.
 ///
 /// Measured over 4096 replays of the same generators: **1873, 45.7%**, of the
 /// round-trip cases reach the early return. At proptest's default 256 cases

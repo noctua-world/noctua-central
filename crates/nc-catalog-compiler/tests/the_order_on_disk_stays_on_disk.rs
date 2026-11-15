@@ -312,8 +312,8 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
     // a *parameter name*, which really is identifier-checked, and the resource
     // selector, which is held to its grammar — `realm`, `argument:<name>` or
     // `feature:<id>` — by the judge the kernel shares, so the catalog is
-    // refused before a page is rendered. That is why this is a list and not a sweep, and each entry
-    // says which surface it stands for.
+    // refused before a page is rendered. That is why this is a list and not a
+    // sweep, and each entry says which surface it stands for.
     //
     // **The selector's excuse is asserted rather than assumed**, on this same
     // copy and before anything else is changed in it.

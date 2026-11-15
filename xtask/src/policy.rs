@@ -616,10 +616,10 @@ fn every_command_names_an_action_the_schema_has(
         ));
         // **And how many resources this could not compare.** Every selector a
         // compiled catalog holds names its type — `realm`, a feature, or an
-        // argument whose `x-entity` says it — so one this cannot read is a selector its own
-        // schema does not back, which the compiler refuses. Passing over one
-        // silently would make this step quietly cover less of the catalog;
-        // saying the number is what makes that visible.
+        // argument whose `x-entity` says it — so one this cannot read is a
+        // selector its own schema does not back, which the compiler refuses.
+        // Passing over one silently would make this step quietly cover less of
+        // the catalog; saying the number is what makes that visible.
         if unread > 0 {
             ui::detail(&format!(
                 "{unread} of them select their resource through a selector their own \
