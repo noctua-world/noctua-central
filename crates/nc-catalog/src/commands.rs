@@ -50,8 +50,8 @@ pub struct Command {
     pub mutating: bool,
     /// The JSON Schema for its arguments.
     pub args_schema: &'static str,
-    /// The default keybinding, where it has one.
-    pub keybinding: Option<&'static str>,
+    /// Its default keybindings, each in the Leader's grammar (`nc_schema::keys`).
+    pub keybindings: &'static [&'static str],
     /// Every argument name `args_schema` declares, in the order it declares them.
     ///
     /// **Read out of the schema here rather than re-parsed by every caller.**
@@ -80,7 +80,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Read,
         mutating: false,
         args_schema: "{\"type\":\"object\",\"properties\":{\"from\":{\"type\":\"integer\",\"minimum\":0}},\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &["from"],
     },
     Command {
@@ -97,7 +97,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Write,
         mutating: true,
         args_schema: "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &[],
     },
     Command {
@@ -114,7 +114,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Write,
         mutating: true,
         args_schema: "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &[],
     },
     Command {
@@ -131,7 +131,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Write,
         mutating: true,
         args_schema: "{\"type\":\"object\",\"properties\":{\"table\":{\"type\":\"string\"},\"dry_run\":{\"type\":\"boolean\"}},\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &["table", "dry_run"],
     },
     Command {
@@ -148,7 +148,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Read,
         mutating: false,
         args_schema: "{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":1024},\"signature\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"keywords\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"extension\":{\"type\":\"string\",\"maxLength\":255},\"id\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":13}},\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &["title", "signature", "keywords", "extension", "id"],
     },
     Command {
@@ -165,7 +165,7 @@ pub const COMMANDS: &[Command] = &[
         reversibility: Reversibility::Read,
         mutating: false,
         args_schema: "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":255}},\"required\":[\"name\"],\"additionalProperties\":false}",
-        keybinding: None,
+        keybindings: &[],
         arguments: &["name"],
     },
 ];

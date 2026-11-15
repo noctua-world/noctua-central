@@ -25,6 +25,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use nc_schema::keys::{self, Binding};
 use serde::de::DeserializeOwned;
 
 use crate::model::{
@@ -2113,7 +2114,6 @@ fn check_budget(
 fn check_commands(entries: &[CommandEntry], text: &str, problems: &mut Vec<Problem>) {
     floor(entries.len(), "catalog/commands.toml", "commands", problems);
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut bindings: BTreeMap<&str, &str> = BTreeMap::new();
     for entry in entries {
         let anchor = format!("name = \"{}\"", entry.name);
         let count = seen.entry(entry.name.as_str()).or_default();
@@ -2131,67 +2131,57 @@ fn check_commands(entries: &[CommandEntry], text: &str, problems: &mut Vec<Probl
         }
         let line = line_of(text, &anchor, 1);
         what_a_dispatcher_needs(entry, line, problems);
-        check_keybinding(entry, &mut bindings, line, problems);
     }
+    check_keybindings(entries, text, problems);
 }
 
-/// A binding the interface can parse, and one command per chord.
-fn check_keybinding<'a>(
-    entry: &'a CommandEntry,
-    bindings: &mut BTreeMap<&'a str, &'a str>,
-    line: Option<usize>,
-    problems: &mut Vec<Problem>,
-) {
-    if let Some(binding) = &entry.keybinding {
-        if let Some(first) = bindings.insert(binding.as_str(), entry.name.as_str()) {
-            push(
-                problems,
-                "catalog/commands.toml",
-                line,
-                format!(
-                    "`{}` and `{first}` are both bound to `{binding}`",
-                    entry.name
+/// Every keybinding in the Leader's grammar, and one command per binding of
+/// one table (`NOCTUA.md §12.8`).
+///
+/// **Read by `nc_schema::keys`, the grammar a person's configuration is read
+/// by as well**, so a binding the catalog ships is one a person could write,
+/// and two commands on one key are found by the same rule a configuration is
+/// held to — keyed on the binding read, so one key in two tables is two
+/// bindings.
+fn check_keybindings(entries: &[CommandEntry], text: &str, problems: &mut Vec<Problem>) {
+    let line = |name: &str| line_of(text, &format!("name = \"{name}\""), 1);
+    let mut read: Vec<(&str, Vec<Binding>)> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let mut bindings = Vec::with_capacity(entry.keybindings.len());
+        for written in &entry.keybindings {
+            match Binding::parse(written) {
+                Ok(binding) => bindings.push(binding),
+                Err(why) => push(
+                    problems,
+                    "catalog/commands.toml",
+                    line(&entry.name),
+                    format!("`{}`'s keybinding {why}", entry.name),
+                    "a binding is written in the Leader's grammar alone: `Leader <key>` for \
+                     a key in the leader menu, `Leader+<key>` for one pressed with the Leader \
+                     held, and `Leader+Chord+<key>` for one pressed with the chord modifier \
+                     held as well, the key named as `KeyboardEvent.code` names it — \
+                     `Leader+Chord+KeyQ`. Any other spelling is a binding nothing could read \
+                     the same way twice",
+                    "malformed-keybinding",
                 ),
-                "one of them would silently shadow the other, and which one depends on \
-                     registration order (NOCTUA.md §12.8)",
-                "duplicate-keybinding",
-            );
-        }
-        if let Err(why) = chord(binding) {
-            push(
-                problems,
-                "catalog/commands.toml",
-                line,
-                format!("`{}`'s keybinding `{binding}` {why}", entry.name),
-                "a binding is space-separated chords, each of modifiers and one key: \
-                     `C-x C-s`, `SPC b b`, `F2`. A binding the shell cannot parse is a \
-                     command nobody can reach and nothing reports",
-                "malformed-keybinding",
-            );
-        }
-    }
-}
-
-/// Whether a keybinding is a sequence of chords.
-fn chord(binding: &str) -> Result<(), String> {
-    if says_nothing(binding) {
-        return Err("is empty".to_owned());
-    }
-    for part in binding.split(' ') {
-        if part.is_empty() {
-            return Err("has two spaces in a row".to_owned());
-        }
-        let key = part.rsplit('-').next().unwrap_or_default();
-        if key.is_empty() {
-            return Err(format!("ends `{part}` with a modifier and no key"));
-        }
-        for modifier in part.split('-').rev().skip(1) {
-            if !["C", "M", "S", "H"].contains(&modifier) {
-                return Err(format!("uses `{modifier}` as a modifier"));
             }
         }
+        read.push((entry.name.as_str(), bindings));
     }
-    Ok(())
+    let Err(twice) = keys::tables(&read, &[]) else {
+        return;
+    };
+    for collision in twice {
+        push(
+            problems,
+            "catalog/commands.toml",
+            line(&collision.second),
+            collision.to_string(),
+            "one of them would silently shadow the other, and which one depends on \
+             registration order (NOCTUA.md §12.8)",
+            "duplicate-keybinding",
+        );
+    }
 }
 
 /// A field's name, judged as the struct field it becomes.
@@ -3264,7 +3254,7 @@ mod tests {
              of `locales.first()` takes on trust"
         );
     }
-    use super::{OWNED_BY_THE_LOG, area_of, chord, identifier};
+    use super::{OWNED_BY_THE_LOG, area_of, check_keybindings, identifier};
 
     /// Neither half of the owned-field clause is a decoration on the other.
     ///
@@ -3377,28 +3367,82 @@ mod tests {
         assert!(identifier("_private").is_ok());
     }
 
+    /// A keybinding is written in the Leader's grammar alone, and one key of
+    /// one table runs one command.
+    ///
+    /// **The shipped catalog declares no binding**, so this is where the
+    /// check's own call sites are driven: a binding that shows a reader
+    /// nothing, an Emacs chord and a modifier inside a binding are each
+    /// refused naming the command, and one key in two tables is not a
+    /// collision.
     #[test]
-    fn a_keybinding_is_chords_of_modifiers_and_a_key() {
-        for good in ["C-x C-s", "SPC b b", "F2", "M-S-w", "C-c"] {
-            assert!(chord(good).is_ok(), "`{good}` should parse");
-        }
-        // **And a binding that shows a reader nothing**, which is the one
-        // emptiness this rule asks `says_nothing` about: written as
-        // `trim().is_empty()`, it would accept `keybinding = "\u{2063}"` as a
-        // chord, publish it as a key nobody can press, and count it as one
-        // command's binding for the purposes of the two-commands-one-chord
-        // rule. The shipped catalog declares no binding, so this is where that
-        // call site is driven.
+    fn a_keybinding_is_written_in_the_leaders_grammar_alone() {
+        let judged = |first: &[&str], second: &[&str]| {
+            let quoted = |bindings: &[&str]| {
+                bindings
+                    .iter()
+                    .map(|binding| format!("\"{binding}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let entry = |name: &str, bindings: &[&str]| {
+                format!(
+                    "[[command]]\nname = \"{name}\"\ntitle = \"t\"\ndescription = \"d\"\n\
+                     paragraph = \"p\"\ntags = \"g\"\naction = \"Read\"\n\
+                     resource_selector = \"realm\"\nreversibility = \"read\"\n\
+                     mutating = false\nargs_schema = \"{{}}\"\nkeybindings = [{}]\n",
+                    quoted(bindings)
+                )
+            };
+            let text = format!(
+                "{}{}",
+                entry("page.close", first),
+                entry("page.quit", second)
+            );
+            let file: crate::model::CommandFile =
+                toml::from_str(&text).expect("the fixture is a commands file");
+            let mut problems = Vec::new();
+            check_keybindings(&file.commands, &text, &mut problems);
+            problems
+                .iter()
+                .map(|problem| (problem.check, problem.what.clone(), problem.line))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            judged(&["Leader KeyQ", "Leader+KeyQ"], &["Leader+Chord+KeyQ"]),
+            []
+        );
         for bad in [
-            "",
-            "C-",
-            "X-a",
-            "C-x  C-s",
+            "C-c j",
+            "SPC b b",
+            "F2",
+            "Leader s",
+            "leader KeyS",
+            "Leader+Shift+KeyQ",
             "\u{2063}",
-            "\u{200b}\u{200b}",
-            "\u{feff}",
+            "",
         ] {
-            assert!(chord(bad).is_err(), "`{bad}` should be refused");
+            let found = judged(&[bad], &[]);
+            assert_eq!(found.len(), 1, "`{bad}`: {found:?}");
+            assert_eq!(found[0].0, "malformed-keybinding", "`{bad}`");
+            assert!(
+                found[0].1.starts_with("`page.close`'s keybinding"),
+                "{found:?}"
+            );
+            assert_eq!(
+                found[0].2,
+                Some(2),
+                "`{bad}` was filed away from its command"
+            );
         }
+        let twice = judged(&["Leader+KeyJ"], &["Leader+KeyJ"]);
+        assert_eq!(
+            twice,
+            [(
+                "duplicate-keybinding",
+                "`page.quit` and `page.close` are both bound to `Leader+KeyJ`".to_owned(),
+                Some(14),
+            )]
+        );
     }
 }

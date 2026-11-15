@@ -103,6 +103,12 @@ use std::path::{Component, Path, PathBuf};
 
 use nc_canon::Value;
 use nc_catalog::ErrorCode;
+use nc_schema::keys::{Chord, Key, Modifiers};
+
+/// The Leader's keys, from the grammar every reader of a binding shares
+/// (`NOCTUA.md §12.8`): this crate names each channel's default, and the
+/// grammar says what a Leader and a modifier are.
+pub use nc_schema::keys::{Keyboard, Leader, Modifier};
 
 /// The file an install names itself in, beside each of its executables.
 pub const MANIFEST: &str = "install.json";
@@ -189,16 +195,43 @@ impl Channel {
     #[must_use]
     pub const fn leader(self) -> Leader {
         match self {
-            Self::Production => Leader {
-                modifiers: &[Modifier::Alt],
-            },
-            Self::Staging => Leader {
-                modifiers: &[Modifier::Control, Modifier::Alt],
-            },
-            Self::Development(_) => Leader {
-                modifiers: &[Modifier::Alt, Modifier::Super],
-            },
+            Self::Production => PRODUCTION_LEADER,
+            Self::Staging => STAGING_LEADER,
+            Self::Development(_) => DEVELOPMENT_LEADER,
         }
+    }
+
+    /// The channel's chord modifier (`NOCTUA.md §12.8`): Shift, on every channel.
+    ///
+    /// **Beside the Leader, in the one place `§17.1` names**: what a binding's
+    /// `Chord` holds with the Leader, so the two a binding is pressed with are
+    /// a channel's defaults read from one crate.
+    #[must_use]
+    pub const fn chord_modifier(self) -> Modifier {
+        match self {
+            Self::Production | Self::Staging | Self::Development(_) => Modifier::Shift,
+        }
+    }
+}
+
+/// Production's default Leader: Alt+Space, Option+Space on a Mac.
+const PRODUCTION_LEADER: Leader = held_with_space(&[Modifier::Alt]);
+
+/// Staging's default Leader: Ctrl+Alt+Space, Control+Option+Space on a Mac.
+const STAGING_LEADER: Leader = held_with_space(&[Modifier::Control, Modifier::Alt]);
+
+/// A development checkout's default Leader: Alt+Super+Space.
+const DEVELOPMENT_LEADER: Leader = held_with_space(&[Modifier::Alt, Modifier::Super]);
+
+/// `held` and Space, as a Leader.
+///
+/// **Evaluated where the three defaults are, when this crate compiles**: each
+/// is a `const` item, so a default that `Leader::of` refused would be a build
+/// that fails rather than a channel with no Leader.
+const fn held_with_space(held: &[Modifier]) -> Leader {
+    match Leader::of(Chord::new(Modifiers::of(held), Key::Space)) {
+        Ok(leader) => leader,
+        Err(_) => panic!("a channel's default Leader holds a modifier"),
     }
 }
 
@@ -729,77 +762,6 @@ impl fmt::Display for ChannelError {
 }
 
 impl std::error::Error for ChannelError {}
-
-/// A key held down for the Leader; the chord always ends with Space.
-///
-/// **A physical key, never a character**, as every chord is (`NOCTUA.md
-/// §12.8`): the same key is Super on Linux, Win on Windows and Command on a Mac.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Modifier {
-    /// Ctrl, or Control on a Mac.
-    Control,
-    /// Alt, or Option on a Mac.
-    Alt,
-    /// Super, Win on Windows, or Command on a Mac.
-    Super,
-}
-
-impl Modifier {
-    /// How `keyboard` labels this key.
-    #[must_use]
-    pub const fn written_for(self, keyboard: Keyboard) -> &'static str {
-        match (self, keyboard) {
-            (Self::Control, Keyboard::Mac) => "Control",
-            (Self::Control, Keyboard::Linux | Keyboard::Windows) => "Ctrl",
-            (Self::Alt, Keyboard::Mac) => "Option",
-            (Self::Alt, Keyboard::Linux | Keyboard::Windows) => "Alt",
-            (Self::Super, Keyboard::Mac) => "Command",
-            (Self::Super, Keyboard::Windows) => "Win",
-            (Self::Super, Keyboard::Linux) => "Super",
-        }
-    }
-}
-
-/// Whose labels a chord is written in.
-///
-/// **Named by the caller, never asked of the system this runs on**, so the
-/// three spellings are one table every build can test (`NOCTUA.md §2.7`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Keyboard {
-    /// A Linux keyboard.
-    Linux,
-    /// A Windows keyboard.
-    Windows,
-    /// A Mac keyboard.
-    Mac,
-}
-
-/// A channel's default Leader: the keys held, then Space.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Leader {
-    /// The keys held, in the order `NOCTUA.md §12.8` writes them.
-    modifiers: &'static [Modifier],
-}
-
-impl Leader {
-    /// The keys held with Space.
-    #[must_use]
-    pub const fn modifiers(self) -> &'static [Modifier] {
-        self.modifiers
-    }
-
-    /// The chord as `keyboard` labels it: `Ctrl+Alt+Space`, `Option+Space`.
-    #[must_use]
-    pub fn written_for(self, keyboard: Keyboard) -> String {
-        let mut keys: Vec<&str> = self
-            .modifiers
-            .iter()
-            .map(|modifier| modifier.written_for(keyboard))
-            .collect();
-        keys.push("Space");
-        keys.join("+")
-    }
-}
 
 /// Where a published channel's updates come from, and the key that signs them
 /// (`NOCTUA.md §17.6`, `§17.7`).

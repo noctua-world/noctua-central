@@ -297,7 +297,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
-│   └── nc-schema/                  a command's schema subset, selector and judge (§11.4)
+│   └── nc-schema/                  a command's schema subset, selector and judge (§11.4), and the Leader's grammar (§12.8)
 ├── plugins/                        WASM components, one directory each (§11.3)
 │   └── reference/                  the plugin the kernel is proven with
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
@@ -457,6 +457,7 @@ fails a gate a minute or two later.
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml` and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md` |
+| a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads for the compiler and for a person's configuration alike, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
@@ -883,6 +884,7 @@ entry owns.
 | A forged principal, confirmation or approval | `context` is read-only; a confirmation and an approval are the kernel's alone, bound to one dispatch — its command by the plugin that holds it — and one whole principal, used once and only on a dispatch the kernel decided, short-lived and never inherited | the same entry, and "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A command declared in another plugin's name | a namespace one loaded plugin holds, and the ones the kernel keeps | "A plugin is loaded with the commands it may have, and only those" |
 | A person's permit for a feature of the platform borrowed by a plugin, a file's name that is a path, or a caller's text turned into a logged identifier | `feature:` refused in a plugin's declaration at `activate`; one builder and one parser, every name one path component; and the kernel handed text only | "A file's name is proposed and read by one function, decided and journaled like any command" |
+| A keybinding that reaches what the command list could not, or reads two ways | a binding is a key of a closed set in one of three tables, written one way and resolved to a command's name, which dispatch holds as it holds any | "A keybinding is one of three forms, written one way, and names one key and one command" |
 | A plugin that will not stop | the epoch, fuel, memory, a host call's deadline, the tree's deadline, depth and count, the refusal of re-entry, bounded queues, timers, surfaces and log, the restart budget and quarantine | "A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else" |
 | Half-applied state | writes staged and committed whole, recovery each time a kernel opens, and an undo that is a unit of its own | "A command runs only when it is decided, and the journal hears of it first", and "A person undoes their own steps, with the authority they hold now" |
 | A request to somewhere it should not go | names the manifest declares, public addresses only, no redirect and no proxy, bounds, and only `GET` and `HEAD` where nothing changes | "A plugin reaches the network its manifest names, and nothing else" |
@@ -2926,6 +2928,52 @@ text's Markdown or Typst is well formed, since nothing in this build parses or p
 and two display names or tags that differ only by look-alike characters, which needs the
 confusable folding `BLANK_RANGES` says this crate does not carry.
 
+### A keybinding is one of three forms, written one way, and names one key and one command
+
+**Guaranteed.** Every keybinding the catalog declares is one of `NOCTUA.md §12.8`'s three
+forms — `Leader <key>` in the leader menu, `Leader+<key>` with the Leader held and
+`Leader+Chord+<key>` with the chord modifier held as well — its key one of a closed
+vocabulary of physical keys named as `KeyboardEvent.code` names them, the modifiers, the
+lock keys, the numpad, the media keys and `Escape` left out. It is written the one way the
+grammar writes it: a text read as a binding is the text that binding writes back, so lower
+case, an alias, an Emacs chord, a bare key, a modifier written inside a binding, two keys, a
+doubled space and a character a reader cannot see are each refused, and no two spellings
+are one binding. One key of one table runs one command, and the same key in another table is
+another binding. A binding carries no argument: it resolves to a command's name, which
+dispatch holds as it holds any, so a binding reaches nothing the command list could not.
+A Leader holds a modifier, so no bare key is taken for the whole computer; each channel's
+default Leader is a `const` built through the grammar, so a default it refused is a build
+that fails, and the three defaults keep every rule of `§12.8` with each channel's chord
+modifier, Shift on every channel. A chord a system keeps for itself is answered with a
+warning naming the system, never a refusal, and every chord warned of is a row copied with
+the source that says so. A refusal quotes at most 64 characters of the text it read, escaped
+as every diagnostic of `nc-schema` escapes a name. The judge reads and writes nothing: what
+it settles depends on the parts it is handed alone, and a part is judged against the parts
+settled before it and the defaults after it, so no channel is refused for what one after it
+configures and two parts both on their defaults are never judged against each other.
+
+**Enforced by** `crates/nc-schema/src/keys.rs` — `Binding::parse` and `Chord::parse`, the
+one reader `check_keybindings` in `crates/nc-catalog-compiler/src/load.rs` hands every
+binding the catalog declares to, and `intra`, `apart`, `settle`, `tables` and `warnings`,
+each with its unit tests — and the laws in `crates/nc-schema/tests/properties.rs`: no text
+but a written binding or chord is read as one, everything the grammar writes is read back,
+no settled Leader meets another channel's, a channel is never refused for one ranked after
+it, settling does not depend on the order claims are listed in, and a refusal returns to
+the default — each over draws `the_texts_read_against_the_grammar_are_bindings_often_and_not_often`
+and `the_claims_settled_are_accepted_often_and_refused_often` hold to reaching every
+outcome. In the compiler's suite `a_keybinding_in_any_grammar_but_the_leaders_fails_the_build`
+breaks the grammar each way an author might, `two_commands_bound_to_one_key_of_one_table_fail_the_build`
+and `one_key_in_two_tables_is_two_bindings` hold the duplicate to the binding read, and
+`A_TYPO_REFUSED` refuses `keybinding`, singular, by name;
+`crates/nc-channel/tests/the_names_are_disjoint.rs` holds the defaults to the rules
+(`the_defaults_of_the_three_channels_break_no_rule`), the chord modifier to Shift and each
+Leader to the spellings `§12.8` writes.
+
+**Not answered:** a person's choice of keys — where it is read from, whose files are read
+and how privately — which is `nc-channel`'s; whether `SYSTEM_SHORTCUTS` holds every chord
+a system keeps (**What is deliberately not claimed**); and whether a Leader takes a chord a
+program relies on, which no table here lists.
+
 ### Error codes are append-only, and a ledger in the tree is what holds them
 
 `NOCTUA.md §15.1` makes `NC-<AREA>-<NNNN>` append-only, and a build reads the tree and not
@@ -3920,6 +3968,20 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The ranking reads text alone.** Whoever writes an item's names and tags decides what
   finds it and how high, within the bounds its registry holds those texts to.
 - **Matching is not constant-time.** It handles nothing secret.
+
+**The keys**
+
+- **A system's shortcuts are what their sources write, and no more.**
+  `nc_schema::keys::SYSTEM_SHORTCUTS` holds Microsoft's list for Windows, Apple's for
+  macOS, GNOME's window manager's defaults and KDE Plasma's launcher's and window manager's,
+  as each was fetched once; a chord another desktop, a later release or a person's own
+  settings keep is not warned of, and a chord a row names is warned of on every system of
+  its keyboard, whichever desktop runs there — the warning names the system it came from.
+- **The vocabulary is a US board's keys, labelled by their place on one.** A key outside
+  it — the `Intl` keys of an ABNT2 board among them — cannot be bound until the vocabulary
+  grows, and a key's label is its US position's, so a person on another layout reads `[`
+  where their board prints something else; the interface shows the layout's own label
+  (Stage 16).
 
 **The gate and its run**
 

@@ -18,6 +18,7 @@ use nc_channel::{
     Bases, Channel, ChannelError, Checkout, FORMAT, Install, Keyboard, Layout, Modifier, Namespace,
     PORT_PAIRS, PORTS_FROM, Stack, Update, layout,
 };
+use nc_schema::keys::{LeaderPart, apart, intra};
 
 /// A root no test writes under: absolute on every system, which is all a base
 /// needs to be.
@@ -488,6 +489,54 @@ fn the_leader_is_held_apart_across_the_three_channels_and_only_there() {
         ["Alt+Super+Space", "Alt+Win+Space", "Option+Command+Space"]
     );
     assert_eq!(development.modifiers(), [Modifier::Alt, Modifier::Super]);
+}
+
+/// The chord modifier is Shift on every channel (`NOCTUA.md §12.8`), whatever
+/// the checkout.
+#[test]
+fn the_chord_modifier_is_shift_on_every_channel() {
+    for channel in channels() {
+        assert_eq!(
+            channel.chord_modifier(),
+            Modifier::Shift,
+            "{}",
+            channel.word()
+        );
+    }
+}
+
+/// The defaults of the three channels break no rule of `NOCTUA.md §12.8`.
+///
+/// **Judged by the rule every configuration is judged by**, so the defaults
+/// a refused configuration falls back to are never a collision themselves: no
+/// Leader holds its chord modifier, none held with its chord is another's, and
+/// no two share one — the two checkouts excepted, which share theirs.
+#[test]
+fn the_defaults_of_the_three_channels_break_no_rule() {
+    let part = |channel: Channel| LeaderPart {
+        leader: channel.leader(),
+        chord: channel.chord_modifier(),
+    };
+    let [one, _] = checkouts();
+    let three = [
+        Channel::Production,
+        Channel::Staging,
+        Channel::Development(one),
+    ];
+    for channel in three {
+        assert_eq!(intra(part(channel)), Ok(()), "{}", channel.word());
+        for other in three {
+            if other != channel {
+                assert_eq!(
+                    apart(part(channel), part(other)),
+                    Ok(()),
+                    "{} and {}",
+                    channel.word(),
+                    other.word()
+                );
+            }
+        }
+    }
 }
 
 /// The checkout is the digest it always was, of its canonicalized path.

@@ -1702,20 +1702,27 @@ fn every_command_is_published_with_what_a_dispatcher_decides_on() {
             );
             counted.0 += 1;
         }
-        // **The keybinding row exists only when there is a keybinding**, which
-        // is why it is not in the list above: otherwise `Keybinding | — |` sits
-        // on every row of the shipped page, because nothing declares one.
-        match entry.keybinding.as_deref() {
-            Some(key) => assert!(
-                has("Keybinding", &format!("`{key}`")),
-                "`{}` declares `{key}` and the page does not publish it",
-                entry.name
-            ),
-            None => assert!(
-                !mine.iter().any(|row| row[0] == "Keybinding"),
+        // **The keybindings row exists only when there is a keybinding**, which
+        // is why it is not in the list above: otherwise `Keybindings | — |`
+        // sits on every row of the shipped page, because nothing declares one.
+        if entry.keybindings.is_empty() {
+            assert!(
+                !mine.iter().any(|row| row[0] == "Keybindings"),
                 "`{}` declares no keybinding and the page publishes a row for one",
                 entry.name
-            ),
+            );
+        } else {
+            let written: Vec<String> = entry
+                .keybindings
+                .iter()
+                .map(|binding| format!("`{binding}`"))
+                .collect();
+            assert!(
+                has("Keybindings", &written.join(", ")),
+                "`{}` declares {:?} and the page does not publish them",
+                entry.name,
+                entry.keybindings
+            );
         }
         counted.0 += 1;
         // And the arguments schema, which is what a caller is validated against.

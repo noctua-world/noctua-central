@@ -1110,7 +1110,7 @@ fn commands(catalog: &Catalog) -> String {
     out.push_str(
         "    /// The JSON Schema for its arguments.\n    pub args_schema: &'static str,\n",
     );
-    out.push_str("    /// The default keybinding, where it has one.\n    pub keybinding: Option<&'static str>,\n");
+    out.push_str("    /// Its default keybindings, each in the Leader's grammar (`nc_schema::keys`).\n    pub keybindings: &'static [&'static str],\n");
     out.push_str(
         "    /// Every argument name `args_schema` declares, in the order it declares them.\n\
          \x20   ///\n\
@@ -1132,7 +1132,7 @@ fn commands(catalog: &Catalog) -> String {
     for entry in &sorted {
         let _ = writeln!(
             out,
-            "    Command {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, wiki: {}, action: {}, resource_selector: {}, reversibility: Reversibility::{}, mutating: {}, args_schema: {}, keybinding: {}, arguments: {} }},",
+            "    Command {{ name: {}, title_key: {}, description_key: {}, paragraph_key: {}, tags_key: {}, categories: {}, glyph: {}, wiki: {}, action: {}, resource_selector: {}, reversibility: Reversibility::{}, mutating: {}, args_schema: {}, keybindings: {}, arguments: {} }},",
             quoted(&entry.name),
             quoted(&entry.title),
             quoted(&entry.description),
@@ -1153,10 +1153,7 @@ fn commands(catalog: &Catalog) -> String {
             entry.reversibility.variant(),
             entry.mutating,
             quoted(&entry.args_schema),
-            entry.keybinding.as_ref().map_or_else(
-                || "None".to_owned(),
-                |value| format!("Some({})", quoted(value))
-            ),
+            list(&entry.keybindings),
             list(&argument_names(&entry.args_schema))
         );
     }

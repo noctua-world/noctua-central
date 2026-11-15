@@ -567,7 +567,8 @@ have and an external identifier to the shape of each value it is identified
 by, and the rule the compiler judges a command's declaration and its entry
 by, and the
 kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
-`entry.rs` — and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
+`entry.rs` — and the Leader's grammar every binding is read by, its `keys.rs`,
+and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
 `directory.rs` and `embedded.rs`, and the kernel's own `lib.rs`, `world.rs`,
 `bindings.rs`, `engine.rs` and `built.rs`, the grants and bounds a plugin's
 manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and

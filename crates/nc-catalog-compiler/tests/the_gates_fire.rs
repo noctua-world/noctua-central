@@ -926,7 +926,7 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     });
     // One command differs and the others do not, so a constant fails whichever
     // value it is: never writing the row misses the declared key, always
-    // writing `C-c C-v` misses the absent one.
+    // writing `Leader+Chord+KeyV` misses the absent one.
     // The selector reads an argument the schema has to back — declared,
     // required, a bounded string naming its entity type — so the schema grows
     // the argument it selects.
@@ -976,7 +976,7 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     // command that declares them publishes them; the section of the one that
     // does not publishes no keybinding row at all.
     //
-    // **No `Keybinding | — |` on every row of the shipped page**: no command
+    // **No `Keybindings | — |` on every row of the shipped page**: no command
     // declares one, and such a column of em-dashes is one a reader has to look
     // at twice to learn it says nothing. The row appears when there is a
     // binding and not otherwise, and this test drives both halves.
@@ -993,8 +993,9 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     };
     let declared = section("journal.verify");
     assert!(
-        declared.contains("| Keybinding | `C-c C-v` |"),
-        "a declared keybinding did not reach the page: {declared}"
+        declared.contains("| Keybindings | `Leader+Chord+KeyV`, `Leader KeyV` |"),
+        "a declared keybinding did not reach the page, or not in the order written: \
+         {declared}"
     );
     assert!(
         declared.contains("| Resource selector | `argument:target` |"),
@@ -1002,7 +1003,7 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     );
     let bare = section("limits.prune");
     assert!(
-        !bare.contains("| Keybinding |"),
+        !bare.contains("| Keybindings |"),
         "a command with no keybinding published an empty row for one: {bare}"
     );
     assert!(
@@ -1032,7 +1033,7 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
 fn select_an_argument(text: &str) -> String {
     text.replacen(
         "resource_selector = \"realm\"",
-        "resource_selector = \"argument:target\"\nkeybinding = \"C-c C-v\"",
+        "resource_selector = \"argument:target\"\nkeybindings = [\"Leader+Chord+KeyV\", \"Leader KeyV\"]",
         1,
     )
     .replace(
@@ -1049,7 +1050,7 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
     // writing that value as a constant passes: no command declares a keybinding,
     // every command declares the same resource selector, the one email declares
     // no parameters, and the one notification is `info`. Against that registry
-    // alone, the `Some(…)` branch of `keybinding` would be dead code.
+    // alone, the populated branch of `keybindings` would be dead code.
     //
     // Rather than invent product decisions in the shipped registry, this drives
     // the emitter over a copy that does differ, and asserts each value reaches
@@ -1084,8 +1085,11 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
         .find(|file| file.path.ends_with("commands.rs"))
         .expect("the commands module is emitted");
     assert!(
-        commands.contents.contains("Some(\"C-c C-v\")"),
-        "a declared keybinding did not reach the generated source"
+        commands
+            .contents
+            .contains("keybindings: &[\"Leader+Chord+KeyV\", \"Leader KeyV\"]"),
+        "a declared keybinding did not reach the generated source, or not in the order \
+         written"
     );
     assert!(
         commands.contents.contains("\"argument:target\""),
@@ -1357,7 +1361,7 @@ fn two_names_that_differ_only_in_a_hyphen_collide() {
 /// one per nested table crosses the hundred-line budget `clippy.toml` sets, and
 /// a budget met by *reaching fewer structs* is the defect this table exists to
 /// close.
-const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 28] = [
+const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 29] = [
     (
         "lockout-typo",
         "catalog/limits.toml",
@@ -1415,6 +1419,16 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 28] = [
         "glyph = \"U+F0E2\"",
         "glyf = \"U+F0E2\"",
         "glyf",
+    ),
+    // **And `keybinding`, singular**: one string under a key no field reads
+    // would be a binding silently dropped rather than one the Leader's grammar
+    // judged.
+    (
+        "keybinding-singular",
+        "catalog/commands.toml",
+        "mutating = false",
+        "mutating = false\nkeybinding = \"Leader KeyQ\"",
+        "`keybinding`",
     ),
     // And a locale file's tag table, beside its messages: misspelt, every tag
     // list in it would be a table nothing reads.
@@ -3945,26 +3959,92 @@ fn a_command_title_a_reader_cannot_see_all_of_fails_the_build() {
     scratch.must_fail_saying("command-title-invisible-character", "journal.verify");
 }
 
+/// Two commands bound to one key of one table fail the build (rule 4).
 #[test]
-fn two_commands_bound_to_one_chord_fail_the_build() {
+fn two_commands_bound_to_one_key_of_one_table_fail_the_build() {
     let scratch = Scratch::new("keybinding");
     scratch.edit("catalog/commands.toml", |text| {
         text.replace(
             "mutating = false",
-            "mutating = false\nkeybinding = \"C-c j\"",
+            "mutating = false\nkeybindings = [\"Leader+KeyJ\"]",
         )
-        .replace("mutating = true", "mutating = true\nkeybinding = \"C-c j\"")
+        .replace(
+            "mutating = true",
+            "mutating = true\nkeybindings = [\"Leader+KeyJ\"]",
+        )
     });
-    scratch.must_fail("duplicate-keybinding", "C-c j");
+    scratch.must_fail("duplicate-keybinding", "Leader+KeyJ");
 }
 
+/// A keybinding written in any grammar but the Leader's fails the build,
+/// naming it (acceptance 7 of Stage 14).
+///
+/// **The grammar the catalog used to take among them**: an Emacs chord, a
+/// bare key and a modifier word, beside an alias, lower case and a modifier
+/// written inside a binding — each a spelling a reader could take for one, and
+/// each refused by `nc_schema::keys`, which a person's configuration is read
+/// by too.
 #[test]
-fn a_keybinding_the_shell_cannot_parse_fails_the_build() {
-    let scratch = Scratch::new("bad-chord");
+fn a_keybinding_in_any_grammar_but_the_leaders_fails_the_build() {
+    for (label, written) in [
+        ("emacs", "C-c j"),
+        ("spacemacs", "SPC b b"),
+        ("bare-key", "F2"),
+        ("modifier-word", "X-q"),
+        ("alias", "Leader s"),
+        ("lower-case", "leader KeyS"),
+        ("modifier-inside", "Leader+Shift+KeyQ"),
+        ("two-keys", "Leader KeyW KeyM"),
+    ] {
+        let scratch = Scratch::new(&format!("bad-binding-{label}"));
+        scratch.edit("catalog/commands.toml", |text| {
+            text.replacen(
+                "mutating = false",
+                &format!("mutating = false\nkeybindings = [\"{written}\"]"),
+                1,
+            )
+        });
+        scratch.must_fail("malformed-keybinding", written);
+    }
+}
+
+/// One key in two tables is two bindings, and the catalog that declares them
+/// builds.
+///
+/// **The duplicate is the binding's, not the key's**: `Leader KeyJ` and
+/// `Leader+KeyJ` are two presses, so two commands may each have one — a check
+/// keyed on the key alone refuses this catalog.
+#[test]
+fn one_key_in_two_tables_is_two_bindings() {
+    let scratch = Scratch::new("two-tables");
     scratch.edit("catalog/commands.toml", |text| {
-        text.replace("mutating = false", "mutating = false\nkeybinding = \"X-q\"")
+        text.replacen(
+            "mutating = false",
+            "mutating = false\nkeybindings = [\"Leader KeyJ\", \"Leader+Chord+KeyJ\"]",
+            1,
+        )
+        .replacen(
+            "mutating = true",
+            "mutating = true\nkeybindings = [\"Leader+KeyJ\"]",
+            1,
+        )
     });
-    scratch.must_fail("malformed-keybinding", "X-q");
+    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+        .expect("one key in three tables, for two commands, is three bindings");
+    let commands = compiled
+        .files
+        .iter()
+        .find(|file| file.path.ends_with("commands.rs"))
+        .expect("the commands module is emitted");
+    for declared in [
+        "keybindings: &[\"Leader KeyJ\", \"Leader+Chord+KeyJ\"]",
+        "keybindings: &[\"Leader+KeyJ\"]",
+    ] {
+        assert!(
+            commands.contents.contains(declared),
+            "`{declared}` did not reach the generated source"
+        );
+    }
 }
 
 // --- log events ---

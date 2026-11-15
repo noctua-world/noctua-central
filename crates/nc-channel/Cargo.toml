@@ -19,6 +19,12 @@ nc-canon.workspace = true
 # install names itself by is read only once it and its directory are judged
 # private (`src/found.rs`), by the one crate that answers that on each system.
 nc-platform.workspace = true
+# **The Leader's grammar, which every reader of a binding shares.** A channel's
+# default Leader is one of the names `layout` derives, and it is built here
+# through `nc_schema::keys`, the rule the catalog compiler reads every binding
+# with — so a default the grammar refused would not compile. That crate
+# depends on nothing of this workspace, so no cycle reaches the catalog.
+nc-schema.workspace = true
 
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration

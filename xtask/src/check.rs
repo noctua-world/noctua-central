@@ -19478,7 +19478,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 212] = [
+    const DOCUMENTED: [(&str, usize, usize); 213] = [
         ("cli/args.rs", 43, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
@@ -19518,17 +19518,17 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 32, 15),
+        ("nc-catalog-compiler/docs.rs", 33, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 16),
-        ("nc-catalog-compiler/load.rs", 61, 19),
+        ("nc-catalog-compiler/load.rs", 61, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 24, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
-        ("nc-catalog-compiler/the_gates_fire.rs", 107, 113),
+        ("nc-catalog-compiler/the_gates_fire.rs", 110, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             16,
@@ -19548,9 +19548,9 @@ mod the_frozen_path_rule {
         ("nc-catalog/the_generated_surface.rs", 10, 15),
         ("nc-catalog/wiki.rs", 6, 2),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/lib.rs", 55, 16),
+        ("nc-channel/lib.rs", 54, 14),
         ("nc-channel/record.rs", 15, 10),
-        ("nc-channel/the_names_are_disjoint.rs", 26, 0),
+        ("nc-channel/the_names_are_disjoint.rs", 28, 0),
         ("nc-fuzzy/align.rs", 19, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
         ("nc-fuzzy/lib.rs", 5, 9),
@@ -19662,8 +19662,9 @@ mod the_frozen_path_rule {
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
         ("nc-schema/entry.rs", 41, 42),
-        ("nc-schema/lib.rs", 92, 66),
-        ("nc-schema/properties.rs", 18, 2),
+        ("nc-schema/keys.rs", 93, 21),
+        ("nc-schema/lib.rs", 92, 67),
+        ("nc-schema/properties.rs", 31, 2),
         ("nc-schema/selector.rs", 21, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
@@ -22477,8 +22478,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 803 scratches this tree
-    /// builds, 715 of the 803 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 804 scratches this tree
+    /// builds, 716 of the 804 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22562,7 +22563,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 251, 251),
+        ("nc-catalog-compiler/the_gates_fire.rs", 252, 252),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25546,7 +25547,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19233;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19518;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25565,7 +25566,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4923;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4985;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25582,7 +25583,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1654;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1675;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25616,7 +25617,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25838;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26040;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25670,7 +25671,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 25,838 are accepted by the first-line
+    /// rules the gates apply: **519 of 26,040 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25703,7 +25704,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1654 of
+    /// this tree offers, **1675 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37556,7 +37557,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 226,
+            walked, 227,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37596,7 +37597,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2351] = [
+    static OPERATORS: [(&str, &str, &str); 2375] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38359,8 +38360,8 @@ Options:
         ),
         (
             "loader",
-            "chord",
-            "a binding that shows a reader nothing is empty",
+            "check_keybindings",
+            "a binding read is a binding held against the others",
         ),
         (
             "loader",
@@ -38416,6 +38417,16 @@ Options:
             "loader",
             "declared_params",
             "a command's paragraph takes no placeholder",
+        ),
+        (
+            "pages",
+            "keybindings_row",
+            "a command's keybindings reach its page",
+        ),
+        (
+            "emitter",
+            "commands",
+            "a command's keybindings reach the code",
         ),
         ("pages", "cell", "an angle bracket is escaped"),
         ("pages", "cell", "and so is the bar that would end the cell"),
@@ -40700,6 +40711,90 @@ Options:
             "schema_entry",
             "a_reason_is_prose",
             "a reason is four words at least",
+        ),
+        (
+            "schema_keys",
+            "Modifier",
+            "Super is Win on a Windows keyboard",
+        ),
+        (
+            "schema_keys",
+            "bit",
+            "each modifier has a place of its own in a set",
+        ),
+        (
+            "schema_keys",
+            "holds",
+            "a set holds only the modifiers put in it",
+        ),
+        (
+            "schema_keys",
+            "of_code",
+            "a key is named exactly, in its own case",
+        ),
+        ("schema_keys", "Key", "a Mac calls Enter Return"),
+        ("schema_keys", "Chord", "a chord names each modifier once"),
+        ("schema_keys", "Leader", "a Leader holds a modifier"),
+        (
+            "schema_keys",
+            "Leader",
+            "the Leader held with its chord holds the chord modifier",
+        ),
+        (
+            "schema_keys",
+            "intra",
+            "a Leader never holds its own chord modifier",
+        ),
+        (
+            "schema_keys",
+            "apart",
+            "two Leaders are shared whatever their chord modifiers",
+        ),
+        (
+            "schema_keys",
+            "apart",
+            "either Leader held with its chord is judged against the other",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a claim is judged against what those before it settled on",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a claim is judged against the defaults of those after it",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a refused part leaves the default in force",
+        ),
+        (
+            "schema_keys",
+            "Binding",
+            "the longest opening is read first",
+        ),
+        (
+            "schema_keys",
+            "tables",
+            "a command a person chose keys for is bound to those",
+        ),
+        ("schema_keys", "tables", "a key bound twice is refused"),
+        (
+            "schema_keys",
+            "warnings",
+            "a key held with the chord is pressed with the chord modifier",
+        ),
+        (
+            "schema_keys",
+            "warnings",
+            "a held key that is the Leader's own is warned of",
+        ),
+        (
+            "schema_keys",
+            "SYSTEM_SHORTCUTS",
+            "every row is the chord its source writes",
         ),
         (
             "compiler_metadata",
@@ -46252,7 +46347,17 @@ Options:
             "the log store's port is PostgreSQL's plus one",
         ),
         ("channel", "pair_of", "the block wraps at its last pair"),
-        ("channel", "leader", "staging holds Control as well as Alt"),
+        (
+            "channel",
+            "STAGING_LEADER",
+            "staging holds Control as well as Alt",
+        ),
+        (
+            "channel",
+            "held_with_space",
+            "a default Leader's key is Space",
+        ),
+        ("channel", "chord_modifier", "the chord modifier is Shift"),
         ("channel", "Namespace", "a namespace is bounded in length"),
         ("channel", "Namespace", "a namespace holds no separator"),
         ("channel", "Namespace", "a namespace holds a digit"),
