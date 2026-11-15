@@ -47,6 +47,11 @@ enum Rule {
     RepeatTheNext,
     /// Passes each ping on, and nothing else.
     OnlyPings,
+    /// Passes the next frame that is not a ping on as another message.
+    ///
+    /// The message this text writes, then forwards: a request written by
+    /// hand, past a handshake the real ends made.
+    WriteTheNextAs(&'static str),
 }
 
 /// One way of a relay: its rule, how many pings it passed on, and whether it
@@ -85,17 +90,22 @@ where
             read = frame::read(&mut from) => read,
             () = way.stalled.notified() => std::future::pending().await,
         };
-        let Ok(Some(value)) = read else { break };
+        let Ok(Some(mut value)) = read else { break };
         let ping = matches!(&value, Value::Object(fields)
             if fields.get("type") == Some(&Value::text("ping")));
         let times = match way.rule() {
             Rule::Forward => 1,
             Rule::Swallow => 0,
             Rule::OnlyPings => usize::from(ping),
-            Rule::RepeatTheNext if ping => 1,
+            Rule::RepeatTheNext | Rule::WriteTheNextAs(_) if ping => 1,
             Rule::RepeatTheNext => {
                 way.set(Rule::Forward);
                 2
+            }
+            Rule::WriteTheNextAs(text) => {
+                way.set(Rule::Forward);
+                value = nc_canon::parse(text).expect("a message written by hand is JSON");
+                1
             }
         };
         if ping && times > 0 {
@@ -159,6 +169,11 @@ impl AsyncWrite for Watched {
         Pin::new(&mut self.get_mut().inner).poll_shutdown(context)
     }
 }
+
+/// A request for the registry, in English.
+const REGISTRY: Request = Request::Registry {
+    locale: nc_catalog::Locale::En,
+};
 
 /// A daemon serving and a client connected through a relay, with one token.
 async fn through_a_relay() -> (Served, Client, Relay) {
@@ -361,8 +376,8 @@ async fn two_ends_that_only_ping_keep_their_connection_through_any_silence() {
     let (mut served, mut client) = directly().await;
     tokio::time::sleep(SILENCE * 10).await;
     let (asked, ()) = within("a request after the silence", async {
-        tokio::join!(client.ask(&Request::Registry), async {
-            assert_eq!(served.next().await.expect("read"), Some(Request::Registry));
+        tokio::join!(client.ask(&REGISTRY), async {
+            assert_eq!(served.next().await.expect("read"), Some(REGISTRY));
             served
                 .answer(&Answer::Registry(Vec::new()))
                 .await
@@ -433,6 +448,65 @@ async fn a_request_before_the_last_one_was_answered_is_refused() {
     }
 }
 
+/// A registry request crosses in the locale it names.
+///
+/// It crosses in each locale this build ships, and one written by hand
+/// naming none it ships — a tag in another case, a tag of no locale here, or
+/// no locale at all — is refused as malformed, and the end that read it
+/// closes the connection.
+#[tokio::test(start_paused = true)]
+async fn a_registry_request_crosses_in_its_locale_and_one_naming_none_this_build_ships_is_refused()
+{
+    for &locale in nc_catalog::Locale::ALL {
+        let (mut served, mut client) = directly().await;
+        let request = Request::Registry { locale };
+        let (asked, ()) = within("a registry request", async {
+            tokio::join!(client.ask(&request), async {
+                assert_eq!(served.next().await.expect("read"), Some(request.clone()));
+                served
+                    .answer(&Answer::Registry(Vec::new()))
+                    .await
+                    .expect("answered");
+            })
+        })
+        .await;
+        assert_eq!(asked.expect("answered"), Answer::Registry(Vec::new()));
+    }
+    for (written, says) in [
+        (
+            r#"{"locale":"pt-br","type":"registry"}"#,
+            "naming `pt-br`, a locale this build does not ship",
+        ),
+        (
+            r#"{"locale":"fr","type":"registry"}"#,
+            "naming `fr`, a locale this build does not ship",
+        ),
+        (
+            r#"{"type":"registry"}"#,
+            "a `registry` message with no `locale`",
+        ),
+    ] {
+        let (mut served, mut client, relay) = through_a_relay().await;
+        relay.to_daemon.set(Rule::WriteTheNextAs(written));
+        let (asked, ()) = within("a registry request written by hand", async {
+            tokio::join!(client.ask(&REGISTRY), async move {
+                match served.next().await {
+                    Err(refused @ IpcError::Malformed(_)) => {
+                        assert!(refused.to_string().contains(says), "{written}: {refused}");
+                    }
+                    other => panic!("{written} was read as {other:?}"),
+                }
+                served.close().await;
+            })
+        })
+        .await;
+        assert!(
+            matches!(asked, Err(IpcError::Lost(_))),
+            "the client of a request refused as malformed was {asked:?}"
+        );
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn an_answer_nobody_asked_for_is_refused() {
     let (mut served, mut client, relay) = through_a_relay().await;
@@ -489,12 +563,7 @@ async fn a_request_abandoned_before_its_answer_leaves_the_connection_unasked() {
     within("a late answer", served.answer(&status()))
         .await
         .expect("answered late");
-    match within(
-        "a request after an abandoned one",
-        client.ask(&Request::Registry),
-    )
-    .await
-    {
+    match within("a request after an abandoned one", client.ask(&REGISTRY)).await {
         Err(IpcError::Malformed(_)) => {}
         other => panic!("a connection with an answer on its way was asked again: {other:?}"),
     }

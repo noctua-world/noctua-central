@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reference_plugin_is_built_from_its_sources_its_manifest_and_the_world() {
+    fn the_reference_plugin_is_built_from_its_sources_its_manifest_its_entries_and_the_world() {
         let Inputs { roots, files } = inputs_of(
             root(),
             &["crates/nc-guest".to_owned(), "plugins/reference".to_owned()],
@@ -649,6 +649,9 @@ mod tests {
             "crates/nc-guest/src/lib.rs",
             "crates/nc-kernel/wit/noctua-kernel.wit",
             "plugins/reference/Cargo.toml",
+            "plugins/reference/commands.toml",
+            "plugins/reference/i18n/en.toml",
+            "plugins/reference/i18n/pt-BR.toml",
             "plugins/reference/plugin.toml",
             "plugins/reference/src/adapter.rs",
             "plugins/reference/src/behaviour.rs",

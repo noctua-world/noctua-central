@@ -823,6 +823,14 @@ const PIPE_INSTANCES: u64 = 254;
 /// one always waiting for the next client, and the connection past the bound,
 /// held until the next is waiting — or a daemon on Windows could not take the
 /// connection its own bound allows.
+///
+/// **And one plugin's texts take at most half a frame**: every command it may
+/// declare, at `[kernel] entry_bytes` in the one locale the registry is asked
+/// in — bytes `nc_schema::entry` counts each tag in with the quotation marks
+/// and the comma it is listed in — each byte a character JSON writes as two,
+/// `"` and `\`, so the registry answer always has the other half for the
+/// catalog's commands, the names, the schemas, the categories and glyphs, and
+/// the other plugins'.
 fn check_daemon_ipc(
     daemon: DaemonLimits,
     kernel: &KernelLimits,
@@ -845,6 +853,26 @@ fn check_daemon_ipc(
              a frame smaller than both together refuses a dispatch the kernel would accept. \
              Make `ipc_frame_max_bytes` at least `payload_bytes` and 64 KiB more",
             "ipc-frame-below-a-payload",
+        );
+    }
+    let texts = u64::from(kernel.commands_per_plugin)
+        .saturating_mul(kernel.entry_bytes)
+        .saturating_mul(2);
+    if texts > daemon.ipc_frame_max_bytes / 2 {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("entry_bytes"),
+            format!(
+                "`[kernel] commands_per_plugin` × `entry_bytes` × 2 is {} × {} × 2, past half \
+                 of `[daemon] ipc_frame_max_bytes`, {}",
+                kernel.commands_per_plugin, kernel.entry_bytes, daemon.ipc_frame_max_bytes
+            ),
+            "the registry answer carries every command's texts in the locale asked for, and \
+             JSON writes a quotation mark or a backslash as two bytes, so one plugin whose \
+             commands are all at their bound would leave no room in the frame for anything \
+             else. Lower `entry_bytes`, or `commands_per_plugin`",
+            "entry-bytes-past-half-a-frame",
         );
     }
     if daemon.ipc_silent_after_ms <= daemon.ipc_heartbeat_ms.saturating_mul(2) {

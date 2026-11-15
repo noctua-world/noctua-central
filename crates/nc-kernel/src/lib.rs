@@ -36,7 +36,9 @@
 //! with none is one undo does not pass. A plugin groups what it does with
 //! `commands.begin`, flattened into the unit of the command it runs in. The
 //! kernel's own commands — the journal's chain verified, the local tables
-//! pruned — run through the same door, as a guardian's (`crate::builtin`). A plugin
+//! pruned, a file's name proposed and read, a command found by the words of
+//! its names and tags (`crate::find`) — run through the same door, each decided
+//! as a plugin's is (`crate::builtin`). A plugin
 //! announces what happened in its own namespace, and an event published in a
 //! unit is queued only when the unit is kept; it sets timers, and is woken as
 //! the person it set them for; it describes what it shows in surfaces, in a
@@ -85,7 +87,9 @@ mod builtin;
 pub mod capability;
 mod dispatch;
 pub mod engine;
+pub mod entries;
 mod events;
+mod find;
 mod history;
 mod host;
 pub mod limits;
@@ -399,8 +403,9 @@ impl<E: Environment> Kernel<E> {
     /// trapped, ran out of fuel, outgrew its memory or refused while it was
     /// instantiated or activated, its own refusal repeated cut to a bound; and
     /// every problem `activate`'s declarations have —
-    /// `[NC-PLUG-0008]`, `[NC-PLUG-0009]` and `[NC-KERN-0015]`, as the
-    /// [`registry`] module lists them.
+    /// `[NC-PLUG-0008]`, `[NC-PLUG-0009]`, `[NC-KERN-0015]` and, for what a
+    /// command's entry says, `[NC-PLUG-0029]`, as the [`registry`] module lists
+    /// them.
     pub async fn load(
         &self,
         manifest: PluginManifest,
@@ -1021,6 +1026,48 @@ impl Environment for InMemory {
 #[must_use]
 pub fn component_for_tests(name: &str) -> Vec<u8> {
     built::component(name)
+}
+
+/// What `plugins/<name>` says of its commands, read. **For tests only.**
+///
+/// The entries a daemon hands `PluginManifest::described_by` once it has
+/// read the plugin's directory, read for their shape here from the source
+/// tree an install copies them from: a kernel's suite loads the reference
+/// component with these, as a daemon does, or every command it declares is
+/// refused for having no entry.
+///
+/// # Panics
+///
+/// When a file is missing, or the entries are not of the shape the
+/// parser reads.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn entries_for_tests(name: &str) -> entries::PluginEntries {
+    let (commands, texts) = built::entry_files(name);
+    let texts: Vec<(nc_catalog::Locale, &str)> = texts
+        .iter()
+        .map(|(locale, text)| (*locale, text.as_str()))
+        .collect();
+    entries::PluginEntries::parse(&commands, &texts)
+        .unwrap_or_else(|refused| panic!("the entries of `plugins/{name}` are refused: {refused}"))
+}
+
+/// The files `plugins/<name>` says its commands in. **For tests only.**
+///
+/// Its command table, and each locale's texts in `Locale::ALL`'s order, as
+/// text: for a suite that breaks one of them before it is read — a locale's
+/// texts missing a command, a title the component declares that no display
+/// name repeats.
+///
+/// # Panics
+///
+/// When a file is missing or not UTF-8.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn entry_files_for_tests(name: &str) -> (String, Vec<(nc_catalog::Locale, String)>) {
+    built::entry_files(name)
 }
 
 /// One command as a plugin declared it at `activate`: every field of the

@@ -8,15 +8,19 @@
 //! **The registry is the one list**: help names every command the daemon
 //! would run and none it would not, and a command's arguments are read from
 //! the same schema its command line is read against
-//! (`nc_schema::Schema::arguments`). A command the catalog declares is shown
-//! by the catalog's title and description in the environment's language; a
-//! plugin's, by the label it declared. **Every text from the daemon is
-//! escaped** ([`crate::render::escaped`]) — a name, a label, a title, a
-//! description, an option, an entity type — so a plugin's schema prints
-//! nothing a terminal acts on. **And every text of a registry the catalog
-//! holds**, which the compiler judged, is escaped the same way, as is every
-//! text a keybinding configuration gave a refusal: one rule for every text
-//! help prints that it did not write.
+//! (`nc_schema::Schema::arguments`). **Every command is shown by the texts
+//! the daemon sent** — its entry's display name, line, paragraph and tags, in
+//! the language the registry was asked in, the environment's, and its
+//! categories by name — a command the catalog writes as much as a plugin's,
+//! and never by a text this binary compiled in. **Every text from the daemon
+//! is escaped** ([`crate::render::escaped`]) — a name, a display name, a line,
+//! a paragraph, a tag, a category, an argument's title and description, an
+//! option, an entity type — so nothing the daemon relays prints anything a
+//! terminal acts on. **And every text of a registry the catalog holds**,
+//! which the compiler judged, is escaped the same way, as is every text a
+//! keybinding configuration gave a refusal: one rule for every text help
+//! prints that it did not write. No glyph is printed: a terminal is not
+//! promised the font that draws one.
 
 use core::fmt::Write as _;
 
@@ -72,22 +76,17 @@ pub fn verbs() -> String {
     text
 }
 
-/// What a person is shown for `listed`: the catalog's title in `locale` for
-/// a command the catalog declares, and the plugin's label, escaped, for one it
-/// does not.
-#[must_use]
-pub fn title(listed: &Listed, locale: Locale) -> String {
-    nc_catalog::command(&listed.name)
-        .and_then(|command| nc_catalog::message(command.title_key, locale))
-        .map_or_else(|| escaped(&listed.title), str::to_owned)
-}
-
-/// The catalog's description of the command `name` in `locale`, for one the
-/// catalog declares.
-fn description(name: &str, locale: Locale) -> Option<String> {
-    nc_catalog::command(name)
-        .and_then(|command| nc_catalog::message(command.description_key, locale))
-        .map(str::to_owned)
+/// `texts`, each escaped, joined by a comma, or `none` when there are none:
+/// a tag holds no comma, which the entry judge refuses.
+fn listed_as_words(texts: &[String]) -> String {
+    if texts.is_empty() {
+        return "none".to_owned();
+    }
+    texts
+        .iter()
+        .map(|text| escaped(text))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// The grammar and the verbs, which help shows whether a daemon answers or not.
@@ -99,9 +98,9 @@ fn grammar(cli: &str) -> String {
 }
 
 /// Help on everything: the grammar, the verbs, and every command the registry
-/// holds, by its name and its title.
+/// holds, by its name, its display name and its line.
 #[must_use]
-pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
+pub fn everything(cli: &str, commands: &[Listed]) -> String {
     let mut text = grammar(cli);
     text.push_str("\nCommands:\n");
     let names: Vec<String> = commands
@@ -114,7 +113,12 @@ pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
         .max()
         .unwrap_or(0);
     for (name, listed) in names.iter().zip(commands) {
-        let _ = writeln!(text, "  {name:<width$}   {}", title(listed, locale));
+        let _ = writeln!(
+            text,
+            "  {name:<width$}   {} — {}",
+            escaped(&listed.display_name),
+            escaped(&listed.line)
+        );
     }
     if commands.is_empty() {
         text.push_str("  none: the registry holds no command\n");
@@ -443,15 +447,19 @@ fn said(code: ErrorCode, detail: &str, locale: Locale) -> String {
     )
 }
 
-/// Help on one command: its name, its title and description, and each
-/// argument its schema declares.
+/// Help on one command: its name and display name, its line, its paragraph,
+/// its categories and its tags, and each argument its schema declares.
 #[must_use]
-pub fn command(cli: &str, listed: &Listed, schema: &Schema, locale: Locale) -> String {
+pub fn command(cli: &str, listed: &Listed, schema: &Schema) -> String {
     let name = escaped(&listed.name);
-    let mut text = format!("{name} — {}\n", title(listed, locale));
-    if let Some(description) = description(&listed.name, locale) {
-        let _ = writeln!(text, "{description}");
-    }
+    let mut text = format!(
+        "{name} — {}\n{}\n\n{}\n\nCategories: {}\nTags: {}\n",
+        escaped(&listed.display_name),
+        escaped(&listed.line),
+        escaped(&listed.paragraph),
+        listed_as_words(&listed.categories),
+        listed_as_words(&listed.tags)
+    );
     let _ = write!(
         text,
         "\nUsage:\n  {cli} {name} [arguments]\n  {cli} {name} -- '<one JSON object>'\n\nArguments:\n"
@@ -570,10 +578,15 @@ mod tests {
     use crate::args::VERBS;
     use crate::client::Listed;
 
-    fn listed(name: &str, title: &str, args_schema: &str) -> Listed {
+    /// An entry the daemon sent, its texts written from `display_name`.
+    fn listed(name: &str, display_name: &str, args_schema: &str) -> Listed {
         Listed {
             name: name.to_owned(),
-            title: title.to_owned(),
+            display_name: display_name.to_owned(),
+            line: format!("{display_name}, in a line"),
+            paragraph: format!("{display_name}, in a paragraph."),
+            tags: vec!["one".to_owned(), "two".to_owned()],
+            categories: Vec::new(),
             args_schema: args_schema.to_owned(),
         }
     }
@@ -593,33 +606,103 @@ mod tests {
         assert_eq!(super::what_it_does("verify"), "");
     }
 
-    /// Help on everything lists every command the registry holds, by its name
-    /// and its title — the catalog's in the environment's language, a
-    /// plugin's name and label escaped — with the grammar and the verbs.
+    /// Help on everything lists every command the registry holds, one line
+    /// each — its name, then its display name and its line as the daemon sent
+    /// them — with the grammar and the verbs.
     #[test]
-    fn help_on_everything_lists_every_command_by_its_name_and_title() {
+    fn help_on_everything_lists_every_command_by_its_name_display_name_and_line() {
         let commands = [
-            listed("journal.verify", "command.journal.verify.title", EMPTY),
-            listed("reference.note.get", "Read a note\u{1b}[2J", EMPTY),
-            listed("reference.\u{1b}[2Jwipe.do", "Wipe", EMPTY),
-            listed("reference.\u{202e}eton.get", "Turned", EMPTY),
+            listed("journal.verify", "Verificar histórico de atividades", EMPTY),
+            listed("reference.note.get", "Ler uma nota", EMPTY),
         ];
-        for locale in [Locale::En, Locale::PtBR] {
-            let text = super::everything("noctua-staging", &commands, locale);
-            let verify = nc_catalog::message("command.journal.verify.title", locale)
-                .expect("the catalog's title");
-            assert!(text.contains("journal.verify"), "{text}");
-            assert!(text.contains(verify), "{text}");
-            assert!(text.contains("reference.note.get"), "{text}");
-            assert!(text.contains("Read a note\\u{1b}[2J"), "{text}");
-            assert!(text.contains("  reference.\\u{1b}[2Jwipe.do "), "{text}");
-            assert!(text.contains("  reference.\\u{202e}eton.get "), "{text}");
-            assert!(!text.contains('\u{1b}'), "{text}");
-            assert!(!text.contains('\u{202e}'), "{text}");
-            assert!(text.contains("noctua-staging [--json] <command>"), "{text}");
-            assert!(text.contains(&super::verbs()), "{text}");
+        let text = super::everything("noctua-staging", &commands);
+        for line in [
+            "  journal.verify       Verificar histórico de atividades — Verificar histórico de \
+             atividades, in a line\n",
+            "  reference.note.get   Ler uma nota — Ler uma nota, in a line\n",
+        ] {
+            assert!(text.contains(line), "`{line}` is not in:\n{text}");
         }
-        assert!(super::everything("noctua", &[], Locale::En).contains("holds no command"));
+        assert!(text.contains("noctua-staging [--json] <command>"), "{text}");
+        assert!(text.contains(&super::verbs()), "{text}");
+        assert!(super::everything("noctua", &[]).contains("holds no command"));
+    }
+
+    /// Every text the daemon supplied is escaped, the catalog's commands' as
+    /// much as a plugin's: a name, a display name, a line, a paragraph, a tag
+    /// and a category, in the list and in help on the command.
+    ///
+    /// **A catalog command's included**, which help once took from this
+    /// binary's own catalog and printed raw: the texts now cross the endpoint,
+    /// and a daemon of another build, or one answering for another, is what
+    /// sent them.
+    #[test]
+    fn every_text_the_daemon_supplied_is_escaped_the_catalogs_as_much_as_a_plugins() {
+        const MARKED: &str = "\u{1b}[2J\u{202e}";
+        for name in ["kernel.undo", "reference.note.get"] {
+            let sent = Listed {
+                name: format!("{name}{MARKED}"),
+                display_name: format!("Undo{MARKED}"),
+                line: format!("Take it back{MARKED}"),
+                paragraph: format!("All of it{MARKED}\nreally"),
+                tags: vec![format!("undo{MARKED}")],
+                categories: vec![format!("noctua.history{MARKED}")],
+                args_schema: EMPTY.to_owned(),
+            };
+            let schema = Schema::compile(EMPTY).expect("inside the subset");
+            for text in [
+                super::everything("noctua", std::slice::from_ref(&sent)),
+                super::command("noctua", &sent, &schema),
+            ] {
+                assert!(
+                    !text.contains('\u{1b}') && !text.contains('\u{202e}'),
+                    "{name}: {text}"
+                );
+                for escaped in [
+                    format!("{name}\\u{{1b}}[2J\\u{{202e}}"),
+                    "Undo\\u{1b}[2J\\u{202e}".to_owned(),
+                    "Take it back\\u{1b}[2J\\u{202e}".to_owned(),
+                ] {
+                    assert!(text.contains(&escaped), "`{escaped}` is not in:\n{text}");
+                }
+            }
+            let text = super::command("noctua", &sent, &schema);
+            for escaped in [
+                "All of it\\u{1b}[2J\\u{202e}\\u{a}really",
+                "Tags: undo\\u{1b}[2J\\u{202e}\n",
+                "Categories: noctua.history\\u{1b}[2J\\u{202e}\n",
+            ] {
+                assert!(text.contains(escaped), "`{escaped}` is not in:\n{text}");
+            }
+        }
+    }
+
+    /// Help on a command shows its display name and line, its paragraph, its
+    /// categories and its tags, in that order, before its usage.
+    #[test]
+    fn help_on_a_command_shows_its_paragraph_tags_and_categories() {
+        let sent = Listed {
+            categories: vec!["noctua.history".to_owned(), "noctua.files".to_owned()],
+            ..listed("kernel.undo", "Desfazer", EMPTY)
+        };
+        let text = super::command(
+            "noctua",
+            &sent,
+            &Schema::compile(EMPTY).expect("inside the subset"),
+        );
+        assert!(
+            text.starts_with(
+                "kernel.undo — Desfazer\nDesfazer, in a line\n\nDesfazer, in a paragraph.\n\n\
+                 Categories: noctua.history, noctua.files\nTags: one, two\n\nUsage:\n"
+            ),
+            "{text}"
+        );
+        let unfiled = super::command(
+            "noctua",
+            &listed("kernel.undo", "Desfazer", EMPTY),
+            &Schema::compile(EMPTY).expect("inside the subset"),
+        );
+        assert!(unfiled.contains("\nCategories: none\n"), "{unfiled}");
     }
 
     /// Help with no registry to read still shows the grammar and the verbs,
@@ -652,7 +735,6 @@ mod tests {
             "noctua",
             &listed("reference.note.put", "Put\u{202e} a note", schema_text),
             &schema,
-            Locale::En,
         );
         for expected in [
             "reference.note.put — Put\\u{202e} a note",
@@ -674,7 +756,6 @@ mod tests {
             "noctua",
             &listed("reference.\u{1b}[2J\u{202e}eton.put", "Put", EMPTY),
             &Schema::compile(EMPTY).expect("inside the subset"),
-            Locale::En,
         );
         for expected in [
             "reference.\\u{1b}[2J\\u{202e}eton.put — Put\n",
@@ -988,27 +1069,30 @@ mod tests {
         }
     }
 
-    /// A catalog command is shown by the catalog's title and description in
-    /// the environment's language, whatever label the registry carries.
+    /// A command the catalog writes is shown by the texts the daemon sent,
+    /// and by none this binary compiled in: the registry was asked in the
+    /// environment's language, and what it answered is what help says.
     #[test]
-    fn a_catalog_command_is_shown_in_the_environments_language() {
+    fn a_catalog_command_is_shown_by_the_texts_the_daemon_sent() {
         let schema = Schema::compile(EMPTY).expect("inside the subset");
-        for locale in [Locale::En, Locale::PtBR] {
-            let text = super::command(
-                "noctua",
-                &listed("kernel.undo", "command.kernel.undo.title", EMPTY),
-                &schema,
-                locale,
+        let text = super::command(
+            "noctua",
+            &listed("kernel.undo", "Undone, as the daemon says", EMPTY),
+            &schema,
+        );
+        assert!(
+            text.starts_with("kernel.undo — Undone, as the daemon says\n"),
+            "{text}"
+        );
+        for locale in nc_catalog::Locale::ALL {
+            let compiled = |key| nc_catalog::message(key, *locale).expect("a message");
+            assert!(
+                !text.contains(&format!("— {}\n", compiled("command.kernel.undo.title")))
+                    && !text.contains(compiled("command.kernel.undo.description")),
+                "{locale:?}: {text}"
             );
-            for key in [
-                "command.kernel.undo.title",
-                "command.kernel.undo.description",
-            ] {
-                let said = nc_catalog::message(key, locale).expect("a message");
-                assert!(text.contains(said), "{locale:?}: {text}");
-            }
-            assert!(text.contains("Arguments:\n  none\n"), "{text}");
         }
+        assert!(text.contains("Arguments:\n  none\n"), "{text}");
     }
 
     /// Staging's keys as a refused configuration leaves them: its defaults,

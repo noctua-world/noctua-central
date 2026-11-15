@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use nc_canon::Value;
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_channel::{Channel, Checkout};
 
 use crate::{IpcError, PROTOCOL};
@@ -365,8 +365,16 @@ pub enum Request {
         /// Its arguments: one object.
         args: Value,
     },
-    /// Every command the registry holds.
-    Registry,
+    /// Every command the registry holds, each one's texts in `locale`.
+    ///
+    /// **One locale, named by the client**: the texts of every command in
+    /// every locale are twice the answer for a reader who shows one, and the
+    /// frame is what bounds it. The wire writes the locale's BCP 47 tag, and
+    /// a tag this build ships no locale for is a malformed request.
+    Registry {
+        /// The locale the texts are resolved in.
+        locale: Locale,
+    },
     /// What the daemon is and where its start is.
     Status,
     /// Stop.
@@ -384,7 +392,9 @@ impl Request {
                     ("args", args.clone()),
                 ],
             ),
-            Self::Registry => message("registry", Vec::new()),
+            Self::Registry { locale } => {
+                message("registry", vec![("locale", Value::text(locale.tag()))])
+            }
             Self::Status => message("status", Vec::new()),
             Self::Stop => message("stop", Vec::new()),
         }
@@ -398,7 +408,22 @@ impl Request {
                 command: fields.text("command")?,
                 args: fields.object("args")?,
             },
-            "registry" => Self::Registry,
+            "registry" => {
+                let tag = fields.text("locale")?;
+                Self::Registry {
+                    locale: Locale::ALL
+                        .iter()
+                        .copied()
+                        .find(|locale| locale.tag() == tag)
+                        .ok_or_else(|| {
+                            malformed(format!(
+                                "a `registry` message naming `{}`, a locale this build does not \
+                                 ship",
+                                tag.escape_debug()
+                            ))
+                        })?,
+                }
+            }
             "status" => Self::Status,
             "stop" => Self::Stop,
             other => {
@@ -551,5 +576,67 @@ impl Answer {
         };
         fields.done()?;
         Ok(answer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nc_canon::Value;
+    use nc_catalog::Locale;
+
+    use super::{Request, message};
+    use crate::IpcError;
+
+    /// What a registry request written as `fields` is read back as.
+    fn read(fields: Vec<(&str, Value)>) -> Result<Request, IpcError> {
+        Request::from_value(message("registry", fields))
+    }
+
+    /// A registry request names its locale, read back as written, and one
+    /// naming no locale this build ships — or none at all — is refused as
+    /// malformed.
+    ///
+    /// **By its exact tag**: BCP 47 compares tags without case, and the
+    /// protocol reads a message back only as this code writes it, so `pt-br`
+    /// is a peer that does not speak this build's protocol, not Portuguese.
+    #[test]
+    fn a_registry_request_names_its_locale_and_one_naming_no_locale_this_build_has_is_refused() {
+        for &locale in Locale::ALL {
+            let request = Request::Registry { locale };
+            assert_eq!(
+                Request::from_value(request.to_value()).expect("read back"),
+                request
+            );
+            assert_eq!(
+                request.to_value().to_canonical(),
+                format!("{{\"locale\":\"{}\",\"type\":\"registry\"}}", locale.tag())
+            );
+        }
+        for (fields, says) in [
+            (Vec::new(), "a `registry` message with no `locale`"),
+            (
+                vec![("locale", Value::text("pt-br"))],
+                "naming `pt-br`, a locale this build does not ship",
+            ),
+            (
+                vec![("locale", Value::text("fr\u{202e}"))],
+                "naming `fr\\u{202e}`, a locale this build does not ship",
+            ),
+            (
+                vec![("locale", Value::Integer(1))],
+                "a `registry` message whose `locale` is not text",
+            ),
+            (
+                vec![("locale", Value::text("en")), ("title", Value::text("en"))],
+                "a field the protocol does not read, `title`",
+            ),
+        ] {
+            match read(fields.clone()) {
+                Err(refused @ IpcError::Malformed(_)) => {
+                    assert!(refused.to_string().contains(says), "{fields:?}: {refused}");
+                }
+                other => panic!("{fields:?} was read as {other:?}"),
+            }
+        }
     }
 }

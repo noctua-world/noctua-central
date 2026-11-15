@@ -157,16 +157,34 @@ impl Installed {
         written(&self.layout.manifest, &install.to_canonical());
     }
 
-    /// Installs the plugin `manifest` describes, with `component`'s bytes, as
-    /// `name` in the profile's plugins directory.
+    /// Installs the plugin `manifest` describes as `name`.
+    ///
+    /// In the profile's plugins directory, with `entries` beside it and
+    /// `component`'s bytes. Each of `entries` is a path relative to the
+    /// plugin's directory and its text — [`entries_of`] answers a plugin's
+    /// own, as an installer copies them — written private, its directory
+    /// made private first.
     ///
     /// # Panics
     ///
     /// When its directory or a file of it could not be made.
-    pub fn install_plugin(&self, name: &str, manifest: &str, component: &[u8]) {
+    pub fn install_plugin(
+        &self,
+        name: &str,
+        manifest: &str,
+        entries: &[(PathBuf, String)],
+        component: &[u8],
+    ) {
         let directory = self.layout.plugins.join(name);
         nc_platform::create_private_directory(&directory).expect("a plugin's directory");
         written(&directory.join(crate::plugins::MANIFEST), manifest);
+        for (file, text) in entries {
+            let path = directory.join(file);
+            if let Some(parent) = path.parent().filter(|parent| !parent.exists()) {
+                nc_platform::create_private_directory(parent).expect("a directory of the plugin's");
+            }
+            written(&path, text);
+        }
         let mut file = nc_platform::create_private(&directory.join(crate::plugins::COMPONENT))
             .expect("a component");
         std::io::Write::write_all(&mut file, component).expect("written");
@@ -293,6 +311,34 @@ fn install_at(binary: &Path) -> Installed {
 /// first's while its daemon runs.
 pub(crate) fn namespace_of(pid: u32, made: u32) -> String {
     format!("t{pid:x}n{made}")
+}
+
+/// The entries of `plugins/<plugin>` an installer copies beside its manifest.
+///
+/// Read from this source tree: every file `nc_channel::plugin_files` lists
+/// but the manifest, each relative to the plugin's directory, with its text.
+///
+/// # Panics
+///
+/// When a file of them cannot be read.
+#[must_use]
+pub fn entries_of(plugin: &str) -> Vec<(PathBuf, String)> {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../plugins")
+        .join(plugin);
+    nc_channel::plugin_files()
+        .into_iter()
+        .filter(|file| file != Path::new(nc_channel::PLUGIN_MANIFEST))
+        .map(|file| {
+            let text = std::fs::read_to_string(source.join(&file)).unwrap_or_else(|error| {
+                panic!(
+                    "`plugins/{plugin}/{}` cannot be read: {error}",
+                    file.display()
+                )
+            });
+            (file, text)
+        })
+        .collect()
 }
 
 /// `text`, written to a new private file at `path`.

@@ -1,0 +1,169 @@
+# What the reference plugin says of each command it declares (`NOCTUA.md
+# §20.4`), one row per command, by the name it has inside the plugin's
+# namespace: `note.get` is registered as `reference.note.get`, or as
+# `peer.note.get` when a store gives the plugin that namespace, so one table
+# serves both. Each row's texts are in `i18n/`, one file per locale.
+#
+# A row names its categories and its glyph when it has them: every row here
+# is listed under `noctua.reference`, the platform's set for this plugin, and
+# none has a glyph. The kernel holds every row to the judge the catalog's commands
+# are held to, at `activate`; a command declared with no row is refused, and
+# the English display name of each is the title the component declares.
+# Editing any of these files makes the component stale: `cargo xtask build
+# --plugins` builds it again.
+
+[[command]]
+name = "note.get"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "probe"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.put"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.put-then-fail"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.put-then-trap"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.delete"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.share"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.scribble"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "executions.count"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "irreversible.do"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "relay.write"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "relay.read"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "echo"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.trap"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.spin"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.burn"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.grow"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.reenter"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.put-then-abuse"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "note.put-many"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "pair.put"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "pair.put-then-trap"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "blob.put"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "blob.get"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "blob.locate"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "abuse.fetch"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "effect.post"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "compensated.post"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "unit.commit"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "unit.abort"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "unit.drop"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "event.publish"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "event.announce"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "timer.set"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "timer.remind"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "timer.cancel"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "ui.show"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "context.read"
+categories = ["noctua.reference"]
+
+[[command]]
+name = "log.write"
+categories = ["noctua.reference"]

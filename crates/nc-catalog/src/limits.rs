@@ -362,6 +362,8 @@ pub struct KernelLimits {
     pub payload_bytes: u64,
     /// How many commands one plugin may declare.
     pub commands_per_plugin: u32,
+    /// How many bytes one command's texts may hold in one locale, in bytes.
+    pub entry_bytes: u64,
     /// How long one store key may be, in bytes.
     pub store_key_bytes: u64,
     /// How large one store value may be, in bytes.
@@ -437,6 +439,7 @@ pub const KERNEL: KernelLimits = KernelLimits {
     restart_window_ms: 60_000,
     payload_bytes: 1_048_576,
     commands_per_plugin: 256,
+    entry_bytes: 2_048,
     store_key_bytes: 256,
     store_value_bytes: 1_048_576,
     unit_bytes: 16_777_216,

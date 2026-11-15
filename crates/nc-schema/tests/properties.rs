@@ -432,7 +432,7 @@ proptest! {
         which in 0..Text::ALL.len(),
         in_portuguese in any::<bool>(),
     ) {
-        let rules = Rules { requires: &Text::ALL, categories: &[] };
+        let rules = Rules { requires: &Text::ALL, categories: &[], entry_bytes: 2_048 };
         let whole = [english.lent("en", None), portuguese.lent("pt-BR", None)];
         let entry = |locales| Entry { locales, categories: &[], glyph: None, same_in_both: &[] };
         prop_assert_eq!(nc_schema::entry::judge(&entry(&whole), &rules), Ok(()));

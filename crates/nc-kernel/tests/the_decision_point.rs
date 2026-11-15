@@ -681,6 +681,7 @@ fn manifest(id: &str, namespace: &str, tail: &str) -> PluginManifest {
          \"commands.dispatch\"{putting_off}]\n{tail}"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// The manifests' tail of a test about what a command puts off: the peer
@@ -2539,7 +2540,8 @@ async fn a_surface_rendered_by_a_read_the_journal_did_not_take_is_never_shown() 
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"ui\"]\n",
     )
-    .expect("a manifest granting the ui");
+    .expect("a manifest granting the ui")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -2609,7 +2611,8 @@ async fn a_surface_rendered_in_a_unit_the_journal_did_not_keep_is_never_shown() 
         let manifest = PluginManifest::parse(&format!(
             "id = \"{id}\"\nnamespace = \"{namespace}\"\ncapabilities = [{granted}]\n"
         ))
-        .expect("a manifest");
+        .expect("a manifest")
+        .described_by(nc_kernel::entries_for_tests("reference"));
         fixture
             .kernel
             .load(manifest, &component)
@@ -2655,7 +2658,8 @@ async fn a_unit_the_journal_did_not_close_takes_the_pins_off_the_blobs_it_made()
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -2732,7 +2736,8 @@ async fn a_blob_made_again_after_its_pin_came_off_is_unpinned_by_the_next_revers
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -5545,7 +5550,8 @@ async fn a_capability_refused_in_activate_is_logged_once_the_plugin_is_loaded() 
             PluginManifest::parse(
                 "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = []\n",
             )
-            .expect("a manifest the kernel reads"),
+            .expect("a manifest the kernel reads")
+            .described_by(nc_kernel::entries_for_tests("reference")),
             &nc_kernel::component_for_tests("reference"),
         )
         .await
@@ -5780,7 +5786,8 @@ async fn with_the_blobs() -> (Fixture<Failing<nc_journal::InMemory>>, Arc<Mutex<
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -5887,7 +5894,8 @@ async fn a_unit_not_kept_names_the_compensations_registered_in_it() {
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"commands.begin\"]\n",
     )
-    .expect("a manifest granting units");
+    .expect("a manifest granting units")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -6302,7 +6310,8 @@ async fn a_kernel_with_a_device_of_anas_id() -> (Kernel<Env<nc_journal::InMemory
                 "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = \
                  [\"store\", \"context\"]\n",
             )
-            .expect("a manifest"),
+            .expect("a manifest")
+            .described_by(nc_kernel::entries_for_tests("reference")),
             &nc_kernel::component_for_tests("reference"),
         )
         .await
@@ -6445,7 +6454,8 @@ async fn a_unit_recovered_on_open_keeps_the_pin_a_step_kept_since_holds() {
         "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\"]\n",
     )
-    .expect("a manifest granting the blobs");
+    .expect("a manifest granting the blobs")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     fixture
         .kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
@@ -7166,4 +7176,155 @@ async fn a_journal_that_mints_nothing_leaves_a_proposal_unavailable() {
         .dispatch(&ana, READ_NAME, r#"{"name":"--t@@01J8XK2M9P51"}"#)
         .await
         .expect("a read mints nothing");
+}
+
+/// The command that finds commands.
+const FIND: &str = "kernel.find";
+
+/// The deciding `@id` of every search a person is allowed.
+const FINDS_COMMANDS: &str = "family.a_member_finds_commands";
+
+/// The first command `answer` found, its owner, and the words it was found by.
+fn first_found(answer: &str) -> (String, String, Vec<(String, String, String)>) {
+    let found = field(answer, "found")
+        .into_array()
+        .expect("`found` is a list")
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("nothing was found: {answer}"))
+        .to_canonical();
+    let words = field(&found, "words")
+        .into_array()
+        .expect("`words` is a list")
+        .into_iter()
+        .map(|word| {
+            let word = word.to_canonical();
+            (
+                text(&word, "field"),
+                text(&word, "locale"),
+                text(&word, "text"),
+            )
+        })
+        .collect();
+    (text(&found, "name"), text(&found, "owner"), words)
+}
+
+/// Finding a command is decided on the registry feature.
+///
+/// **A person's permit, and the denials beside it** (`NOCTUA.md §20.6`): a
+/// guardian, an adult and a child each find `kernel.find` by a Portuguese
+/// synonym and its Portuguese display name, each decided on
+/// `Feature::"registry"` by the permit that gives every person of the realm a
+/// search, opening no unit. A frozen account, a device and an agent are each
+/// refused with the code alone, and the journal names what decided it and the
+/// feature it was asked of.
+#[tokio::test]
+async fn finding_a_command_is_decided_on_the_registry_feature() {
+    let (kernel, world) = naming(None).await;
+    let args = r#"{"query":"procurar comando"}"#;
+    let persons = ["ana", "bruno", "carla"];
+    for person in persons {
+        let caller = Caller::new(
+            world
+                .principal(PrincipalKind::User, person)
+                .expect("a person"),
+        );
+        let answered = kernel
+            .dispatch(&caller, FIND, args)
+            .await
+            .unwrap_or_else(|refused| panic!("{person} found nothing: {refused}"));
+        let pt = "pt-BR".to_owned();
+        assert_eq!(
+            first_found(&answered),
+            (
+                FIND.to_owned(),
+                "kernel".to_owned(),
+                vec![
+                    ("tag".to_owned(), pt.clone(), "procurar".to_owned()),
+                    (
+                        "display_name".to_owned(),
+                        pt,
+                        "Encontrar um comando".to_owned()
+                    ),
+                ]
+            ),
+            "{person}: {answered}"
+        );
+    }
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    assert_eq!(
+        entries.len(),
+        persons.len(),
+        "a search opened a unit: {entries:#?}"
+    );
+    let registry = Some(r#"{"id":"registry","type":"Feature"}"#);
+    for entry in &entries {
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(entry.record.action, "Read", "{entry:?}");
+        assert_eq!(deciding(entry), Some(FINDS_COMMANDS), "{entry:?}");
+        assert_eq!(entry.record.work_unit, None, "{entry:?}");
+        assert_eq!(entity_of(entry).as_deref(), registry, "{entry:?}");
+    }
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+        (
+            PrincipalKind::Agent,
+            "ana-assistant",
+            "core.an_agent_never_impersonates",
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        let refused = kernel.dispatch(&caller, FIND, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{id}: {refused:?}"
+        );
+        let entries = kernel.journal_for_tests().await.expect("the journal reads");
+        let entry = entries.last().expect("the denial was journaled");
+        assert_eq!(
+            (entry.record.principal.as_str(), entry.record.result),
+            (id, Outcome::Denied)
+        );
+        assert_eq!(deciding(entry), Some(decided), "{id}");
+        assert_eq!(entity_of(entry).as_deref(), registry, "{id}");
+    }
+}
+
+/// A plugin's command is found by the texts of its own entry.
+///
+/// **Every registered command, not the catalog's alone**: with the reference
+/// plugin loaded, a Portuguese query finds its `note.get` by the tags its
+/// own `plugins/reference/i18n/pt-BR.toml` gives it, and says the command is
+/// a plugin's.
+#[tokio::test]
+async fn a_plugins_command_is_found_by_the_texts_of_its_own_entry() {
+    let (fixture, _) = reference().await;
+    let answered = fixture
+        .as_("carla", FIND, r#"{"query":"ler nota"}"#)
+        .await
+        .expect("carla finds a command");
+    let pt = "pt-BR".to_owned();
+    assert_eq!(
+        first_found(&answered),
+        (
+            "reference.note.get".to_owned(),
+            "plugin".to_owned(),
+            vec![
+                ("tag".to_owned(), pt.clone(), "ler".to_owned()),
+                ("tag".to_owned(), pt, "nota".to_owned()),
+            ]
+        ),
+        "{answered}"
+    );
+    let entries = fixture.entries().await;
+    assert_eq!(deciding(only(&entries, FIND)), Some(FINDS_COMMANDS));
 }

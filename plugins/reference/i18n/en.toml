@@ -1,0 +1,236 @@
+# The reference plugin's commands in English, one table per row of
+# `commands.toml`, by the same name.
+
+[command."note.get"]
+display_name = "Read a note"
+line = "Show what a note holds, changing nothing."
+paragraph = "Reads the note the `note` argument names from the plugin's own store and answers its text. It is the plain read the kernel's suites start from."
+tags = ["note", "read", "show"]
+
+[command."probe"]
+display_name = "Call every function of the world"
+line = "Reach each host function once, to show which ones were granted."
+paragraph = "Calls every function the plugin world offers, one after another, and answers what each said. A suite reads back which calls were let through and which were refused for want of a capability."
+tags = ["probe", "capability", "host function"]
+
+[command."note.put"]
+display_name = "Write a note"
+line = "Save a text under the note's name in the plugin's store."
+paragraph = "Writes the `text` argument under the note the `note` argument names, replacing what was there. The step can be undone, which puts back the text the note held before."
+tags = ["note", "write", "save"]
+
+[command."note.put-then-fail"]
+display_name = "Write a note, then refuse"
+line = "Save a note and then answer with a refusal, so nothing is kept."
+paragraph = "Writes the note as `note.put` does and then refuses the command. A suite uses it to show that a command which refuses keeps nothing it wrote."
+tags = ["note", "refusal", "rollback"]
+
+[command."note.put-then-trap"]
+display_name = "Write a note, then trap"
+line = "Save a note and then crash, so nothing is kept."
+paragraph = "Writes the note as `note.put` does and then traps, the way a plugin with a bug crashes. A suite uses it to show that what a crashed command wrote is thrown away and the plugin is started again."
+tags = ["note", "trap", "crash"]
+
+[command."note.delete"]
+display_name = "Delete a note"
+line = "Remove a note from the plugin's store."
+paragraph = "Deletes the note the `note` argument names. Undoing the step writes the note back with the text it held."
+tags = ["note", "delete", "remove"]
+
+[command."note.share"]
+display_name = "Share a note"
+line = "Share a note, which the household's rules may ask others to approve."
+paragraph = "Writes the note and is decided as a share, so the family pack can hold it to a quorum when the note was not shared before. It registers what undoes it, and that compensation is decided again when an undo dispatches it."
+tags = ["note", "share", "approval"]
+
+[command."note.scribble"]
+display_name = "Read a note, and try to write one"
+line = "Read a note and then try a write that a read may not make."
+paragraph = "Is declared as a read and still tries to write. A suite uses it to show the kernel refuse a write inside a frame that may only read."
+tags = ["note", "read", "forbidden write"]
+
+[command."executions.count"]
+display_name = "Count the commands this instance has run"
+line = "Answer how many commands this instance of the plugin has run."
+paragraph = "Answers a number kept in the plugin's memory and never in its store. It shows whether the kernel started the plugin again, since a fresh instance counts from the start."
+tags = ["count", "instance", "restart"]
+
+[command."irreversible.do"]
+display_name = "Do something that cannot be undone"
+line = "Make a change no undo takes back, once a person confirms it."
+paragraph = "Is declared irreversible, so the kernel issues a confirmation before it runs and an undo stops at it. A suite uses it to show both."
+tags = ["irreversible", "confirm", "permanent"]
+
+[command."relay.write"]
+display_name = "Dispatch a command, changing state"
+line = "Run another command through the kernel's door, as a step that writes."
+paragraph = "Dispatches the command its arguments name, with the arguments they give, from inside a command that changes state. The dispatch is decided and journaled like any other, inside the same call tree."
+tags = ["relay", "dispatch", "write"]
+
+[command."relay.read"]
+display_name = "Dispatch a command, only reading"
+line = "Run another command through the kernel's door, as a step that only reads."
+paragraph = "Dispatches the command its arguments name from inside a read. A suite uses it to show that a read cannot reach a write through another command."
+tags = ["relay", "dispatch", "read"]
+
+[command."echo"]
+display_name = "Answer with the text given"
+line = "Answer back the text its arguments carry."
+paragraph = "Answers the `text` argument as it came, changing nothing. A suite uses it to see an argument cross the boundary and come back whole."
+tags = ["echo", "repeat", "text"]
+
+[command."abuse.trap"]
+display_name = "Trap at once"
+line = "Crash as soon as it runs, the way a plugin with a bug does."
+paragraph = "Traps on its first instruction. A suite uses it to show the kernel stop the plugin, start it again and count the crash against its budget."
+tags = ["trap", "crash", "abuse"]
+
+[command."abuse.spin"]
+display_name = "Run for ever, computing nothing"
+line = "Loop without end until the kernel's deadline stops it."
+paragraph = "Never returns, and spends almost no fuel while it waits. A suite uses it to show the epoch deadline stop a plugin that hangs."
+tags = ["spin", "hang", "deadline"]
+
+[command."abuse.burn"]
+display_name = "Compute for ever"
+line = "Compute without end until its fuel runs out."
+paragraph = "Never returns, and spends fuel on every step it takes. A suite uses it to show the kernel stop a plugin that exhausts its fuel."
+tags = ["burn", "fuel", "loop"]
+
+[command."abuse.grow"]
+display_name = "Grow its memory until it is stopped"
+line = "Ask for more memory until the manifest's bound refuses it."
+paragraph = "Grows its linear memory again and again. A suite uses it to show the kernel hold a plugin to the memory its manifest allows."
+tags = ["memory", "grow", "bound"]
+
+[command."abuse.reenter"]
+display_name = "Dispatch into its own plugin while it runs"
+line = "Call a command of its own plugin from inside one, which is refused."
+paragraph = "Dispatches a command of the plugin it belongs to while that plugin is already running. A suite uses it to show the kernel refuse the call instead of waiting on itself."
+tags = ["reentry", "dispatch", "refusal"]
+
+[command."note.put-then-abuse"]
+display_name = "Write a note, then stop as told"
+line = "Save a note and then stop the way its arguments say."
+paragraph = "Writes the note and then traps, spins, burns or grows, as the `abuse` argument says. A suite uses it to show that what a stopped command wrote is never kept."
+tags = ["note", "abuse", "stop"]
+
+[command."note.put-many"]
+display_name = "Write a note's numbered parts"
+line = "Save a note as many numbered keys in one step."
+paragraph = "Writes the note in as many parts as the `parts` argument asks for, each under its own key. A suite uses it to show what one step may stage held to the unit's bound."
+tags = ["note", "parts", "many keys"]
+
+[command."pair.put"]
+display_name = "Write a note here and in the peer"
+line = "Save a note in this plugin and in the peer, as one step."
+paragraph = "Writes the note in its own store and dispatches the same write to the peer plugin. Both writes are kept together, or neither is."
+tags = ["note", "peer", "pair"]
+
+[command."pair.put-then-trap"]
+display_name = "Write a note here and in the peer, which then traps"
+line = "Save a note in both plugins and then crash in the peer."
+paragraph = "Writes the note as `pair.put` does, and the peer traps after its write. A suite uses it to show that neither write survives the crash."
+tags = ["note", "peer", "trap"]
+
+[command."blob.put"]
+display_name = "Write a blob, then stop as told"
+line = "Stream bytes into a new blob, then finish or stop as told."
+paragraph = "Writes the text its arguments give into a blob as many times as they say, and then finishes, refuses or stops the way they ask. A suite uses it to show which blobs stay with the unit and which are let go."
+tags = ["blob", "write", "file"]
+
+[command."blob.get"]
+display_name = "Read a blob back whole"
+line = "Read every byte of a blob, chunk by chunk."
+paragraph = "Reads the blob the `hash` argument names to its end and answers what it held. A suite uses it to show a blob read back as it was written."
+tags = ["blob", "read", "file"]
+
+[command."blob.locate"]
+display_name = "Ask where a blob is"
+line = "Answer whether a blob is on this machine."
+paragraph = "Asks the host where the blob the `hash` argument names is kept. The answer says this machine only when the bytes are here, and never names another."
+tags = ["blob", "locate", "where"]
+
+[command."abuse.fetch"]
+display_name = "Fetch a URL as told"
+line = "Send the request its arguments describe, from inside a read."
+paragraph = "Sends a request to the URL its arguments name, with the method, headers and body they give. A suite uses it to show what a read may send, and what the kernel refuses before anything leaves."
+tags = ["fetch", "network", "request"]
+
+[command."effect.post"]
+display_name = "Send a request that changes something elsewhere"
+line = "Send a request that changes state on another machine."
+paragraph = "Sends a request that writes somewhere the kernel cannot reach back to. An undo stops at such a step, since nothing registered sets it right."
+tags = ["post", "network", "effect"]
+
+[command."compensated.post"]
+display_name = "Send a request, and register what sets it right"
+line = "Send a request that changes state elsewhere, with its undo registered."
+paragraph = "Sends a request that writes elsewhere and registers the command that reverses it. An undo passes the step by dispatching that compensation."
+tags = ["post", "compensation", "undo"]
+
+[command."unit.commit"]
+display_name = "Write a note in a unit, and commit it"
+line = "Begin a unit, save a note in it and keep it."
+paragraph = "Begins a unit of work of its own, writes the note inside it and commits it, so the note is kept with the command's unit."
+tags = ["unit", "commit", "keep"]
+
+[command."unit.abort"]
+display_name = "Write a note in a unit, and abort it"
+line = "Begin a unit, save a note in it and throw it away."
+paragraph = "Begins a unit of work of its own, writes the note inside it and aborts it, so the note is never kept."
+tags = ["unit", "abort", "discard"]
+
+[command."unit.drop"]
+display_name = "Write a note in a unit, and let it go"
+line = "Begin a unit, save a note in it and drop its handle."
+paragraph = "Begins a unit of work, writes the note inside it and lets the handle go without committing or aborting. A suite uses it to show what the kernel does with a unit nobody closed."
+tags = ["unit", "drop", "handle"]
+
+[command."event.publish"]
+display_name = "Publish an event, changing state"
+line = "Announce an event inside a step that writes."
+paragraph = "Publishes an event under a topic of its namespace from inside a command that changes state. The event is queued only when the command's unit is kept."
+tags = ["event", "publish", "topic"]
+
+[command."event.announce"]
+display_name = "Publish an event, only reading"
+line = "Announce an event from a step that only reads."
+paragraph = "Publishes an event from inside a read. A suite uses it to show what a read may announce."
+tags = ["event", "announce", "read"]
+
+[command."timer.set"]
+display_name = "Set a timer"
+line = "Arm a timer that wakes the plugin later, for the same person."
+paragraph = "Arms a timer with the delay its arguments give. When it comes due, its callback runs for the person who set it, decided again first."
+tags = ["timer", "alarm", "later"]
+
+[command."timer.remind"]
+display_name = "Set a timer, only reading"
+line = "Arm a timer from a step that only reads."
+paragraph = "Arms a timer from inside a read. A suite uses it to show what a read may arm, and how its callback is decided."
+tags = ["timer", "reminder", "read"]
+
+[command."timer.cancel"]
+display_name = "Cancel a timer"
+line = "Disarm a timer the plugin set, before it fires."
+paragraph = "Cancels the timer the `timer` argument names, so its callback never runs."
+tags = ["timer", "cancel", "disarm"]
+
+[command."ui.show"]
+display_name = "Show a surface"
+line = "Describe a surface for the kernel to judge and keep."
+paragraph = "Renders a tree of nodes of the kind its arguments name. The kernel judges the tree before it keeps it, and every command the tree names must be one the registry holds."
+tags = ["surface", "show", "interface"]
+
+[command."context.read"]
+display_name = "Read who the call runs for"
+line = "Answer who the current call runs for."
+paragraph = "Reads the context the kernel gives the call and answers it as it came. A suite uses it to see who a dispatch, a timer or an event runs for."
+tags = ["context", "who", "principal"]
+
+[command."log.write"]
+display_name = "Write lines to the plugin's own log"
+line = "Add lines to the plugin's own ring of log lines."
+paragraph = "Writes the lines its arguments give to the plugin's own log, which never reaches the central one. A suite reads them back from the ring."
+tags = ["log", "write", "lines"]

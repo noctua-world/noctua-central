@@ -2162,6 +2162,46 @@ fn an_ipc_frame_below_a_payload_and_its_envelope_fails_the_build() {
     );
 }
 
+/// An entry bound that lets one plugin's texts outgrow half a frame fails the
+/// build, and one that fills half a frame exactly does not.
+///
+/// **At the boundary, and by the escaping**: 256 commands of 2,048 bytes, each
+/// written as two, fill half of the 2 MiB frame exactly, so a byte more per
+/// entry, or a frame a byte smaller, is past it.
+#[test]
+fn an_entry_bound_that_lets_one_plugin_outgrow_half_a_frame_fails_the_build() {
+    let scratch = Scratch::new("kernel-entry-past-half-a-frame");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "entry_bytes = 2_048",
+        "entry_bytes = 2_049",
+    );
+    scratch.must_fail_saying(
+        "entry-bytes-past-half-a-frame",
+        "`[kernel] commands_per_plugin` × `entry_bytes` × 2 is 256 × 2049 × 2, past half of \
+         `[daemon] ipc_frame_max_bytes`, 2097152",
+    );
+    let narrower = Scratch::new("daemon-frame-under-the-entries");
+    narrower.replacing(
+        "catalog/limits.toml",
+        "ipc_frame_max_bytes = 2_097_152",
+        "ipc_frame_max_bytes = 2_097_150",
+    );
+    narrower.must_fail_saying(
+        "entry-bytes-past-half-a-frame",
+        "`[kernel] commands_per_plugin` × `entry_bytes` × 2 is 256 × 2048 × 2, past half of \
+         `[daemon] ipc_frame_max_bytes`, 2097150",
+    );
+    let exact = Scratch::new("kernel-entry-half-a-frame");
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "entry-bytes-past-half-a-frame"),
+        "texts filling half a frame exactly were refused"
+    );
+}
+
 /// A peer dropped after exactly two heartbeats of silence fails the build, and
 /// one dropped a millisecond later does not.
 #[test]
@@ -5296,6 +5336,32 @@ fn a_line_description_longer_than_a_line_fails_naming_the_command_and_the_locale
         "`pt-BR` line description of 88 characters",
     );
     scratch.points_at_the_line_declaring("entry-text-too-long", "command.kernel.undo.description");
+}
+
+/// A command of the catalog whose texts in one locale pass `[kernel]
+/// entry_bytes` together fails the build, naming the command and the locale.
+///
+/// **The bound a plugin's entries are held to at `activate`**, read from the
+/// catalog being compiled: the catalog's commands meet it too, so no list
+/// shows a command of the kernel's past what a plugin's may hold.
+#[test]
+fn a_commands_texts_past_the_entry_bound_fail_the_build() {
+    let scratch = Scratch::new("entry-past-its-bytes");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "entry_bytes = 2_048",
+        "entry_bytes = 64",
+    );
+    scratch.must_fail_saying("entry-too-many-bytes", "`kernel.undo` has `en` texts of ");
+    scratch.must_fail_saying(
+        "entry-too-many-bytes",
+        "bytes together, each tag with the quotation marks and the comma it is listed in, past \
+         the 64 an entry may hold in one locale",
+    );
+    scratch.must_fail_saying(
+        "entry-too-many-bytes",
+        "`kernel.undo` has `pt-BR` texts of ",
+    );
 }
 
 #[test]

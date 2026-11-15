@@ -155,6 +155,7 @@ Every error this platform declares. A code is **append-only**: it identifies one
 | `NC-PLUG-0026` | warning | no | yes | none | A plugin published an event under a topic that is not one, or that is outside its namespace | A part of Noctua tried to announce something under a name it may not use, and was refused. | Uma parte do Noctua tentou anunciar algo com um nome que não pode usar, e foi recusada. |
 | `NC-PLUG-0027` | warning | no | yes | none | A plugin's write named, as the revision it expects to replace, text that is not a revision | A part of Noctua tried to save over a version of something that no version is ever called, and was refused. Nothing was saved. | Uma parte do Noctua tentou salvar por cima de uma versão de algo com um nome que nenhuma versão tem, e foi recusada. Nada foi salvo. |
 | `NC-PLUG-0028` | warning | no | yes | none | A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing | A part of Noctua tried to finish a piece of work that had already ended, and was refused. Nothing changed because of it. | Uma parte do Noctua tentou concluir um trabalho que já tinha terminado, e foi recusada. Nada mudou por causa disso. |
+| `NC-PLUG-0029` | error | no | yes | none | A plugin's entries — its commands' texts in every locale — are refused, missing or not what its commands declare | A part of Noctua describes its commands in a way Noctua does not accept, or not in every language, so it was not started. | Uma parte do Noctua descreve os seus comandos de um jeito que o Noctua não aceita, ou não em todos os idiomas, então ela não foi iniciada. |
 | `NC-POL-0001` | critical | no | yes | none | A policy pack could not be read | Noctua could not read its permission rules, so it is allowing nothing until it can. | O Noctua não conseguiu ler as próprias regras de permissão, então não está permitindo nada até conseguir. |
 | `NC-POL-0002` | critical | no | yes | none | A policy pack does not validate against the Cedar schema | Noctua's permission rules are not valid, so it is allowing nothing until they are fixed. | As regras de permissão do Noctua não são válidas, então ele não está permitindo nada até que sejam corrigidas. |
 | `NC-POL-0003` | warning | no | yes | none | The decision point denied a request | You do not have permission to do that. | Você não tem permissão para fazer isso. |
@@ -190,6 +191,6 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | `KERN` | 24 | The local kernel and command dispatch |
 | `LOG` | 2 | The central log and its shipper |
 | `P2P` | none yet | Peer-to-peer transport and availability |
-| `PLUG` | 28 | The WASM plugin host |
+| `PLUG` | 29 | The WASM plugin host |
 | `POL` | 7 | Policy packs: loading, validation, evaluation |
 | `VAL` | 3 | Input validation, from the rules the catalog compiles |

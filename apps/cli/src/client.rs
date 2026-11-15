@@ -40,27 +40,37 @@
 use std::path::Path;
 
 use nc_canon::Value;
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_channel::found::Found;
 use nc_ipc::{Answer, IpcError, Refusal, Request, Token, Welcome};
 use nc_platform::{Judged, Kind, User};
 
 use crate::exit::Exit;
 
-/// A command the registry holds, as the CLI reads it: its name, its title and
-/// its argument schema's text.
+/// A command the registry holds, as the CLI reads it: its name, its entry's
+/// texts in the locale the registry was asked in, its categories and its
+/// argument schema's text.
 ///
-/// **The three fields the CLI reads of an entry, and nothing else**: an entry
-/// is the kernel's description of a command, and the fields it holds beside
-/// these — its action, its selector, who runs it — are the daemon's to add
-/// without this build refusing them.
+/// **The fields the CLI shows of an entry, and nothing else**: an entry is
+/// the kernel's description of a command, and the fields it holds beside
+/// these — its glyph, which a terminal is not promised the font of, its
+/// action, its selector, who runs it — are the daemon's to add without this
+/// build refusing them. Every text here is the daemon's, the catalog's
+/// commands' as much as a plugin's, and is escaped wherever it is shown.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listed {
     /// Its registered name.
     pub name: String,
-    /// What a person is shown for it: the catalog's message key for a command
-    /// the catalog declares, the plugin's own label for one it does not.
-    pub title: String,
+    /// The name a person reads first.
+    pub display_name: String,
+    /// One line saying what it does.
+    pub line: String,
+    /// A paragraph saying more.
+    pub paragraph: String,
+    /// The words a search finds it by.
+    pub tags: Vec<String>,
+    /// The categories it is listed under, by name.
+    pub categories: Vec<String>,
     /// The JSON Schema of its arguments, as declared.
     pub args_schema: String,
 }
@@ -76,9 +86,23 @@ impl Listed {
             Some(Value::Text(text)) => Some(text.clone()),
             _ => None,
         };
+        let texts = |key: &str| match fields.get(key) {
+            Some(Value::Array(all)) => all
+                .iter()
+                .map(|one| match one {
+                    Value::Text(text) => Some(text.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => None,
+        };
         Some(Self {
             name: text("name")?,
-            title: text("title")?,
+            display_name: text("display_name")?,
+            line: text("line")?,
+            paragraph: text("paragraph")?,
+            tags: texts("tags")?,
+            categories: texts("categories")?,
             args_schema: text("args_schema")?,
         })
     }
@@ -287,21 +311,22 @@ impl Connection {
         self.client.ask(request).await.map_err(Unasked::Asking)
     }
 
-    /// Every command the registry holds.
+    /// Every command the registry holds, its texts in `locale`.
     ///
     /// # Errors
     ///
     /// [`Unasked::Asking`] as [`Connection::ask`], and [`Unasked::Unread`] for
     /// an answer that is not a registry, or an entry this build does not read.
-    pub async fn registry(&mut self) -> Result<Vec<Listed>, Unasked> {
-        match self.ask(&Request::Registry).await? {
+    pub async fn registry(&mut self, locale: Locale) -> Result<Vec<Listed>, Unasked> {
+        match self.ask(&Request::Registry { locale }).await? {
             Answer::Registry(entries) => entries
                 .iter()
                 .map(|entry| {
                     Listed::read(entry).ok_or_else(|| {
                         Unasked::Unread(
-                            "the registry holds an entry with no name, title or argument schema \
-                             written as text"
+                            "the registry holds an entry with no name, display name, line, \
+                             paragraph, tags, categories or argument schema written as it is \
+                             read"
                                 .to_owned(),
                         )
                     })
@@ -563,12 +588,28 @@ pub(crate) mod scripted {
         }
     }
 
-    /// A registry entry as the kernel lists a command: every field it holds,
-    /// the three the CLI reads among them.
-    pub(crate) fn entry(name: &str, title: &str, args_schema: &str) -> nc_canon::Value {
+    /// A registry entry as the daemon lists a command.
+    ///
+    /// Every field it holds, the ones the CLI reads among them, its texts
+    /// written from `display_name`.
+    pub(crate) fn entry(name: &str, display_name: &str, args_schema: &str) -> nc_canon::Value {
+        let texts = |all: &[&str]| {
+            nc_canon::Value::Array(all.iter().map(|&one| nc_canon::Value::text(one)).collect())
+        };
         nc_canon::Value::object([
             ("name", nc_canon::Value::text(name)),
-            ("title", nc_canon::Value::text(title)),
+            ("display_name", nc_canon::Value::text(display_name)),
+            (
+                "line",
+                nc_canon::Value::text(format!("{display_name}: the line")),
+            ),
+            (
+                "paragraph",
+                nc_canon::Value::text(format!("{display_name}: the paragraph")),
+            ),
+            ("tags", texts(&["one", "two"])),
+            ("categories", texts(&["noctua.history"])),
+            ("glyph", nc_canon::Value::text("U+F058")),
             ("args_schema", nc_canon::Value::text(args_schema)),
             ("mutating", nc_canon::Value::Bool(false)),
             ("action", nc_canon::Value::text("Read")),
@@ -582,7 +623,7 @@ pub(crate) mod scripted {
 #[cfg(test)]
 mod tests {
     use nc_canon::Value;
-    use nc_catalog::ErrorCode;
+    use nc_catalog::{ErrorCode, Locale};
     use nc_ipc::{Answer, IpcError, Refusal, RefusalKind, Request, Token};
 
     use super::scripted::{Scratch, Script, Scripted, entry};
@@ -801,7 +842,7 @@ mod tests {
         );
         let answered = over(&installed, async |connection| {
             assert_eq!(connection.welcome(), &installed.welcome());
-            let registry = connection.registry().await?;
+            let registry = connection.registry(Locale::PtBR).await?;
             let result = connection
                 .dispatch("a.b", Value::object::<&str>([]))
                 .await?;
@@ -809,20 +850,13 @@ mod tests {
                 .dispatch("a.b", Value::object::<&str>([]))
                 .await?;
             let stopping = connection.dispatch("a.b", Value::object::<&str>([])).await;
-            let unread = connection.registry().await;
-            let starting = connection.registry().await;
+            let unread = connection.registry(Locale::En).await;
+            let starting = connection.registry(Locale::En).await;
             Ok((registry, result, denied, stopping, unread, starting))
         })
         .expect("asked");
         let (registry, result, denied, stopping, unread, starting) = answered;
-        assert_eq!(
-            registry,
-            [Listed {
-                name: "a.b".to_owned(),
-                title: "A b".to_owned(),
-                args_schema: schema.to_owned()
-            }]
-        );
+        assert_eq!(registry, [read("a.b", "A b", schema)]);
         assert_eq!(result, Ok(Value::Integer(4)));
         assert_eq!(denied, Err(refusal));
         for unread in [stopping.map(|_| ()), unread.map(|_| ())] {
@@ -835,7 +869,13 @@ mod tests {
         assert_eq!(starting.exit(), Exit::Unavailable);
         assert_eq!(starting.detail(), "recovering");
         let heard = daemon.heard();
-        assert_eq!(heard.first(), Some(&Request::Registry));
+        assert_eq!(
+            heard.first(),
+            Some(&Request::Registry {
+                locale: Locale::PtBR
+            }),
+            "the registry is asked in the locale the caller names"
+        );
         assert_eq!(heard.len(), 6);
     }
 
@@ -871,20 +911,45 @@ mod tests {
         );
     }
 
-    /// An entry is read by its three text fields, whatever else it holds, and
-    /// one missing any of them, or holding one as another type, is not read.
+    /// The entry [`entry`] writes, as the CLI reads it.
+    fn read(name: &str, display_name: &str, args_schema: &str) -> Listed {
+        Listed {
+            name: name.to_owned(),
+            display_name: display_name.to_owned(),
+            line: format!("{display_name}: the line"),
+            paragraph: format!("{display_name}: the paragraph"),
+            tags: vec!["one".to_owned(), "two".to_owned()],
+            categories: vec!["noctua.history".to_owned()],
+            args_schema: args_schema.to_owned(),
+        }
+    }
+
+    /// An entry is read by its text fields, whatever else it holds, and one
+    /// missing any of them, or holding one as another type, is not read.
     #[test]
-    fn a_registry_entry_is_read_by_its_three_text_fields() {
+    fn a_registry_entry_is_read_by_its_text_fields() {
         let schema = r#"{"type":"object","additionalProperties":false}"#;
         assert_eq!(
             Listed::read(&entry("a.b", "A", schema)),
-            Some(Listed {
-                name: "a.b".to_owned(),
-                title: "A".to_owned(),
-                args_schema: schema.to_owned()
-            })
+            Some(read("a.b", "A", schema))
         );
-        for missing in ["name", "title", "args_schema"] {
+        for list in ["tags", "categories"] {
+            let mut fields = entry("a.b", "A", schema).into_object().expect("an object");
+            fields.insert(
+                list.to_owned(),
+                Value::Array(vec![Value::text("one"), Value::Integer(2)]),
+            );
+            assert_eq!(Listed::read(&Value::Object(fields)), None, "{list}");
+        }
+        for missing in [
+            "name",
+            "display_name",
+            "line",
+            "paragraph",
+            "tags",
+            "categories",
+            "args_schema",
+        ] {
             let mut fields = entry("a.b", "A", schema).into_object().expect("an object");
             fields.remove(missing);
             assert_eq!(

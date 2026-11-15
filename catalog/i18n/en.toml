@@ -42,6 +42,7 @@ dir   = "ltr"
 "command.kernel.redo.tags" = ["redo", "do again", "repeat", "restore"]
 "command.naming.propose.tags" = ["file name", "name a file", "rename", "save as", "propose"]
 "command.naming.read.tags" = ["file name", "read a name", "identifier", "parse", "details"]
+"command.kernel.find.tags" = ["search", "filter", "look up", "list of commands"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["browser", "web browser", "web", "internet", "google"]
@@ -158,6 +159,7 @@ dir   = "ltr"
 "error.plugin.topic-refused" = "A part of Noctua tried to announce something under a name it may not use, and was refused."
 "error.plugin.not-a-revision" = "A part of Noctua tried to save over a version of something that no version is ever called, and was refused. Nothing was saved."
 "error.plugin.unit-ended" = "A part of Noctua tried to finish a piece of work that had already ended, and was refused. Nothing changed because of it."
+"error.plugin.entries-invalid" = "A part of Noctua describes its commands in a way Noctua does not accept, or not in every language, so it was not started."
 
 # --- Blobs ---
 "error.blob.malformed-hash" = "That is not the name of a file Noctua can look for."
@@ -256,6 +258,9 @@ dir   = "ltr"
 "command.naming.read.title" = "Read a file name"
 "command.naming.read.description" = "Read a file name back into its identifier, signature, title and keywords."
 "command.naming.read.paragraph" = "Reads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing."
+"command.kernel.find.title" = "Find a command"
+"command.kernel.find.description" = "Find commands by any word of their names or tags, in English or Portuguese."
+"command.kernel.find.paragraph" = "Looks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing."
 
 # --- Capabilities ---
 "capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."

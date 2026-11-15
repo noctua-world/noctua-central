@@ -2296,7 +2296,8 @@ const QUOTED: usize = 256;
 
 /// Runs a command the kernel itself implements, in the tree's own unit:
 /// verifying the journal, pruning the local tables, the history's undo and
-/// redo, and proposing and reading a file's name (`crate::builtin`).
+/// redo, proposing and reading a file's name (`crate::builtin`), and finding
+/// a command (`crate::find`).
 ///
 /// **A command the registry gives the kernel has a handler**, which
 /// `crate::builtin`'s test holds both ways; one without would be answered as
@@ -2318,6 +2319,13 @@ async fn builtin<E: Environment>(
         Some(Builtin::Redo) => history::redo(shared, tree, &asked.principal, authorized.held).await,
         Some(Builtin::Propose) => builtin::proposed(shared, &asked.json, asked.waits).await,
         Some(Builtin::ReadName) => builtin::read_back(&asked.json),
+        Some(Builtin::Find) => {
+            // The registry as it is now, its lock let go at the end of this
+            // statement: no load and no dispatch waits while the query is
+            // matched.
+            let listed = shared.plugins().registry.listed();
+            crate::find::found(&listed, &asked.json)
+        }
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

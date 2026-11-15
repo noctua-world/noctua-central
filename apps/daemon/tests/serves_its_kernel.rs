@@ -106,9 +106,10 @@ async fn the_registry_is_the_kernels_and_the_plugins_installed() {
     installed.install_plugin(
         "reference",
         REFERENCE,
+        &nc_daemon::testing::entries_of("reference"),
         &nc_kernel::component_for_tests("reference"),
     );
-    installed.install_plugin("broken", "id = 7", b"");
+    installed.install_plugin("broken", "id = 7", &[], b"");
     let mut daemon = installed.spawn();
     let (mut client, welcome) = daemon.connected().await;
     assert_eq!(welcome.pid, daemon.pid());
@@ -133,7 +134,14 @@ async fn the_registry_is_the_kernels_and_the_plugins_installed() {
             .and_then(|fields| fields.get("loaded").cloned()),
         Some(Value::Bool(true))
     );
-    let Answer::Registry(commands) = asked(&mut client, Request::Registry).await else {
+    let Answer::Registry(commands) = asked(
+        &mut client,
+        Request::Registry {
+            locale: nc_catalog::Locale::En,
+        },
+    )
+    .await
+    else {
         panic!("the registry was not answered");
     };
     let mut kernels = Vec::new();
@@ -145,12 +153,17 @@ async fn the_registry_is_the_kernels_and_the_plugins_installed() {
             [
                 "action",
                 "args_schema",
+                "categories",
+                "display_name",
+                "glyph",
+                "line",
                 "mutating",
                 "name",
                 "owner",
+                "paragraph",
                 "resource_selector",
                 "reversibility",
-                "title"
+                "tags"
             ],
             "{command:?}"
         );
@@ -185,6 +198,87 @@ async fn the_registry_is_the_kernels_and_the_plugins_installed() {
     assert!(
         started[0].contains("\"loaded\":\"1\"") && started[0].contains("\"refused\":\"1\""),
         "{started:?}"
+    );
+}
+
+/// A plugin whose texts miss a locale is shown refused, naming the command
+/// and the locale, and the daemon runs without it.
+///
+/// **Refused at `activate`, by the kernel**: every file of the plugin's is
+/// there and reads, and its Portuguese texts leave one command out, so it is
+/// the one judge the catalog's commands are held to that refuses it — and the
+/// status says so, the start logs it, and the kernel's own commands are still
+/// served.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_plugin_whose_texts_miss_a_locale_is_shown_refused_and_the_daemon_runs_without_it() {
+    let installed = Installed::new(Path::new(BINARY));
+    let entries: Vec<(std::path::PathBuf, String)> = nc_daemon::testing::entries_of("reference")
+        .into_iter()
+        .map(|(file, text)| {
+            if file.ends_with("pt-BR.toml") {
+                let opening = "[command.\"echo\"]\n";
+                let at = text.find(opening).expect("the echo has Portuguese texts");
+                let end = text[at + opening.len()..]
+                    .find("\n[command.")
+                    .map_or(text.len(), |next| at + opening.len() + next + 1);
+                let without = format!("{}{}", &text[..at], &text[end..]);
+                (file, without)
+            } else {
+                (file, text)
+            }
+        })
+        .collect();
+    installed.install_plugin(
+        "reference",
+        REFERENCE,
+        &entries,
+        &nc_kernel::component_for_tests("reference"),
+    );
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    let status = once(&mut client, runs).await;
+    let plugins = status
+        .get("plugins")
+        .cloned()
+        .and_then(Value::into_array)
+        .expect("the status lists the plugins");
+    assert_eq!(plugins.len(), 1, "{plugins:?}");
+    assert_eq!(
+        text(&plugins[0], "code").as_deref(),
+        Some(ErrorCode::PluginEntriesInvalid.code())
+    );
+    assert_eq!(
+        text(&plugins[0], "sentence").as_deref(),
+        Some("`reference.echo` of `noctua:reference` says nothing at all in `pt-BR`")
+    );
+    let Answer::Registry(commands) = asked(
+        &mut client,
+        Request::Registry {
+            locale: nc_catalog::Locale::PtBR,
+        },
+    )
+    .await
+    else {
+        panic!("the registry was not answered");
+    };
+    let names: Vec<String> = commands
+        .iter()
+        .map(|command| text(command, "name").expect("a name"))
+        .collect();
+    let catalog: Vec<String> = nc_catalog::COMMANDS
+        .iter()
+        .map(|command| command.name.to_owned())
+        .collect();
+    assert_eq!(
+        names, catalog,
+        "the daemon serves the kernel's commands alone"
+    );
+    stopped(&mut client, &mut daemon).await;
+    let refused = logged(&installed, "daemon.plugin_refused");
+    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert!(
+        refused[0].contains(ErrorCode::PluginEntriesInvalid.code()),
+        "{refused:?}"
     );
 }
 

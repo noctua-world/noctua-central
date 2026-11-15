@@ -62,6 +62,10 @@ nc-canon.workspace = true
 # The schema a command's arguments are validated against is read over
 # `serde_json`'s value, which the closed subset in `nc-schema` is written for.
 serde_json.workspace = true
+# The one fuzzy matcher (`NOCTUA.md §12.4`), which `kernel.find` filters the
+# registry with: every command's names and tags in both languages, matched as
+# every list is, with the positions each word matched.
+nc-fuzzy.workspace = true
 # The one pruner (`NOCTUA.md §15.8`): `pump` runs its SQLite target over the
 # local database's own pool, so the tables `catalog/limits.toml` bounds there
 # are held to their bounds by the pruner that holds the server's.

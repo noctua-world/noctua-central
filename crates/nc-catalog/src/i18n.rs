@@ -2060,6 +2060,24 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "command.kernel.find.description",
+        [
+            "Find commands by any word of their names or tags, in English or Portuguese.",
+            "Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas.",
+        ],
+    ),
+    (
+        "command.kernel.find.paragraph",
+        [
+            "Looks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing.",
+            "Procura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada.",
+        ],
+    ),
+    (
+        "command.kernel.find.title",
+        ["Find a command", "Encontrar um comando"],
+    ),
+    (
         "command.kernel.redo.description",
         [
             "Make again the last step you took back.",
@@ -3031,6 +3049,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.plugin.entries-invalid",
+        [
+            "A part of Noctua describes its commands in a way Noctua does not accept, or not in every language, so it was not started.",
+            "Uma parte do Noctua descreve os seus comandos de um jeito que o Noctua não aceita, ou não em todos os idiomas, então ela não foi iniciada.",
+        ],
+    ),
+    (
         "error.plugin.epoch-deadline",
         [
             "A part of Noctua took too long and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again.",
@@ -3706,6 +3731,9 @@ pub const KEYS: &[&str] = &[
     "command.journal.verify.description",
     "command.journal.verify.paragraph",
     "command.journal.verify.title",
+    "command.kernel.find.description",
+    "command.kernel.find.paragraph",
+    "command.kernel.find.title",
     "command.kernel.redo.description",
     "command.kernel.redo.paragraph",
     "command.kernel.redo.title",
@@ -3849,6 +3877,7 @@ pub const KEYS: &[&str] = &[
     "error.plugin.descriptor-invalid",
     "error.plugin.descriptor-missing-field",
     "error.plugin.domain-not-declared",
+    "error.plugin.entries-invalid",
     "error.plugin.epoch-deadline",
     "error.plugin.host-call-deadline",
     "error.plugin.identity-taken",
@@ -4050,6 +4079,19 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "atividade",
                 "integridade",
                 "auditoria",
+            ],
+        ],
+    ),
+    (
+        "command.kernel.find.tags",
+        [
+            &["search", "filter", "look up", "list of commands"],
+            &[
+                "procurar",
+                "pesquisar",
+                "buscar",
+                "filtrar",
+                "comandos disponíveis",
             ],
         ],
     ),

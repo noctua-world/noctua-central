@@ -30,6 +30,7 @@ dir   = "ltr"
 "command.kernel.redo.tags" = ["refazer", "fazer de novo", "repetir", "restaurar"]
 "command.naming.propose.tags" = ["nome de arquivo", "nomear arquivo", "renomear", "salvar como", "propor"]
 "command.naming.read.tags" = ["nome de arquivo", "ler um nome", "identificador", "analisar", "detalhes"]
+"command.kernel.find.tags" = ["procurar", "pesquisar", "buscar", "filtrar", "comandos disponíveis"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["navegador", "navegador da web", "web", "internet", "google"]
@@ -146,6 +147,7 @@ dir   = "ltr"
 "error.plugin.topic-refused" = "Uma parte do Noctua tentou anunciar algo com um nome que não pode usar, e foi recusada."
 "error.plugin.not-a-revision" = "Uma parte do Noctua tentou salvar por cima de uma versão de algo com um nome que nenhuma versão tem, e foi recusada. Nada foi salvo."
 "error.plugin.unit-ended" = "Uma parte do Noctua tentou concluir um trabalho que já tinha terminado, e foi recusada. Nada mudou por causa disso."
+"error.plugin.entries-invalid" = "Uma parte do Noctua descreve os seus comandos de um jeito que o Noctua não aceita, ou não em todos os idiomas, então ela não foi iniciada."
 
 # --- Blobs ---
 "error.blob.malformed-hash" = "Esse não é o nome de um arquivo que o Noctua consiga procurar."
@@ -240,6 +242,9 @@ dir   = "ltr"
 "command.naming.read.title" = "Ler um nome de arquivo"
 "command.naming.read.description" = "Ler um nome de arquivo: identificador, assinatura, título e palavras-chave."
 "command.naming.read.paragraph" = "Lê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada."
+"command.kernel.find.title" = "Encontrar um comando"
+"command.kernel.find.description" = "Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas."
+"command.kernel.find.paragraph" = "Procura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada."
 
 # --- Capabilities ---
 "capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."

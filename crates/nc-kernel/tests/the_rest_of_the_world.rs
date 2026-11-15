@@ -274,6 +274,7 @@ fn manifest(id: &str, namespace: &str, heard: &str) -> PluginManifest {
          subscribe = [\"{heard}\"]\n"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// Commits `value` as `plugin`'s `key`, as a unit of `bruno`'s nobody

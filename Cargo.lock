@@ -1893,6 +1893,7 @@ dependencies = [
  "nc-authz",
  "nc-canon",
  "nc-catalog",
+ "nc-fuzzy",
  "nc-ids",
  "nc-journal",
  "nc-kernel",

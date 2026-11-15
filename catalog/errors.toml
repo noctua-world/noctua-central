@@ -1043,6 +1043,20 @@ message = "error.plugin.unit-ended"
 severity = "warning"
 retryable = false
 
+[[error]]
+# **Not `NC-PLUG-0009`, which is the declaration.** A plugin's entries are its
+# commands' texts in every locale, read from its directory and judged at
+# `activate` by the judge the catalog's commands are held to
+# (`nc_schema::entry`): a text missing from a locale, one past its bound, a
+# title that is not the English display name, an entry for a command the
+# catalog describes or a display name the catalog's commands already show. What
+# fixes it is the texts, not the component, so the person is told that.
+code = "NC-PLUG-0029"
+description = "A plugin's entries — its commands' texts in every locale — are refused, missing or not what its commands declare"
+message = "error.plugin.entries-invalid"
+severity = "error"
+retryable = false
+
 # --- Content-addressed blobs (§11.8, §13.4) ---
 #
 # What `blobs` answers a plugin: a hash that is not one, a blob not on this
