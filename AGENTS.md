@@ -2993,7 +2993,9 @@ it — and shown by `noctua help keybindings`, which asks no daemon. The file an
 directory are judged this user's alone by `nc_platform::judge` before a byte is read, a
 link refused however it points (`NC-CHAN-0009`), and each is left as it was; at most
 `BYTES_MAX` bytes are read, through `Read::take`, and a disk that does not answer is
-`NC-CHAN-0010`. The text is read only as `nc-canon` reads JSON, a key written twice
+`NC-CHAN-0010`. A choice is held to the same bound when `Configuration::parse` reads it,
+before `judged` weighs it, and its canonical form is never longer than its text, so a
+choice judged in force is a file its reader reads. The text is read only as `nc-canon` reads JSON, a key written twice
 refused, into a closed shape: `format` required and this build's, `leader` a chord and
 `chord` a modifier in the Leader's grammar, and `bindings` each command's name — one a
 command can have — beside bindings in the grammar; anything else, a later format among it,
@@ -3004,8 +3006,11 @@ meeting another channel's Leader refuses the Leader part alone (`NC-CHAN-0012` t
 `NC-CHAN-0015`), and a key of one table bound twice refuses the bindings part alone
 (`NC-CHAN-0016`). A part refused keeps its defaults — the channel's Leader with Shift, the
 catalog's bindings — which are apart across channels by construction, and the other part
-stands. A refusal repeats at most 64 characters of the file, each character that ends a
-line or a field written as its code point, and the CLI escapes every text it prints. A
+stands. Each piece of the file a refusal quotes as it was written — a key, a word, a chord
+or a binding the grammar cannot read — is cut at 64 characters, each character that ends a
+line or a field written as its code point; a command's name is repeated whole only once it
+is one a command can have, at most `NAME_MAX` characters of lower-case letters, digits, `-`
+and `.`; and the CLI escapes every text it prints. A
 chord a system keeps, and a held key that is the Leader's own, are warned of and kept
 (`NC-CHAN-0018`, `NC-CHAN-0019`), over the keys in force: a refused part's choice raises
 nothing, and the default that stands in its place is warned of instead.
@@ -3041,13 +3046,15 @@ build cannot judge or past the checkouts' bound; a channel is judged against the
 defaults after it, and a file after it is never read; an uninstalled channel binds
 nothing; a file and a directory another account can reach, and a link to either, are
 refused and left as they were; every way a file is malformed is refused whole, naming what
-it could not read, and what a refusal repeats is escaped and cut; a refused bindings part
+it could not read; a choice past the file's bound is refused before it is written, and one
+a writer judges is the file its reader reads; what a refusal quotes of the file is escaped
+and cut, and a command's name is repeated whole once it is well-formed; a refused bindings part
 keeps the configured Leader, and the reverse; a file before it that its reader refuses is
 that channel's defaults, while one of a later format, more checkouts than are read and a
 base that will not list refuse the configured Leader; another namespace's installs are
 never read; and a read leaves every file and directory under the bases as it was — by the
 unit tests of `crates/nc-channel/src/keys.rs`, which hold a profile directory's name to
-the leaf `layout` writes in both directions, by
+the leaf `layout` writes in both directions and a configuration to the file's bound, by
 `help_on_the_keybindings_needs_no_daemon` and
 `help_on_the_keybindings_says_why_a_configuration_was_refused_and_shows_the_defaults` in
 `apps/cli/src/run.rs`, and by the operators over `keys.rs` and the CLI's help in

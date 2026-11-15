@@ -61,10 +61,15 @@
 //! Another account choosing this user's keys: every file and its directory
 //! are judged this user's alone before they are read, a link however it
 //! points included. A file growing without bound: at most [`BYTES_MAX`] bytes
-//! are read. A text from the file forging what a refusal says: every part of
-//! it a refusal repeats is escaped and cut short, as the manifest's are. A
-//! binding reaching what the command list could not: it names one key of a
-//! closed vocabulary and one command's name, and carries no argument.
+//! are read, and a choice handed to [`Configuration::parse`] is held to the
+//! same bound, so no writer leaves a file its reader refuses for its size. A
+//! text from the file forging what a refusal says: each piece a refusal quotes
+//! as it was written — a key, a word, a chord or a binding the grammar cannot
+//! read — is escaped and cut at 64 characters, as the manifest's are, and a
+//! command's name is repeated whole only once it is one a command can have, at
+//! most [`nc_schema::NAME_MAX`] characters of lower-case letters, digits, `-`
+//! and `.`. A binding reaching what the command list could not: it names one
+//! key of a closed vocabulary and one command's name, and carries no argument.
 //!
 //! # What this does not answer
 //!
@@ -118,7 +123,8 @@ const FIELDS: [&str; 3] = ["bindings", "chord", "leader"];
 /// A person's keybinding configuration, as the file holds it.
 ///
 /// **Sealed**: one is made by [`Configuration::parse`], so every one held is
-/// one the grammar read, and [`Configuration::to_canonical`] writes it back.
+/// one the grammar read within [`BYTES_MAX`], and
+/// [`Configuration::to_canonical`] writes it back within that bound too.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
     /// The chord configured as the Leader, judged a Leader when it is weighed.
@@ -144,7 +150,8 @@ impl Configuration {
     /// # Errors
     ///
     /// [`KeysRefused::Unreadable`] for text that is not a configuration of
-    /// [`FORMAT`] as the crate's header describes it, saying what is wrong.
+    /// [`FORMAT`] as the crate's header describes it, saying what is wrong —
+    /// text longer than [`BYTES_MAX`] among it, as the file would be.
     pub fn parse(text: &str) -> Result<Self, KeysRefused> {
         parsed(text).map_err(|unparsed| match unparsed {
             Unparsed::Unreadable(what) => KeysRefused::Unreadable(what),
@@ -224,6 +231,11 @@ impl Configuration {
 /// file it cannot judge from one it can.
 fn parsed(text: &str) -> Result<Configuration, Unparsed> {
     let unreadable = |what: String| Unparsed::Unreadable(what);
+    // **The file's bound, whoever hands the text**, so a writer is held to
+    // what the reader reads. The canonical form written back is never longer
+    // than the text: every name, word, chord and binding the grammar keeps is
+    // ASCII that form writes as it is read, and it adds no space.
+    bounded(text.len()).map_err(unreadable)?;
     // `nc-canon` quotes a key written twice escaped and cut, and nothing else
     // of the text.
     let value = nc_canon::parse(text)
@@ -329,8 +341,9 @@ pub enum Part {
 
 /// Why a configuration, or one part of it, is not in force.
 ///
-/// Every text a variant holds is one a refusal may show: whatever it repeats
-/// of the file is escaped and cut short.
+/// Every text a variant holds is one a refusal may show: each piece of the
+/// file it quotes as it was written is escaped and cut at 64 characters, and a
+/// command's name is repeated only once it is one a command can have.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeysRefused {
     /// The file, or the directory holding it, is not this user's alone; the
@@ -567,7 +580,9 @@ pub fn effective(found: &Found) -> Effective {
 /// The keys `own` would put in force for `found`'s install over `catalog`.
 ///
 /// Judged as [`effective`] judges the file: the call a writer makes before it
-/// writes one.
+/// writes one. `own` is within [`BYTES_MAX`], as every [`Configuration`] is,
+/// so what this accepts [`Configuration::to_canonical`] writes as a file
+/// [`effective`] reads.
 #[must_use]
 pub fn judged(
     found: &Found,
@@ -891,19 +906,28 @@ fn read(directory: &Path, file: &Path, user: &User) -> Result<Option<String>, Un
         .map_err(|error| {
             Unread::Unavailable(format!("`{}` could not be read: {error}", file.display()))
         })?;
-    if u64::try_from(bytes.len()).map_or(true, |read| read > BYTES_MAX) {
-        return Err(Unread::Unreadable(format!(
-            "it holds more than {BYTES_MAX} bytes"
-        )));
-    }
+    // Before the text is decoded: past the bound, the last byte read may cut a
+    // character in two.
+    bounded(bytes.len()).map_err(Unread::Unreadable)?;
     String::from_utf8(bytes)
         .map(Some)
         .map_err(|_| Unread::Unreadable("it is not UTF-8".to_owned()))
 }
 
+/// Whether `bytes` are within [`BYTES_MAX`], or what a refusal says of them.
+///
+/// The one bound of the file read and of a choice handed to
+/// [`Configuration::parse`].
+fn bounded(bytes: usize) -> Result<(), String> {
+    if u64::try_from(bytes).map_or(true, |bytes| bytes > BYTES_MAX) {
+        return Err(format!("it holds more than {BYTES_MAX} bytes"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Configuration, KeysRefused, checkout_named};
+    use super::{BYTES_MAX, Configuration, KeysRefused, checkout_named};
     use crate::{Channel, Checkout, Namespace, leaf};
 
     fn namespace(text: &str) -> Namespace {
@@ -1008,5 +1032,46 @@ mod tests {
         }
         let refused = Configuration::parse(r#"{"format":2}"#).expect_err("a later format");
         assert!(matches!(&refused, KeysRefused::Unreadable(what) if what.contains("format 1")));
+    }
+
+    /// A configuration is read up to the file's bound and no further.
+    ///
+    /// Text at [`BYTES_MAX`] is read, and writes back shorter than itself,
+    /// its escapes and spaces dropped; one byte more is refused, whatever it
+    /// holds.
+    #[test]
+    fn a_configuration_is_read_up_to_the_files_bound_and_no_further() {
+        let bound = usize::try_from(BYTES_MAX).expect("a bound that fits");
+        let entries: Vec<String> = (0..600)
+            .map(|at| format!(r#""plugin.command-number-{at:04}":[]"#))
+            .collect();
+        let past = format!(r#"{{"bindings":{{{}}},"format":1}}"#, entries.join(","));
+        assert!(past.len() > bound);
+        assert_eq!(
+            Configuration::parse(&past),
+            Err(KeysRefused::Unreadable(format!(
+                "it holds more than {BYTES_MAX} bytes"
+            )))
+        );
+        let held = entries.len() / 2;
+        let opened = format!(
+            r#"{{"bindings":{{"kernel\u002eundo":["Leader\u002bKeyZ"],{}}},"format":1"#,
+            entries[..held].join(",")
+        );
+        let at_the_bound = format!("{opened}{}}}", " ".repeat(bound - opened.len() - 1));
+        assert_eq!(at_the_bound.len(), bound);
+        let read = Configuration::parse(&at_the_bound).expect("a configuration at its bound");
+        assert_eq!(read.bindings().map(<[_]>::len), Some(held + 1));
+        assert!(read.to_canonical().len() < at_the_bound.len());
+        assert!(
+            read.to_canonical()
+                .contains(r#""kernel.undo":["Leader+KeyZ"]"#)
+        );
+        assert_eq!(
+            Configuration::parse(&format!("{at_the_bound} ")),
+            Err(KeysRefused::Unreadable(format!(
+                "it holds more than {BYTES_MAX} bytes"
+            )))
+        );
     }
 }

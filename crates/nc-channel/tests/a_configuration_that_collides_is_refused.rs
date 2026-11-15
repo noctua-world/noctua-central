@@ -837,8 +837,63 @@ fn a_malformed_file_is_refused_whole_naming_what_it_could_not_read() {
     assert_the_leader(&keys::effective(&staging), "Control+Super+Space");
 }
 
-/// What a refusal repeats of the file is escaped and cut short, so no file
-/// forges a line of what refuses it.
+/// A choice past the file's bound is refused before it is written, and one a
+/// writer judges is the file its reader reads.
+///
+/// The largest choice that fits is accepted by `judged`, and its canonical
+/// form, written as the file, is read by `effective` as the same keys; one
+/// binding more is refused by `Configuration::parse` as the reader refuses it.
+#[test]
+fn a_choice_past_the_files_bound_is_refused_before_it_is_written() {
+    let scratch = Scratch::new("writer");
+    let staging = scratch.installed(Channel::Staging, HERE);
+    let bound = usize::try_from(keys::BYTES_MAX).expect("a bound that fits");
+    let choice = |count: usize| {
+        let mut named = vec![r#""kernel.undo":["Leader+KeyU"]"#.to_owned()];
+        named.extend((0..count).map(|at| format!(r#""plugin.command-number-{at:04}":[]"#)));
+        format!(
+            r#"{{"bindings":{{{}}},"format":1,"leader":"Control+Super+Space"}}"#,
+            named.join(",")
+        )
+    };
+    let most = (0..1000)
+        .take_while(|&count| choice(count).len() <= bound)
+        .last()
+        .expect("a choice fits");
+    let proposed = Configuration::parse(&choice(most)).expect("a choice within the bound");
+    let judged = keys::judged(&staging, Some(&proposed), &keys::catalog_bindings());
+    assert!(judged.refused.is_empty(), "{:?}", judged.refused);
+    assert!(judged.leader_configured && judged.bindings_configured);
+    let written = proposed.to_canonical();
+    assert!(written.len() <= bound);
+    scratch.configure(Channel::Staging, HERE, &written);
+    assert_eq!(keys::effective(&staging), judged);
+
+    let past = choice(most + 1);
+    assert!(past.len() > bound);
+    let refused = Configuration::parse(&past).expect_err("a choice past the bound");
+    assert_eq!(refused.code(), ErrorCode::ChannelKeybindingsUnreadable);
+    assert_eq!(refused.part(), Part::Whole);
+    assert!(
+        refused
+            .to_string()
+            .contains("it holds more than 16384 bytes"),
+        "{refused}"
+    );
+    scratch.configure(Channel::Staging, HERE, &past);
+    let effective = keys::effective(&staging);
+    assert_eq!(
+        the_refusal(&effective, ErrorCode::ChannelKeybindingsUnreadable),
+        &refused
+    );
+    assert_the_defaults(&effective);
+}
+
+/// What a refusal quotes of the file as it was written is escaped and cut
+/// short, so no file forges a line of what refuses it.
+///
+/// A command's name is quoted so until it is one a command can have; once it
+/// is, it is repeated whole, and it holds nothing that ends a line.
 #[test]
 fn a_refusal_quotes_the_file_escaped_and_cut() {
     let scratch = Scratch::new("quote");
@@ -861,6 +916,10 @@ fn a_refusal_quotes_the_file_escaped_and_cut() {
             r#"{{"bindings":{{"kernel.undo":["Leader+{}"]}},"format":1}}"#,
             forged.replace('\n', "\\n").replace('\u{1b}', "\\u001b")
         ),
+        format!(
+            r#"{{"bindings":{{"kernel.{}":[]}},"format":1}}"#,
+            forged.replace('\n', "\\n").replace('\u{1b}', "\\u001b")
+        ),
     ] {
         scratch.configure(Channel::Staging, HERE, &text);
         let effective = keys::effective(&staging);
@@ -869,6 +928,22 @@ fn a_refusal_quotes_the_file_escaped_and_cut() {
         assert!(!said.contains(&"x".repeat(65)), "{text}: not cut: {said}");
         assert!(said.contains('…'), "{text}: no mark of the cut: {said}");
     }
+    let longest = format!(
+        "kernel.{}",
+        "a".repeat(nc_schema::NAME_MAX - "kernel.".len())
+    );
+    assert!(nc_schema::command_name_is_well_formed(&longest));
+    scratch.configure(
+        Channel::Staging,
+        HERE,
+        &format!(r#"{{"bindings":{{"{longest}":"Leader+KeyU"}},"format":1}}"#),
+    );
+    let effective = keys::effective(&staging);
+    let said = the_refusal(&effective, ErrorCode::ChannelKeybindingsUnreadable).to_string();
+    assert!(
+        said.contains(&format!("the bindings of `{longest}` are not a list")),
+        "{said}"
+    );
 }
 
 /// A refused bindings part keeps the configured Leader in force, and a
