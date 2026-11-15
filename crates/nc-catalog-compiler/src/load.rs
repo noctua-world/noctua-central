@@ -1871,8 +1871,9 @@ const fn the_check_for(problem: &nc_schema::DescriptorProblem) -> (&'static str,
         Judged::Schema(error) => the_check_for_a_schema(&error.fault),
         Judged::Selector(SelectorError::Malformed(_)) => (
             "selector-malformed",
-            "a resource selector is `realm`, or `argument:<name>` naming one of the \
-             command's own arguments — `[a-z][a-z0-9_]*`",
+            "a resource selector is `realm`, `argument:<name>` naming one of the \
+             command's own arguments, or `feature:<id>` naming a feature of the platform \
+             — each name `[a-z][a-z0-9_]*`",
         ),
         Judged::Selector(
             SelectorError::NotDeclared(_)

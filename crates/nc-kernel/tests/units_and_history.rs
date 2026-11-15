@@ -1085,7 +1085,7 @@ async fn left_in_every_shape<J: History>(store: &LocalStore) -> (J, Shapes) {
         .await
         .expect("opened");
     committed(store, &a_step(reversed, &ana, "note/diary", "reversed")).await;
-    let its_reversal = stopped.mint_unit().expect("a unit");
+    let its_reversal = stopped.mint_identifier().expect("a unit");
     committed(
         store,
         &a_unit(
@@ -3895,7 +3895,7 @@ async fn a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else_over
         .await
         .expect("closed");
     let mut elsewhere = a_step(
-        journal.mint_unit().expect("a unit"),
+        journal.mint_identifier().expect("a unit"),
         &ana,
         "note/recipe",
         "home's",

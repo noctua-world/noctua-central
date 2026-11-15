@@ -540,13 +540,16 @@ pub enum Variant {
     ReservedNamespace,
     /// It names an action the decision point's schema does not declare.
     UnknownAction,
+    /// It selects a feature of the platform, which only the kernel's own
+    /// commands select.
+    SelectsAFeature,
     /// `activate` traps instead of answering.
     Trap,
 }
 
 impl Variant {
     /// Every variant, in the order declared.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Normal,
         Self::MissingAction,
         Self::MissingSelector,
@@ -559,6 +562,7 @@ impl Variant {
         Self::OutsideNamespace,
         Self::ReservedNamespace,
         Self::UnknownAction,
+        Self::SelectsAFeature,
         Self::Trap,
     ];
 
@@ -578,6 +582,7 @@ impl Variant {
             Self::OutsideNamespace => "outside-namespace",
             Self::ReservedNamespace => "reserved-namespace",
             Self::UnknownAction => "unknown-action",
+            Self::SelectsAFeature => "selects-a-feature",
             Self::Trap => "trap",
         }
     }
@@ -740,6 +745,7 @@ fn broken(command: &mut Command, activation: &Activation) {
         }
         Variant::ReservedNamespace => "kernel.note.get".clone_into(&mut command.name),
         Variant::UnknownAction => command.action = "Rename",
+        Variant::SelectsAFeature => command.resource_selector = "feature:naming",
     }
 }
 
@@ -3896,7 +3902,8 @@ mod tests {
                 | Variant::Trap
                 | Variant::OutsideNamespace
                 | Variant::ReservedNamespace
-                | Variant::UnknownAction => Ok(()),
+                | Variant::UnknownAction
+                | Variant::SelectsAFeature => Ok(()),
             };
             assert_eq!(verdict, expected, "{variant:?}");
         }
@@ -3919,6 +3926,15 @@ mod tests {
             })[0]
                 .action,
             "Rename"
+        );
+        assert_eq!(
+            commands_for(&Activation {
+                namespace: "peer".to_owned(),
+                variant: Variant::SelectsAFeature,
+                subscribe: Vec::new(),
+            })[0]
+                .resource_selector,
+            "feature:naming"
         );
     }
 }

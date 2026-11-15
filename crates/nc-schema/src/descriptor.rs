@@ -64,7 +64,7 @@ pub struct Declared<'a> {
     pub args_schema: &'a str,
     /// The Cedar action the decision point evaluates.
     pub action: &'a str,
-    /// `realm`, or `argument:<name>`.
+    /// `realm`, `argument:<name>` or `feature:<id>`.
     pub resource_selector: &'a str,
     /// Whether it changes state at all.
     pub mutating: bool,
