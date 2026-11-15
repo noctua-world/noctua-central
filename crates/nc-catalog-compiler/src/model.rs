@@ -31,6 +31,12 @@ pub struct Catalog {
     pub capabilities: Vec<CapabilityEntry>,
     /// Every interface of the plugin world granted to every plugin, and why.
     pub ungated: Vec<UngatedEntry>,
+    /// Every set of categories, in declaration order.
+    pub category_sets: Vec<CategorySetEntry>,
+    /// Every category, in declaration order.
+    pub categories: Vec<CategoryEntry>,
+    /// Every external identifier, in declaration order.
+    pub external_identifiers: Vec<ExternalIdentifierEntry>,
     /// Every locale, source locale first.
     pub locales: Vec<Locale>,
     /// Every wiki text, by registry and then by name.
@@ -1174,6 +1180,175 @@ impl Reversibility {
     }
 }
 
+// --- categories.toml ---
+
+/// The parsed file: every set of categories, and every category in them.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CategoryFile {
+    #[serde(default, rename = "set")]
+    pub(crate) sets: Vec<CategorySetEntry>,
+    #[serde(default, rename = "category")]
+    pub(crate) categories: Vec<CategoryEntry>,
+}
+
+/// One set of categories: a standard's, or the platform's own
+/// (`NOCTUA.md §20.4`).
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CategorySetEntry {
+    /// Lower-case letters and digits, in words joined by single hyphens, which
+    /// every category of the set is named under.
+    pub name: String,
+    /// The i18n key of its display name.
+    pub title: String,
+    /// The i18n key of its line description.
+    pub description: String,
+    /// Whether a standard outside the platform defines it.
+    pub standard: bool,
+    /// What defines it: the standard, or this catalog.
+    pub defined_by: String,
+    /// The version of the standard it was taken from: a standard set's alone.
+    pub version: Option<String>,
+}
+
+/// Where a category stands in the standard that registers it.
+///
+/// For a standard that ranks its categories: the three registries of the
+/// freedesktop.org Desktop Menu Specification.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    /// One of the categories a menu is built from.
+    Main,
+    /// One a menu places under a main category.
+    Additional,
+    /// One kept for a use the standard names, which no menu shows.
+    Reserved,
+}
+
+impl Role {
+    /// The word the registry and every page write it as.
+    pub(crate) const fn word(self) -> &'static str {
+        match self {
+            Self::Main => "main",
+            Self::Additional => "additional",
+            Self::Reserved => "reserved",
+        }
+    }
+}
+
+/// One category an entry may be listed under.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CategoryEntry {
+    /// `<set>.<slug>`: the set's name, a dot, and lower-case letters and digits
+    /// in words joined by single hyphens.
+    pub name: String,
+    /// The set it is in.
+    pub set: String,
+    /// What its standard calls it, written as the standard writes it: a
+    /// standard set's alone.
+    pub standard_name: Option<String>,
+    /// Where it stands in its standard, for a set whose standard ranks them.
+    pub role: Option<Role>,
+    /// The i18n key of its display name.
+    pub title: String,
+    /// The i18n key of its line description.
+    pub description: String,
+}
+
+// --- external-identifiers.toml ---
+
+/// The parsed file: every external identifier.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ExternalIdentifierFile {
+    #[serde(default, rename = "identifier")]
+    pub(crate) identifiers: Vec<ExternalIdentifierEntry>,
+}
+
+/// One thing outside the platform, and what identifies it on each system.
+///
+/// An application, a binary or a configuration file (`NOCTUA.md §20.4`), with
+/// an entry's texts as a command carries them.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalIdentifierEntry {
+    /// Lower-case letters and digits, in words joined by single hyphens.
+    pub name: String,
+    /// The i18n key of its display name.
+    pub title: String,
+    /// The i18n key of its line description.
+    pub description: String,
+    /// The i18n key of its paragraph description.
+    pub paragraph: String,
+    /// The key of its tags, a list under `[tags]` in every locale.
+    pub tags: String,
+    /// The categories it is listed under, by name.
+    #[serde(default)]
+    pub categories: Vec<String>,
+    /// The glyph it is shown with, written `U+XXXX`.
+    pub glyph: Option<String>,
+    /// What identifies it on Linux, where it is identified there.
+    pub linux: Option<OnLinux>,
+    /// What identifies it on macOS, where it is identified there.
+    pub macos: Option<OnMacOs>,
+    /// What identifies it on Windows, where it is identified there.
+    pub windows: Option<OnWindows>,
+}
+
+/// What identifies an external identifier on Linux.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnLinux {
+    /// The names of the commands that start it, as `PATH` finds them.
+    #[serde(default)]
+    pub executables: Vec<String>,
+    /// The names of its desktop files.
+    #[serde(default)]
+    pub desktop_ids: Vec<String>,
+    /// Its Flatpak application identifiers.
+    #[serde(default)]
+    pub flatpak_ids: Vec<String>,
+    /// Its Snap package names.
+    #[serde(default)]
+    pub snap_names: Vec<String>,
+    /// The absolute paths it is installed at.
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+/// What identifies an external identifier on macOS.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnMacOs {
+    /// Its bundle identifiers, `CFBundleIdentifier`.
+    #[serde(default)]
+    pub bundle_ids: Vec<String>,
+    /// The absolute paths of its application bundles.
+    #[serde(default)]
+    pub app_paths: Vec<String>,
+    /// The names of the executables inside its bundle, `CFBundleExecutable`.
+    #[serde(default)]
+    pub executables: Vec<String>,
+}
+
+/// What identifies an external identifier on Windows.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OnWindows {
+    /// The names of its executables.
+    #[serde(default)]
+    pub executables: Vec<String>,
+    /// Its keys under the registry's `App Paths`.
+    #[serde(default)]
+    pub app_paths_keys: Vec<String>,
+    /// Where it is installed, each under a directory the system names.
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
 // --- capabilities.toml ---
 
 /// The parsed file: every capability, and every interface given without asking.
@@ -1515,7 +1690,7 @@ pub struct WikiText {
 
 #[cfg(test)]
 mod tests {
-    use super::{FieldType, Level, Reversibility};
+    use super::{FieldType, Level, Reversibility, Role};
 
     /// Every spelling this file hands to the generator is the spelling meant.
     ///
@@ -1548,6 +1723,22 @@ mod tests {
                 "`{variant:?}` generates a Rust variant spelled `{}`, which is not the \
                  name anything downstream can write",
                 variant.variant()
+            );
+        }
+
+        // A category's rank is written the way `catalog/categories.toml` and
+        // the Desktop Menu Specification write it, and published as written.
+        for role in [Role::Main, Role::Additional, Role::Reserved] {
+            let meant = match role {
+                Role::Main => "main",
+                Role::Additional => "additional",
+                Role::Reserved => "reserved",
+            };
+            assert_eq!(
+                role.word(),
+                meant,
+                "`{role:?}` is published as `{}`, which is not the word its registry writes",
+                role.word()
             );
         }
 
@@ -1696,6 +1887,13 @@ mod tests {
         .collect();
         let distinct: std::collections::BTreeSet<&&str> = levels.iter().collect();
         assert_eq!(distinct.len(), levels.len(), "{levels:?}");
+
+        let roles: Vec<&str> = [Role::Main, Role::Additional, Role::Reserved]
+            .into_iter()
+            .map(Role::word)
+            .collect();
+        let distinct: std::collections::BTreeSet<&&str> = roles.iter().collect();
+        assert_eq!(distinct.len(), roles.len(), "{roles:?}");
 
         // And the two tables beside them, which are ten rows each: a label
         // shared by two kinds is a generated page that cannot tell them apart,

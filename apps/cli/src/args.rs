@@ -3,7 +3,7 @@
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
 //! noctua [--json] start | stop | restart | status
-//! noctua help [<command.name> | <verb> | exit-codes]
+//! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
 //! ```
@@ -83,6 +83,14 @@ impl Control {
 /// The help topic that is the exit-code table, which needs no daemon.
 pub const EXIT_CODES: &str = "exit-codes";
 
+/// The help topic that is the categories registry, which needs no daemon: the
+/// catalog this binary was built with holds it.
+pub const CATEGORIES: &str = "categories";
+
+/// The help topic that is the external-identifiers registry, which needs no
+/// daemon for the reason the categories need none.
+pub const EXTERNAL_IDENTIFIERS: &str = "external-identifiers";
+
 /// What a command line asks, before any daemon is asked anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
@@ -118,6 +126,11 @@ pub enum Topic {
     Verbs,
     /// The exit codes.
     ExitCodes,
+    /// The categories registry: every set and every category in it.
+    Categories,
+    /// The external-identifiers registry: every entry, and what identifies it
+    /// on each system.
+    ExternalIdentifiers,
     /// One command, by its registered name.
     Command(String),
 }
@@ -228,11 +241,13 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
 }
 
 /// The topic help is asked about in `words`: nothing, one verb, one command's
-/// name, or the exit codes.
+/// name, the exit codes, or a registry the catalog holds.
 fn topic(words: &[String]) -> Result<Topic, Unread> {
     match words {
         [] => Ok(Topic::Everything),
         [word] if word == EXIT_CODES => Ok(Topic::ExitCodes),
+        [word] if word == CATEGORIES => Ok(Topic::Categories),
+        [word] if word == EXTERNAL_IDENTIFIERS => Ok(Topic::ExternalIdentifiers),
         [word] if VERBS.contains(&word.as_str()) => Ok(Topic::Verbs),
         [word] => named(word).map(Topic::Command),
         [_, extra, ..] => Err(unread(format!(
@@ -548,8 +563,8 @@ mod tests {
         );
     }
 
-    /// Help is asked by its verb or its option, about everything, the verbs,
-    /// the exit codes or one command, and nothing alone asks for everything.
+    /// Help is asked by its verb or its option, about one thing at a time,
+    /// and nothing alone asks for everything.
     #[test]
     fn help_is_asked_about_one_thing_at_a_time() {
         for (asked, topic) in [
@@ -559,6 +574,16 @@ mod tests {
             (&["help", "help"], Topic::Verbs),
             (&["help", "exit-codes"], Topic::ExitCodes),
             (&["--help", "exit-codes"], Topic::ExitCodes),
+            (&["help", "categories"], Topic::Categories),
+            (&["--json", "--help", "categories"], Topic::Categories),
+            (
+                &["help", "external-identifiers"],
+                Topic::ExternalIdentifiers,
+            ),
+            (
+                &["--json", "--help", "external-identifiers"],
+                Topic::ExternalIdentifiers,
+            ),
             (
                 &["help", "kernel.undo"],
                 Topic::Command("kernel.undo".to_owned()),
@@ -641,6 +666,42 @@ mod tests {
                 Asked::Command { .. }
             ));
         }
+    }
+
+    /// A registry's help topic is one undotted word, which no verb and no
+    /// registered name is — the catalog's, a plugin's, or any well-formed one —
+    /// so `help categories` is never read as help on a command.
+    #[test]
+    fn the_registry_topics_are_undotted_and_never_a_registered_name() {
+        let a_topic_of_its_own = |word: &str, topic: Topic| {
+            assert!(!word.contains('.'), "{word}");
+            assert!(!nc_schema::command_name_is_well_formed(word), "{word}");
+            assert!(!VERBS.contains(&word), "{word}");
+            assert_ne!(word, super::EXIT_CODES);
+            assert!(
+                nc_catalog::COMMANDS
+                    .iter()
+                    .all(|command| command.name != word),
+                "{word}"
+            );
+            assert!(
+                nc_plugin_reference::behaviour::commands()
+                    .iter()
+                    .all(|command| command.name != word),
+                "{word}"
+            );
+            assert_eq!(line(&["help", word]).asked, Asked::Help(topic), "{word}");
+            // A word that is not a topic is refused as the command name it
+            // is not, and never read as the nearest topic.
+            assert_eq!(
+                refused(&["help", &word.to_uppercase()]).code(),
+                ErrorCode::CliCommandLineUnreadable,
+                "{word}"
+            );
+        };
+        a_topic_of_its_own(super::CATEGORIES, Topic::Categories);
+        a_topic_of_its_own(super::EXTERNAL_IDENTIFIERS, Topic::ExternalIdentifiers);
+        assert_ne!(super::CATEGORIES, super::EXTERNAL_IDENTIFIERS);
     }
 
     /// The verbs are `help` and the four that control the daemon, each read
