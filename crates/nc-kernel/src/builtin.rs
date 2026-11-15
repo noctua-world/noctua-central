@@ -774,10 +774,11 @@ mod tests {
     /// The naming schemas' bounds are the ones a name's byte limit implies.
     ///
     /// A name is at most `MAX_BYTES` bytes and a character a byte at least, so
-    /// no part longer than that many characters fits, and a list item costs a
-    /// character and its joiner, so no more than half as many fit. Held here,
-    /// so a schema edited alone is a failure and not a bound that stopped
-    /// meaning anything; the identifier is as wide as base32 writes one.
+    /// no part longer than that many characters fits, and a list item kept in
+    /// the name costs a character and its joiner, so no more than half as many
+    /// are kept. Held here, so a schema edited alone is a failure and not a
+    /// bound that stopped meaning anything; the identifier is as wide as base32
+    /// writes one.
     #[test]
     fn the_naming_schemas_bounds_are_the_ones_a_names_byte_limit_implies() {
         let most = u64::try_from(nc_ids::naming::MAX_BYTES).expect("fits");

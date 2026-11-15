@@ -98,6 +98,6 @@ reviewed migration §14.4 asks for.
 
 While no realm outside development pins the pack, a permit it gains keeps its
 version: every realm that pins it is a development profile, and
-`cargo xtask dev` installs the world again on each run, so there is no realm
-for a raised version to migrate. `features.cedar` arrived that way, as
-`family@1`. The first realm a release installs ends that.
+`cargo xtask dev --install` installs the world again each time it runs, so
+there is no realm for a raised version to migrate. `features.cedar` arrived
+that way, as `family@1`. The first realm a release installs ends that.

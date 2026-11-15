@@ -150,11 +150,13 @@ args_schema = """
 #
 # The bounds: a name is at most 255 bytes, `nc_ids::naming::MAX_BYTES`, and a
 # character is a byte at least, so a signature part, a keyword, an extension or
-# a name longer than 255 characters can never fit; each list item costs a
-# character and its joiner, so 128 items are past any that fit. The title is
-# shortened by the builder to fit, so its bound only bounds the work. `id` is
-# the text of an identifier a file already carries — kept, so a renamed file is
-# still the same file — and without it the machine's one minter mints one.
+# a name longer than 255 characters can never fit. Each list item that survives
+# cleaning costs at least a character and its joiner, so no more than 127 such
+# items fit; an item that cleans to nothing costs nothing, so `maxItems` bounds
+# the work rather than promising a fit. The title is shortened by the builder
+# to fit, so its bound only bounds the work. `id` is the text of an identifier
+# a file already carries — kept, so a renamed file is still the same file —
+# and without it the machine's one minter mints one.
 [[command]]
 name = "naming.propose"
 title = "command.naming.propose.title"
