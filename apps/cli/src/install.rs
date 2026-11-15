@@ -26,8 +26,10 @@
 //! 5. **The device and the world**: the copied daemon's `--initialize`,
 //!    handed the world, makes the profile private, draws the device's seed
 //!    when the profile has none — never again — and copies the world in.
-//! 6. **The plugins**, each its manifest and its component, written into its
-//!    own private directory under the profile's plugins.
+//! 6. **The plugins**, each written into its own private directory under the
+//!    profile's plugins: every file `nc_channel::plugin_files` names — its
+//!    manifest, its command table and its texts in every locale, `i18n/` made
+//!    private — and its component.
 //! 7. **The restorer**, where the plan asks for one (`cargo xtask dev
 //!    --install` does): the daemon registered with this system's service
 //!    manager as `noctua-daemon --restored`, under the name the layout gives

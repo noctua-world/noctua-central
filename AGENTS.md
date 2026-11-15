@@ -2267,8 +2267,9 @@ header gives, the endpoint served, and a stop.
   a file a write left beside either is removed only once judged this user's alone; and a
   clean stop removes the record only where it names its own instance, and the token.
 - **A plugin is installed by its user and refused alone.** The plugins directory, each
-  plugin's directory, its manifest and its component are judged this user's alone before
-  they are read; one refused — by that judgement, its manifest or the kernel — is logged as
+  plugin's directory, its manifest, its entries (`commands.toml`, `i18n/` and each file of
+  it) and its component are judged this user's alone before they are read; one refused —
+  by that judgement, its manifest, its entries or the kernel — is logged as
   `daemon.plugin_refused` with its code and shown in the status with its sentence, and the
   daemon runs without it.
 - **The schedule is the catalog's, and a stuck pruner is escalated.** The pump runs every

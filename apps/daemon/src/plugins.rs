@@ -23,8 +23,8 @@
 //! the kernel's, at `activate`.
 //!
 //! **A plugin refused is logged and shown, never fatal.** Each is loaded on
-//! its own, in the order of its name: one whose directory, manifest or
-//! component is refused, or which the kernel does not load, is logged as
+//! its own, in the order of its name: one whose directory, manifest, entries
+//! or component is refused, or which the kernel does not load, is logged as
 //! `daemon.plugin_refused` with the code of what refused it and kept in the
 //! status with its sentence, and the daemon runs without it — the kernel and
 //! every other plugin are still the person's.
