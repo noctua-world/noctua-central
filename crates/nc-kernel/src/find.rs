@@ -491,6 +491,39 @@ mod tests {
         );
     }
 
+    /// A command found by its dotted name outranks one found by a tag.
+    ///
+    /// **The dotted name is weighed as a name**, as a display name is: the
+    /// word `zeta` lies in each command at a word start, at the same place in
+    /// a field of the same length, and only what that field is differs — the
+    /// one listed second has it in its dotted name, the first in a tag — so
+    /// the name comes first, and its word names no locale.
+    #[test]
+    fn a_command_found_by_its_dotted_name_outranks_one_found_by_a_tag() {
+        let listed = [
+            command("x.alpha", "Other", &["x zeta"], Owner::Kernel),
+            command("x.zeta", "Other", &["other"], Owner::Kernel),
+        ];
+        let answered = answer(&listed, &asking("zeta"));
+        assert_eq!(names(&answered), ["x.zeta", "x.alpha"], "{answered:?}");
+        let words: Vec<_> = list(&answered, "found")
+            .iter()
+            .map(|one| list(one, "words").iter().map(word).collect::<Vec<_>>())
+            .collect();
+        assert_eq!(
+            words,
+            [
+                [("name".to_owned(), None, "x.zeta".to_owned(), run(2, 6))],
+                [(
+                    "tag".to_owned(),
+                    Some("en".to_owned()),
+                    "x zeta".to_owned(),
+                    run(2, 6)
+                )],
+            ]
+        );
+    }
+
     /// The declared `kernel.find` is the one this module implements.
     ///
     /// **Both ways**, against `Command::arguments`, and the decision it is made

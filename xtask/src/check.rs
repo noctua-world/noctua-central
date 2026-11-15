@@ -19603,7 +19603,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
-        ("nc-kernel/find.rs", 34, 2),
+        ("nc-kernel/find.rs", 35, 2),
         ("nc-kernel/history.rs", 48, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
@@ -25553,7 +25553,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19168;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19170;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25623,7 +25623,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 25823;
+    const THE_REARRANGEMENTS_JUDGED: usize = 25828;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25677,7 +25677,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 25,823 are accepted by the first-line
+    /// rules the gates apply: **518 of 25,828 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37605,7 +37605,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2303] = [
+    static OPERATORS: [(&str, &str, &str); 2304] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42781,6 +42781,7 @@ Options:
             "a tag is labelled with the locale it was read in",
         ),
         ("kernel_find", "role", "a tag is weighed below a name"),
+        ("kernel_find", "role", "a dotted name is weighed as a name"),
         ("kernel_find", "word", "a display name is answered as one"),
         (
             "kernel_find",
