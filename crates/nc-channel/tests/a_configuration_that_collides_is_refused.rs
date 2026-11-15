@@ -16,7 +16,7 @@ use nc_catalog::ErrorCode;
 use nc_channel::found::{self, Found};
 use nc_channel::keys::{self, CHANNELS_MAX, Configuration, Effective, KeysRefused, Part};
 use nc_channel::{Bases, Channel, Checkout, Install, Namespace, layout};
-use nc_schema::keys::{Binding, Chord, LeaderPart, LeaderRule, Modifier};
+use nc_schema::keys::{Binding, Chord, Leader, LeaderPart, LeaderRule, Modifier, Warning};
 
 /// The namespace every install of this suite is relocated under.
 const HERE: &str = "k7";
@@ -288,6 +288,90 @@ fn no_file_is_the_defaults() {
     assert!(effective.refused.is_empty(), "{effective:?}");
 }
 
+/// The warnings are those of the keys in force.
+///
+/// A configured Leader part that is accepted is warned of, with every binding
+/// pressed with it; one that is refused is not, and the warnings of the
+/// default it reverts to stand in its place.
+#[test]
+fn the_warnings_are_those_of_the_keys_in_force() {
+    let scratch = Scratch::new("warned");
+    let staging = scratch.installed(Channel::Staging, HERE);
+    let default = LeaderPart {
+        leader: Channel::Staging.leader(),
+        chord: Modifier::Shift,
+    };
+    let warned = |effective: &Effective| -> Vec<Warning> {
+        effective
+            .warnings
+            .iter()
+            .map(|warning| warning.warning)
+            .collect()
+    };
+    // **Windows keeps both chords this presses** (`SYSTEM_SHORTCUTS`): the
+    // Leader itself, and its modifiers held with `Digit1`.
+    scratch.configure(
+        Channel::Staging,
+        HERE,
+        r#"{"bindings":{"kernel.undo":["Leader+Digit1"]},"format":1,"leader":"Control+Super+Space"}"#,
+    );
+    let accepted = keys::effective(&staging);
+    assert_the_leader(&accepted, "Control+Super+Space");
+    assert_eq!(
+        warned(&accepted),
+        nc_schema::keys::warnings(accepted.part(), &accepted.tables)
+    );
+    assert_ne!(
+        warned(&accepted),
+        nc_schema::keys::warnings(default, &accepted.tables)
+    );
+    assert!(
+        accepted
+            .warnings
+            .iter()
+            .all(|warning| warning.part == accepted.part()),
+        "{accepted:?}"
+    );
+    assert!(
+        warned(&accepted).iter().any(|warning| matches!(
+            warning,
+            Warning::TheSystemUses { binding: None, shortcut } if shortcut.system == "Windows"
+        )),
+        "{accepted:?}"
+    );
+    assert!(
+        warned(&accepted).iter().any(|warning| matches!(
+            warning,
+            Warning::TheSystemUses { binding: Some(held), .. } if *held == binding("Leader+Digit1")
+        )),
+        "{accepted:?}"
+    );
+    // **Refused, it raises nothing**, though Windows keeps it too: what is
+    // pressed is the default.
+    scratch.configure(Channel::Staging, HERE, &leader_of("Shift+Super+Space"));
+    let refused = keys::effective(&staging);
+    assert_the_leader_refused(&refused, LeaderRule::HoldsTheChordModifier, None);
+    let configured = LeaderPart {
+        leader: Leader::of(chord("Shift+Super+Space")).expect("a Leader"),
+        chord: Modifier::Shift,
+    };
+    assert_eq!(
+        warned(&refused),
+        nc_schema::keys::warnings(default, &refused.tables)
+    );
+    assert_ne!(
+        warned(&refused),
+        nc_schema::keys::warnings(configured, &refused.tables)
+    );
+    assert!(
+        refused
+            .warnings
+            .iter()
+            .all(|warning| warning.part == default),
+        "{refused:?}"
+    );
+}
+
 /// A configuration overrides the catalog's bindings and the Leader in its own
 /// channel alone.
 ///
@@ -482,6 +566,31 @@ fn each_rule_a_leader_breaks_is_refused_with_its_own_code() {
     assert!(effective.refused.is_empty(), "{effective:?}");
     assert_eq!(effective.leader.chord(), chord("Control+Alt+F12"));
     assert_eq!(effective.chord, Modifier::Super);
+    // **The rule that needs no other channel is judged before any is read**:
+    // beside a file this build cannot judge, a part that breaks it is still
+    // refused for that, and one that keeps it is refused for the file.
+    scratch.configure(
+        Channel::Production,
+        HERE,
+        r#"{"format":2,"leader":"Control+Super+Space"}"#,
+    );
+    for text in [
+        r#"{"chord":"Control","format":1}"#,
+        r#"{"format":1,"leader":"Alt+Shift+Space"}"#,
+    ] {
+        scratch.configure(Channel::Staging, HERE, text);
+        assert_the_leader_refused(
+            &keys::effective(&staging),
+            LeaderRule::HoldsTheChordModifier,
+            None,
+        );
+    }
+    scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+F12"));
+    let unjudged = keys::effective(&staging);
+    assert_eq!(
+        the_refusal(&unjudged, ErrorCode::ChannelKeybindingsUnjudged).part(),
+        Part::Leader
+    );
 }
 
 /// A channel is judged against the Leaders settled before it and the defaults
@@ -883,6 +992,15 @@ fn checkouts_past_their_bound_or_a_base_that_will_not_list_refuse_the_configured
             .contains(&format!("more than {CHANNELS_MAX} development checkouts")),
         "{refused:?}"
     );
+    // **Rule 1 before the checkouts are listed**: a part that breaks it is
+    // refused for that, past the bound too.
+    scratch.configure(Channel::Staging, HERE, r#"{"chord":"Control","format":1}"#);
+    assert_the_leader_refused(
+        &keys::effective(&staging),
+        LeaderRule::HoldsTheChordModifier,
+        None,
+    );
+    scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+F12"));
     std::fs::remove_dir(&one_more.state).expect("the leftover is removed");
     assert_the_leader(&keys::effective(&staging), "Control+Alt+F12");
 

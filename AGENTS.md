@@ -3007,7 +3007,8 @@ catalog's bindings — which are apart across channels by construction, and the 
 stands. A refusal repeats at most 64 characters of the file, each character that ends a
 line or a field written as its code point, and the CLI escapes every text it prints. A
 chord a system keeps, and a held key that is the Leader's own, are warned of and kept
-(`NC-CHAN-0018`, `NC-CHAN-0019`).
+(`NC-CHAN-0018`, `NC-CHAN-0019`), over the keys in force: a refused part's choice raises
+nothing, and the default that stands in its place is warned of instead.
 
 **Other channels are read, never written.** A configured Leader is judged against the
 channels installed under this install's own bases and namespace: production and staging
@@ -3017,7 +3018,9 @@ other, so a test's install never reads a real one's — each only while its inst
 manifest is there. They are settled in one order, production, staging, then the checkouts
 by digest, a configured Leader against the Leaders settled before it and the defaults
 after it, so production reads no other channel's file and no channel reads one after it.
-A file before it that its own reader would refuse is that channel's defaults; one this
+A Leader holding no modifier or its own chord modifier is refused for that before any
+other channel is listed or read, so what another channel's file says never changes that
+refusal. A file before it that its own reader would refuse is that channel's defaults; one this
 build cannot judge — of a later format, or one the disk did not answer for — and a state
 base that will not list or holds more than `CHANNELS_MAX` checkouts refuse the configured
 Leader rather than guess (`NC-CHAN-0017`). Nothing of another channel is written, locked or
@@ -3029,11 +3032,12 @@ command's name, and carries no argument: what it runs is a dispatch the decision
 holds as it holds any, so a forged file reaches nothing the command list could not.
 
 **Enforced by** `crates/nc-channel/tests/a_configuration_that_collides_is_refused.rs`,
-every install in it a scratch's relocated under a namespace — no file is the defaults; a
-configuration overrides the catalog's bindings in its own channel alone; two checkouts
+every install in it a scratch's relocated under a namespace — no file is the defaults; the
+warnings are those of the keys in force; a configuration overrides the catalog's bindings in its own channel alone; two checkouts
 share the development Leader until one is configured, and the collision is refused;
 production keeps its Leader when a checkout configures the same; each rule a Leader breaks
-is refused with its own code; a channel is judged against the Leaders before it and the
+is refused with its own code, the rule that needs no other channel even beside a file this
+build cannot judge or past the checkouts' bound; a channel is judged against the Leaders before it and the
 defaults after it, and a file after it is never read; an uninstalled channel binds
 nothing; a file and a directory another account can reach, and a link to either, are
 refused and left as they were; every way a file is malformed is refused whole, naming what
