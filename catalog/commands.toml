@@ -38,8 +38,8 @@
 # one format.
 #
 # Keybindings, optional, are a list, `keybindings = [...]`, each in the Leader's
-# grammar (`§12.8`), which `nc_schema::keys` reads for the compiler and for a
-# person's configuration alike: `Leader <key>` for a key in the leader menu,
+# grammar (`§12.8`), the one `nc_schema::keys` holds every reader of a binding
+# to: `Leader <key>` for a key in the leader menu,
 # `Leader+<key>` for one pressed with the Leader held, and `Leader+Chord+<key>`
 # for one pressed with the chord modifier held as well, the key named as
 # `KeyboardEvent.code` names it — `Leader+Chord+KeyQ`. Any other spelling fails
