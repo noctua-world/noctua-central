@@ -8075,6 +8075,11 @@ WEAKENINGS = [
     ("channel_keys", "code", "a Leader shared with another channel has a code of its own",
      "                LeaderRule::SharedWithAnother => ErrorCode::ChannelLeaderOfAnotherChannel,",
      "                LeaderRule::SharedWithAnother => ErrorCode::ChannelLeaderHeldWithTheChordIsAnothers,"),
+    # A warning carries the code a log is queried by and help heads it with:
+    # a chord a system keeps and a key no hand presses are told apart.
+    ("channel_keys", "KeysWarning", "a system's chord and an unpressable key are warned of with codes of their own",
+     "            Warning::TheSystemUses { .. } => ErrorCode::ChannelKeyTheSystemUses,\n            Warning::Unpressable { .. } => ErrorCode::ChannelKeyUnpressable,",
+     "            Warning::TheSystemUses { .. } => ErrorCode::ChannelKeyUnpressable,\n            Warning::Unpressable { .. } => ErrorCode::ChannelKeyTheSystemUses,"),
     ("channel_keys", "part", "a key bound twice refuses the bindings part alone",
      "            Self::KeyBoundTwice(_) => Part::Bindings,",
      "            Self::KeyBoundTwice(_) => Part::Leader,"),

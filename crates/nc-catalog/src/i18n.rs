@@ -2280,8 +2280,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.channel.keybindings-unjudged",
         [
-            "Noctua could not read another installation's shortcut settings to check that your Leader does not clash with them, so it kept this installation's standard Leader.",
-            "O Noctua não conseguiu ler as configurações de atalhos de outra instalação para conferir que o seu Leader não conflita com elas, então manteve o Leader padrão desta instalação.",
+            "Noctua could not read another installation's shortcut settings to check that your Leader and the key added to it do not clash with them, so it kept this installation's standard Leader and added key.",
+            "O Noctua não conseguiu ler as configurações de atalhos de outra instalação para conferir que o seu Leader e a tecla acrescentada a ele não conflitam com elas, então manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
         ],
     ),
     (
@@ -2294,29 +2294,29 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.channel.leader-held-with-the-chord-is-anothers",
         [
-            "The Leader you chose and the Leader of another Noctua installation on this computer become one shortcut when either is pressed with the key added to it, so Noctua kept this installation's standard Leader.",
-            "O Leader que você escolheu e o Leader de outra instalação do Noctua neste computador viram um só atalho quando um deles é pressionado com a tecla acrescentada a ele, então o Noctua manteve o Leader padrão desta instalação.",
+            "The Leader and the key added to it, as your settings leave them, and those of another Noctua installation on this computer become one shortcut when either Leader is pressed with its added key, so Noctua kept this installation's standard Leader and added key.",
+            "O Leader e a tecla acrescentada a ele, como suas configurações os deixam, e os de outra instalação do Noctua neste computador viram um só atalho quando um dos Leaders é pressionado com a tecla acrescentada a ele, então o Noctua manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
         ],
     ),
     (
         "error.channel.leader-holds-the-chord-modifier",
         [
-            "The Leader you chose already holds the key you chose to add to it, so the two would be one shortcut. Noctua kept this installation's standard Leader.",
-            "O Leader que você escolheu já inclui a tecla que você escolheu acrescentar a ele, então os dois seriam um atalho só. O Noctua manteve o Leader padrão desta instalação.",
+            "The Leader and the key added to it, as your settings leave them, would be one shortcut, because the Leader already holds that key. Noctua kept this installation's standard Leader and added key.",
+            "O Leader e a tecla acrescentada a ele, como suas configurações os deixam, seriam um atalho só, porque o Leader já inclui essa tecla. O Noctua manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
         ],
     ),
     (
         "error.channel.leader-of-another-channel",
         [
-            "The Leader you chose is already the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader.",
-            "O Leader que você escolheu já é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação.",
+            "The Leader, as your settings leave it, is already the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader and added key.",
+            "O Leader, como suas configurações o deixam, já é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
         ],
     ),
     (
         "error.channel.leader-without-a-modifier",
         [
-            "The Leader you chose is a single key with nothing held with it, so it would take that key from every program. Noctua kept this installation's standard Leader.",
-            "O Leader que você escolheu é uma tecla sozinha, sem nada pressionado junto, então tiraria essa tecla de todos os programas. O Noctua manteve o Leader padrão desta instalação.",
+            "The Leader you chose is a single key with nothing held with it, so it would take that key from every program. Noctua kept this installation's standard Leader and added key.",
+            "O Leader que você escolheu é uma tecla sozinha, sem nada pressionado junto, então tiraria essa tecla de todos os programas. O Noctua manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
         ],
     ),
     (

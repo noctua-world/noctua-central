@@ -3267,11 +3267,13 @@ holds as it holds any, so a forged file reaches nothing the command list could n
 
 **Enforced by** `crates/nc-channel/tests/a_configuration_that_collides_is_refused.rs`,
 every install in it a scratch's relocated under a namespace — no file is the defaults; the
-warnings are those of the keys in force; a configuration overrides the catalog's bindings in its own channel alone; two checkouts
+warnings are those of the keys in force, each with its own code; a configuration overrides the catalog's bindings in its own channel alone; two checkouts
 share the development Leader until one is configured, and the collision is refused;
 production keeps its Leader when a checkout configures the same; each rule a Leader breaks
 is refused with its own code, the rule that needs no other channel even beside a file this
-build cannot judge or past the checkouts' bound; a channel is judged against the Leaders before it and the
+build cannot judge or past the checkouts' bound; a chord modifier configured alone and
+refused keeps both defaults, the refusal naming the part it judged, and no locale's
+sentence says a Leader was chosen; a channel is judged against the Leaders before it and the
 defaults after it, and a file after it is never read; an uninstalled channel binds
 nothing; a file and a directory another account can reach, and a link to either, are
 refused and left as they were; every way a file is malformed is refused whole, naming what

@@ -371,9 +371,9 @@ pub enum KeysRefused {
     Unreadable(String),
     /// The configured Leader part breaks `rule`: alone, or against `by`.
     Leader {
-        /// The chord configured as the Leader.
+        /// The part's Leader: the one configured, or the channel's default.
         leader: Chord,
-        /// The chord modifier it is held with.
+        /// The part's chord modifier: the one configured, or the default.
         chord: Modifier,
         /// The rule it breaks.
         rule: LeaderRule,
@@ -442,9 +442,12 @@ impl fmt::Display for KeysRefused {
                 rule,
                 by,
             } => {
+                // **The part, never a Leader chosen**: a file naming its chord
+                // modifier alone is weighed with the default Leader, which is
+                // then the Leader named here.
                 write!(
                     formatter,
-                    "the configured Leader `{leader}`, with `{}` as its chord modifier, is \
+                    "the configured Leader part (Leader `{leader}`, chord modifier `{}`) is \
                      refused: {rule}",
                     chord.word()
                 )?;
@@ -463,13 +466,13 @@ impl fmt::Display for KeysRefused {
             }
             Self::Unjudged(why) => write!(
                 formatter,
-                "the configured Leader is refused, because {why}, so it could not be judged \
-                 against that channel's"
+                "the configured Leader part is refused, because {why}, so it could not be \
+                 judged against that channel's"
             )?,
         }
         formatter.write_str(match self.part() {
             Part::Whole => ", and the channel's defaults stand",
-            Part::Leader => ", and the channel's default Leader stands",
+            Part::Leader => ", and the channel's default Leader and chord modifier stand",
             Part::Bindings => ", and the catalog's bindings stand",
         })
     }

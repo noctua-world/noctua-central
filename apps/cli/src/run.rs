@@ -455,7 +455,7 @@ mod tests {
             for said in [
                 "no two channels share a Leader",
                 "it meets production's",
-                "the channel's default Leader stands",
+                "the channel's default Leader and chord modifier stand",
                 "`kernel.undo` and `kernel.redo` are both bound to `Leader+KeyZ`",
                 "the catalog's bindings stand",
                 "The Leader, the channel's default,",
