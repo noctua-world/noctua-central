@@ -34515,25 +34515,28 @@ mod the_meta_gate {
         (
             "apps/daemon/tests/serves_its_kernel.rs",
             "a suite: a real daemon process serving its registry, its status, \
-             journaled dispatches and its schedule, refusing a second daemon, \
-             holding none of its spawner's handles and stopping. It spawns a \
-             process, so no mutation command runs it: what it drives in `server.rs`, \
-             `schedule.rs`, `plugins.rs`, `pidfile.rs` and `environment.rs` is \
-             decided by those modules' unit tests, which the runner's commands for \
-             them run, and a weakening of this file would remove evidence rather \
-             than uncover an undecided clause",
+             journaled dispatches and its schedule, showing a plugin refused for \
+             its entries, refusing a second daemon, holding none of its spawner's \
+             handles and stopping. It spawns a process, so no mutation command runs \
+             it: what it drives in `server.rs`, `schedule.rs`, `plugins.rs`, \
+             `pidfile.rs`, `environment.rs`, the kernel's `registry.rs` and \
+             `entries.rs` and `nc-schema`'s `entry.rs` is decided by those modules' \
+             unit tests, which the runner's commands for them run, and a weakening \
+             of this file would remove evidence rather than uncover an undecided \
+             clause",
         ),
         (
             "apps/daemon/tests/every_command_from_the_cli.rs",
             "a suite: a real daemon process asked every command the catalog \
              declares and every command of the reference plugin through the CLI \
              in-process, each found in the journal, and help read from its \
-             registry. It spawns a process, so no mutation command runs it: what it \
-             drives in the CLI's modules, `server.rs`, the kernel's `builtin.rs` \
-             and `find.rs` and `nc-authz`'s world reader is decided by their own \
-             unit tests, which the runner's commands for them run, and a weakening \
-             of this file would remove evidence rather than uncover an undecided \
-             clause",
+             registry in both languages, a plugin's command shown by its own \
+             entries. It spawns a process, so no mutation command runs it: what it \
+             drives in the CLI's modules, `server.rs`, the kernel's `builtin.rs`, \
+             `find.rs`, `registry.rs` and `entries.rs`, `nc-schema`'s `entry.rs` \
+             and `nc-authz`'s world reader is decided by their own unit tests, \
+             which the runner's commands for them run, and a weakening of this file \
+             would remove evidence rather than uncover an undecided clause",
         ),
         (
             "apps/daemon/tests/exit_codes.rs",
