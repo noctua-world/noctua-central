@@ -2294,8 +2294,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.channel.leader-held-with-the-chord-is-anothers",
         [
-            "The Leader you chose, pressed with the key added to it, is the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader.",
-            "O Leader que você escolheu, pressionado com a tecla acrescentada a ele, é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação.",
+            "The Leader you chose and the Leader of another Noctua installation on this computer become one shortcut when either is pressed with the key added to it, so Noctua kept this installation's standard Leader.",
+            "O Leader que você escolheu e o Leader de outra instalação do Noctua neste computador viram um só atalho quando um deles é pressionado com a tecla acrescentada a ele, então o Noctua manteve o Leader padrão desta instalação.",
         ],
     ),
     (

@@ -1386,7 +1386,7 @@ fn a_sets_categories(
                 category
                     .standard_name
                     .as_deref()
-                    .map_or_else(|| "—".to_owned(), |name| format!("`{}`", cell(name))),
+                    .map_or_else(|| "—".to_owned(), code),
             );
         }
         if ranked {

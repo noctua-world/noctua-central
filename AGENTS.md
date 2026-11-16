@@ -455,9 +455,9 @@ fails a gate a minute or two later.
 | a local migration | `local-migrations/NNNN_*.sql` + `catalog/limits.toml` + `crates/nc-local/src/schema.rs` | SQLite, never in `migrations/`; its tables are bounded like the server's, with `database = "local"` in the entry. The file is a row of `LOCAL_MIGRATIONS_ON_DISK` with the SHA-384 `sqlx` keeps for it, and **a migration a build has carried is never edited**, a comment included — every file that build made records the checksum and is refused at every open once it differs (`NC-DB-0007`) — so a change is a new migration, and a rewrite before any release is an edit of the pin, which `check` holds each file to. Every object it builds is a row of `nc_local::schema::EXPECTED` with the BLAKE3 of the SQL SQLite stores for it and the migration that builds it (`since`): `cargo test -p nc-local` fails printing each digest until the list is updated, and `check` builds a scratch file one migration at a time and holds each step to the list, because the crate judges a file one migration behind by what its own history built. To the gate a trigger's `BEGIN … END` body is one statement, and SQLite's `[name]` and `` `name` `` are names as `"name"` is. `CREATE VIRTUAL TABLE` is refused — its rows live in shadow tables no entry can bound — and so is every statement invariant 18 lists, anywhere in the sources `WRITERS` in `xtask/src/local.rs` names: every member whose manifest takes SQLite (`sqlx` with a `sqlite` or `any` feature, or a crate that hands the file over), read whole or named in `NOT_READ` with its reason (`every_member_that_opens_the_local_database_is_read_or_named`), a SQL comment inside a string read as the gap SQLite reads it as. So is a migrator built when the store runs, which would migrate the user's file with whatever SQL sits in the daemon's working directory: `sqlx::migrate!` of this directory is the one migrator. Then **touch `crates/nc-local/src/store.rs`**: `sqlx::migrate!` embeds the directory when the crate compiles and, on stable Rust, does not tell cargo it read it, so a new file is not in the build until a source changes — `the_embedded_migrations_are_the_ones_on_disk` fails naming both lists until then. And the tests that put a file one migration behind name the newest migration's table and number — `one_migration_behind` and `what_the_file_holds` in `crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs` — while the gate's own tests in `xtask/src/local.rs` count the shipped migrations and plant one numbered past the newest |
 | a crate | `crates/<name>/` | more than the `members` glob suggests. The manifest takes `[lints]` with `workspace = true` and `version.workspace = true`, a crate with a `tests/` suite depends on itself under `[dev-dependencies]` or rustdoc cannot resolve the suite's `use`, and the crate root denies printing. Then `cargo test -p xtask --bin xtask` fails naming each list the crate has to join — the error-code scope (`JUDGED_BY_THE_ERROR_CODE_RULE` or `OUTSIDE_THE_ERROR_CODE_SCOPE`), the mutation census (`SOURCES` in `xtask/mutants.py`, or `NOT_MUTATED`), `SUITES`, `DOCUMENTED` and the source-count pins. Three lists in `xtask/src/gates.rs` are joined by hand, because nothing holds them to the crates: `JUDGED_BY_THE_RAISING_RULE`, `READ_BY_THE_HATCH_WALK` and `COVERED` — a crate taken out of all three leaves that command green |
 | a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that — one that starts a process through its crate's test doors, a `.spawn()` with nothing in its parentheses, included — but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
-| a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml`, its entries — `commands.toml` and `i18n/<locale>.toml` for every locale — and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
+| a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml`, its entries — `commands.toml` and `i18n/<locale>.toml` for every locale — and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it — and `nc-guest` under `[target.'cfg(target_arch = "wasm32")'.dependencies]` when only the adapter names it, since a host build carrying a dependency nothing it compiles uses is a cargo warning the check would print. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
-| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md`, what help says of the command a block of `docs/cli.md` in each locale, and its tool, by `nc_schema::entry::as_tool`, a block of `docs/mcp-tools.md` |
+| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm` or `Feature`, which `realm` and `feature:<id>` alone do; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md`, what help says of the command a block of `docs/cli.md` in each locale, and its tool, by `nc_schema::entry::as_tool`, a block of `docs/mcp-tools.md` |
 | a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads, the one grammar every reader of a binding is held to, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds, and `docs/keybindings.md` lists every binding by its table and key with the display names of the command it runs. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and raises `nc_channel::keys::FORMAT`, because an older reader of a person's configuration refuses a file naming it and another channel's reader must know it cannot judge one; a person's own choice overrides the catalog's in their channel's configuration directory, `<config>/keybindings.json`, which `nc_channel::keys` reads beside the other channels' and `noctua help keybindings` shows, each refusal with its `NC-CHAN` code; and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
@@ -919,7 +919,7 @@ entry owns.
 | A way around the decision point | `commands.dispatch` is the one door, and a nested dispatch runs as its tree's principal | the same entry |
 | A forged principal, confirmation or approval | `context` is read-only; a confirmation and an approval are the kernel's alone, bound to one dispatch — its command by the plugin that holds it — and one whole principal, used once and only on a dispatch the kernel decided, short-lived and never inherited | the same entry, and "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A command declared in another plugin's name | a namespace one loaded plugin holds, and the ones the kernel keeps | "A plugin is loaded with the commands it may have, and only those" |
-| A person's permit for a feature of the platform borrowed by a plugin, a file's name that is a path, or a caller's text turned into a logged identifier | `feature:` refused in a plugin's declaration at `activate`; one builder and one parser, every name one path component; and the kernel handed text only | "A file's name is proposed and read by one function, decided and journaled like any command" |
+| A person's permit for a feature of the platform borrowed by a plugin, a file's name that is a path, or a caller's text turned into a logged identifier | `feature:` refused in a plugin's declaration at `activate`, and an argument naming `Feature` refused in every declaration; one builder and one parser, every name one path component; and the kernel handed text only | "A file's name is proposed and read by one function, decided and journaled like any command" |
 | A keybinding that reaches what the command list could not, or reads two ways | a binding is a key of a closed set in one of three tables, written one way and resolved to a command's name, which dispatch holds as it holds any | "A keybinding is one of three forms, written one way, and names one key and one command" |
 | Another account choosing a person's keys, or one channel's choice taking another's Leader | the file and its directory judged private before they are read, a bounded closed shape read by the one grammar, each part refused apart to its defaults, and the other channels' files read in one order and never written | "A person's keybindings are read only when private, refused part by part, and bind nothing but command names" |
 | A query that costs the daemon unbounded work | a query bounded by its schema and by the core alike, every field read to its bound, the registry's lock let go before anything is matched, and an answer cut to its limit, whose widest fits one frame | "A command is found by its names and tags in bounded work, decided and journaled like any command", and "A query is matched in bounded work, and an item's text is read up to its bound" |
@@ -978,8 +978,9 @@ not loaded (the rules are `crates/nc-kernel/src/registry.rs`'s header). Each is 
 the judge every built-in is held to (`crates/nc-schema`): an action the decision point's
 schema declares, a resource type that action applies to, the whole realm selected only
 by a command that reads it, since a permit for a realm-wide change would authorize every
-plugin's, and never a feature of the platform (`[NC-PLUG-0009]`), whose permit is a
-person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
+plugin's, and never a feature of the platform — not by `feature:`, and not through an
+argument naming `Feature`, which the judge refuses in every declaration (`[NC-PLUG-0009]`)
+— whose permit is a person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
 one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`), declared once, and
 matches the catalog where the
 catalog describes it. Each of its own is shown by its entry, a row of the plugin's
@@ -1029,7 +1030,8 @@ shown before it is judged:
 - **A plugin cannot describe what is not its own, nor pose as the kernel.** A row for a
   command the catalog describes is refused, and so is a display name a command of the
   catalog is shown by, in any locale the catalog shows it in, compared as the untranslated
-  rule compares sentences.
+  rule compares sentences. Two commands of one plugin shown by one display name in a
+  locale are refused too, naming both.
 - **The component and its directory say one thing.** The title a command declares is its
   English display name, or the plugin is refused.
 - **One plugin's texts take at most half a frame.** The compiler holds
@@ -1062,7 +1064,10 @@ operators over those sources.
 
 **Not answered:** whether a plugin's texts are true or its translations faithful beyond not
 being the English again; display names that differ only by look-alike characters, which
-needs the confusable folding `BLANK_RANGES` says `nc-schema` does not carry; that the
+needs the confusable folding `BLANK_RANGES` says `nc-schema` does not carry; commands of two
+plugins shown by one display name, which one plugin installed under two namespaces is, its
+one set of entries serving both — only a catalog command's name, and one its own plugin
+shows, are refused; that the
 whole registry answer fits a frame, its commands' categories and glyphs included, which no
 share of it counts (under **What is deliberately not claimed**); and that a glyph renders on
 a surface.
@@ -1442,9 +1447,11 @@ says what each takes and answers):
   slice. The handler — and so the minting — runs only after the decision allowed it, so a
   denied proposal spends no identifier.
 - **The entity always means naming.** Only a command of the kernel's own selects a
-  feature: a plugin declaring `feature:` is refused at `activate` (`[NC-PLUG-0009]`), so a
-  plugin cannot borrow the permit, and a journal entry naming `Feature::"naming"` is a
-  naming command.
+  feature: a plugin declaring `feature:` is refused at `activate`, and an argument naming
+  `Feature` is refused in every declaration by the judge the catalog's commands and a
+  plugin's are held to (`[NC-PLUG-0009]` for a plugin), so no caller chooses which
+  feature decides a command, a plugin cannot borrow the permit, and a journal entry naming
+  `Feature::"naming"` is a naming command.
 - **A person's text stays out of the chain and the log.** Titles and keywords are
   arguments, which no entry records: the entry holds the command and the entity. The kernel
   never turns caller text into an identifier: a kept `id` is read in `nc-ids`, which
@@ -1470,7 +1477,9 @@ name reads back as the fields that built it, a kept identifier in its canonical 
 kind, code and word, `crates/nc-kernel/tests/the_decision_point.rs` over the real pack and
 world — every person answered, a frozen account, a device and an agent refused, a rename
 keeping its identifier, a plugin's nested proposal, a minter that mints nothing — the
-registry's and `crates/nc-kernel/tests/activation.rs`' refusal of a plugin's `feature:`,
+registry's and `crates/nc-kernel/tests/activation.rs`' refusal of a plugin's `feature:`
+and of an argument naming `Feature`, the selector's own refusal of that argument in
+`crates/nc-schema/src/selector.rs`,
 `policy/packs/family/tests/features.toml`, and `apps/daemon/tests/every_command_from_the_cli.rs`,
 through the CLI and over the endpoint as one JSON dispatch.
 
@@ -2339,7 +2348,10 @@ header gives, the endpoint served, and a stop.
   it) and its component are judged this user's alone before they are read; one refused —
   by that judgement, its manifest, its entries or the kernel — is logged as
   `daemon.plugin_refused` with its code and shown in the status with its sentence, and the
-  daemon runs without it.
+  daemon runs without it. What the status keeps of that sentence is its opening, at most
+  `nc_daemon::plugins::REFUSAL_BYTES_MAX` bytes cut on a character and ended with `…`,
+  whoever refused it, so one plugin's files cannot take the status past a frame and
+  `noctua status` away with it.
 - **The schedule is the catalog's, and a stuck pruner is escalated.** The pump runs every
   `pump_every_ms` and the blob sweep every `sweep_every_ms`, between call trees, each to
   its end before the next is waited for; a run of pumps whose pruning was refused is logged
@@ -2386,7 +2398,9 @@ with no proof, a proof keyed by another token and nothing at all, each turned aw
 code, each logged once, a dispatch sent after each never read, the journal empty afterwards
 and the daemon still answering a client that proves itself — by
 `apps/daemon/tests/serves_its_kernel.rs` — the registry held both ways to the catalog's
-commands with the reference plugin's beside them, a plugin refused shown and logged, every
+commands with the reference plugin's beside them, a plugin refused shown and logged, one
+refused for an entries file of malformed rows at its bound shown in a status that still
+answers within a frame, every
 dispatch found in the journal with the outcome it was answered with, as the world's person
 and with the grant and the epoch the world names, the pump on its schedule and the sweep
 once, a second daemon refused with the first still answering, a stop that ends with exit 0
@@ -2860,16 +2874,20 @@ one table of at most the product of the two bounds, which the `Matcher` keeps an
 The matcher is a pure function of what it is handed: no I/O, no regular expression, no
 `unsafe`, no system `cfg`, and no panic on any character. Its score is packed into widths
 derived in `const` from the same bounds and kept below `2^53`, so a JSON client reads it
-exactly and no count of word starts lifts a match past a higher tier.
+exactly and no count of word starts lifts a match past a higher tier. The scattered
+alignment's table weighs one word start past every count of adjacent pairs and one pair past
+every earliness, each weight derived from the bound it must clear.
 
 **Enforced by** the bounds in `crates/nc-fuzzy/src/lib.rs` and the `const` assertions in
 `crates/nc-fuzzy/src/score.rs`; the unit tests beside them —
 `a_query_longer_than_its_bound_is_refused`, `a_field_is_read_to_its_bound`,
 `a_field_cut_at_its_bound_is_never_matched_whole`,
-`the_widest_score_a_query_can_reach_is_a_safe_json_integer`; and
+`the_widest_score_a_query_can_reach_is_a_safe_json_integer`, and, in
+`crates/nc-fuzzy/src/align.rs`, `an_adjacent_pair_outweighs_any_earliness` and
+`a_word_start_outweighs_any_count_of_pairs`, over fields of real length; and
 `crates/nc-fuzzy/tests/properties.rs`, whose laws run over arbitrary characters and
 fields past the bound (`no_text_and_no_query_makes_the_matcher_panic`) and whose last law
-holds every alignment chosen to an exhaustive search.
+holds the alignments of fields up to ten characters to an exhaustive search.
 
 **Not answered:** how many items a caller hands it — a list of a million costs a million
 matches, and a surface that matches a registry bounds the list and its answer itself, as
@@ -3027,8 +3045,9 @@ no placeholder, and is bounded in characters: a display name 64, a line one term
 in bytes by `[kernel] entry_bytes`, each tag counted with the quotation marks and the comma it
 is listed in, the bound a plugin's are held to. A tag holds no brace
 at all, and no comma,
-which a list of tags reads as two; a paragraph never says what its line says, and no two
-commands share a display name in a locale. A glyph is a code point the Symbols-Only font
+which a list of tags reads as two; a paragraph never says what its line says, no two of
+the catalog's commands share a display name in a locale, and no plugin command uses one a
+catalog command shows, nor one another command of its plugin shows in that locale. A glyph is a code point the Symbols-Only font
 draws, written one way: `U+` and upper-case hex, four digits at least and no leading zero
 past them. A set of categories and a category carry a display name and a line description
 alone, held to the same rules, and no two categories of one set share a display name in a
@@ -3050,7 +3069,9 @@ catalog has, named for an entry of that registry, in the format its lower-case e
 locale and in one format across them — is held to 64 KiB with nothing a reader cannot see
 but its line breaks, and every path of the tree is read as what it is, never through a link:
 a link, or a file where a directory belongs, is refused as misplaced, so the walk reads
-nothing outside `catalog/wiki/`. A text missing from a locale names its entry and the text
+nothing outside `catalog/wiki/`; and a locale's directory is told by its name byte for byte,
+never by a lookup a file system folds, so one named for a locale in another case is
+misplaced on every system. A text missing from a locale names its entry and the text
 it is. Anything else fails the build, and nothing is generated while a problem stands.
 
 **Enforced by** `crates/nc-schema/src/entry.rs` — `judge`, `glyph` and `judge_wiki`, a unit
@@ -3109,9 +3130,11 @@ handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-
 the command's own name, its line and paragraph and its argument schema as written, once it
 compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
 person's words, and no tool carries them. No value a page publishes ends what it is in:
-every cell goes through `cell`, every fenced block is fenced longer than any run of
+every cell goes through `cell`; a standard name and an identification value, the values set
+as code that may hold any printable character, go through `code`, whose fence is longer than
+any run of backticks in it and whose text no Markdown escape reaches; every fenced block is fenced longer than any run of
 backticks in it, and a tool is JSON written by `serde_json`, so a text holding a bar, a
-backtick, a quotation mark or a line break shows as that text.
+backtick, a backslash, a quotation mark or a line break shows as that text.
 
 **Enforced by** `a_hand_edit_to_any_generated_page_is_drift` in `xtask/src/check.rs`, which
 edits every page the compiler emits, one at a time, and holds the emitted pages to the
@@ -3123,9 +3146,11 @@ another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 `crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
 `crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
-`crates/nc-catalog-compiler/src/docs.rs`, and
-`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` beside the compiler's gates, over
-the commands page and the MCP page alike; and `xtask/tests/the_pages_reach_the_catalog.rs`,
+`crates/nc-catalog-compiler/src/docs.rs`, with
+`a_value_written_as_code_is_shown_as_its_system_writes_it` beside it, and
+`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` and
+`a_standard_name_reaches_its_page_as_its_standard_writes_it` beside the compiler's gates,
+over the commands page, the MCP page and the categories page; and `xtask/tests/the_pages_reach_the_catalog.rs`,
 which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
 vocabulary and system shortcuts, and help itself. The files a surface is built from are
 read by the determinism gate as the emitter is (`EMITS`).
@@ -3229,8 +3254,10 @@ A Leader holding no modifier or its own chord modifier is refused for that befor
 other channel is listed or read, so what another channel's file says never changes that
 refusal. A file before it that its own reader would refuse is that channel's defaults; one this
 build cannot judge — of a later format, or one the disk did not answer for — a manifest
-the disk did not answer for, and a state base that will not list or holds more than
-`CHANNELS_MAX` checkouts refuse the configured Leader rather than guess (`NC-CHAN-0017`). Nothing of another channel is written, locked or
+the disk did not answer for, a state base that will not list or holds more than
+`PROFILES_MAX` development profiles, and more than `CHANNELS_MAX` installed checkouts
+refuse the configured Leader rather than guess (`NC-CHAN-0017`); a profile an uninstall
+left is listed and binds nothing, so it counts against the listing's bound alone. Nothing of another channel is written, locked or
 removed: its profile directories are listed, its manifest asked whether it is there, and
 its file judged and read.
 
@@ -3252,8 +3279,10 @@ it could not read; a choice past the file's bound is refused before it is writte
 a writer judges is the file its reader reads; what a refusal quotes of the file is escaped
 and cut, and a command's name is repeated whole once it is well-formed; a refused bindings part
 keeps the configured Leader, and the reverse; a file before it that its reader refuses is
-that channel's defaults, while one of a later format, more checkouts than are read and a
-base that will not list refuse the configured Leader; another namespace's installs are
+that channel's defaults, while one of a later format, more installed checkouts than are
+read, more profiles than a listing reads and a base that will not list refuse the
+configured Leader, and as many profiles an uninstall left as the checkouts' bound and one
+more refuse nothing; another namespace's installs are
 never read; and a read leaves every file and directory under the bases as it was — by the
 unit tests of `crates/nc-channel/src/keys.rs`, which hold a profile directory's name to
 the leaf `layout` writes in both directions and a configuration to the file's bound, and
@@ -4110,9 +4139,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The registry answer is bounded by the frame, not below it.** One plugin's texts take at
   most half of `ipc_frame_max_bytes`, which the compiler holds; the whole answer — the
   catalog's commands, every plugin's texts, every command's categories and glyph, every
-  argument schema, which no bound of its own holds — is not, so a profile with enough plugins installed asks for a registry
-  the daemon refuses to send (`NC-IPC-0016`), and help names no command until one is
-  removed. Not taken: the answer paged, or a schema bounded on its own.
+  argument schema, which no bound of its own holds — is not, so a profile with enough
+  plugins installed asks for a registry the daemon refuses to send (`NC-IPC-0016`). The CLI
+  asks for the registry before it runs a command, so it then neither lists nor runs any
+  command, the kernel's own included, until a plugin is removed; the verbs that control the
+  daemon and the help topics the binary carries still answer. Not taken: the answer paged,
+  dispatch without the registry, or a schema bounded on its own.
+- **The status is bounded per plugin, not in how many are installed.** What it keeps of
+  each refused plugin's sentence is `REFUSAL_BYTES_MAX` bytes in `apps/daemon/src/plugins.rs`,
+  so no one plugin takes it past a frame; enough plugins installed, each refused at that
+  length, still would, and the status is then refused to the daemon (`NC-IPC-0016`) as the
+  registry is. Not taken: a status that lists a count past some number of plugins.
 
 **The journal and the central log**
 

@@ -3968,6 +3968,30 @@ fn a_selector_reaching_the_realm_through_an_argument_fails_the_build() {
     scratch.must_fail_saying("selector-realm-through-an-argument", "realm_id");
 }
 
+/// A selector reaching a feature through an argument is refused.
+///
+/// Accepted, `argument:<name>` over a property whose `x-entity` is `Feature`
+/// lets a command's caller choose which feature's permit decides it — and the
+/// rule that keeps a plugin off a feature is written against `feature:`. The
+/// remedy is that form, naming the feature, which nothing in the schema gives.
+#[test]
+fn a_selector_reaching_a_feature_through_an_argument_fails_the_build() {
+    let scratch = Scratch::new("selector-feature-argument");
+    scratch.replacing(
+        "catalog/commands.toml",
+        VERIFY_SCHEMA,
+        r#"{"type":"object","properties":{"from":{"type":"integer","minimum":0},"feature":{"type":"string","x-entity":"Feature","maxLength":64}},"required":["feature"],"additionalProperties":false}"#,
+    );
+    scratch.edit("catalog/commands.toml", |text| {
+        text.replacen(
+            "resource_selector = \"realm\"",
+            "resource_selector = \"argument:feature\"",
+            1,
+        )
+    });
+    scratch.must_fail_saying("selector-feature-through-an-argument", "feature");
+}
+
 /// A command name outside the grammar the kernel will activate is refused.
 #[test]
 fn a_command_name_outside_the_grammar_fails_the_build() {
@@ -5678,6 +5702,15 @@ fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
     std::fs::create_dir_all(nested.root.join("catalog/wiki/en/commands/kernel.redo.md"))
         .expect("the scratch is writable");
     nested.must_fail("wiki-misplaced", "catalog/wiki/en/commands/kernel.redo.md");
+    // **A locale's directory in another case**, the shipped one taken away
+    // first, so a system that folds case meets the name as written: it names
+    // no locale byte for byte and is refused on every system, never skipped
+    // as the locale whose file a lookup that folds case would find.
+    let folded = Scratch::new("wiki-locale-in-another-case");
+    std::fs::remove_dir_all(folded.root.join("catalog/wiki/pt-BR"))
+        .expect("the scratch is writable");
+    folded.place("catalog/wiki/pt-br/commands/kernel.undo.md", "# Desfazer\n");
+    folded.must_fail("wiki-misplaced", "catalog/wiki/pt-br");
 }
 
 /// A link anywhere in the wiki tree is refused, never read through.
@@ -6422,6 +6455,39 @@ fn an_external_identifiers_glyph_and_categories_reach_its_page_only_when_it_has_
     assert!(
         !chrome.contains("| Glyph |"),
         "an external identifier with no glyph published a row for one: {chrome}"
+    );
+}
+
+/// A standard name reaches the categories page as its standard writes it,
+/// whatever printable characters it holds.
+///
+/// **Written as code, never escaped as a cell's text inside a code span**,
+/// which Markdown would show with the escapes still in it — a backslash
+/// doubled, `<` as an entity — and whose span a backtick would end early. The
+/// build accepts any printable ASCII in a standard name, and no shipped one
+/// holds these, so only a copy that does can show the page writing them.
+#[test]
+fn a_standard_name_reaches_its_page_as_its_standard_writes_it() {
+    let scratch = Scratch::new("standard-name-page");
+    scratch.replacing(
+        "catalog/categories.toml",
+        "standard_name = \"AudioVideo\"",
+        r#"standard_name = "X-a`b\\c<d""#,
+    );
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let page = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == "docs/categories.md")
+        .expect("docs/categories.md is emitted")
+        .contents;
+    assert!(
+        page.contains("| `freedesktop.audio-video` | ``X-a`b\\c<d`` | main |"),
+        "the standard name did not reach its page as written: {}",
+        page.lines()
+            .find(|line| line.contains("freedesktop.audio-video"))
+            .unwrap_or("no row")
     );
 }
 

@@ -302,8 +302,8 @@ fn scattered(field: &Field, word: &[char], table: &mut Vec<u32>, positions: &mut
 
 #[cfg(test)]
 mod tests {
-    use super::{Field, Role, Score, aligned};
-    use crate::FIELD_CHARS_MAX;
+    use super::{Field, Role, Score, aligned, packed};
+    use crate::{FIELD_CHARS_MAX, LAST, QUERY_CHARS_MAX};
 
     /// The tier and the original positions of `word` laid in a name field holding `text`.
     fn laid(text: &str, word: &str) -> Option<(u16, Vec<usize>)> {
@@ -428,5 +428,43 @@ mod tests {
             positions,
             (0..FIELD_CHARS_MAX).step_by(2).collect::<Vec<_>>()
         );
+    }
+
+    /// An adjacent pair outweighs any earliness.
+    ///
+    /// **Across a whole field**: `abc` scattered from its second character
+    /// with no pair, or laid with one pair at the field's last characters. The
+    /// pair's weight is past every difference two first positions can make, so
+    /// the late alignment is the one kept — which a field of ten characters, the
+    /// exhaustive law's, is too short to show.
+    #[test]
+    fn an_adjacent_pair_outweighs_any_earliness() {
+        let mut field = "xaxbxc".to_owned();
+        field.push_str(&"x".repeat(FIELD_CHARS_MAX - field.len() - 4));
+        field.push_str("abxc");
+        assert_eq!(field.chars().count(), FIELD_CHARS_MAX);
+        let last = FIELD_CHARS_MAX - 1;
+        assert_eq!(
+            laid(&field, "abc"),
+            Some((0, vec![last - 3, last - 2, last]))
+        );
+        assert!(packed((0, 1, 0)) > packed((0, 0, u16::from(LAST))));
+    }
+
+    /// A word start outweighs any count of adjacent pairs.
+    ///
+    /// **Nine pairs against one start**: `abcdefghijk` laid as a run of ten
+    /// inside a word and a last character apart, or scattered from the
+    /// character that opens `Axbx…` with no pair at all. The start is kept,
+    /// and its weight is past the most pairs a word of the query's bound can
+    /// make with the most earliness beside them.
+    #[test]
+    fn a_word_start_outweighs_any_count_of_pairs() {
+        assert_eq!(
+            laid("xabcdefghijxkxAxbxcxdxexfxgxhxixjxk", "abcdefghijk"),
+            Some((0, (14..=34).step_by(2).collect()))
+        );
+        let pairs = u16::try_from(QUERY_CHARS_MAX - 1).expect("a word's pairs fit");
+        assert!(packed((1, 0, 0)) > packed((0, pairs, u16::from(LAST))));
     }
 }

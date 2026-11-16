@@ -547,7 +547,7 @@ const PROSE: [(&str, &str); 484] = [
     ),
     (
         "cli.md",
-        "<!-- Source: apps/cli/src/args.rs, apps/cli/src/exit.rs, apps/cli/src/help.rs, catalog/commands.toml and catalog/i18n/. Run `cargo xtask docs`. -->",
+        "<!-- Source: apps/cli/src/args.rs, apps/cli/src/exit.rs, apps/cli/src/help.rs, apps/cli/src/render.rs, catalog/commands.toml and catalog/i18n/. Run `cargo xtask docs`. -->",
     ),
     ("cli.md", "# CLI"),
     (
@@ -4099,7 +4099,7 @@ fn each_page_names_the_registry_it_came_from() {
         (
             "cli.md",
             "apps/cli/src/args.rs, apps/cli/src/exit.rs, apps/cli/src/help.rs, \
-             catalog/commands.toml and catalog/i18n/",
+             apps/cli/src/render.rs, catalog/commands.toml and catalog/i18n/",
         ),
         (
             "keybindings.md",

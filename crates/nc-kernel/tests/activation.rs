@@ -661,6 +661,26 @@ async fn a_command_selecting_a_feature_of_the_platform_is_refused_and_named() {
     );
 }
 
+/// A command reaching a feature of the platform through an argument is
+/// refused, naming the argument.
+///
+/// **Through the real component**, as the `feature:` form is: an argument
+/// whose `x-entity` is `Feature` would let whoever dispatches hand the
+/// decision point `Feature::"naming"`, decided by a person's permit for the
+/// kernel's own command, so the judge refuses it in every declaration.
+#[tokio::test]
+async fn a_command_reaching_a_feature_through_an_argument_is_refused_naming_it() {
+    let (code, sentence) = the_one_problem(Variant::SelectsAFeatureThroughAnArgument).await;
+    assert_eq!(code, ErrorCode::PluginDescriptorInvalid);
+    assert_eq!(
+        sentence,
+        "`reference.note.get` of `noctua:reference` has a resource selector refused: \
+         `feature` names `Feature`, and a feature is selected by `feature:` alone, in a \
+         command of the kernel's own — through an argument, whoever dispatches would choose \
+         which feature's permit decides the command"
+    );
+}
+
 #[tokio::test]
 async fn an_action_the_schema_does_not_declare_is_rejected() {
     let (code, sentence) = the_one_problem(Variant::UnknownAction).await;

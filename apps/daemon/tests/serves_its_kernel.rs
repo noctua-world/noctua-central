@@ -282,6 +282,72 @@ async fn a_plugin_whose_texts_miss_a_locale_is_shown_refused_and_the_daemon_runs
     );
 }
 
+/// A plugin refused for an entries file whose every row is malformed leaves a
+/// status that fits one frame, and the status still answers.
+///
+/// **The file is within its bound**, so it is read and refused for its rows:
+/// each malformed name is one problem the refusal names, megabytes of them,
+/// and the status keeps that sentence's opening alone — kept whole, the status
+/// is past a frame and `noctua status`, the one place the refusal is shown, is
+/// refused with it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_plugin_refused_for_a_bound_of_malformed_rows_leaves_a_status_that_answers() {
+    let installed = Installed::new(Path::new(BINARY));
+    let most = nc_kernel::entries::PluginEntries::most_bytes();
+    let row = "{name=\"A\"},";
+    let mut table = String::from("command=[");
+    while table.len() + row.len() < most {
+        table.push_str(row);
+    }
+    table.push(']');
+    let entries: Vec<(std::path::PathBuf, String)> = nc_daemon::testing::entries_of("reference")
+        .into_iter()
+        .map(|(file, text)| {
+            if file == Path::new(nc_daemon::plugins::COMMANDS) {
+                (file, table.clone())
+            } else {
+                (file, text)
+            }
+        })
+        .collect();
+    installed.install_plugin(
+        "reference",
+        REFERENCE,
+        &entries,
+        &nc_kernel::component_for_tests("reference"),
+    );
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    let status = once(&mut client, runs).await;
+    let frame = usize::try_from(nc_catalog::DAEMON.ipc_frame_max_bytes).expect("fits");
+    let written = Value::object(status.clone()).to_canonical().len();
+    assert!(
+        written <= frame,
+        "the status took {written} bytes of {frame}"
+    );
+    let plugins = status
+        .get("plugins")
+        .cloned()
+        .and_then(Value::into_array)
+        .expect("the status lists the plugins");
+    assert_eq!(plugins.len(), 1, "{plugins:?}");
+    assert_eq!(
+        text(&plugins[0], "code").as_deref(),
+        Some(ErrorCode::PluginEntriesInvalid.code())
+    );
+    let sentence = text(&plugins[0], "sentence").expect("the refusal's sentence");
+    assert!(
+        sentence.len() <= nc_daemon::plugins::REFUSAL_BYTES_MAX && sentence.ends_with('…'),
+        "the status kept {} bytes of the refusal",
+        sentence.len()
+    );
+    assert!(
+        sentence.contains("the plugin's entries were refused"),
+        "{sentence}"
+    );
+    stopped(&mut client, &mut daemon).await;
+}
+
 /// Every dispatch is the kernel's to decide, as the person the profile's
 /// world names, and each one is in the journal afterwards with the outcome it
 /// was answered with.

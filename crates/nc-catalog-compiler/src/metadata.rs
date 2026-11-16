@@ -536,14 +536,16 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
             return Vec::new();
         }
     }
+    let unloaded = locale_stems(root);
     for (locale, kind, _) in listed(&top, WIKI, problems) {
         let under = format!("{WIKI}/{locale}");
         // A locale whose own file failed to load is reported there, and its
-        // wiki directory is not a second defect.
-        if kind.is_dir()
-            && !tags.contains(&locale.as_str())
-            && root.join(format!("catalog/i18n/{locale}.toml")).is_file()
-        {
+        // wiki directory is not a second defect. **Told by the file's name,
+        // byte for byte, never by asking the file system for a path**: one
+        // that folds case finds a locale's file under its tag written in
+        // another case, and would skip a directory so named, misplaced, that
+        // every other system refuses.
+        if kind.is_dir() && !tags.contains(&locale.as_str()) && unloaded.contains(&locale) {
             continue;
         }
         if !kind.is_dir() || !tags.contains(&locale.as_str()) {
@@ -605,6 +607,29 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
     found
         .into_iter()
         .filter_map(|((registry, name), held)| complete(&registry, &name, held, &tags, problems))
+        .collect()
+}
+
+/// The stems of the locale files `catalog/i18n/` holds, as their names are written.
+///
+/// By the rule the loader reads a locale by — a `.toml` extension in any case
+/// — so a locale whose file failed to load is one of these, and a name it has
+/// only once case is ignored is not. The listing's own refusal is the
+/// loader's to report.
+fn locale_stems(root: &Path) -> Vec<String> {
+    listed(&root.join("catalog/i18n"), "catalog/i18n", &mut Vec::new())
+        .into_iter()
+        .filter_map(|(name, _, _)| {
+            let path = Path::new(&name);
+            path.extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
+                .then(|| {
+                    path.file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+        })
         .collect()
 }
 

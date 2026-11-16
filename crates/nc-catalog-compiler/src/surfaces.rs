@@ -105,7 +105,7 @@ pub(crate) fn cli(catalog: &Catalog, surfaces: &Surfaces) -> String {
     let mut out = header(
         "CLI",
         "apps/cli/src/args.rs, apps/cli/src/exit.rs, apps/cli/src/help.rs, \
-         catalog/commands.toml and catalog/i18n/",
+         apps/cli/src/render.rs, catalog/commands.toml and catalog/i18n/",
         &format!(
             "What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its \
              verbs, its exit codes, and what its help says of every command the catalog \

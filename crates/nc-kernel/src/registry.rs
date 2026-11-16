@@ -30,9 +30,11 @@
 //!   it, matching the catalog;
 //! - each action and selector by the decision point's schema,
 //!   `[NC-PLUG-0009]`: no feature of the platform at all — a `feature:`
-//!   selector is the kernel's own commands' — an action the schema declares, a
-//!   resource type that action applies to, and the whole realm selected only by
-//!   a command that reads — a realm-wide change is the kernel's;
+//!   selector is the kernel's own commands', and the descriptor judge refuses
+//!   an argument naming `Feature` in every declaration — an action the schema
+//!   declares, a resource type that action applies to, and the whole realm
+//!   selected only by a command that reads — a realm-wide change is the
+//!   kernel's;
 //! - each command whose name is its plugin's to have by its entry,
 //!   `[NC-PLUG-0029]`: the entries the manifest is described by
 //!   (`crate::entries`) hold a row for the command, under its name inside the
@@ -42,10 +44,11 @@
 //!   to, its texts in every locale — a text missing from one is refused naming
 //!   the command and the locale; a declaration the descriptor judge admitted
 //!   declares as its title the entry's English display name, so the component
-//!   and its directory cannot say two things; and no display name, in any
-//!   locale, is one a command of the catalog shows in any locale, compared by
-//!   `the_same_sentence`. A row no command claims is neither registered nor
-//!   refused;
+//!   and its directory cannot say two things; no display name, in any locale,
+//!   is one a command of the catalog shows in any locale, compared by
+//!   `the_same_sentence`; and none, in its locale, is one an earlier command
+//!   of the same plugin shows there. A row no command claims is neither
+//!   registered nor refused;
 //! - each subscription by the manifest, `[NC-PLUG-0009]`: one its
 //!   `[events] subscribe` declares, once;
 //! - and the count by the catalog: more than `commands_per_plugin` commands is
@@ -59,17 +62,20 @@
 //! or under a name already registered — and a command nothing can authorize,
 //! which never reaches the registry. A plugin cannot describe a command that
 //! is not its own, nor show one of its own under a name a command of the
-//! catalog is shown by — `Undo`, in a list beside the kernel's — and what it
-//! says of its commands is judged as the catalog's is before anything shows
-//! it. A plugin that would select the realm to
+//! catalog is shown by — `Undo`, in a list beside the kernel's — nor two of
+//! its own under one name in a locale, and what it says of its commands is
+//! judged as the catalog's is before anything shows it. A plugin that would select the realm to
 //! change it is refused, because a permit for that action on the realm would
 //! then authorize every such command of every plugin; and one that would select
-//! a feature of the platform is refused, because the permit for that feature is
-//! a person's permit for the kernel's own command — a plugin selecting it would
-//! borrow it, and the journal's entity would no longer say which command ran.
+//! a feature of the platform, by `feature:` or through an argument naming
+//! `Feature`, is refused, because the permit for that feature is a person's
+//! permit for the kernel's own command — a plugin selecting it would borrow
+//! it, and the journal's entity would no longer say which command ran.
 //! What it does not answer:
 //! whether a plugin's command acts on the resource it was authorized for,
-//! inside its own namespace, which is the plugin's code and no check here.
+//! inside its own namespace, which is the plugin's code and no check here;
+//! and two plugins' commands shown by one display name, which one plugin
+//! installed under two namespaces is, its one set of entries serving both.
 
 use std::collections::BTreeMap;
 
@@ -369,6 +375,10 @@ impl Registry {
         let actions = pdp.actions();
         let mut problems = Vec::new();
         let mut admitted = Vec::with_capacity(commands.len());
+        // The entries this plugin's own rows gave the commands before this
+        // one, by name: a display name is held against them as against the
+        // catalog's.
+        let mut earlier: Vec<(String, CommandEntry)> = Vec::new();
         for (at, command) in commands.iter().enumerate() {
             let before = problems.len();
             let subject = subject_of(command, at, plugin);
@@ -409,7 +419,7 @@ impl Registry {
             // the namespace, which such a name does not have.
             let entry = match relative_to(&command.name, manifest.namespace()) {
                 Some(relative) if descriptor::command_name_is_well_formed(&command.name) => self
-                    .entry_of(command, relative, judged.is_some(), manifest)
+                    .entry_of(command, relative, judged.is_some(), manifest, &earlier)
                     .map_err(|found| {
                         problems.extend(found.into_iter().map(|why| {
                             LoadProblem::new(
@@ -421,6 +431,11 @@ impl Registry {
                     .ok(),
                 _ => None,
             };
+            if let Some(entry) = entry.as_ref()
+                && !self.described.contains_key(&command.name)
+            {
+                earlier.push((command.name.clone(), entry.clone()));
+            }
             if let (true, Some(judged), Some(entry)) = (problems.len() == before, judged, entry) {
                 admitted.push(self.described.get(&command.name).map_or_else(
                     || Admitted {
@@ -487,14 +502,17 @@ impl Registry {
     /// The catalog's, for a command the catalog describes, whose plugin then
     /// writes it no row; the plugin's own row otherwise, held to the one
     /// judge, and then — once the judge admits it — to the title the command
-    /// declared, when the descriptor judge admitted that (`declared`), and to
-    /// the display names the catalog's commands are shown by.
+    /// declared, when the descriptor judge admitted that (`declared`), to the
+    /// display names the catalog's commands are shown by, and, locale by
+    /// locale, to those the plugin's own rows gave the commands it declared
+    /// before this one (`earlier`).
     fn entry_of(
         &self,
         command: &Declared,
         relative: &str,
         declared: bool,
         manifest: &PluginManifest,
+        earlier: &[(String, CommandEntry)],
     ) -> Result<CommandEntry, Vec<String>> {
         let row = manifest.entries().row(relative);
         if let Some(described) = self.described.get(&command.name) {
@@ -550,6 +568,23 @@ impl Registry {
                     locale.tag(),
                     quoted(ours),
                     theirs.listed.name
+                ));
+            }
+            // **One plugin's own, in the locale they are listed in**: two of its
+            // commands under one name are two rows of one list a reader cannot
+            // choose between. Another plugin's are not held — one plugin
+            // installed under two namespaces shows its one set of entries twice
+            // — and a command declared twice is refused for that, not for its
+            // own name.
+            if let Some((theirs, _)) = earlier.iter().find(|(name, theirs)| {
+                *name != command.name
+                    && entry::the_same_sentence(ours, &theirs.in_locale(locale).display_name)
+            }) {
+                whys.push(format!(
+                    "has the `{}` display name {}, which its plugin's `{theirs}` is shown by \
+                     too: two commands of one plugin are told apart by their names",
+                    locale.tag(),
+                    quoted(ours)
                 ));
             }
         }
@@ -1025,7 +1060,11 @@ mod tests {
     #[test]
     fn a_plugin_declaring_commands_every_rule_admits_registers_them_as_its_own() {
         let mut registry = Registry::from_catalog();
-        let declared = [a_read("notes.note.get"), a_read("notes.note.peek")];
+        let peek = Declared {
+            title: "Peek at a note".to_owned(),
+            ..a_read("notes.note.peek")
+        };
+        let declared = [a_read("notes.note.get"), peek];
         let admitted = registry
             .admit(
                 &described(&registry, notes(), &declared),
@@ -1518,13 +1557,15 @@ mod tests {
     }
 
     /// A plugin that selects a feature is refused at `activate`, naming the
-    /// command and the feature.
+    /// command and the feature, or the argument it would reach one through.
     ///
     /// **Whatever the action, and the feature the kernel's own commands
-    /// select included.** The judge accepts the form from anyone, so this is
-    /// the refusal that keeps a person's permit for `naming` from being borrowed:
-    /// with it gone, a plugin's read on `feature:naming` is decided by the
-    /// naming permit and journaled as if it were the kernel's.
+    /// select included.** The judge accepts the `feature:` form from anyone,
+    /// so this is the refusal that keeps a person's permit for `naming` from
+    /// being borrowed: with it gone, a plugin's read on `feature:naming` is
+    /// decided by the naming permit and journaled as if it were the kernel's.
+    /// The argument form is the judge's own refusal, for every
+    /// declaration.
     #[test]
     fn a_plugin_that_selects_a_feature_is_refused_at_activate() {
         let featured = |action: &str, id: &str| Declared {
@@ -1549,6 +1590,37 @@ mod tests {
                     )
                 )],
                 "{action} on `{id}`"
+            );
+        }
+        // **And through an argument naming `Feature`**, which the judge every
+        // declaration is held to refuses, naming the argument, so a caller
+        // never chooses the feature whose permit decides a plugin's command —
+        // an argument called `naming` or `registry` included.
+        for (argument, action) in [
+            ("naming", "Read"),
+            ("registry", "Read"),
+            ("naming", "Share"),
+        ] {
+            let borrowing = Declared {
+                args_schema: format!(
+                    r#"{{"type":"object","properties":{{"{argument}":{{"type":"string","x-entity":"Feature","maxLength":64}}}},"required":["{argument}"],"additionalProperties":false}}"#
+                ),
+                resource_selector: format!("argument:{argument}"),
+                action: action.to_owned(),
+                ..a_read("notes.name.borrow")
+            };
+            assert_eq!(
+                refused(&Registry::from_catalog(), &notes(), &[borrowing], &[]),
+                [(
+                    ErrorCode::PluginDescriptorInvalid,
+                    format!(
+                        "`notes.name.borrow` of `noctua:notes` has a resource selector refused: \
+                         `{argument}` names `Feature`, and a feature is selected by `feature:` \
+                         alone, in a command of the kernel's own — through an argument, whoever \
+                         dispatches would choose which feature's permit decides the command"
+                    )
+                )],
+                "{action} through `{argument}`"
             );
         }
         let kernels = Registry::from_catalog()
@@ -1577,6 +1649,7 @@ mod tests {
                 a_read("kernel.b.get"),
                 Declared {
                     action: "Rename".to_owned(),
+                    title: "Rename a note".to_owned(),
                     ..a_read("notes.c.get")
                 },
             ],
@@ -1599,7 +1672,10 @@ mod tests {
     fn more_commands_than_a_plugin_may_declare_are_refused_before_any_is_judged_as_not_started() {
         let most = usize::try_from(nc_catalog::KERNEL.commands_per_plugin).expect("fits");
         let at_the_bound: Vec<Declared> = (0..most)
-            .map(|n| a_read(&format!("notes.n{n}.get")))
+            .map(|n| Declared {
+                title: format!("Read note {n}"),
+                ..a_read(&format!("notes.n{n}.get"))
+            })
             .collect();
         assert_eq!(
             refused(&Registry::from_catalog(), &notes(), &at_the_bound, &[]),
@@ -1942,6 +2018,114 @@ mod tests {
                 "{english} / {portuguese}"
             );
         }
+    }
+
+    /// Two commands of one plugin shown by one display name in a locale are
+    /// refused, naming both, and one plugin's entries under two namespaces are
+    /// not.
+    ///
+    /// **Compared as the untranslated rule compares**, `Read a note` and
+    /// `read a note.` are one name to a reader of a list. The rule is the
+    /// plugin's own: a second plugin whose commands are shown by the first's
+    /// names is admitted, since one plugin installed under two namespaces is
+    /// exactly that, its one set of entries serving both.
+    #[test]
+    fn two_commands_of_one_plugin_shown_by_one_display_name_are_refused() {
+        let declared = [a_read("notes.note.get"), a_read("notes.note.list")];
+        let twice = refused_with(
+            &Registry::from_catalog(),
+            entries(&[("note.get", "Read a note"), ("note.list", "Read a note")]),
+            &declared,
+        );
+        assert_eq!(
+            twice,
+            [
+                (
+                    ErrorCode::PluginEntriesInvalid,
+                    "`notes.note.list` of `noctua:notes` has the `en` display name `Read a \
+                     note`, which its plugin's `notes.note.get` is shown by too: two commands \
+                     of one plugin are told apart by their names"
+                        .to_owned()
+                ),
+                (
+                    ErrorCode::PluginEntriesInvalid,
+                    "`notes.note.list` of `noctua:notes` has the `pt-BR` display name `Ler: \
+                     Read a note`, which its plugin's `notes.note.get` is shown by too: two \
+                     commands of one plugin are told apart by their names"
+                        .to_owned()
+                ),
+            ]
+        );
+        // One locale alone, written another way, is still one name there.
+        let english = format!(
+            "{}{}",
+            row_of("note.get", "Read a note", "Shows what a note says", "note"),
+            row_of("note.list", "read a note.", "Lists what notes say", "notes")
+        );
+        let portuguese = format!(
+            "{}{}",
+            row_of(
+                "note.get",
+                "Ler uma nota",
+                "Mostra o que uma nota diz",
+                "nota"
+            ),
+            row_of(
+                "note.list",
+                "Listar as notas",
+                "Lista o que as notas dizem",
+                "notas"
+            )
+        );
+        let one_locale = PluginEntries::parse(
+            "[[command]]\nname = \"note.get\"\n[[command]]\nname = \"note.list\"\n",
+            &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
+        )
+        .expect("entries of the shape the kernel reads");
+        let listing = Declared {
+            title: "read a note.".to_owned(),
+            ..a_read("notes.note.list")
+        };
+        let problems = refused_with(
+            &Registry::from_catalog(),
+            one_locale,
+            &[a_read("notes.note.get"), listing],
+        );
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(
+            problems[0]
+                .1
+                .contains("has the `en` display name `read a note.`, which its plugin's"),
+            "{}",
+            problems[0].1
+        );
+        // **Another plugin's are not held.** The same entries, under a second
+        // namespace, beside the first's registered commands.
+        let mut registry = Registry::from_catalog();
+        let first = registry
+            .admit(
+                &notes().described_by(entries(&[("note.get", "Read a note")])),
+                PluginSlot(0),
+                &[a_read("notes.note.get")],
+                &[],
+                &pdp(),
+            )
+            .expect("every rule admits it");
+        registry.register(first);
+        let peer = manifest("id = \"noctua:peer\"\nnamespace = \"peer\"\ncapabilities = []\n")
+            .described_by(entries(&[("note.get", "Read a note")]));
+        assert!(
+            registry
+                .admit(
+                    &peer,
+                    PluginSlot(1),
+                    &[a_read("peer.note.get")],
+                    &[],
+                    &pdp()
+                )
+                .is_ok(),
+            "a second plugin was refused for the display names of the first"
+        );
     }
 
     /// A plugin's entry past the bound in bytes is refused, as a catalog's is.

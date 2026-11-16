@@ -19542,12 +19542,12 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
-        ("daemon/plugins.rs", 31, 6),
+        ("daemon/plugins.rs", 35, 6),
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 51, 6),
-        ("daemon/serves_its_kernel.rs", 20, 3),
+        ("daemon/serves_its_kernel.rs", 21, 3),
         ("daemon/testing.rs", 35, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
@@ -19565,12 +19565,12 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/lib.rs", 22, 17),
         ("nc-catalog-compiler/load.rs", 61, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
-        ("nc-catalog-compiler/metadata.rs", 24, 2),
+        ("nc-catalog-compiler/metadata.rs", 25, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 120, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 122, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -19591,15 +19591,15 @@ mod the_frozen_path_rule {
         ("nc-catalog/wiki.rs", 6, 2),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            40,
+            41,
             3,
         ),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 46, 12),
+        ("nc-channel/keys.rs", 47, 12),
         ("nc-channel/lib.rs", 59, 15),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 28, 0),
-        ("nc-fuzzy/align.rs", 19, 13),
+        ("nc-fuzzy/align.rs", 21, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
         ("nc-fuzzy/lib.rs", 5, 9),
         ("nc-fuzzy/properties.rs", 27, 1),
@@ -19633,7 +19633,7 @@ mod the_frozen_path_rule {
         ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
-        ("nc-kernel/activation.rs", 31, 67),
+        ("nc-kernel/activation.rs", 32, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
@@ -19667,7 +19667,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 62, 25),
+        ("nc-kernel/registry.rs", 63, 25),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 193, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -19715,9 +19715,9 @@ mod the_frozen_path_rule {
         ("nc-schema/keys.rs", 93, 21),
         ("nc-schema/lib.rs", 92, 67),
         ("nc-schema/properties.rs", 31, 2),
-        ("nc-schema/selector.rs", 21, 20),
+        ("nc-schema/selector.rs", 22, 20),
         ("reference/adapter.rs", 18, 28),
-        ("reference/behaviour.rs", 133, 60),
+        ("reference/behaviour.rs", 134, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
         ("xtask/check.rs", 688, 57),
@@ -22528,8 +22528,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 838 scratches this tree
-    /// builds, 750 of the 838 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 843 scratches this tree
+    /// builds, 755 of the 843 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22606,14 +22606,14 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 5, 5),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
-        ("daemon/plugins.rs", 8, 8),
+        ("daemon/plugins.rs", 9, 9),
         ("daemon/profile.rs", 8, 8),
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 258, 258),
+        ("nc-catalog-compiler/the_gates_fire.rs", 261, 261),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -22621,8 +22621,8 @@ mod the_frozen_path_rule {
         ),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            19,
-            19,
+            20,
+            20,
         ),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
@@ -25681,7 +25681,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20097;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20131;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25700,7 +25700,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5241;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5247;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25717,7 +25717,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1763;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1765;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25751,7 +25751,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26766;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26843;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25805,7 +25805,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,766 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,843 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25838,7 +25838,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1763 of
+    /// this tree offers, **1765 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34641,9 +34641,10 @@ mod the_meta_gate {
         ),
         (
             "crates/nc-schema/tests/properties.rs",
-            "a suite: the laws the argument schema and the judge obey, stated \
-             as properties rather than examples. The three sources it drives — \
-             `lib.rs`, `selector.rs` and `descriptor.rs` — are edited by the \
+            "a suite: the laws the argument schema, the judge, the entry judge \
+             and the Leader's grammar obey, stated as properties rather than \
+             examples. The five sources it drives — `lib.rs`, `selector.rs`, \
+             `descriptor.rs`, `entry.rs` and `keys.rs` — are edited by the \
              runner under the crate's own command, which builds this suite, and \
              a weakening of this file would remove evidence rather than uncover \
              an undecided clause",
@@ -34661,14 +34662,16 @@ mod the_meta_gate {
         (
             "crates/nc-catalog-compiler/tests/the_gates_fire.rs",
             "a suite: the compiler run over a catalog broken on purpose. The \
-             refusals it watches are written in `lib.rs`, `load.rs` and \
-             `problem.rs`, all three of which the runner edits",
+             refusals it watches are written in `lib.rs`, `load.rs`, \
+             `problem.rs`, `metadata.rs`, `registries.rs` and `surfaces.rs`, \
+             every one of which the runner edits",
         ),
         (
             "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
             "a suite: acceptance criterion 4 read a second way, against a \
-             shuffled `read_dir`. The ordering it holds is decided in `emit.rs` \
-             and `docs.rs`, both of which the runner edits",
+             shuffled `read_dir`. The ordering it holds is decided in `emit.rs`, \
+             `docs.rs` and the wiki walk of `metadata.rs`, all three of which the \
+             runner edits",
         ),
         (
             "crates/nc-fuzzy/tests/properties.rs",
@@ -37758,7 +37761,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2480] = [
+    static OPERATORS: [(&str, &str, &str); 2493] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38548,6 +38551,11 @@ Options:
             "loader",
             "the_check_for",
             "a realm reached through an argument is a check of its own",
+        ),
+        (
+            "loader",
+            "the_check_for",
+            "a feature reached through an argument is a check of its own",
         ),
         (
             "loader",
@@ -40764,6 +40772,11 @@ Options:
         ),
         (
             "selector",
+            "resolved",
+            "an argument cannot select a feature",
+        ),
+        (
+            "selector",
             "written",
             "a selector without the prefix is repeated cut short",
         ),
@@ -41033,6 +41046,11 @@ Options:
             "compiler_metadata",
             "wiki",
             "the wiki tree is not read through a link standing for it",
+        ),
+        (
+            "compiler_metadata",
+            "wiki",
+            "a wiki locale directory is skipped only for a locale file of its name byte for byte",
         ),
         (
             "compiler_metadata",
@@ -42458,6 +42476,16 @@ Options:
             "kernel_registry",
             "entry_of",
             "a plugin's entry may name a category the catalog holds",
+        ),
+        (
+            "kernel_registry",
+            "entry_of",
+            "two commands of one plugin are not shown by one display name",
+        ),
+        (
+            "kernel_registry",
+            "entry_of",
+            "a command declared twice is not refused for its own display name",
         ),
         (
             "kernel_registry",
@@ -47452,6 +47480,12 @@ Options:
             "a plugin's manifest is described by the entries beside it",
         ),
         (
+            "daemon_plugins",
+            "kept",
+            "a refusal past what the status keeps is cut",
+        ),
+        ("daemon_plugins", "kept", "a refusal is cut on a character"),
+        (
             "daemon_schedule",
             "noted",
             "one refused pump is a wait, not a run",
@@ -47797,13 +47831,28 @@ Options:
         ),
         (
             "channel_keys",
-            "checkouts_under",
+            "siblings",
             "more checkouts than the bound refuse",
         ),
         (
             "channel_keys",
-            "checkouts_under",
+            "siblings",
             "the bound itself does not refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "more profiles than the listing's bound refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "the listing's bound itself does not refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "a profile an uninstall left is not counted as a checkout",
         ),
         (
             "channel_keys",
@@ -48740,6 +48789,16 @@ Options:
         ),
         (
             "fuzzy_align",
+            "NEXT",
+            "an adjacent pair's weight is past every earliness",
+        ),
+        (
+            "fuzzy_align",
+            "START",
+            "a word start's weight is past every count of pairs",
+        ),
+        (
+            "fuzzy_align",
             "scattered",
             "an adjacent pair adds its weight",
         ),
@@ -48886,6 +48945,11 @@ Options:
             "pages",
             "mcp_tools",
             "the MCP page holds each command's tool in every locale",
+        ),
+        (
+            "pages",
+            "a_sets_categories",
+            "a standard name is written as code and not escaped as a cell's text",
         ),
         (
             "schema_entry",

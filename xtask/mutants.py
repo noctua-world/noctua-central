@@ -1294,6 +1294,9 @@ WEAKENINGS = [
     ("loader", "the_check_for", "a realm reached through an argument is a check of its own",
      "            \"selector-realm-through-an-argument\",",
      "            \"selector-names-no-entity\","),
+    ("loader", "the_check_for", "a feature reached through an argument is a check of its own",
+     "            \"selector-feature-through-an-argument\",",
+     "            \"selector-names-no-entity\","),
     ("loader", "the_check_for_a_schema", "an unseen character in a schema is a check of its own",
      "            \"schema-invisible-character\",",
      "            \"schema-outside-the-subset\","),
@@ -3176,6 +3179,12 @@ WEAKENINGS = [
     ("selector", "resolved", "an argument cannot select the realm",
      "        if entity_type == REALM_TYPE {",
      "        if entity_type.is_empty() {"),
+    # **A feature is selected by `feature:` alone.** Otherwise an argument
+    # whose `x-entity` is `Feature` lets a plugin's caller choose which
+    # feature's permit decides it, past the kernel's rule against `feature:`.
+    ("selector", "resolved", "an argument cannot select a feature",
+     "        if entity_type == FEATURE_TYPE {",
+     "        if entity_type.is_empty() {"),
     # And both ways out of the grammar repeat the text cut short.
     ("selector", "written", "a selector without the prefix is repeated cut short",
      "        return Err(SelectorError::Malformed(excerpt(text)));",
@@ -3384,6 +3393,12 @@ WEAKENINGS = [
     ("compiler_metadata", "wiki", "the wiki tree is not read through a link standing for it",
      "    match std::fs::symlink_metadata(&top) {",
      "    match std::fs::metadata(&top) {"),
+    # A locale whose file failed to load is told by its name as written,
+    # so a directory named for it in another case is refused on every
+    # system, as a folding file system would otherwise skip it.
+    ("compiler_metadata", "wiki", "a wiki locale directory is skipped only for a locale file of its name byte for byte",
+     "&& unloaded.contains(&locale) {",
+     "&& unloaded.iter().any(|stem| stem.eq_ignore_ascii_case(&locale)) {"),
     ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
      "            let kind = entry.file_type().ok()?;",
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
@@ -4431,6 +4446,15 @@ WEAKENINGS = [
     ("kernel_registry", "entry_of", "a plugin's entry may name a category the catalog holds",
      "                categories: &categories,",
      "                categories: &[],"),
+    # One plugin's own commands are rows of one list: two under one display
+    # name in a locale are refused, and a command declared twice is refused
+    # for that rather than for its own name.
+    ("kernel_registry", "entry_of", "two commands of one plugin are not shown by one display name",
+     "                    && entry::the_same_sentence(ours, &theirs.in_locale(locale).display_name)",
+     "                    && false"),
+    ("kernel_registry", "entry_of", "a command declared twice is not refused for its own display name",
+     "                *name != command.name\n",
+     "                true\n"),
     ("kernel_registry", "catalog_entry", "the catalog's entry is resolved in each locale",
      "                display_name: resolved(command.title_key, locale).to_owned(),",
      "                display_name: resolved(command.title_key, Locale::En).to_owned(),"),
@@ -7815,6 +7839,14 @@ WEAKENINGS = [
     ("daemon_plugins", "installed", "a plugin's manifest is described by the entries beside it",
      "        manifest: manifest.described_by(entries),",
      "        manifest: manifest.described_by(entries).described_by(PluginEntries::default()),"),
+    # What the status keeps of a refusal is bounded, so one plugin's files
+    # cannot take the status past a frame, and it is cut on a character.
+    ("daemon_plugins", "kept", "a refusal past what the status keeps is cut",
+     "    if sentence.len() <= REFUSAL_BYTES_MAX {",
+     "    if true {"),
+    ("daemon_plugins", "kept", "a refusal is cut on a character",
+     "    while !sentence.is_char_boundary(end) {",
+     "    while false {"),
     # The schedule: a run of refused pumps logged at two and each doubling,
     # ended by a clean one, and each pump and sweep noted.
     ("daemon_schedule", "noted", "one refused pump is a wait, not a run",
@@ -8070,12 +8102,25 @@ WEAKENINGS = [
     ("channel_keys", "checkouts_under", "a base that will not list refuses",
      "        Err(error) => return Err(unlisted(&error)),",
      "        Err(_) => return Ok(Vec::new()),"),
-    ("channel_keys", "checkouts_under", "more checkouts than the bound refuse",
-     "        if found.len() > CHANNELS_MAX {",
+    # **Installed checkouts are counted, and profiles only listed.** Every
+    # checkout ever installed leaves its profile, and one an uninstall left
+    # binds nothing, so the bound a configured Leader is refused past is on
+    # installed checkouts, and the listing's own bound is far past it.
+    ("channel_keys", "siblings", "more checkouts than the bound refuse",
+     "                if developments > CHANNELS_MAX {",
+     "                if false {"),
+    ("channel_keys", "siblings", "the bound itself does not refuse",
+     "                if developments > CHANNELS_MAX {",
+     "                if developments >= CHANNELS_MAX {"),
+    ("channel_keys", "checkouts_under", "more profiles than the listing's bound refuse",
+     "        if found.len() > PROFILES_MAX {",
      "        if false {"),
-    ("channel_keys", "checkouts_under", "the bound itself does not refuse",
-     "        if found.len() > CHANNELS_MAX {",
-     "        if found.len() >= CHANNELS_MAX {"),
+    ("channel_keys", "checkouts_under", "the listing's bound itself does not refuse",
+     "        if found.len() > PROFILES_MAX {",
+     "        if found.len() >= PROFILES_MAX {"),
+    ("channel_keys", "checkouts_under", "a profile an uninstall left is not counted as a checkout",
+     "        if found.len() > PROFILES_MAX {",
+     "        if found.len() > CHANNELS_MAX {"),
     ("channel_keys", "checkout_named", "a real install reads no test install's profile",
      "        None => rest,",
      "        None => rest.split('-').next()?,"),
@@ -8704,6 +8749,15 @@ WEAKENINGS = [
     ("fuzzy_align", "scattered", "a word start outweighs every adjacent pair",
      "    let start_at = |i: usize| START * u32::from(field.starts[i]);",
      "    let start_at = |i: usize| START * u32::from(false);"),
+    # **Narrowed, not zeroed**: each weight held to the width it must clear.
+    # A field of real length tells them apart, which the exhaustive law's
+    # ten characters cannot.
+    ("fuzzy_align", "NEXT", "an adjacent pair's weight is past every earliness",
+     "const NEXT: u32 = 1 << (usize::BITS - (FIELD_CHARS_MAX - 1).leading_zeros());",
+     "const NEXT: u32 = 1 << 4;"),
+    ("fuzzy_align", "START", "a word start's weight is past every count of pairs",
+     "const START: u32 = NEXT << (usize::BITS - (QUERY_CHARS_MAX - 1).leading_zeros());",
+     "const START: u32 = NEXT << 3;"),
     ("fuzzy_align", "scattered", "an adjacent pair adds its weight",
      "                Some(&cell) if i + 1 < n && cell > 0 => cell + NEXT,",
      "                Some(&cell) if i + 1 < n && cell > 0 => cell,"),
@@ -8805,6 +8859,9 @@ WEAKENINGS = [
     ("pages", "mcp_tools", "the MCP page holds each command's tool in every locale",
      "        for tag in tags(catalog) {",
      "        for tag in tags(catalog).into_iter().take(1) {"),
+    ("pages", "a_sets_categories", "a standard name is written as code and not escaped as a cell's text",
+     "                    .map_or_else(|| \"—\".to_owned(), code),",
+     "                    .map_or_else(|| \"—\".to_owned(), |name| format!(\"`{}`\", cell(name))),"),
     ("schema_entry", "as_tool", "a tool is called by its command's name",
      "    tool.insert(\"name\".to_owned(), Value::String(shown.name.to_owned()));",
      "    tool.insert(\"name\".to_owned(), Value::String(shown.display_name.to_owned()));"),

@@ -51,9 +51,10 @@
 //! files. A file before this one that its own reader would refuse is its
 //! channel's defaults, as that reader takes it; one this build cannot judge —
 //! of a later format, not read because the disk did not answer, of a channel
-//! whose manifest the disk did not answer for, or beside more than
-//! [`CHANNELS_MAX`] checkouts — refuses this channel's configured Leader
-//! rather than guess. **Nothing of another channel is written, locked or
+//! whose manifest the disk did not answer for, beside more than
+//! [`CHANNELS_MAX`] installed checkouts, or under a state base holding more
+//! than [`PROFILES_MAX`] development profiles — refuses this channel's
+//! configured Leader rather than guess. **Nothing of another channel is written, locked or
 //! removed**: its directory is listed, its manifest asked whether it is there,
 //! and its file judged and read.
 //!
@@ -113,11 +114,21 @@ pub const FORMAT: i64 = 1;
 /// costs, whoever wrote the file.
 pub const BYTES_MAX: u64 = 16_384;
 
-/// The most development checkouts a configured Leader is judged beside.
+/// The most installed development checkouts a configured Leader is judged beside.
 ///
 /// More is a state base nobody keeps by hand, and judging past it would read
-/// without bound; it refuses this channel's configured Leader.
+/// without bound; it refuses this channel's configured Leader. **Installed
+/// ones alone are counted**: a profile an uninstall left behind binds nothing,
+/// and every checkout ever installed leaves one.
 pub const CHANNELS_MAX: usize = 64;
+
+/// The most development profiles the state base is listed for.
+///
+/// Each profile is asked whether its checkout's manifest is there, so this
+/// bounds what a listing asks, profiles left by an uninstall among them; it is
+/// far past [`CHANNELS_MAX`] because only an installed checkout is judged
+/// beside. Past it, this channel's configured Leader is refused.
+pub const PROFILES_MAX: usize = 1_024;
 
 /// The keys the file holds besides `format`, in the order canonical form
 /// writes them.
@@ -738,8 +749,10 @@ fn settled(found: &Found, leader: Chord, chord: Modifier) -> Result<LeaderPart, 
 /// Every channel installed beside `install`, under its bases and its
 /// namespace, with the names each derives, in the order they are settled.
 fn siblings(install: &Install, user: &User) -> Result<Vec<(Channel, Layout)>, KeysRefused> {
-    let checkouts = checkouts_under(install.bases.state(), install.namespace.as_ref())?;
+    let base = install.bases.state();
+    let checkouts = checkouts_under(base, install.namespace.as_ref())?;
     let mut counted = Vec::new();
+    let mut developments = 0;
     for channel in [Channel::Production, Channel::Staging]
         .into_iter()
         .chain(checkouts.into_iter().map(Channel::Development))
@@ -758,6 +771,17 @@ fn siblings(install: &Install, user: &User) -> Result<Vec<(Channel, Layout)>, Ke
         let asked = std::fs::symlink_metadata(&names.manifest).map(drop);
         if installed(asked, channel, &names.manifest)? {
             counted.push((channel, names));
+            // **Counted once its manifest answered**: a profile an uninstall
+            // left is listed above and binds nothing, so it is not counted.
+            if matches!(channel, Channel::Development(_)) {
+                developments += 1;
+                if developments > CHANNELS_MAX {
+                    return Err(KeysRefused::Unjudged(format!(
+                        "more than {CHANNELS_MAX} development checkouts are installed under `{}`",
+                        base.display()
+                    )));
+                }
+            }
         }
     }
     Ok(counted)
@@ -815,9 +839,9 @@ fn checkouts_under(
             continue;
         };
         found.push(checkout);
-        if found.len() > CHANNELS_MAX {
+        if found.len() > PROFILES_MAX {
             return Err(KeysRefused::Unjudged(format!(
-                "more than {CHANNELS_MAX} development checkouts keep a profile under `{}`",
+                "more than {PROFILES_MAX} development profiles sit under `{}`",
                 base.display()
             )));
         }
