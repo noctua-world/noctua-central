@@ -4,9 +4,11 @@
 // it reads none of the realm's data: `feature:<id>` in `catalog/commands.toml`,
 // a `Feature` the realm's directory holds (`reference/identity-and-authorization.md
 // §4`). Only the kernel's own commands may select one — the kernel refuses the
-// form in a plugin's declaration at `activate` — so a permit here is a permit
-// for the kernel's commands on that feature and nothing a plugin wrote, and the
-// journal's entity says which feature was used.
+// `feature:` form in a plugin's declaration at `activate`, and the judge every
+// declaration is held to refuses an argument naming `Feature`, so no caller
+// chooses the feature — so a permit here is a permit for the kernel's commands
+// on that feature and nothing a plugin wrote, and the journal's entity says
+// which feature was used.
 //
 // **One feature per permit, named.** Each names its feature by its id rather
 // than reading an attribute such as `tier`, which is the narrowest default

@@ -20,10 +20,12 @@
 //! the command is declared, never discovered when it is dispatched.
 //!
 //! **Only a command of the kernel's own selects a feature.** The grammar is
-//! one for every caller, so this judge accepts the form from anyone; the
-//! kernel refuses it in a plugin's declaration at `activate`
-//! (`crates/nc-kernel/src/registry.rs`), so the entity a journal entry names
-//! as a feature is only ever one the kernel's own command was decided on.
+//! one for every caller, so this judge accepts the `feature:` form from
+//! anyone; the kernel refuses it in a plugin's declaration at `activate`
+//! (`crates/nc-kernel/src/registry.rs`). A feature reached through an
+//! argument is refused here, for every declaration, so the entity a journal
+//! entry names as a feature is only ever one the kernel's own command was
+//! decided on.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -38,6 +40,14 @@
 //! the realm only to read it is written against [`Selector::Realm`] — a
 //! `Write` that reached the realm through an argument would pass that rule and
 //! every permit on the realm with it.
+//!
+//! **A feature is selected by `feature:` alone.** An argument whose
+//! `x-entity` is [`FEATURE_TYPE`] is refused: through it the caller would
+//! choose which feature's permit decides the command, and the kernel's rule
+//! that a plugin selects no feature is written against [`Selector::Feature`] —
+//! a plugin's command reaching `Feature::"naming"` through an argument would
+//! pass that rule and be decided by a person's permit for the kernel's naming
+//! commands.
 //!
 //! **What this does not answer** is whether the entity exists. An unknown one
 //! falls to the decision point's default deny, which is indistinguishable from
@@ -108,6 +118,8 @@ pub enum SelectorError {
     Unbounded(String),
     /// The argument it names holds an id of [`REALM_TYPE`], which `realm` alone selects.
     RealmThroughAnArgument(String),
+    /// The argument it names holds an id of [`FEATURE_TYPE`], which `feature:` alone selects.
+    FeatureThroughAnArgument(String),
 }
 
 impl fmt::Display for SelectorError {
@@ -141,6 +153,12 @@ impl fmt::Display for SelectorError {
                 "`{name}` names `{REALM_TYPE}`, and the realm is selected by `{REALM}` alone, \
                  with the id the kernel serves — through an argument, whoever dispatches would \
                  choose which realm is authorized"
+            ),
+            Self::FeatureThroughAnArgument(name) => write!(
+                formatter,
+                "`{name}` names `{FEATURE_TYPE}`, and a feature is selected by `feature:` \
+                 alone, in a command of the kernel's own — through an argument, whoever \
+                 dispatches would choose which feature's permit decides the command"
             ),
         }
     }
@@ -239,6 +257,9 @@ impl Written<'_> {
         if entity_type == REALM_TYPE {
             return Err(SelectorError::RealmThroughAnArgument(excerpt(name)));
         }
+        if entity_type == FEATURE_TYPE {
+            return Err(SelectorError::FeatureThroughAnArgument(excerpt(name)));
+        }
         if max_length.is_none_or(|bound| bound > ENTITY_ID_MAX as u64) {
             return Err(SelectorError::Unbounded(excerpt(name)));
         }
@@ -258,7 +279,8 @@ impl Selector {
     /// id longer than [`ENTITY_ID_MAX`] included — and for an `argument:`
     /// selector [`SelectorError::NotDeclared`],
     /// [`SelectorError::NotRequired`], [`SelectorError::NotAnEntity`],
-    /// [`SelectorError::RealmThroughAnArgument`] or [`SelectorError::Unbounded`]
+    /// [`SelectorError::RealmThroughAnArgument`],
+    /// [`SelectorError::FeatureThroughAnArgument`] or [`SelectorError::Unbounded`]
     /// when the schema does not back it.
     pub fn parse(text: &str, schema: &Schema) -> Result<Self, SelectorError> {
         written(text)?.resolved(schema)
@@ -570,6 +592,63 @@ mod tests {
         );
     }
 
+    /// An argument naming `Feature` is refused, for every declaration and
+    /// whichever feature the caller would write.
+    ///
+    /// Otherwise a plugin's `Read` selecting `argument:feature` with
+    /// `"x-entity": "Feature"` is judged sound, and the caller hands the
+    /// decision point `Feature::"naming"` or `Feature::"registry"`, decided by
+    /// a person's permit for the kernel's own commands — while the kernel's
+    /// rule that a plugin selects no feature is written against
+    /// [`Selector::Feature`], which this form is not.
+    #[test]
+    fn an_argument_naming_the_feature_type_is_refused() {
+        let schema = Schema::compile(
+            r#"{"type":"object","additionalProperties":false,
+                "properties":{"feature":{"type":"string","x-entity":"Feature","maxLength":64}},
+                "required":["feature"]}"#,
+        )
+        .expect("the fixture is inside the subset");
+        assert_eq!(
+            Selector::parse("argument:feature", &schema),
+            Err(SelectorError::FeatureThroughAnArgument(
+                "feature".to_owned()
+            ))
+        );
+        assert_eq!(
+            Selector::parse("feature:naming", &schema),
+            Ok(Selector::Feature {
+                id: "naming".to_owned()
+            }),
+            "a feature is still selected the one way it may be"
+        );
+        // And through the judge, as the kernel will meet it at `activate`,
+        // under every action a permit on a feature could name.
+        for action in ["Read", "Write"] {
+            assert_eq!(
+                judge(&Declared {
+                    name: "reference.name.borrow",
+                    title: "Borrow a name",
+                    args_schema: r#"{"type":"object","additionalProperties":false,
+                        "properties":{"feature":{"type":"string","x-entity":"Feature","maxLength":64}},
+                        "required":["feature"]}"#,
+                    action,
+                    resource_selector: "argument:feature",
+                    mutating: action == "Write",
+                    reversibility: if action == "Write" {
+                        Reversibility::Write
+                    } else {
+                        Reversibility::Read
+                    },
+                }),
+                Err(vec![DescriptorProblem::Selector(
+                    SelectorError::FeatureThroughAnArgument("feature".to_owned())
+                )]),
+                "{action}"
+            );
+        }
+    }
+
     #[test]
     fn an_absent_argument_is_refused_when_extracting() {
         let selector = Selector::parse("argument:note", &schema()).expect("backed");
@@ -637,6 +716,11 @@ mod tests {
             Selector::parse(&selector, schema).expect_err("the schema does not back it")
         };
         let backed = Selector::parse(&selector, &declaring(&entity, true)).expect("backed");
+        // A bounded, required argument naming `entity`, which `argument:` may not select.
+        let naming = |entity: &str| {
+            let property = json!({"type": "string", "x-entity": entity, "maxLength": 128});
+            refused(&declaring(&property, true))
+        };
         let mut said = Vec::new();
         for (refusal, kind) in [
             (
@@ -655,13 +739,8 @@ mod tests {
                 )),
                 "unbounded",
             ),
-            (
-                refused(&declaring(
-                    &json!({"type": "string", "x-entity": "Realm", "maxLength": 128}),
-                    true,
-                )),
-                "the realm",
-            ),
+            (naming("Realm"), "the realm"),
+            (naming("Feature"), "a feature"),
         ] {
             assert!(
                 matches!(
@@ -671,6 +750,7 @@ mod tests {
                         | (SelectorError::NotAnEntity(_), "not an entity")
                         | (SelectorError::Unbounded(_), "unbounded")
                         | (SelectorError::RealmThroughAnArgument(_), "the realm")
+                        | (SelectorError::FeatureThroughAnArgument(_), "a feature")
                 ),
                 "the case for `{kind}` was refused as something else"
             );
@@ -704,7 +784,7 @@ mod tests {
         })
         .expect_err("the schema declares nothing");
         said.extend(judged.iter().map(ToString::to_string));
-        assert_eq!(said.len(), 11, "a refusal was not reached");
+        assert_eq!(said.len(), 12, "a refusal was not reached");
         for refusal in said {
             // The name cut short, and the sentence around it.
             assert!(
@@ -775,6 +855,10 @@ mod tests {
             (
                 SelectorError::RealmThroughAnArgument("home".to_owned()).to_string(),
                 "home",
+            ),
+            (
+                SelectorError::FeatureThroughAnArgument("naming".to_owned()).to_string(),
+                "naming",
             ),
             (ExtractError::Absent("note".to_owned()).to_string(), "note"),
             (

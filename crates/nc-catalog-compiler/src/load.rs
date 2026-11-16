@@ -1948,6 +1948,12 @@ const fn the_check_for(problem: &nc_schema::DescriptorProblem) -> (&'static str,
              an argument naming `Realm` would let whoever dispatches choose which realm is \
              authorized",
         ),
+        Judged::Selector(SelectorError::FeatureThroughAnArgument(_)) => (
+            "selector-feature-through-an-argument",
+            "a feature of the platform is selected by `feature:<id>`, naming it; an \
+             argument naming `Feature` would let whoever dispatches choose which feature's \
+             permit decides the command",
+        ),
     }
 }
 

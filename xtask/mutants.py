@@ -1294,6 +1294,9 @@ WEAKENINGS = [
     ("loader", "the_check_for", "a realm reached through an argument is a check of its own",
      "            \"selector-realm-through-an-argument\",",
      "            \"selector-names-no-entity\","),
+    ("loader", "the_check_for", "a feature reached through an argument is a check of its own",
+     "            \"selector-feature-through-an-argument\",",
+     "            \"selector-names-no-entity\","),
     ("loader", "the_check_for_a_schema", "an unseen character in a schema is a check of its own",
      "            \"schema-invisible-character\",",
      "            \"schema-outside-the-subset\","),
@@ -3176,6 +3179,12 @@ WEAKENINGS = [
     ("selector", "resolved", "an argument cannot select the realm",
      "        if entity_type == REALM_TYPE {",
      "        if entity_type.is_empty() {"),
+    # **A feature is selected by `feature:` alone.** Otherwise an argument
+    # whose `x-entity` is `Feature` lets a plugin's caller choose which
+    # feature's permit decides it, past the kernel's rule against `feature:`.
+    ("selector", "resolved", "an argument cannot select a feature",
+     "        if entity_type == FEATURE_TYPE {",
+     "        if entity_type.is_empty() {"),
     # And both ways out of the grammar repeat the text cut short.
     ("selector", "written", "a selector without the prefix is repeated cut short",
      "        return Err(SelectorError::Malformed(excerpt(text)));",
@@ -4431,6 +4440,15 @@ WEAKENINGS = [
     ("kernel_registry", "entry_of", "a plugin's entry may name a category the catalog holds",
      "                categories: &categories,",
      "                categories: &[],"),
+    # One plugin's own commands are rows of one list: two under one display
+    # name in a locale are refused, and a command declared twice is refused
+    # for that rather than for its own name.
+    ("kernel_registry", "entry_of", "two commands of one plugin are not shown by one display name",
+     "                    && entry::the_same_sentence(ours, &theirs.in_locale(locale).display_name)",
+     "                    && false"),
+    ("kernel_registry", "entry_of", "a command declared twice is not refused for its own display name",
+     "                *name != command.name\n",
+     "                true\n"),
     ("kernel_registry", "catalog_entry", "the catalog's entry is resolved in each locale",
      "                display_name: resolved(command.title_key, locale).to_owned(),",
      "                display_name: resolved(command.title_key, Locale::En).to_owned(),"),
@@ -7815,6 +7833,14 @@ WEAKENINGS = [
     ("daemon_plugins", "installed", "a plugin's manifest is described by the entries beside it",
      "        manifest: manifest.described_by(entries),",
      "        manifest: manifest.described_by(entries).described_by(PluginEntries::default()),"),
+    # What the status keeps of a refusal is bounded, so one plugin's files
+    # cannot take the status past a frame, and it is cut on a character.
+    ("daemon_plugins", "kept", "a refusal past what the status keeps is cut",
+     "    if sentence.len() <= REFUSAL_BYTES_MAX {",
+     "    if true {"),
+    ("daemon_plugins", "kept", "a refusal is cut on a character",
+     "    while !sentence.is_char_boundary(end) {",
+     "    while false {"),
     # The schedule: a run of refused pumps logged at two and each doubling,
     # ended by a clean one, and each pump and sweep noted.
     ("daemon_schedule", "noted", "one refused pump is a wait, not a run",

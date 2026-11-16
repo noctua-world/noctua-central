@@ -513,6 +513,10 @@ const A_LOG: &str = r#"{"type":"object","properties":{"note":{"type":"string","x
 /// The same arguments with a keyword outside the closed subset in them.
 const A_NOTE_WITH_A_PATTERN: &str = r#"{"type":"object","properties":{"note":{"type":"string","x-entity":"Content","maxLength":128,"pattern":"^[a-z]+$"}},"required":["note"],"additionalProperties":false}"#;
 
+/// The arguments of a command that would reach a feature of the platform
+/// through an argument, which the judge refuses in every declaration.
+const A_FEATURE: &str = r#"{"type":"object","properties":{"feature":{"type":"string","x-entity":"Feature","maxLength":64}},"required":["feature"],"additionalProperties":false}"#;
+
 /// What is wrong, on purpose, with the first command an activation declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variant {
@@ -543,13 +547,16 @@ pub enum Variant {
     /// It selects a feature of the platform, which only the kernel's own
     /// commands select.
     SelectsAFeature,
+    /// It reaches a feature of the platform through an argument, which no
+    /// declaration may.
+    SelectsAFeatureThroughAnArgument,
     /// `activate` traps instead of answering.
     Trap,
 }
 
 impl Variant {
     /// Every variant, in the order declared.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Normal,
         Self::MissingAction,
         Self::MissingSelector,
@@ -563,6 +570,7 @@ impl Variant {
         Self::ReservedNamespace,
         Self::UnknownAction,
         Self::SelectsAFeature,
+        Self::SelectsAFeatureThroughAnArgument,
         Self::Trap,
     ];
 
@@ -583,6 +591,7 @@ impl Variant {
             Self::ReservedNamespace => "reserved-namespace",
             Self::UnknownAction => "unknown-action",
             Self::SelectsAFeature => "selects-a-feature",
+            Self::SelectsAFeatureThroughAnArgument => "selects-a-feature-through-an-argument",
             Self::Trap => "trap",
         }
     }
@@ -746,6 +755,10 @@ fn broken(command: &mut Command, activation: &Activation) {
         Variant::ReservedNamespace => "kernel.note.get".clone_into(&mut command.name),
         Variant::UnknownAction => command.action = "Rename",
         Variant::SelectsAFeature => command.resource_selector = "feature:naming",
+        Variant::SelectsAFeatureThroughAnArgument => {
+            command.args_schema = A_FEATURE;
+            command.resource_selector = "argument:feature";
+        }
     }
 }
 
@@ -3862,6 +3875,7 @@ mod tests {
     #[test]
     fn each_variant_breaks_the_first_command_in_the_one_way_it_names() {
         use nc_schema::descriptor::{DescriptorProblem, Field};
+        use nc_schema::selector::SelectorError;
 
         for variant in Variant::ALL {
             let activation = Activation {
@@ -3891,6 +3905,11 @@ mod tests {
                 Variant::EmptyTitle => Err(vec![DescriptorProblem::Missing(Field::Title)]),
                 Variant::EmptySchema => Err(vec![DescriptorProblem::Missing(Field::ArgsSchema)]),
                 Variant::ReadThatMutates => Err(vec![DescriptorProblem::ReadThatMutates]),
+                Variant::SelectsAFeatureThroughAnArgument => {
+                    Err(vec![DescriptorProblem::Selector(
+                        SelectorError::FeatureThroughAnArgument("feature".to_owned()),
+                    )])
+                }
                 Variant::UnknownKeyword | Variant::BadSelector => {
                     assert!(
                         matches!(verdict.as_ref().map_err(Vec::as_slice), Err([_])),

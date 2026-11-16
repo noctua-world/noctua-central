@@ -19542,12 +19542,12 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
-        ("daemon/plugins.rs", 31, 6),
+        ("daemon/plugins.rs", 35, 6),
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 51, 6),
-        ("daemon/serves_its_kernel.rs", 20, 3),
+        ("daemon/serves_its_kernel.rs", 21, 3),
         ("daemon/testing.rs", 35, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
@@ -19570,7 +19570,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 120, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 121, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -19633,7 +19633,7 @@ mod the_frozen_path_rule {
         ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
-        ("nc-kernel/activation.rs", 31, 67),
+        ("nc-kernel/activation.rs", 32, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
@@ -19667,7 +19667,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 62, 25),
+        ("nc-kernel/registry.rs", 63, 25),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 193, 80),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -19715,9 +19715,9 @@ mod the_frozen_path_rule {
         ("nc-schema/keys.rs", 93, 21),
         ("nc-schema/lib.rs", 92, 67),
         ("nc-schema/properties.rs", 31, 2),
-        ("nc-schema/selector.rs", 21, 20),
+        ("nc-schema/selector.rs", 22, 20),
         ("reference/adapter.rs", 18, 28),
-        ("reference/behaviour.rs", 133, 60),
+        ("reference/behaviour.rs", 134, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
         ("xtask/check.rs", 688, 57),
@@ -22528,8 +22528,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 838 scratches this tree
-    /// builds, 750 of the 838 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 840 scratches this tree
+    /// builds, 752 of the 840 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22606,14 +22606,14 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 5, 5),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
-        ("daemon/plugins.rs", 8, 8),
+        ("daemon/plugins.rs", 9, 9),
         ("daemon/profile.rs", 8, 8),
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 258, 258),
+        ("nc-catalog-compiler/the_gates_fire.rs", 259, 259),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25681,7 +25681,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20097;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20119;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25700,7 +25700,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5241;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5247;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25717,7 +25717,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1763;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1765;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25751,7 +25751,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26766;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26813;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25805,7 +25805,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,766 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,813 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25838,7 +25838,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1763 of
+    /// this tree offers, **1765 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37758,7 +37758,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2480] = [
+    static OPERATORS: [(&str, &str, &str); 2486] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38548,6 +38548,11 @@ Options:
             "loader",
             "the_check_for",
             "a realm reached through an argument is a check of its own",
+        ),
+        (
+            "loader",
+            "the_check_for",
+            "a feature reached through an argument is a check of its own",
         ),
         (
             "loader",
@@ -40764,6 +40769,11 @@ Options:
         ),
         (
             "selector",
+            "resolved",
+            "an argument cannot select a feature",
+        ),
+        (
+            "selector",
             "written",
             "a selector without the prefix is repeated cut short",
         ),
@@ -42458,6 +42468,16 @@ Options:
             "kernel_registry",
             "entry_of",
             "a plugin's entry may name a category the catalog holds",
+        ),
+        (
+            "kernel_registry",
+            "entry_of",
+            "two commands of one plugin are not shown by one display name",
+        ),
+        (
+            "kernel_registry",
+            "entry_of",
+            "a command declared twice is not refused for its own display name",
         ),
         (
             "kernel_registry",
@@ -47451,6 +47471,12 @@ Options:
             "installed",
             "a plugin's manifest is described by the entries beside it",
         ),
+        (
+            "daemon_plugins",
+            "kept",
+            "a refusal past what the status keeps is cut",
+        ),
+        ("daemon_plugins", "kept", "a refusal is cut on a character"),
         (
             "daemon_schedule",
             "noted",

@@ -3968,6 +3968,30 @@ fn a_selector_reaching_the_realm_through_an_argument_fails_the_build() {
     scratch.must_fail_saying("selector-realm-through-an-argument", "realm_id");
 }
 
+/// A selector reaching a feature through an argument is refused.
+///
+/// Accepted, `argument:<name>` over a property whose `x-entity` is `Feature`
+/// lets a command's caller choose which feature's permit decides it — and the
+/// rule that keeps a plugin off a feature is written against `feature:`. The
+/// remedy is that form, naming the feature, which nothing in the schema gives.
+#[test]
+fn a_selector_reaching_a_feature_through_an_argument_fails_the_build() {
+    let scratch = Scratch::new("selector-feature-argument");
+    scratch.replacing(
+        "catalog/commands.toml",
+        VERIFY_SCHEMA,
+        r#"{"type":"object","properties":{"from":{"type":"integer","minimum":0},"feature":{"type":"string","x-entity":"Feature","maxLength":64}},"required":["feature"],"additionalProperties":false}"#,
+    );
+    scratch.edit("catalog/commands.toml", |text| {
+        text.replacen(
+            "resource_selector = \"realm\"",
+            "resource_selector = \"argument:feature\"",
+            1,
+        )
+    });
+    scratch.must_fail_saying("selector-feature-through-an-argument", "feature");
+}
+
 /// A command name outside the grammar the kernel will activate is refused.
 #[test]
 fn a_command_name_outside_the_grammar_fails_the_build() {

@@ -27,7 +27,12 @@
 //! or component is refused, or which the kernel does not load, is logged as
 //! `daemon.plugin_refused` with the code of what refused it and kept in the
 //! status with its sentence, and the daemon runs without it — the kernel and
-//! every other plugin are still the person's.
+//! every other plugin are still the person's. **What is kept of a sentence is
+//! bounded**, at [`REFUSAL_BYTES_MAX`] bytes cut on a character and ended with
+//! `…`, whoever refused the plugin: an entries file within its bound whose
+//! every row is malformed is refused in megabytes, and kept whole it would
+//! take the status past a frame — so `noctua status`, the one place the
+//! refusal is shown, would be refused itself.
 
 use std::io::Read as _;
 use std::path::Path;
@@ -53,6 +58,13 @@ pub const COMMANDS: &str = nc_channel::PLUGIN_COMMANDS;
 
 /// The name of the directory a plugin's texts are in, one file per locale.
 pub const TEXTS: &str = nc_channel::PLUGIN_TEXTS;
+
+/// The most bytes of one plugin's refusal the status keeps.
+///
+/// Far past a refusal a person reads — each problem the kernel, the manifest
+/// or the entries name is a line or two — and far below a frame, so one
+/// plugin's refusal, however its files were written, leaves the status room.
+pub const REFUSAL_BYTES_MAX: usize = 4_096;
 
 /// How one installed plugin's load ended, as the status shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -280,7 +292,7 @@ pub async fn load(
                 .unwrap_or_default();
             loaded.push(Loaded {
                 name,
-                refused: Some(refused),
+                refused: Some(kept(refused)),
             });
             names_refused(&loaded, log);
             return loaded;
@@ -297,10 +309,29 @@ pub async fn load(
                 Err(refused) => Some(first_problem(&refused)),
             },
         };
-        loaded.push(Loaded { name, refused });
+        loaded.push(Loaded {
+            name,
+            refused: refused.map(kept),
+        });
     }
     names_refused(&loaded, log);
     loaded
+}
+
+/// `refused`, its sentence kept to [`REFUSAL_BYTES_MAX`] bytes.
+///
+/// Cut on a character, never inside one, and ended with `…`, so what the
+/// status shows is the refusal's opening, which names the plugin's file or
+/// command and its first problem, and says that more followed.
+fn kept((code, sentence): (ErrorCode, String)) -> (ErrorCode, String) {
+    if sentence.len() <= REFUSAL_BYTES_MAX {
+        return (code, sentence);
+    }
+    let mut end = REFUSAL_BYTES_MAX - '…'.len_utf8();
+    while !sentence.is_char_boundary(end) {
+        end -= 1;
+    }
+    (code, format!("{}…", &sentence[..end]))
 }
 
 /// The code and the sentence of the first problem a load was refused with.
@@ -598,6 +629,77 @@ mod tests {
             );
             assert_eq!(sentence, format!("`{}` is not UTF-8", path.display()));
         }
+    }
+
+    /// What the status keeps of a refusal past its bound is its opening.
+    ///
+    /// Cut on a character within the bound and ended with `…`; a refusal
+    /// within the bound is kept whole.
+    #[test]
+    fn a_refusal_is_kept_to_its_bound_cut_on_a_character() {
+        let most = super::REFUSAL_BYTES_MAX;
+        let code = ErrorCode::PluginEntriesInvalid;
+        for whole in ["a refusal".to_owned(), "a".repeat(most)] {
+            assert_eq!(super::kept((code, whole.clone())), (code, whole));
+        }
+        // **A character across the cut**: `é` is two bytes, and one lies
+        // where the cut would fall on every byte boundary the bound leaves.
+        for pad in 0..4 {
+            let sentence = format!("{}{}", "a".repeat(most - 4 + pad), "é".repeat(most));
+            let (kept_code, kept) = super::kept((code, sentence.clone()));
+            assert_eq!(kept_code, code);
+            assert!(kept.len() <= most, "{pad}: {} bytes kept", kept.len());
+            assert!(
+                kept.len() > most - 8,
+                "{pad}: only {} bytes kept",
+                kept.len()
+            );
+            let opening = kept.strip_suffix('…').expect("ended with an ellipsis");
+            assert!(sentence.starts_with(opening), "{pad}: not the opening");
+        }
+    }
+
+    /// An entries file within its bound whose every row is malformed is
+    /// refused in a sentence past a frame, and what the status keeps of it is
+    /// within the bound.
+    ///
+    /// **The file a hostile plugin would write**: each malformed name is a
+    /// problem the entries' refusal names, so the sentence grows with the
+    /// file, while the file is one the daemon reads.
+    #[test]
+    fn an_entries_file_of_malformed_rows_is_refused_within_what_the_status_keeps() {
+        let scratch = Scratch::new("malformed-rows");
+        let user = scratch.user();
+        let most = nc_kernel::entries::PluginEntries::most_bytes();
+        let directory = scratch.plugin("rows", REFERENCE, b"bytes");
+        let file = directory.join(super::COMMANDS);
+        std::fs::remove_file(&file).expect("removed");
+        let row = "{name=\"A\"},";
+        let mut table = String::from("command=[");
+        while table.len() + row.len() < most {
+            table.push_str(row);
+        }
+        table.push(']');
+        written(&file, table.as_bytes());
+        let (code, sentence) = super::installed(&directory, &user).expect_err("malformed");
+        assert_eq!(code, ErrorCode::PluginEntriesInvalid);
+        let frame = usize::try_from(nc_catalog::DAEMON.ipc_frame_max_bytes).expect("fits");
+        assert!(
+            sentence.len() > frame,
+            "the refusal holds {} bytes, which a frame of {frame} carries: the case is not \
+             the one a bound is needed for",
+            sentence.len()
+        );
+        let (_, kept) = super::kept((code, sentence.clone()));
+        assert!(
+            kept.len() <= super::REFUSAL_BYTES_MAX,
+            "{} kept",
+            kept.len()
+        );
+        assert!(
+            sentence.starts_with(kept.trim_end_matches('…')),
+            "what is kept is not the refusal's opening"
+        );
     }
 
     /// Each refused load is logged with its code, and nothing is logged for
