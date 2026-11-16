@@ -19542,7 +19542,7 @@ mod the_frozen_path_rule {
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
-        ("daemon/plugins.rs", 35, 6),
+        ("daemon/plugins.rs", 37, 6),
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
@@ -19559,7 +19559,7 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 37, 15),
+        ("nc-catalog-compiler/docs.rs", 38, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
@@ -19570,7 +19570,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 122, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 123, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -19591,7 +19591,7 @@ mod the_frozen_path_rule {
         ("nc-catalog/wiki.rs", 6, 2),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            41,
+            42,
             3,
         ),
         ("nc-channel/found.rs", 18, 10),
@@ -22528,8 +22528,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 843 scratches this tree
-    /// builds, 755 of the 843 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 846 scratches this tree
+    /// builds, 758 of the 846 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22613,7 +22613,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 261, 261),
+        ("nc-catalog-compiler/the_gates_fire.rs", 263, 263),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -22621,8 +22621,8 @@ mod the_frozen_path_rule {
         ),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            20,
-            20,
+            21,
+            21,
         ),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
@@ -25681,7 +25681,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20131;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20141;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25751,7 +25751,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26843;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26868;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25805,7 +25805,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,843 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,868 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -34529,10 +34529,11 @@ mod the_meta_gate {
              declares and every command of the reference plugin through the CLI \
              in-process, each found in the journal, and help read from its \
              registry. It spawns a process, so no mutation command runs it: what it \
-             drives in the CLI's modules, `server.rs` and `nc-authz`'s world \
-             reader is decided by their own unit tests, which the runner's commands \
-             for them run, and a weakening of this file would remove evidence \
-             rather than uncover an undecided clause",
+             drives in the CLI's modules, `server.rs`, the kernel's `builtin.rs` \
+             and `find.rs` and `nc-authz`'s world reader is decided by their own \
+             unit tests, which the runner's commands for them run, and a weakening \
+             of this file would remove evidence rather than uncover an undecided \
+             clause",
         ),
         (
             "apps/daemon/tests/exit_codes.rs",
@@ -34577,18 +34578,21 @@ mod the_meta_gate {
             "crates/nc-channel/tests/a_configuration_that_collides_is_refused.rs",
             "a suite: a person's keybinding configuration read and judged against \
              the other channels' under scratch bases and a namespace, each refusal \
-             held to its code and nothing of another channel written. The one source \
-             it drives, `keys.rs`, is edited by the runner under the crate's own \
-             command, which builds this suite, and a weakening of this file would \
-             remove evidence rather than uncover an undecided clause",
+             and each warning held to its code and nothing of another channel \
+             written. The one source it drives, `keys.rs`, is edited by the runner \
+             under the crate's own command, which builds this suite, and a \
+             weakening of this file would remove evidence rather than uncover an \
+             undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
             "a suite: every channel's names derived for two users and two \
-             namespaces and held apart, the spellings, the ports and the manifest. \
-             The one source it drives, `lib.rs`, is edited by the runner under the \
-             crate's own command, which builds this suite, and a weakening of this \
-             file would remove evidence rather than uncover an undecided clause",
+             namespaces and held apart, the spellings, the ports, the manifest and \
+             the default Leaders, each held to the Leader's grammar, whose rules \
+             `nc-schema` decides under its own command. The one source it drives, \
+             `lib.rs`, is edited by the runner under the crate's own command, which \
+             builds this suite, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
         ),
         (
             "crates/nc-ipc/tests/endpoint.rs",
@@ -34661,26 +34665,29 @@ mod the_meta_gate {
         ),
         (
             "crates/nc-catalog-compiler/tests/the_gates_fire.rs",
-            "a suite: the compiler run over a catalog broken on purpose. The \
-             refusals it watches are written in `lib.rs`, `load.rs`, \
-             `problem.rs`, `metadata.rs`, `registries.rs` and `surfaces.rs`, \
-             every one of which the runner edits",
+            "a suite: the compiler run over a catalog broken on purpose, and the \
+             code and pages it emits held to the catalog it read. The refusals it \
+             watches are written in `lib.rs`, `load.rs`, `problem.rs`, \
+             `messages.rs`, `metadata.rs`, `registries.rs` and `surfaces.rs`, and \
+             the code and pages it holds in `emit.rs` and `docs.rs`, every one of \
+             which the runner edits",
         ),
         (
             "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
             "a suite: acceptance criterion 4 read a second way, against a \
              shuffled `read_dir`. The ordering it holds is decided in `emit.rs`, \
-             `docs.rs` and the wiki walk of `metadata.rs`, all three of which the \
-             runner edits",
+             `docs.rs`, the CLI page's sections in `surfaces.rs` and the wiki walk \
+             of `metadata.rs`, all four of which the runner edits",
         ),
         (
             "crates/nc-fuzzy/tests/properties.rs",
-            "a suite: the fuzzy core's laws stated as properties, and every \
-             alignment it chooses held to an exhaustive search, over `fold.rs`, \
-             `query.rs`, `align.rs`, `score.rs` and `rank.rs`, every one of which \
-             the runner edits under the crate's own command, which builds this \
-             suite. It starts no process, and a weakening of this file would \
-             remove evidence rather than uncover an undecided clause",
+            "a suite: the fuzzy core's laws stated as properties, and the \
+             alignments of fields up to ten characters held to an exhaustive \
+             search, over `fold.rs`, `query.rs`, `align.rs`, `score.rs` and \
+             `rank.rs`, every one of which the runner edits under the crate's own \
+             command, which builds this suite. It starts no process, and a \
+             weakening of this file would remove evidence rather than uncover an \
+             undecided clause",
         ),
         (
             "crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs",
@@ -34734,9 +34741,9 @@ mod the_meta_gate {
             "a suite: the reference plugin loaded as every way its activation can be \
              refused, criterion 5 among them, through a kernel over a store in memory \
              and over the local database. What it drives is the crate's `lib.rs`, \
-             `registry.rs`, `bindings.rs`, `limits.rs` and the host's `store.rs`, all \
-             edited by the runner under the crate's own command, which builds this \
-             suite",
+             `registry.rs`, `entries.rs`, `bindings.rs`, `limits.rs` and the host's \
+             `store.rs`, all edited by the runner under the crate's own command, \
+             which builds this suite",
         ),
         (
             "crates/nc-kernel/tests/both_stores_answer_alike.rs",
@@ -34779,10 +34786,10 @@ mod the_meta_gate {
             "a suite: every dispatch through the decision point, against the real \
              component, pack and world — authorized, journaled, staged in its unit \
              and kept or let go, the journal in PostgreSQL twice. What it drives is \
-             the crate's `dispatch.rs`, `units.rs`, `builtin.rs`, `pump.rs`, \
-             `logging.rs`, `lib.rs` and the store and commands interfaces, all \
-             edited by the runner under the crate's own command, which builds this \
-             suite",
+             the crate's `dispatch.rs`, `units.rs`, `builtin.rs`, `find.rs`, \
+             `pump.rs`, `logging.rs`, `lib.rs` and the store and commands \
+             interfaces, all edited by the runner under the crate's own command, \
+             which builds this suite",
         ),
         (
             "crates/nc-kernel/tests/the_rest_of_the_world.rs",
@@ -34816,10 +34823,11 @@ mod the_meta_gate {
         (
             "crates/nc-kernel/tests/the_reference_plugin_activates.rs",
             "a suite: the kernel's engine compiling and activating the component \
-             `cargo xtask build --plugins` wrote. What it drives is written in the \
-             crate's `lib.rs`, `bindings.rs`, `engine.rs` and `built.rs`, all four \
-             edited by the runner under the crate's own command, which builds this \
-             suite",
+             `cargo xtask build --plugins` wrote, and the entries it ships held to \
+             the commands it declares. What it drives is written in the crate's \
+             `lib.rs`, `bindings.rs`, `engine.rs`, `built.rs` and `entries.rs`, all \
+             five edited by the runner under the crate's own command, which builds \
+             this suite",
         ),
         (
             "crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs",
