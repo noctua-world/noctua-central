@@ -18,6 +18,7 @@ use nc_channel::{
     Bases, Channel, ChannelError, Checkout, FORMAT, Install, Keyboard, Layout, Modifier, Namespace,
     PORT_PAIRS, PORTS_FROM, Stack, Update, layout,
 };
+use nc_schema::keys::{LeaderPart, apart, intra};
 
 /// A root no test writes under: absolute on every system, which is all a base
 /// needs to be.
@@ -83,6 +84,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         device_key,
         device,
         world,
+        keybindings,
         mark,
         stopped,
         instance_lock,
@@ -121,6 +123,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("device_key".to_owned(), device_key),
         ("device".to_owned(), device),
         ("world".to_owned(), world),
+        ("keybindings".to_owned(), keybindings),
         ("mark".to_owned(), mark),
         ("stopped".to_owned(), stopped),
         ("instance_lock".to_owned(), instance_lock),
@@ -332,6 +335,10 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ),
         ("device", root.join("data").join(leaf).join("device.json")),
         ("world", root.join("config").join(leaf).join("world.json")),
+        (
+            "keybindings",
+            root.join("config").join(leaf).join("keybindings.json"),
+        ),
         ("mark", state.join("ids.mark")),
         ("stopped", state.join("stopped")),
         ("instance_lock", state.join("instance.lock")),
@@ -426,7 +433,7 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
             log_endpoint: None,
         };
         let (paths, _) = parts(&layout(&install, "1000"));
-        assert_eq!(paths.len(), 20);
+        assert_eq!(paths.len(), 21);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),
@@ -488,6 +495,54 @@ fn the_leader_is_held_apart_across_the_three_channels_and_only_there() {
         ["Alt+Super+Space", "Alt+Win+Space", "Option+Command+Space"]
     );
     assert_eq!(development.modifiers(), [Modifier::Alt, Modifier::Super]);
+}
+
+/// The chord modifier is Shift on every channel (`NOCTUA.md §12.8`), whatever
+/// the checkout.
+#[test]
+fn the_chord_modifier_is_shift_on_every_channel() {
+    for channel in channels() {
+        assert_eq!(
+            channel.chord_modifier(),
+            Modifier::Shift,
+            "{}",
+            channel.word()
+        );
+    }
+}
+
+/// The defaults of the three channels break no rule of `NOCTUA.md §12.8`.
+///
+/// **Judged by the rule every configuration is judged by**, so the defaults
+/// a refused configuration falls back to are never a collision themselves: no
+/// Leader holds its chord modifier, none held with its chord is another's, and
+/// no two share one — the two checkouts excepted, which share theirs.
+#[test]
+fn the_defaults_of_the_three_channels_break_no_rule() {
+    let part = |channel: Channel| LeaderPart {
+        leader: channel.leader(),
+        chord: channel.chord_modifier(),
+    };
+    let [one, _] = checkouts();
+    let three = [
+        Channel::Production,
+        Channel::Staging,
+        Channel::Development(one),
+    ];
+    for channel in three {
+        assert_eq!(intra(part(channel)), Ok(()), "{}", channel.word());
+        for other in three {
+            if other != channel {
+                assert_eq!(
+                    apart(part(channel), part(other)),
+                    Ok(()),
+                    "{} and {}",
+                    channel.word(),
+                    other.word()
+                );
+            }
+        }
+    }
 }
 
 /// The checkout is the digest it always was, of its canonicalized path.

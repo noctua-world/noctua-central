@@ -46,7 +46,7 @@ CANON = "Canonical serialization: the payload format every boundary carries (§1
 IDS  = "Identifiers: Snowflake, the machine flake, file names"
 JRNL = "The command journal and its hash chain"
 POL  = "Policy packs: loading, validation, evaluation"
-CHAN = "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)"
+CHAN = "Channels and installs: the manifest an install names itself by, every name derived from it (§17.1), and the keys a channel is reached and driven by, as a person configures them (§12.8)"
 DMN  = "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)"
 IPC  = "The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1)"
 CLI  = "The command line: what a person types, read into a command's arguments, and what the CLI checks of a daemon before it sends anything (§20.2)"
@@ -1180,6 +1180,100 @@ description = "The install manifest, or the executable it sits beside, could not
 message = "error.channel.manifest-unavailable"
 severity = "error"
 retryable = true
+
+# --- A person's keybinding configuration (§12.8, §17.1) ---
+#
+# What `nc_channel::keys` refuses of a channel's keybinding configuration, and
+# warns of. **A refusal never stops anything**: the part refused — the whole
+# file, its Leader part or its bindings part — keeps its defaults and the rest
+# stands, so each code says which rule of `§12.8` was broken and what took its
+# place. One code per rule, so a log is queried by which one it was (`§15.1`);
+# the two warnings are kept beside the refusals because they are judged by the
+# same module and shown in the same list.
+
+[[error]]
+# The file names the keys every command of the profile is reached by, so one
+# another account could write would choose them. Judged by
+# `nc_platform::judge`, with the directory holding it, and left as it was.
+code = "NC-CHAN-0009"
+description = "The keybinding configuration, or the directory holding it, is not this user's alone, so it was not read and the channel's defaults stand"
+message = "error.channel.keybindings-not-private"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0010"
+description = "The keybinding configuration, or the directory holding it, could not be read: the filesystem did not answer, and the channel's defaults stand"
+message = "error.channel.keybindings-unavailable"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-CHAN-0011"
+description = "The keybinding configuration is not one this build reads: larger than its bound, not canonical JSON, a key it does not read, a value of the wrong type, another format, or a chord, a binding or a command's name outside the grammar; the channel's defaults stand"
+message = "error.channel.keybindings-unreadable"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0012"
+description = "The configured Leader holds its own chord modifier, so a key held with the Leader and one held with the chord as well would be one chord; the channel's default Leader stands"
+message = "error.channel.leader-holds-the-chord-modifier"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0013"
+description = "The configured Leader holds no modifier, so it would take a bare key from every program; the channel's default Leader stands"
+message = "error.channel.leader-without-a-modifier"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0014"
+description = "The configured Leader held with its chord modifier is another channel's Leader, or another's held with its chord is this one; the channel's default Leader stands"
+message = "error.channel.leader-held-with-the-chord-is-anothers"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0015"
+description = "The configured Leader is another channel's Leader; the channel's default Leader stands"
+message = "error.channel.leader-of-another-channel"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0016"
+description = "The configured bindings bind one key of one table twice; the catalog's bindings stand"
+message = "error.channel.key-bound-twice"
+severity = "error"
+retryable = false
+
+[[error]]
+# A configured Leader is judged against every channel settled before it, and a
+# file of theirs this build cannot judge — of a later format, one the disk did
+# not answer for, or beside more checkouts than are read — refuses it rather
+# than guess (§17.1).
+code = "NC-CHAN-0017"
+description = "Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands"
+message = "error.channel.keybindings-unjudged"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0018"
+description = "A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so"
+message = "error.channel.key-the-system-uses"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0019"
+description = "A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
+message = "error.channel.key-unpressable"
+severity = "warning"
+retryable = false
 
 # --- The daemon (§11.1, §16.2) ---
 #

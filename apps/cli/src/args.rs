@@ -3,7 +3,7 @@
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
 //! noctua [--json] start | stop | restart | status
-//! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers]
+//! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers | keybindings]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
 //! ```
@@ -91,6 +91,11 @@ pub const CATEGORIES: &str = "categories";
 /// daemon for the reason the categories need none.
 pub const EXTERNAL_IDENTIFIERS: &str = "external-identifiers";
 
+/// The help topic that is this channel's keys, which needs no daemon: they
+/// are read from the install's own configuration and the catalog this binary
+/// carries.
+pub const KEYBINDINGS: &str = "keybindings";
+
 /// What a command line asks, before any daemon is asked anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
@@ -131,6 +136,9 @@ pub enum Topic {
     /// The external-identifiers registry: every entry, and what identifies it
     /// on each system.
     ExternalIdentifiers,
+    /// This channel's keys: the forms a binding takes, the Leader on each
+    /// keyboard, the bindings in force, and why a configuration was refused.
+    Keybindings,
     /// One command, by its registered name.
     Command(String),
 }
@@ -241,13 +249,14 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
 }
 
 /// The topic help is asked about in `words`: nothing, one verb, one command's
-/// name, the exit codes, or a registry the catalog holds.
+/// name, the exit codes, a registry the catalog holds, or the keybindings.
 fn topic(words: &[String]) -> Result<Topic, Unread> {
     match words {
         [] => Ok(Topic::Everything),
         [word] if word == EXIT_CODES => Ok(Topic::ExitCodes),
         [word] if word == CATEGORIES => Ok(Topic::Categories),
         [word] if word == EXTERNAL_IDENTIFIERS => Ok(Topic::ExternalIdentifiers),
+        [word] if word == KEYBINDINGS => Ok(Topic::Keybindings),
         [word] if VERBS.contains(&word.as_str()) => Ok(Topic::Verbs),
         [word] => named(word).map(Topic::Command),
         [_, extra, ..] => Err(unread(format!(
@@ -584,6 +593,8 @@ mod tests {
                 &["--json", "--help", "external-identifiers"],
                 Topic::ExternalIdentifiers,
             ),
+            (&["help", "keybindings"], Topic::Keybindings),
+            (&["--json", "--help", "keybindings"], Topic::Keybindings),
             (
                 &["help", "kernel.undo"],
                 Topic::Command("kernel.undo".to_owned()),
@@ -649,6 +660,7 @@ mod tests {
             );
         }
         assert!(!nc_schema::command_name_is_well_formed(super::EXIT_CODES));
+        assert!(!nc_schema::command_name_is_well_formed(super::KEYBINDINGS));
         for command in nc_catalog::COMMANDS {
             assert!(!VERBS.contains(&command.name), "{}", command.name);
             assert_eq!(
@@ -671,6 +683,9 @@ mod tests {
     /// A registry's help topic is one undotted word, which no verb and no
     /// registered name is — the catalog's, a plugin's, or any well-formed one —
     /// so `help categories` is never read as help on a command.
+    ///
+    /// The keybindings' topic is one more such word, and no two topics are one
+    /// word.
     #[test]
     fn the_registry_topics_are_undotted_and_never_a_registered_name() {
         let a_topic_of_its_own = |word: &str, topic: Topic| {
@@ -701,7 +716,15 @@ mod tests {
         };
         a_topic_of_its_own(super::CATEGORIES, Topic::Categories);
         a_topic_of_its_own(super::EXTERNAL_IDENTIFIERS, Topic::ExternalIdentifiers);
-        assert_ne!(super::CATEGORIES, super::EXTERNAL_IDENTIFIERS);
+        a_topic_of_its_own(super::KEYBINDINGS, Topic::Keybindings);
+        let topics = [
+            super::CATEGORIES,
+            super::EXTERNAL_IDENTIFIERS,
+            super::KEYBINDINGS,
+        ];
+        for (at, topic) in topics.iter().enumerate() {
+            assert!(!topics[at + 1..].contains(topic), "{topic} is two topics");
+        }
     }
 
     /// The verbs are `help` and the four that control the daemon, each read

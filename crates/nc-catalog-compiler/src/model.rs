@@ -1159,8 +1159,14 @@ pub struct CommandEntry {
     pub mutating: bool,
     /// The JSON Schema for its arguments — and its AI tool interface.
     pub args_schema: String,
-    /// The default keybinding, where it has one (`NOCTUA.md §12.8`).
-    pub keybinding: Option<String>,
+    /// Its default keybindings, each in the Leader's grammar (`NOCTUA.md
+    /// §12.8`): `Leader KeyQ`, `Leader+KeyQ`, `Leader+Chord+KeyQ`.
+    ///
+    /// **A list**, because `§12.8` binds one command in more than one table.
+    /// `keybinding`, singular, is a key no field reads, which the struct's
+    /// attribute refuses with the rest.
+    #[serde(default)]
+    pub keybindings: Vec<String>,
 }
 
 /// Whether a command can be undone (`NOCTUA.md §14.6`).

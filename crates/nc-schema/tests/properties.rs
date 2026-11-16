@@ -4,9 +4,15 @@
 //! code, as `nc-canon` and `nc-ids` do. The examples in `src/` pin each refusal
 //! to the shape somebody thought of; these generate the shapes nobody did — an
 //! instance built to fit any schema of the subset is accepted and any single
-//! change to it is refused, and the judge never refuses with nothing to say.
+//! change to it is refused, and the judge never refuses with nothing to say;
+//! a binding is read back only as it is written, and no Leader settled from a
+//! configuration meets another channel's.
 
 use nc_schema::entry::{Entry, EntryProblem, InLocale, Rules, Text, Texts};
+use nc_schema::keys::{
+    Binding, Chord, Claim, Key, Leader, LeaderPart, LeaderRule, Modifier, Modifiers, Settled,
+    Table, Verdict, apart, intra, settle,
+};
 use nc_schema::{Declared, Reversibility, Schema, judge};
 use proptest::prelude::*;
 use proptest::strategy::ValueTree as _;
@@ -445,4 +451,339 @@ proptest! {
             "emptying the {} {} was not reported missing: {:?}", locale, text, problems
         );
     }
+}
+
+/// Every binding and every chord the grammar can write is read back as itself.
+///
+/// **Over the whole vocabulary, not a sample of it**: three tables and every
+/// key, and every set of modifiers with every key, are few enough to walk.
+#[test]
+fn every_binding_written_is_read_back_as_itself() {
+    let mut read = 0_usize;
+    for table in Table::ALL {
+        for key in Key::ALL {
+            let binding = Binding { table, key };
+            assert_eq!(Binding::parse(&binding.written()), Ok(binding));
+            read += 1;
+        }
+    }
+    for bits in 0..16_u8 {
+        let held: Vec<Modifier> = Modifier::ALL
+            .into_iter()
+            .enumerate()
+            .filter(|(at, _)| bits & (1 << at) != 0)
+            .map(|(_, modifier)| modifier)
+            .collect();
+        for key in Key::ALL {
+            let chord = Chord::new(Modifiers::of(&held), key);
+            assert_eq!(Chord::parse(&chord.written()), Ok(chord));
+            read += 1;
+        }
+    }
+    assert_eq!(read, 3 * Key::ALL.len() + 16 * Key::ALL.len());
+}
+
+/// A text one of the three forms opens, a key and a tail: near enough to a
+/// binding that a good share of them is one.
+///
+/// **Most of what a law over arbitrary text draws is nothing like a binding**,
+/// and a law that only ever sees refusals cannot tell an exact reader from
+/// one that normalises; so each part is drawn from spellings that are right,
+/// and from the ones an author writes by mistake —
+/// `the_texts_read_against_the_grammar_are_bindings_often_and_not_often`
+/// holds the share.
+fn binding_texts() -> impl Strategy<Value = String> {
+    let opening = prop::sample::select(vec![
+        "Leader ",
+        "Leader+",
+        "Leader+Chord+",
+        "Leader ",
+        "Leader+",
+        "Leader+Chord+",
+        "Leader ",
+        "Leader+",
+        "Leader+Chord+",
+        "Leader ",
+        "Leader+",
+        "Leader+Chord+",
+        "leader ",
+        "Leader  ",
+        "Leader+Shift+",
+        "Leader+Chord ",
+        "",
+        "C-",
+        "LEADER ",
+        "Leader\u{200b} ",
+    ]);
+    let key = prop::sample::select(vec![
+        "KeyQ",
+        "Space",
+        "Digit1",
+        "ArrowLeft",
+        "F12",
+        "Equal",
+        "Backquote",
+        "keyq",
+        "Escape",
+        "q",
+        "KeyQ KeyW",
+        "",
+    ]);
+    let tail = prop::sample::select(vec!["", "", "", "", "", "", " ", "\u{2063}", "+KeyW"]);
+    prop_oneof![
+        6 => (opening, key, tail).prop_map(|(opening, key, tail)| format!("{opening}{key}{tail}")),
+        1 => ".{0,24}",
+    ]
+}
+
+/// Modifiers in some order and a key: near enough to a chord that a good
+/// share of them is one.
+fn chord_texts() -> impl Strategy<Value = String> {
+    let word = prop::sample::select(vec![
+        "Control", "Alt", "Shift", "Super", "Alt", "Super", "Ctrl", "alt", "", "Meta",
+    ]);
+    let key = prop::sample::select(vec!["Space", "KeyK", "Tab", "F2", "space", "Shift", ""]);
+    prop_oneof![
+        6 => (proptest::collection::vec(word, 0..4), key).prop_map(|(words, key)| {
+            let mut parts: Vec<&str> = words;
+            parts.push(key);
+            parts.join("+")
+        }),
+        1 => ".{0,24}",
+    ]
+}
+
+proptest! {
+    /// No text but a binding written as the grammar writes it is read as one
+    /// (acceptance 7 of Stage 14).
+    ///
+    /// **One spelling**: whatever `Binding::parse` accepts, `written` gives
+    /// back character for character, so a reader that forgave a case, a space
+    /// or an alias — reading two texts as one binding — fails here.
+    #[test]
+    fn no_text_but_a_written_binding_is_read_as_one(text in binding_texts()) {
+        if let Ok(binding) = Binding::parse(&text) {
+            prop_assert_eq!(binding.written(), text);
+        }
+    }
+
+    /// No text but a chord written as the grammar writes it is read as one.
+    #[test]
+    fn no_text_but_a_written_chord_is_read_as_one(text in chord_texts()) {
+        if let Ok(chord) = Chord::parse(&text) {
+            prop_assert_eq!(chord.written(), text);
+        }
+    }
+}
+
+/// The texts the two laws above are judged over are read often and refused
+/// often, so neither law is a law about refusals alone.
+#[test]
+fn the_texts_read_against_the_grammar_are_bindings_often_and_not_often() {
+    let mut runner = TestRunner::deterministic();
+    let (bindings, chords) = (binding_texts(), chord_texts());
+    let (mut read, mut refused) = ([0_usize; 2], [0_usize; 2]);
+    for _ in 0..256 {
+        let text = bindings.new_tree(&mut runner).expect("a text").current();
+        if Binding::parse(&text).is_ok() {
+            read[0] += 1;
+        } else {
+            refused[0] += 1;
+        }
+        let text = chords.new_tree(&mut runner).expect("a text").current();
+        if Chord::parse(&text).is_ok() {
+            read[1] += 1;
+        } else {
+            refused[1] += 1;
+        }
+    }
+    assert!(
+        read.iter().chain(&refused).all(|count| *count >= 32),
+        "bindings {} read and {} refused, chords {} read and {} refused, of 256 each",
+        read[0],
+        refused[0],
+        read[1],
+        refused[1]
+    );
+}
+
+/// A channel's part, drawn from few enough Leaders and chord modifiers that
+/// two claims meet often.
+///
+/// **A law over the whole vocabulary would almost never see a collision**, so
+/// the pool is six sets of modifiers — Shift alone and one holding Shift
+/// among them, for rule 1 — two keys and two chord modifiers.
+fn parts() -> impl Strategy<Value = LeaderPart> {
+    let held = prop::sample::select(vec![
+        vec![Modifier::Alt],
+        vec![Modifier::Control, Modifier::Alt],
+        vec![Modifier::Alt, Modifier::Super],
+        vec![Modifier::Alt, Modifier::Shift],
+        vec![Modifier::Shift],
+        vec![Modifier::Control],
+    ]);
+    let key = prop::sample::select(vec![Key::Space, Key::KeyK]);
+    let chord = prop::sample::select(vec![Modifier::Shift, Modifier::Control]);
+    (held, key, chord).prop_map(|(held, key, chord)| LeaderPart {
+        leader: Leader::of(Chord::new(Modifiers::of(&held), key))
+            .expect("every set in the pool holds a modifier"),
+        chord,
+    })
+}
+
+/// One to five claims, each a default and maybe a configured part, ranked in
+/// an order that is not the order listed.
+fn claims() -> impl Strategy<Value = Vec<Claim<u8>>> {
+    proptest::collection::vec((parts(), proptest::option::of(parts())), 1..6)
+        .prop_flat_map(|drawn| {
+            let ranks: Vec<u8> = (0..).take(drawn.len()).collect();
+            (Just(drawn), Just(ranks).prop_shuffle())
+        })
+        .prop_map(|(drawn, ranks)| {
+            drawn
+                .into_iter()
+                .zip(ranks)
+                .map(|((default, configured), rank)| Claim {
+                    rank,
+                    default,
+                    configured,
+                })
+                .collect()
+        })
+}
+
+proptest! {
+    /// No Leader settled from a configuration meets another channel's: every
+    /// accepted part keeps rule 1, and rules 2 and 3 against every other part
+    /// in force.
+    ///
+    /// **Two parts both on their defaults are the one pair not held**, because
+    /// two development checkouts share theirs until one is configured
+    /// (`NOCTUA.md §17.1`); a judge that checked a part against the claims
+    /// once, in the order listed, would let a later configured part meet an
+    /// earlier one's.
+    #[test]
+    fn no_settled_leader_meets_another_channels(claims in claims()) {
+        let settled = settle(&claims);
+        prop_assert_eq!(settled.len(), claims.len());
+        for (at, one) in settled.iter().enumerate() {
+            if one.verdict == Verdict::Accepted {
+                prop_assert_eq!(intra(one.part), Ok(()));
+            }
+            for (other_at, other) in settled.iter().enumerate() {
+                let either = one.verdict == Verdict::Accepted || other.verdict == Verdict::Accepted;
+                if at != other_at && either {
+                    prop_assert_eq!(
+                        apart(one.part, other.part), Ok(()),
+                        "{:?} and {:?} met", claims[at], claims[other_at]
+                    );
+                }
+            }
+        }
+    }
+
+    /// A channel is never refused for one after it: what a claim settles to
+    /// is the same whatever every claim ranked after it configures.
+    #[test]
+    fn a_channel_is_never_refused_for_one_after_it(
+        claims in claims(),
+        replaced in proptest::collection::vec(proptest::option::of(parts()), 5),
+        cut in 0_u8..5,
+    ) {
+        let altered: Vec<Claim<u8>> = claims
+            .iter()
+            .zip(&replaced)
+            .map(|(claim, configured)| if claim.rank > cut {
+                Claim { configured: *configured, ..*claim }
+            } else {
+                *claim
+            })
+            .collect();
+        let (before, after) = (settle(&claims), settle(&altered));
+        for (at, claim) in claims.iter().enumerate() {
+            if claim.rank <= cut {
+                prop_assert_eq!(before[at], after[at], "{:?} moved", claim);
+            }
+        }
+    }
+
+    /// Settling does not depend on the order the claims are listed in.
+    #[test]
+    fn settling_does_not_depend_on_the_order_claims_are_listed(
+        (claims, shuffled) in claims().prop_flat_map(|claims| {
+            (Just(claims.clone()), Just(claims).prop_shuffle())
+        })
+    ) {
+        let by_rank = |claims: &[Claim<u8>]| {
+            let mut settled: Vec<(u8, Settled<u8>)> = claims
+                .iter()
+                .map(|claim| claim.rank)
+                .zip(settle(claims))
+                .collect();
+            settled.sort_by_key(|(rank, _)| *rank);
+            settled
+        };
+        prop_assert_eq!(by_rank(&claims), by_rank(&shuffled));
+    }
+
+    /// Refusing only ever returns to the default: a part in force is the
+    /// claim's configured one when it was accepted, and its default otherwise.
+    #[test]
+    fn refusing_only_ever_returns_to_the_default(claims in claims()) {
+        for (claim, settled) in claims.iter().zip(settle(&claims)) {
+            match settled.verdict {
+                Verdict::Accepted => prop_assert_eq!(Some(settled.part), claim.configured),
+                Verdict::Default => {
+                    prop_assert_eq!(claim.configured, None);
+                    prop_assert_eq!(settled.part, claim.default);
+                }
+                Verdict::Refused { .. } => {
+                    prop_assert!(claim.configured.is_some());
+                    prop_assert_eq!(settled.part, claim.default);
+                }
+            }
+        }
+    }
+}
+
+/// The claims the laws above are judged over have configured parts accepted
+/// often and refused often, by each rule between channels.
+///
+/// **A settlement law can be vacuous** the way the judge's can: drawn from the
+/// whole vocabulary, two Leaders almost never meet, and a judge that accepted
+/// everything would pass every law above.
+#[test]
+fn the_claims_settled_are_accepted_often_and_refused_often() {
+    let mut runner = TestRunner::deterministic();
+    let strategy = claims();
+    let (mut accepted, mut shared, mut held_with, mut holding) =
+        (0_usize, 0_usize, 0_usize, 0_usize);
+    for _ in 0..256 {
+        let claims = strategy.new_tree(&mut runner).expect("claims").current();
+        for settled in settle(&claims) {
+            match settled.verdict {
+                Verdict::Accepted => accepted += 1,
+                Verdict::Refused {
+                    rule: LeaderRule::SharedWithAnother,
+                    ..
+                } => shared += 1,
+                Verdict::Refused {
+                    rule: LeaderRule::HeldWithTheChordIsAnothers,
+                    ..
+                } => {
+                    held_with += 1;
+                }
+                Verdict::Refused {
+                    rule: LeaderRule::HoldsTheChordModifier,
+                    ..
+                } => holding += 1,
+                Verdict::Refused { .. } | Verdict::Default => {}
+            }
+        }
+    }
+    assert!(
+        accepted >= 32 && shared >= 32 && held_with >= 16 && holding >= 16,
+        "{accepted} accepted; refused {shared} for sharing a Leader, {held_with} for the \
+         Leader held with the chord, {holding} for holding the chord modifier"
+    );
 }

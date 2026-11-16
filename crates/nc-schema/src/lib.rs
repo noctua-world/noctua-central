@@ -4,7 +4,9 @@
 //! and `§11.7` makes the kernel refuse a descriptor it cannot use. This crate is
 //! the one rule both need: [`Schema`] compiles and validates the subset,
 //! [`selector`] reads what a command acts on out of its arguments, and
-//! [`descriptor::judge`] holds a whole declaration to both.
+//! [`descriptor::judge`] holds a whole declaration to both. Beside them,
+//! [`entry`] judges what a person is shown of an entry, and [`keys`] is the
+//! Leader's grammar a binding is written in (`NOCTUA.md §12.8`).
 //!
 //! **Two callers, one rule.** The catalog compiler judges every command
 //! `catalog/commands.toml` declares, at build time; `§11.7` has the kernel
@@ -99,6 +101,7 @@
 
 pub mod descriptor;
 pub mod entry;
+pub mod keys;
 pub mod selector;
 
 pub use descriptor::{

@@ -1789,6 +1789,7 @@ dependencies = [
  "nc-catalog",
  "nc-channel",
  "nc-platform",
+ "nc-schema",
 ]
 
 [[package]]

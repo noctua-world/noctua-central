@@ -1074,23 +1074,11 @@ fn commands(catalog: &Catalog) -> String {
                 THE_HISTORY.contains(&entry.name.as_str())
             ),
             // **A row only when there is one.** No command declares a binding,
-            // so `Keybinding | — |` on every row of this page would be a column
+            // so `Keybindings | — |` on every row of this page would be a column
             // of em-dashes that a reader has to look at twice to learn it says
-            // nothing. The day a command declares a binding, its row appears.
-            entry
-                .keybinding
-                .as_deref()
-                // **Through `cell`, like every other value written into a
-                // row.** Raw, a `keybinding` of `C-|` writes a three-cell row
-                // into `docs/commands.md`, and the page's own test then reports
-                // `journal.verify declares C-| and the page does not publish it`
-                // — which sends the reader to the page rather than to the
-                // registry line, the thing the comment beside `action` and
-                // `resource_selector` argues against. No shipped command
-                // declares a binding, so the shipped catalog never exercises it.
-                .map_or_else(String::new, |key| {
-                    format!("\n| Keybinding | `{}` |", cell(key))
-                })
+            // nothing. The day a command declares a binding, its row appears,
+            // every binding in it in the order the catalog writes them.
+            keybindings_row(&entry.keybindings)
                 + &shown_with(
                     catalog,
                     &Held {
@@ -1123,6 +1111,24 @@ struct Held<'a> {
     categories: &'a [String],
     /// Its glyph, as written.
     glyph: Option<&'a str>,
+}
+
+/// A command's keybindings as one row of its table, or nothing where it
+/// declares none.
+///
+/// **Each binding through `cell`, like every other value written into a
+/// row**: the grammar admits no `|`, but the row is a table cell whatever its
+/// value, and a value written raw into one is how a page and its registry
+/// stop agreeing on how many columns a row has.
+fn keybindings_row(keybindings: &[String]) -> String {
+    if keybindings.is_empty() {
+        return String::new();
+    }
+    let written: Vec<String> = keybindings
+        .iter()
+        .map(|binding| format!("`{}`", cell(binding)))
+        .collect();
+    format!("\n| Keybindings | {} |", written.join(", "))
 }
 
 /// The rows of an entry's table that are there only when the entry has them:

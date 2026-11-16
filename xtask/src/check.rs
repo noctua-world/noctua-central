@@ -3907,7 +3907,7 @@ fn the_excused_lines_are_counted(
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
     ("allow-logging:", 84),
-    ("allow-nondeterminism:", 21),
+    ("allow-nondeterminism:", 22),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
     ("nc:narrows:", 15),
@@ -3931,7 +3931,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 76] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 77] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3962,6 +3962,8 @@ const EXCUSED_WHERE: [(&str, &str, usize); 76] = [
         "allow-nondeterminism:",
         1,
     ),
+    // The other channels' profiles, listed and then sorted by digest.
+    ("crates/nc-channel/src/keys.rs", "allow-nondeterminism:", 1),
     ("crates/nc-ids/src/lib.rs", "allow-logging:", 1),
     ("crates/nc-journal/src/entry.rs", "allow-logging:", 1),
     (
@@ -4083,7 +4085,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 76] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 49] = [
+const EXCUSED_IN: [(&str, usize); 50] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
@@ -4096,6 +4098,7 @@ const EXCUSED_IN: [(&str, usize); 49] = [
         "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
         1,
     ),
+    ("crates/nc-channel/src/keys.rs", 1),
     ("crates/nc-ids/src/lib.rs", 1),
     ("crates/nc-journal/src/entry.rs", 1),
     ("crates/nc-journal/tests/in_postgres.rs", 3),
@@ -7762,12 +7765,15 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 51] = [
+const SUITES: [(&str, &str); 52] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
     ("nc-catalog-compiler", "the_gates_fire.rs"),
     ("nc-catalog-compiler", "the_order_on_disk_stays_on_disk.rs"),
+    // A person's keybinding configuration read beside the other channels'
+    // under scratch bases, relocated under a namespace: it spawns nothing.
+    ("nc-channel", "a_configuration_that_collides_is_refused.rs"),
     // The one naming function, over every channel, two users and two
     // namespaces: it touches no disk and spawns nothing.
     ("nc-channel", "the_names_are_disjoint.rs"),
@@ -17453,7 +17459,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
-        ("nc-channel", 2),
+        ("nc-channel", 3),
         ("nc-cli", 3),
         ("nc-daemon", 11),
         ("nc-fuzzy", 3),
@@ -19486,18 +19492,18 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 214] = [
-        ("cli/args.rs", 43, 10),
+    const DOCUMENTED: [(&str, usize, usize); 217] = [
+        ("cli/args.rs", 44, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
-        ("cli/help.rs", 35, 3),
+        ("cli/help.rs", 41, 3),
         ("cli/install.rs", 68, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
-        ("cli/run.rs", 24, 5),
+        ("cli/run.rs", 28, 5),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
@@ -19526,17 +19532,17 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 32, 15),
+        ("nc-catalog-compiler/docs.rs", 33, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 16),
-        ("nc-catalog-compiler/load.rs", 61, 19),
+        ("nc-catalog-compiler/load.rs", 61, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 24, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
-        ("nc-catalog-compiler/the_gates_fire.rs", 109, 113),
+        ("nc-catalog-compiler/the_gates_fire.rs", 112, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             16,
@@ -19555,10 +19561,16 @@ mod the_frozen_path_rule {
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
         ("nc-catalog/wiki.rs", 6, 2),
+        (
+            "nc-channel/a_configuration_that_collides_is_refused.rs",
+            40,
+            3,
+        ),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/lib.rs", 60, 16),
+        ("nc-channel/keys.rs", 46, 12),
+        ("nc-channel/lib.rs", 59, 15),
         ("nc-channel/record.rs", 15, 10),
-        ("nc-channel/the_names_are_disjoint.rs", 26, 0),
+        ("nc-channel/the_names_are_disjoint.rs", 28, 0),
         ("nc-fuzzy/align.rs", 19, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
         ("nc-fuzzy/lib.rs", 5, 9),
@@ -19672,8 +19684,9 @@ mod the_frozen_path_rule {
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
         ("nc-schema/entry.rs", 45, 42),
-        ("nc-schema/lib.rs", 92, 66),
-        ("nc-schema/properties.rs", 18, 2),
+        ("nc-schema/keys.rs", 93, 21),
+        ("nc-schema/lib.rs", 92, 67),
+        ("nc-schema/properties.rs", 31, 2),
         ("nc-schema/selector.rs", 21, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
@@ -22487,8 +22500,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 812 scratches this tree
-    /// builds, 724 of the 812 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 834 scratches this tree
+    /// builds, 746 of the 834 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22554,11 +22567,11 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 56] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 57] = [
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 15, 15),
-        ("cli/run.rs", 7, 7),
+        ("cli/run.rs", 9, 9),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
@@ -22572,11 +22585,16 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 255, 255),
+        ("nc-catalog-compiler/the_gates_fire.rs", 256, 256),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
             2,
+        ),
+        (
+            "nc-channel/a_configuration_that_collides_is_refused.rs",
+            19,
+            19,
         ),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
@@ -25556,7 +25574,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19518;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19996;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25575,7 +25593,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5014;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5192;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25592,7 +25610,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1684;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1744;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25626,7 +25644,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26172;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26604;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25680,7 +25698,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,172 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,604 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25713,7 +25731,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1684 of
+    /// this tree offers, **1744 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34275,7 +34293,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 58] = [
+    const NOT_MUTATED: [(&str, &str); 59] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34433,6 +34451,15 @@ mod the_meta_gate {
              modules' unit tests, which the runner's commands for them run, and a \
              weakening of this file would remove evidence rather than uncover an \
              undecided clause",
+        ),
+        (
+            "crates/nc-channel/tests/a_configuration_that_collides_is_refused.rs",
+            "a suite: a person's keybinding configuration read and judged against \
+             the other channels' under scratch bases and a namespace, each refusal \
+             held to its code and nothing of another channel written. The one source \
+             it drives, `keys.rs`, is edited by the runner under the crate's own \
+             command, which builds this suite, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -37570,7 +37597,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 228,
+            walked, 231,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37610,7 +37637,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2407] = [
+    static OPERATORS: [(&str, &str, &str); 2463] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38373,8 +38400,8 @@ Options:
         ),
         (
             "loader",
-            "chord",
-            "a binding that shows a reader nothing is empty",
+            "check_keybindings",
+            "a binding read is a binding held against the others",
         ),
         (
             "loader",
@@ -38430,6 +38457,16 @@ Options:
             "loader",
             "declared_params",
             "a command's paragraph takes no placeholder",
+        ),
+        (
+            "pages",
+            "keybindings_row",
+            "a command's keybindings reach its page",
+        ),
+        (
+            "emitter",
+            "commands",
+            "a command's keybindings reach the code",
         ),
         ("pages", "cell", "an angle bracket is escaped"),
         ("pages", "cell", "and so is the bar that would end the cell"),
@@ -40729,6 +40766,100 @@ Options:
             "schema_entry",
             "bytes_of",
             "a tag counts the quotation marks and the comma it is listed in",
+        ),
+        (
+            "schema_keys",
+            "Modifier",
+            "Super is Win on a Windows keyboard",
+        ),
+        (
+            "schema_keys",
+            "bit",
+            "each modifier has a place of its own in a set",
+        ),
+        (
+            "schema_keys",
+            "holds",
+            "a set holds only the modifiers put in it",
+        ),
+        (
+            "schema_keys",
+            "of_code",
+            "a key is named exactly, in its own case",
+        ),
+        ("schema_keys", "Key", "a Mac calls Enter Return"),
+        ("schema_keys", "Chord", "a chord names each modifier once"),
+        ("schema_keys", "Leader", "a Leader holds a modifier"),
+        (
+            "schema_keys",
+            "Leader",
+            "the Leader held with its chord holds the chord modifier",
+        ),
+        (
+            "schema_keys",
+            "intra",
+            "a Leader never holds its own chord modifier",
+        ),
+        (
+            "schema_keys",
+            "apart",
+            "two Leaders are shared whatever their chord modifiers",
+        ),
+        (
+            "schema_keys",
+            "apart",
+            "either Leader held with its chord is judged against the other",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a claim is judged against what those before it settled on",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a claim is judged against the defaults of those after it",
+        ),
+        (
+            "schema_keys",
+            "settle",
+            "a refused part leaves the default in force",
+        ),
+        (
+            "schema_keys",
+            "Binding",
+            "the longest opening is read first",
+        ),
+        (
+            "schema_keys",
+            "tables",
+            "a command a person chose keys for is bound to those",
+        ),
+        (
+            "schema_keys",
+            "tables",
+            "a command chosen twice is read where it is named first",
+        ),
+        ("schema_keys", "tables", "a key bound twice is refused"),
+        (
+            "schema_keys",
+            "warnings",
+            "a key held with the chord is pressed with the chord modifier",
+        ),
+        (
+            "schema_keys",
+            "warnings",
+            "a held key that is the Leader's own is warned of",
+        ),
+        (
+            "schema_keys",
+            "SYSTEM_SHORTCUTS",
+            "every row is the chord its source writes",
+        ),
+        (
+            "schema_keys",
+            "SYSTEM_SHORTCUTS",
+            "no row is filed under a source its system does not write",
         ),
         (
             "compiler_metadata",
@@ -46427,7 +46558,17 @@ Options:
             "the log store's port is PostgreSQL's plus one",
         ),
         ("channel", "pair_of", "the block wraps at its last pair"),
-        ("channel", "leader", "staging holds Control as well as Alt"),
+        (
+            "channel",
+            "STAGING_LEADER",
+            "staging holds Control as well as Alt",
+        ),
+        (
+            "channel",
+            "held_with_space",
+            "a default Leader's key is Space",
+        ),
+        ("channel", "chord_modifier", "the chord modifier is Shift"),
         ("channel", "Namespace", "a namespace is bounded in length"),
         ("channel", "Namespace", "a namespace holds no separator"),
         ("channel", "Namespace", "a namespace holds a digit"),
@@ -47452,6 +47593,152 @@ Options:
             "channel_found",
             "code",
             "the filesystem's answer has its own code",
+        ),
+        (
+            "channel_keys",
+            "parsed",
+            "a choice past the file's bound is refused before it is written",
+        ),
+        (
+            "channel_keys",
+            "parsed",
+            "a later format is told from a file that is wrong",
+        ),
+        (
+            "channel_keys",
+            "parsed",
+            "a key the file does not read refuses it",
+        ),
+        (
+            "channel_keys",
+            "bindings_of",
+            "a binding names a command by a name a command can have",
+        ),
+        (
+            "channel_keys",
+            "bindings_of",
+            "a name no command can have is quoted escaped and cut",
+        ),
+        (
+            "channel_keys",
+            "leader_part",
+            "a chord modifier configured alone is weighed with the default Leader",
+        ),
+        (
+            "channel_keys",
+            "code",
+            "a Leader shared with another channel has a code of its own",
+        ),
+        (
+            "channel_keys",
+            "part",
+            "a key bound twice refuses the bindings part alone",
+        ),
+        (
+            "channel_keys",
+            "judged",
+            "the configured bindings are judged over the catalog's",
+        ),
+        (
+            "channel_keys",
+            "judged",
+            "the warnings are raised over the keys in force",
+        ),
+        (
+            "channel_keys",
+            "settled",
+            "rule 1 is judged before any other channel is read",
+        ),
+        (
+            "channel_keys",
+            "settled",
+            "only the channels before this one are read",
+        ),
+        (
+            "channel_keys",
+            "settled",
+            "a configured Leader that breaks a rule is refused",
+        ),
+        (
+            "channel_keys",
+            "installed",
+            "a channel counts only while its manifest is there",
+        ),
+        (
+            "channel_keys",
+            "installed",
+            "a manifest the disk did not answer for refuses the configured Leader",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "a base that will not list refuses",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "more checkouts than the bound refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "the bound itself does not refuse",
+        ),
+        (
+            "channel_keys",
+            "checkout_named",
+            "a real install reads no test install's profile",
+        ),
+        (
+            "channel_keys",
+            "checkout_named",
+            "a test install reads only its own namespace's profiles",
+        ),
+        (
+            "channel_keys",
+            "predecessor",
+            "a predecessor's file the disk did not answer for refuses the configured Leader",
+        ),
+        (
+            "channel_keys",
+            "refused",
+            "a file the disk did not answer for has a code of its own",
+        ),
+        (
+            "channel_keys",
+            "read",
+            "the directory is judged before the file",
+        ),
+        (
+            "channel_keys",
+            "read",
+            "a file another account can reach is refused",
+        ),
+        (
+            "channel_keys",
+            "read",
+            "no more than the bound and one byte is read",
+        ),
+        ("channel_keys", "bounded", "a file at its bound is read"),
+        (
+            "cli_args",
+            "topic",
+            "help on the keybindings is a topic of its own",
+        ),
+        (
+            "cli_help",
+            "keybindings",
+            "help says no command is bound when none is",
+        ),
+        (
+            "cli_help",
+            "said",
+            "what a refusal repeats of a file is escaped",
+        ),
+        (
+            "cli_run",
+            "run",
+            "help on the keybindings is in the environment's language",
         ),
         (
             "cli_exit",

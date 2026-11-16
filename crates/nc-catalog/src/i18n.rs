@@ -2243,6 +2243,83 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.key-bound-twice",
+        [
+            "Your shortcut settings give one key to two commands, so Noctua kept the standard shortcuts of the commands.",
+            "Suas configurações de atalhos dão uma mesma tecla a dois comandos, então o Noctua manteve os atalhos padrão dos comandos.",
+        ],
+    ),
+    (
+        "error.channel.key-the-system-uses",
+        [
+            "A shortcut in use is one the computer's system also uses, so the system may answer it before Noctua does. Noctua kept it.",
+            "Um atalho em uso também é usado pelo sistema do computador, então o sistema pode atendê-lo antes do Noctua. O Noctua o manteve.",
+        ],
+    ),
+    (
+        "error.channel.key-unpressable",
+        [
+            "A shortcut you chose is the Leader's own key pressed while holding the Leader, which no hand can press. Noctua kept it, but it cannot be used.",
+            "Um atalho que você escolheu é a própria tecla do Leader pressionada enquanto se segura o Leader, o que nenhuma mão consegue fazer. O Noctua o manteve, mas ele não pode ser usado.",
+        ],
+    ),
+    (
+        "error.channel.keybindings-not-private",
+        [
+            "Your keyboard shortcut settings could be changed by another account on this computer, so Noctua did not use them and kept its standard shortcuts.",
+            "Suas configurações de atalhos de teclado poderiam ser alteradas por outra conta deste computador, então o Noctua não as usou e manteve os atalhos padrão.",
+        ],
+    ),
+    (
+        "error.channel.keybindings-unavailable",
+        [
+            "Noctua could not read your keyboard shortcut settings, because the disk did not answer, so it kept its standard shortcuts. Check that the disk is connected, then try again.",
+            "O Noctua não conseguiu ler suas configurações de atalhos de teclado, porque o disco não respondeu, então manteve os atalhos padrão. Verifique se o disco está conectado e tente de novo.",
+        ],
+    ),
+    (
+        "error.channel.keybindings-unjudged",
+        [
+            "Noctua could not read another installation's shortcut settings to check that your Leader does not clash with them, so it kept this installation's standard Leader.",
+            "O Noctua não conseguiu ler as configurações de atalhos de outra instalação para conferir que o seu Leader não conflita com elas, então manteve o Leader padrão desta instalação.",
+        ],
+    ),
+    (
+        "error.channel.keybindings-unreadable",
+        [
+            "Your keyboard shortcut settings are not written in a way Noctua reads, so it kept its standard shortcuts.",
+            "Suas configurações de atalhos de teclado não estão escritas de um jeito que o Noctua leia, então ele manteve os atalhos padrão.",
+        ],
+    ),
+    (
+        "error.channel.leader-held-with-the-chord-is-anothers",
+        [
+            "The Leader you chose, pressed with the key added to it, is the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader.",
+            "O Leader que você escolheu, pressionado com a tecla acrescentada a ele, é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação.",
+        ],
+    ),
+    (
+        "error.channel.leader-holds-the-chord-modifier",
+        [
+            "The Leader you chose already holds the key you chose to add to it, so the two would be one shortcut. Noctua kept this installation's standard Leader.",
+            "O Leader que você escolheu já inclui a tecla que você escolheu acrescentar a ele, então os dois seriam um atalho só. O Noctua manteve o Leader padrão desta instalação.",
+        ],
+    ),
+    (
+        "error.channel.leader-of-another-channel",
+        [
+            "The Leader you chose is already the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader.",
+            "O Leader que você escolheu já é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação.",
+        ],
+    ),
+    (
+        "error.channel.leader-without-a-modifier",
+        [
+            "The Leader you chose is a single key with nothing held with it, so it would take that key from every program. Noctua kept this installation's standard Leader.",
+            "O Leader que você escolheu é uma tecla sozinha, sem nada pressionado junto, então tiraria essa tecla de todos os programas. O Noctua manteve o Leader padrão desta instalação.",
+        ],
+    ),
+    (
         "error.channel.manifest-not-private",
         [
             "The file saying which installation this is could be changed by another account on this computer, so Noctua did not read it. Install Noctua again.",
@@ -3684,6 +3761,17 @@ pub const KEYS: &[&str] = &[
     "error.canon.unparsable",
     "error.channel.base-malformed",
     "error.channel.checkout-malformed",
+    "error.channel.key-bound-twice",
+    "error.channel.key-the-system-uses",
+    "error.channel.key-unpressable",
+    "error.channel.keybindings-not-private",
+    "error.channel.keybindings-unavailable",
+    "error.channel.keybindings-unjudged",
+    "error.channel.keybindings-unreadable",
+    "error.channel.leader-held-with-the-chord-is-anothers",
+    "error.channel.leader-holds-the-chord-modifier",
+    "error.channel.leader-of-another-channel",
+    "error.channel.leader-without-a-modifier",
     "error.channel.manifest-not-private",
     "error.channel.manifest-unavailable",
     "error.channel.manifest-unreadable",

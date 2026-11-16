@@ -5,7 +5,8 @@
 //! command line is read before anything is asked ([`crate::args::read`]);
 //! help on the exit codes, the verbs, the categories and the external
 //! identifiers is answered without a daemon, from what this binary carries,
-//! and help
+//! and so is help on the keybindings, from the install's own configuration
+//! beside it; help
 //! on everything shows the grammar and the verbs when no registry can be read,
 //! beside the refusal and in its exit code; a verb that controls the daemon's
 //! process is [`crate::control`]'s, which reads no registry; for anything else
@@ -53,6 +54,10 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
         Asked::Help(Topic::ExternalIdentifiers) => {
             Ok(render::shown(line.json, help::external_identifiers(locale)))
         }
+        Asked::Help(Topic::Keybindings) => Ok(render::shown(
+            line.json,
+            help::keybindings(&nc_channel::keys::effective(found), locale),
+        )),
         Asked::Help(Topic::Everything) => {
             on_a_runtime(found, line.json, env, Asked::Help(Topic::Everything))
                 .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))
@@ -224,6 +229,7 @@ mod tests {
     use nc_canon::Value;
     use nc_catalog::{ErrorCode, Locale};
     use nc_ipc::{Answer, Refusal, RefusalKind, Request, Token};
+    use std::io::Write as _;
 
     use crate::client::scripted::{Scratch, Script, Scripted, entry};
     use crate::exit::Exit;
@@ -347,6 +353,117 @@ mod tests {
                     ),
                     "{topic}"
                 );
+            }
+        }
+    }
+
+    /// `channel` installed beside `installed`, under its bases and namespace:
+    /// its manifest where its binaries read it, so the reader counts it.
+    fn installed_beside(installed: &Scratch, channel: nc_channel::Channel) {
+        let install = nc_channel::Install {
+            channel,
+            ..installed.found.install.clone()
+        };
+        let names = nc_channel::layout(&install, "scratch");
+        for directory in [&names.state, &names.install] {
+            nc_platform::create_private_directory(directory).expect("a directory");
+        }
+        nc_platform::create_private(&names.manifest)
+            .expect("a manifest")
+            .write_all(install.to_canonical().as_bytes())
+            .expect("written");
+    }
+
+    /// `text` as `installed`'s keybinding configuration, private as a writer
+    /// leaves one.
+    fn configured(installed: &Scratch, text: &str) {
+        let layout = &installed.found.layout;
+        for directory in [installed.path("c"), layout.config.clone()] {
+            nc_platform::create_private_directory(&directory).expect("a directory");
+        }
+        nc_platform::create_private(&layout.keybindings)
+            .expect("a configuration")
+            .write_all(text.as_bytes())
+            .expect("written");
+    }
+
+    /// Help on the keybindings is answered with no daemon to ask.
+    ///
+    /// No token, no listener: exit 0 and the keys in force, in the environment's
+    /// language, and the same in one canonical document under `--json`.
+    #[test]
+    fn help_on_the_keybindings_needs_no_daemon() {
+        let installed = Scratch::new("keys");
+        let portuguese = Env::of(|name| (name == "LANG").then(|| "pt_BR.UTF-8".to_owned()));
+        for (env, locale) in [(english(), Locale::En), (portuguese, Locale::PtBR)] {
+            let said =
+                crate::help::keybindings(&nc_channel::keys::effective(&installed.found), locale);
+            let outcome = super::run(&argv(&["help", "keybindings"]), &installed.found, &env);
+            assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+            assert_eq!(outcome.stdout, said);
+            assert_eq!(outcome.stderr, "");
+            assert!(
+                outcome.stdout.contains("Ctrl+Alt+Space"),
+                "{}",
+                outcome.stdout
+            );
+            let outcome = super::run(
+                &argv(&["--json", "help", "keybindings"]),
+                &installed.found,
+                &env,
+            );
+            assert_eq!(
+                outcome.stdout,
+                format!(
+                    "{}\n",
+                    Value::object([("ok", Value::text(said))]).to_canonical()
+                )
+            );
+        }
+    }
+
+    /// Help on the keybindings says why a configuration was refused — each
+    /// rule by its code and its message — and shows the defaults that stand.
+    ///
+    /// Staging configured with production's Leader, beside an installed
+    /// production, and with one key bound to two commands: both parts are
+    /// refused, the run still ends in 0, and the Leader shown is staging's own.
+    #[test]
+    fn help_on_the_keybindings_says_why_a_configuration_was_refused_and_shows_the_defaults() {
+        let installed = Scratch::new("kref");
+        installed_beside(&installed, nc_channel::Channel::Production);
+        configured(
+            &installed,
+            r#"{"bindings":{"kernel.redo":["Leader+KeyZ"],"kernel.undo":["Leader+KeyZ"]},"format":1,"leader":"Alt+Space"}"#,
+        );
+        let portuguese = Env::of(|name| (name == "LANG").then(|| "pt_BR.UTF-8".to_owned()));
+        for (env, locale) in [(english(), Locale::En), (portuguese, Locale::PtBR)] {
+            let outcome = super::run(&argv(&["help", "keybindings"]), &installed.found, &env);
+            assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+            let shown = &outcome.stdout;
+            for code in [
+                ErrorCode::ChannelLeaderOfAnotherChannel,
+                ErrorCode::ChannelKeyBoundTwice,
+            ] {
+                let message = nc_catalog::message(code.message_key(), locale).expect("a message");
+                assert!(
+                    shown.contains(&format!("  {}: {message}\n", code.code())),
+                    "{}: {shown}",
+                    code.code()
+                );
+            }
+            for said in [
+                "no two channels share a Leader",
+                "it meets production's",
+                "the channel's default Leader stands",
+                "`kernel.undo` and `kernel.redo` are both bound to `Leader+KeyZ`",
+                "the catalog's bindings stand",
+                "The Leader, the channel's default,",
+                "  Linux    Ctrl+Alt+Space",
+                "  macOS    Control+Option+Space",
+                "Bindings, the catalog's:\n  none: no command is bound to a key\n",
+            ] {
+                assert!(shown.contains(said), "{said}: {shown}");
             }
         }
     }

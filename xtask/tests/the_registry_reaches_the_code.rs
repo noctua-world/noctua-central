@@ -1168,8 +1168,12 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
         // command's AI tool interface, which nothing else would notice".
         assert_eq!(generated.args_schema, entry.args_schema, "{}", entry.name);
         assert_eq!(
-            generated.keybinding,
-            entry.keybinding.as_deref(),
+            generated.keybindings,
+            entry
+                .keybindings
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
             "{}",
             entry.name
         );

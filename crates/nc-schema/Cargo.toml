@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "The closed JSON Schema subset a command's arguments are declared in, the resource selector's grammar, and the judge a command's declaration answers to."
+description = "The closed JSON Schema subset a command's arguments are declared in, the resource selector's grammar, the judge a command's declaration answers to, and the Leader's grammar a keybinding is written in."
 
 [dependencies]
 # A schema and the arguments it judges are JSON, and this is the workspace's

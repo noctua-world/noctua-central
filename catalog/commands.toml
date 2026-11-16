@@ -38,6 +38,18 @@
 # `catalog/wiki/<locale>/commands/<name>.<md|txt|typ>`, in every locale and in
 # one format.
 #
+# Keybindings, optional, are a list, `keybindings = [...]`, each in the Leader's
+# grammar (`§12.8`), the one `nc_schema::keys` holds every reader of a binding
+# to: `Leader <key>` for a key in the leader menu,
+# `Leader+<key>` for one pressed with the Leader held, and `Leader+Chord+<key>`
+# for one pressed with the chord modifier held as well, the key named as
+# `KeyboardEvent.code` names it — `Leader+Chord+KeyQ`. Any other spelling fails
+# the build, and so does one key of one table bound twice; the same key in two
+# tables is two bindings. None is written here: the catalog's bindings arrive
+# with the layer that binds them (`§15.2`). They are the defaults: a person's
+# own configuration replaces a command's list in their channel, and
+# `nc_channel::keys` judges it by the same grammar.
+#
 # Four fields are required and none of them is optional at `activate`
 # (`§11.7`, `reference/identity-and-authorization.md §2`):
 #
