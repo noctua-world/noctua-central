@@ -230,8 +230,8 @@ fn the_refusal(effective: &Effective, code: ErrorCode) -> &KeysRefused {
     refused
 }
 
-/// The configured Leader is refused for `rule`, against `by`, and the
-/// channel's default Leader stands.
+/// The configured Leader part is refused for `rule`, against `by`, and the
+/// channel's default Leader and chord modifier stand.
 fn assert_the_leader_refused(effective: &Effective, rule: LeaderRule, by: Option<Channel>) {
     let code = match rule {
         LeaderRule::HoldsTheChordModifier => ErrorCode::ChannelLeaderHoldsTheChordModifier,
@@ -254,7 +254,7 @@ fn assert_the_leader_refused(effective: &Effective, rule: LeaderRule, by: Option
     assert!(
         refused
             .to_string()
-            .ends_with("and the channel's default Leader stands"),
+            .ends_with("and the channel's default Leader and chord modifier stand"),
         "{refused}"
     );
     assert_eq!(effective.leader, effective.channel.leader());
@@ -311,11 +311,12 @@ fn the_warnings_are_those_of_the_keys_in_force() {
             .collect()
     };
     // **Windows keeps both chords this presses** (`SYSTEM_SHORTCUTS`): the
-    // Leader itself, and its modifiers held with `Digit1`.
+    // Leader itself, and its modifiers held with `Digit1`. `Leader+Space` is
+    // held on the Leader's own key, which no hand presses.
     scratch.configure(
         Channel::Staging,
         HERE,
-        r#"{"bindings":{"kernel.undo":["Leader+Digit1"]},"format":1,"leader":"Control+Super+Space"}"#,
+        r#"{"bindings":{"kernel.redo":["Leader+Space"],"kernel.undo":["Leader+Digit1"]},"format":1,"leader":"Control+Super+Space"}"#,
     );
     let accepted = keys::effective(&staging);
     assert_the_leader(&accepted, "Control+Super+Space");
@@ -348,6 +349,29 @@ fn the_warnings_are_those_of_the_keys_in_force() {
         )),
         "{accepted:?}"
     );
+    assert!(
+        warned(&accepted).iter().any(|warning| matches!(
+            warning,
+            Warning::Unpressable { binding: held } if *held == binding("Leader+Space")
+        )),
+        "{accepted:?}"
+    );
+    // **Each with its own code**, which a log is queried by and help heads
+    // the warning with: a chord a system keeps is one, and a key no hand
+    // presses is the other.
+    for warning in &accepted.warnings {
+        let code = match warning.warning {
+            Warning::TheSystemUses { .. } => ErrorCode::ChannelKeyTheSystemUses,
+            Warning::Unpressable { .. } => ErrorCode::ChannelKeyUnpressable,
+        };
+        assert_eq!(warning.code(), code, "{warning}");
+        assert!(
+            warning
+                .to_string()
+                .starts_with(&format!("[{}] ", code.code())),
+            "{warning}"
+        );
+    }
     // **Refused, it raises nothing**, though Windows keeps it too: what is
     // pressed is the default.
     scratch.configure(Channel::Staging, HERE, &leader_of("Shift+Super+Space"));
@@ -525,7 +549,7 @@ fn production_keeps_its_leader_when_a_checkout_configures_the_same() {
 }
 
 /// Each rule a Leader part breaks is refused with its own code, and the
-/// channel's default Leader stands.
+/// channel's default Leader and chord modifier stand.
 ///
 /// A chord modifier alone is weighed against the default Leader it would be
 /// held with.
@@ -593,6 +617,75 @@ fn each_rule_a_leader_breaks_is_refused_with_its_own_code() {
         the_refusal(&unjudged, ErrorCode::ChannelKeybindingsUnjudged).part(),
         Part::Leader
     );
+}
+
+/// A chord modifier configured alone and refused keeps both defaults, and
+/// says so.
+///
+/// It is weighed with the channel's default Leader, which is no Leader the
+/// person chose: the refusal names the part it judged and the rule it
+/// breaks, the default Leader and chord modifier stand, and neither locale's
+/// sentence for its code says a Leader was chosen. On staging it holds its
+/// own chord modifier; on production, held with it, it is staging's Leader;
+/// and on a second checkout it is the first's.
+#[test]
+fn a_chord_modifier_configured_alone_and_refused_keeps_both_defaults_and_names_the_rule() {
+    let scratch = Scratch::new("alone");
+    let (first, second) = (development("0123abcd"), development("89efcd45"));
+    let production = scratch.installed(Channel::Production, HERE);
+    let staging = scratch.installed(Channel::Staging, HERE);
+    scratch.installed(first, HERE);
+    let checkout = scratch.installed(second, HERE);
+    for (channel, found, rule, by) in [
+        (
+            Channel::Staging,
+            &staging,
+            LeaderRule::HoldsTheChordModifier,
+            None,
+        ),
+        (
+            Channel::Production,
+            &production,
+            LeaderRule::HeldWithTheChordIsAnothers,
+            Some(Channel::Staging),
+        ),
+        (
+            second,
+            &checkout,
+            LeaderRule::SharedWithAnother,
+            Some(first),
+        ),
+    ] {
+        scratch.configure(channel, HERE, r#"{"chord":"Control","format":1}"#);
+        let effective = keys::effective(found);
+        assert_the_leader_refused(&effective, rule, by);
+        let refused = &effective.refused[0];
+        let part = format!(
+            "the configured Leader part (Leader `{}`, chord modifier `Control`) is refused",
+            channel.leader().chord()
+        );
+        assert!(refused.to_string().contains(&part), "{refused}");
+        for (locale, chosen, kept) in [
+            (
+                nc_catalog::Locale::En,
+                "you chose",
+                "this installation's standard Leader and added key",
+            ),
+            (
+                nc_catalog::Locale::PtBR,
+                "você escolheu",
+                "o Leader padrão desta instalação e a tecla padrão acrescentada a ele",
+            ),
+        ] {
+            let message =
+                nc_catalog::message(refused.code().message_key(), locale).expect("a message");
+            assert!(
+                !message.contains(chosen) && message.contains(kept),
+                "{locale:?}: {message}"
+            );
+        }
+        scratch.configure(channel, HERE, r#"{"format":1}"#);
+    }
 }
 
 /// A channel is judged against the Leaders settled before it and the defaults

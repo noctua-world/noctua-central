@@ -1335,6 +1335,11 @@ WEAKENINGS = [
         .replace('|', "\\\\|")
         .replace('<', "&lt;")""",
      """    text.replace('\\\\', "\\\\\\\\").replace('<', "&lt;")"""),
+    # A person's words are shown as written: a backtick in a sentence or a
+    # tag opens no code span on the page.
+    ("pages", "words", "a backtick in a person's words is escaped",
+     "    cell(text).replace('`', \"\\\\`\")",
+     "    cell(text)"),
 
     # -- declared_in: whether a fixture wrote its own sentence ---------------
     # **The clause acceptance criterion 2 rests on.** Measured without its
@@ -3399,6 +3404,11 @@ WEAKENINGS = [
     ("compiler_metadata", "wiki", "a wiki locale directory is skipped only for a locale file of its name byte for byte",
      "&& unloaded.contains(&locale) {",
      "&& unloaded.iter().any(|stem| stem.eq_ignore_ascii_case(&locale)) {"),
+    # And skipped at all: a locale whose file did not load is reported at
+    # the file, and its wiki directory is not a second defect.
+    ("compiler_metadata", "wiki", "a wiki locale directory is skipped for a locale whose file did not load",
+     "&& unloaded.contains(&locale) {",
+     "&& false {"),
     ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
      "            let kind = entry.file_type().ok()?;",
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
@@ -7847,6 +7857,11 @@ WEAKENINGS = [
     ("daemon_plugins", "kept", "a refusal is cut on a character",
      "    while !sentence.is_char_boundary(end) {",
      "    while false {"),
+    # And applied where the status is built: what `load` answers of each
+    # plugin is kept to the bound, whoever refused it.
+    ("daemon_plugins", "load", "what load answers of a refused plugin is kept to the bound",
+     "            refused: refused.map(kept),",
+     "            refused,"),
     # The schedule: a run of refused pumps logged at two and each doubling,
     # ended by a clean one, and each pump and sweep noted.
     ("daemon_schedule", "noted", "one refused pump is a wait, not a run",
@@ -8075,6 +8090,11 @@ WEAKENINGS = [
     ("channel_keys", "code", "a Leader shared with another channel has a code of its own",
      "                LeaderRule::SharedWithAnother => ErrorCode::ChannelLeaderOfAnotherChannel,",
      "                LeaderRule::SharedWithAnother => ErrorCode::ChannelLeaderHeldWithTheChordIsAnothers,"),
+    # A warning carries the code a log is queried by and help heads it with:
+    # a chord a system keeps and a key no hand presses are told apart.
+    ("channel_keys", "KeysWarning", "a system's chord and an unpressable key are warned of with codes of their own",
+     "            Warning::TheSystemUses { .. } => ErrorCode::ChannelKeyTheSystemUses,\n            Warning::Unpressable { .. } => ErrorCode::ChannelKeyUnpressable,",
+     "            Warning::TheSystemUses { .. } => ErrorCode::ChannelKeyUnpressable,\n            Warning::Unpressable { .. } => ErrorCode::ChannelKeyTheSystemUses,"),
     ("channel_keys", "part", "a key bound twice refuses the bindings part alone",
      "            Self::KeyBoundTwice(_) => Part::Bindings,",
      "            Self::KeyBoundTwice(_) => Part::Leader,"),
@@ -8847,6 +8867,11 @@ WEAKENINGS = [
     ("compiler_surfaces", "bindings", "the keybindings page lists bindings in the order of their tables",
      "    bound.sort_by_key(|(binding, _)| *binding);",
      "    bound.sort_by_key(|(binding, _)| core::cmp::Reverse(*binding));"),
+    # A bound command's display name is a person's words: a backtick in it
+    # opens no code span on the keybindings page.
+    ("compiler_surfaces", "bindings", "a backtick in a bound command's display name is escaped",
+     "                    .map_or_else(|| \"—\".to_owned(), |shown| words(shown.display_name)),",
+     "                    .map_or_else(|| \"—\".to_owned(), |shown| cell(shown.display_name)),"),
     ("pages", "fenced", "a fenced block's fence is longer than any run of backticks inside it",
      "    let fence = \"`\".repeat(longest.max(2) + 1);",
      "    let fence = \"`\".repeat(3);"),

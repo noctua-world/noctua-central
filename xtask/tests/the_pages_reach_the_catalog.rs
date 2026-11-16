@@ -1035,7 +1035,7 @@ const PROSE: [(&str, &str); 484] = [
     ),
     (
         "external-identifiers.md",
-        "<!-- Source: catalog/external-identifiers.toml and catalog/i18n/. Run `cargo xtask docs`. -->",
+        "<!-- Source: catalog/external-identifiers.toml, catalog/i18n/ and catalog/wiki/. Run `cargo xtask docs`. -->",
     ),
     ("external-identifiers.md", "# External identifiers"),
     (
@@ -4093,7 +4093,7 @@ fn each_page_names_the_registry_it_came_from() {
         ("categories.md", "catalog/categories.toml and catalog/i18n/"),
         (
             "external-identifiers.md",
-            "catalog/external-identifiers.toml and catalog/i18n/",
+            "catalog/external-identifiers.toml, catalog/i18n/ and catalog/wiki/",
         ),
         ("mcp-tools.md", "catalog/commands.toml and catalog/i18n/"),
         (
