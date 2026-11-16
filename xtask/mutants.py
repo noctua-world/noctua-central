@@ -7857,6 +7857,11 @@ WEAKENINGS = [
     ("daemon_plugins", "kept", "a refusal is cut on a character",
      "    while !sentence.is_char_boundary(end) {",
      "    while false {"),
+    # And applied where the status is built: what `load` answers of each
+    # plugin is kept to the bound, whoever refused it.
+    ("daemon_plugins", "load", "what load answers of a refused plugin is kept to the bound",
+     "            refused: refused.map(kept),",
+     "            refused,"),
     # The schedule: a run of refused pumps logged at two and each doubling,
     # ended by a clean one, and each pump and sweep noted.
     ("daemon_schedule", "noted", "one refused pump is a wait, not a run",

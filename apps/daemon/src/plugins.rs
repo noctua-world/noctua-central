@@ -670,17 +670,10 @@ mod tests {
     fn an_entries_file_of_malformed_rows_is_refused_within_what_the_status_keeps() {
         let scratch = Scratch::new("malformed-rows");
         let user = scratch.user();
-        let most = nc_kernel::entries::PluginEntries::most_bytes();
         let directory = scratch.plugin("rows", REFERENCE, b"bytes");
         let file = directory.join(super::COMMANDS);
         std::fs::remove_file(&file).expect("removed");
-        let row = "{name=\"A\"},";
-        let mut table = String::from("command=[");
-        while table.len() + row.len() < most {
-            table.push_str(row);
-        }
-        table.push(']');
-        written(&file, table.as_bytes());
+        written(&file, rows_all_malformed().as_bytes());
         let (code, sentence) = super::installed(&directory, &user).expect_err("malformed");
         assert_eq!(code, ErrorCode::PluginEntriesInvalid);
         let frame = usize::try_from(nc_catalog::DAEMON.ipc_frame_max_bytes).expect("fits");
@@ -700,6 +693,102 @@ mod tests {
             sentence.starts_with(kept.trim_end_matches('…')),
             "what is kept is not the refusal's opening"
         );
+    }
+
+    /// A command table within the entries' bound whose every row is
+    /// malformed.
+    ///
+    /// Each row a problem the refusal names, so the sentence grows with the
+    /// file while the file is one the daemon reads.
+    fn rows_all_malformed() -> String {
+        let most = nc_kernel::entries::PluginEntries::most_bytes();
+        let row = "{name=\"A\"},";
+        let mut table = String::from("command=[");
+        while table.len() + row.len() < most {
+            table.push_str(row);
+        }
+        table.push(']');
+        table
+    }
+
+    /// What `load` answers of a refusal past its bound is kept within it.
+    ///
+    /// **Through `load`, which the status is built from**, beside a kernel
+    /// opened as the daemon opens one over a scratch install's profile: the
+    /// plugin whose entries refuse it in a sentence past the bound is answered
+    /// with its code and that sentence's opening, cut within the bound and
+    /// ended with `…`, and logged with its code.
+    #[test]
+    fn what_load_answers_of_a_refusal_past_its_bound_is_kept_within_it() {
+        use std::sync::{Arc, Mutex};
+
+        let installed =
+            crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
+        let (layout, user) = (&installed.layout, &installed.user);
+        let table = rows_all_malformed();
+        installed.install_plugin(
+            "rows",
+            REFERENCE,
+            &[
+                (PathBuf::from(super::COMMANDS), table),
+                (PathBuf::from("i18n/en.toml"), ENGLISH.to_owned()),
+                (PathBuf::from("i18n/pt-BR.toml"), PORTUGUESE.to_owned()),
+            ],
+            b"bytes",
+        );
+        let (_, sentence) =
+            super::installed(&layout.plugins.join("rows"), user).expect_err("malformed");
+        assert!(
+            sentence.len() > super::REFUSAL_BYTES_MAX,
+            "the refusal holds {} bytes, within what the status keeps: the case is not the \
+             one a bound is needed for",
+            sentence.len()
+        );
+        let log = nc_kernel::logging::Captured::default();
+        let loaded = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(async {
+                let (store, _) = crate::environment::store(layout).await.expect("opened");
+                let (world, pdp) =
+                    crate::profile::world_and_pack(layout, user).expect("the world reads");
+                let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
+                let sink =
+                    nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
+                        .expect("a store on this machine");
+                let opening = crate::environment::Opening {
+                    world,
+                    pdp,
+                    keeper: nc_ids::OpaqueId::of_device_key(&[7; 32]),
+                    minter: Arc::new(Mutex::new(nc_ids::Minter::new(flake, nc_ids::SystemClock))),
+                    log: Arc::new(Mutex::new(sink)),
+                };
+                let kernel = crate::environment::kernel(layout, store.clone(), opening)
+                    .await
+                    .expect("the kernel opens");
+                let loaded = super::load(&kernel, &layout.plugins, user, &log).await;
+                drop(kernel);
+                store.close().await;
+                loaded
+            });
+        assert_eq!(loaded.len(), 1, "{loaded:?}");
+        let (code, kept) = loaded[0].refused.clone().expect("the plugin is refused");
+        assert_eq!(
+            (loaded[0].name.as_str(), code),
+            ("rows", ErrorCode::PluginEntriesInvalid)
+        );
+        assert!(
+            kept.len() <= super::REFUSAL_BYTES_MAX,
+            "`load` answered {} bytes of the refusal",
+            kept.len()
+        );
+        let opening = kept.strip_suffix('…').expect("ended with an ellipsis");
+        assert!(
+            sentence.starts_with(opening),
+            "what is kept is not the refusal's opening"
+        );
+        assert_eq!(log.named("daemon.plugin_refused").len(), 1);
     }
 
     /// Each refused load is logged with its code, and nothing is logged for

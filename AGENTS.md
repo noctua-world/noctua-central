@@ -2415,7 +2415,8 @@ tests of `server` (among them `a_dispatch_is_counted_before_its_state_is_read` a
 `a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
 dropped as soon as the stop has wound down, and whose client takes one byte at a time),
 and `a_stop_asked_again_while_it_drains_is_answered_that_it_is_stopping`, through a real
-endpoint), `pidfile`, `plugins`, `schedule`
+endpoint), `pidfile`, `plugins` (`what_load_answers_of_a_refusal_past_its_bound_is_kept_within_it`,
+through `load` beside a kernel opened as the daemon opens one), `schedule`
 (`a_stop_waits_for_the_run_it_finds_and_begins_none_after`, over thirty-two schedules,
 and `a_run_still_going_at_the_bound_is_given_up_on_and_counted`), `environment` and `run`
 (`a_restored_start_stays_down_on_the_mark_and_beside_a_daemon_up`,
