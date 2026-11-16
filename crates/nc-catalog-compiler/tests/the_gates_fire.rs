@@ -20,10 +20,53 @@
 use std::path::{Path, PathBuf};
 
 use nc_catalog_compiler::ledger::Bootstrap;
-use nc_catalog_compiler::{Problem, compile};
+use nc_catalog_compiler::surfaces::{ChannelKeys, Cli};
+use nc_catalog_compiler::{Problem, Surfaces, compile};
+use nc_schema::Schema;
+use nc_schema::entry::Shown;
+use nc_schema::keys::{Chord, Key, Leader, Modifier, Modifiers};
 
 fn repository() -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).to_path_buf()
+}
+
+/// What `cargo xtask` hands the compiler, as a fixture: every part present,
+/// and a layout whose every line says it is the fixture's.
+///
+/// **Not the CLI's own**, which this crate does not link: what these tests
+/// hold is what the compiler does with what it is handed, and the CLI's
+/// tables are held where they are built, in `xtask`.
+fn surfaces() -> Surfaces {
+    let leader = |held: &[Modifier]| {
+        Leader::of(Chord::new(Modifiers::of(held), Key::Space)).expect("a Leader holds a modifier")
+    };
+    Surfaces {
+        cli: Cli {
+            name: "noctua".to_owned(),
+            usage: "Usage:\n  noctua <command> [arguments]\n".to_owned(),
+            verbs: vec![("help".to_owned(), "say what a command takes".to_owned())],
+            exit_codes: vec![(0, "the command ran".to_owned())],
+            described: laid_out,
+        },
+        channels: vec![ChannelKeys {
+            channel: "production",
+            leader: leader(&[Modifier::Alt]),
+            chord: Modifier::Shift,
+        }],
+    }
+}
+
+/// The fixture's layout, under a mark no real layout writes.
+///
+/// It writes the CLI's name, the command's name and display name, and how
+/// many arguments its schema declares.
+fn laid_out(cli: &str, shown: &Shown<'_>, schema: &Schema) -> String {
+    format!(
+        "laid out by the fixture: {cli} {} — {}, {} argument(s)\n",
+        shown.name,
+        shown.display_name,
+        schema.arguments().len()
+    )
 }
 
 /// A copy of the real catalog, in a directory of this test's own.
@@ -122,7 +165,7 @@ impl Scratch {
     }
 
     fn problems(&self) -> Vec<Problem> {
-        match compile(&self.root, Bootstrap::Refuse) {
+        match compile(&self.root, Bootstrap::Refuse, &surfaces()) {
             Ok(_) => Vec::new(),
             Err(problems) => problems,
         }
@@ -938,7 +981,7 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
         )
     });
 
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .expect("a catalog that differs only in these values still compiles");
     let page = |name: &str| {
         compiled
@@ -1077,7 +1120,7 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
         text.replace("dir   = \"ltr\"", "dir   = \"rtl\"")
     });
 
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .expect("a catalog that differs only in these values still compiles");
     let commands = compiled
         .files
@@ -1143,7 +1186,8 @@ fn every_file_the_emitter_writes_is_somewhere_the_stale_check_walks() {
     // generated, and a crate with one generated module and five hand-written ones
     // would then be reported as five stale files. It has to be listed as a file,
     // and this test is where that decision has to be made rather than discovered.
-    let compiled = compile(&repository(), Bootstrap::Refuse).expect("the catalog compiles");
+    let compiled =
+        compile(&repository(), Bootstrap::Refuse, &surfaces()).expect("the catalog compiles");
     assert!(
         !compiled.files.is_empty(),
         "nothing was emitted, so this proves nothing"
@@ -1250,7 +1294,7 @@ fn the_remedy_code_repointed_prescribes_actually_works() {
             .collect::<Vec<_>>()
             .join("\n")
     });
-    let compiled = compile(&scratch.root, Bootstrap::Allow)
+    let compiled = compile(&scratch.root, Bootstrap::Allow, &surfaces())
         .expect("the remedy the diagnostic prescribes has to leave a catalog that compiles");
     assert!(
         compiled
@@ -4069,7 +4113,7 @@ fn one_key_in_two_tables_is_two_bindings() {
             1,
         )
     });
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .expect("one key in three tables, for two commands, is three bindings");
     let commands = compiled
         .files
@@ -5428,7 +5472,7 @@ fn a_glyph_in_plane_fifteen_is_accepted() {
         "glyph = \"U+F0E2\"",
         "glyph = \"U+F0001\"",
     );
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .unwrap_or_else(|problems| panic!("{}", render(&problems)));
     let commands = compiled
         .files
@@ -5507,7 +5551,7 @@ fn a_wiki_texts_format_is_recorded_from_its_extension() {
             words,
         );
     }
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .unwrap_or_else(|problems| panic!("{}", render(&problems)));
     let formats: Vec<(&str, nc_schema::entry::WikiFormat)> = compiled
         .catalog
@@ -6358,7 +6402,7 @@ fn an_external_identifiers_glyph_and_categories_reach_its_page_only_when_it_has_
             )
         )
     });
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .unwrap_or_else(|problems| panic!("{}", render(&problems)));
     let page = "docs/external-identifiers.md";
     let chromium = compiled_section(&compiled, page, "chromium");
@@ -6406,7 +6450,7 @@ fn an_external_identifiers_wiki_text_is_compiled_with_its_format_and_linked_from
             words,
         );
     }
-    let compiled = compile(&scratch.root, Bootstrap::Refuse)
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .unwrap_or_else(|problems| panic!("{}", render(&problems)));
     let held: Vec<(&str, &str, nc_schema::entry::WikiFormat)> = compiled
         .catalog
@@ -6502,5 +6546,261 @@ fn an_external_identifiers_wiki_text_missing_from_a_locale_fails_naming_it() {
     scratch.must_fail(
         "wiki-locale-missing",
         "catalog/wiki/pt-BR/external-identifiers",
+    );
+}
+
+/// A surface with no verb, no exit code or no channel's Leader fails the
+/// build, naming what it lacks — and so does one with no name or no grammar.
+///
+/// Each part emptied alone, over the catalog this repository ships, so the
+/// one refusal each time is that part's: a page about a CLI with no verb is
+/// a page that says nothing, which is a gate wired to nothing.
+#[test]
+fn a_surface_with_no_verb_no_exit_code_or_no_leader_fails() {
+    for what in [
+        "a verb",
+        "an exit code",
+        "a channel's Leader",
+        "the CLI's name",
+        "the CLI's grammar",
+    ] {
+        let mut handed = surfaces();
+        match what {
+            "a verb" => handed.cli.verbs.clear(),
+            "an exit code" => handed.cli.exit_codes.clear(),
+            "a channel's Leader" => handed.channels.clear(),
+            "the CLI's name" => " ".clone_into(&mut handed.cli.name),
+            _ => "\n".clone_into(&mut handed.cli.usage),
+        }
+        let refused = compile(&repository(), Bootstrap::Refuse, &handed)
+            .expect_err("a surface that holds nothing compiles no page");
+        assert_eq!(
+            refused
+                .iter()
+                .map(|problem| (problem.check, problem.what.as_str()))
+                .collect::<Vec<_>>(),
+            [(
+                "surfaces-incomplete",
+                format!("the surfaces handed to the compiler hold no {what}").as_str()
+            )],
+            "emptying {what} was refused for something else, or not alone"
+        );
+    }
+    compile(&repository(), Bootstrap::Refuse, &surfaces())
+        .expect("the fixture holds every part, so what each case refused was the part it emptied");
+}
+
+/// The CLI's page lays each command out with the layout it was handed, in
+/// every locale, from the catalog being compiled.
+///
+/// **The layout is the CLI's, never the page's own**: a page that wrote a
+/// command's arguments itself would say what help does not. And what the
+/// layout is handed is this catalog's: the display name below is each
+/// locale's, read from the copy being compiled.
+#[test]
+fn the_cli_page_lays_each_command_out_with_the_layout_it_was_handed() {
+    let compiled =
+        compile(&repository(), Bootstrap::Refuse, &surfaces()).expect("the catalog compiles");
+    let page = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == "docs/cli.md")
+        .expect("the CLI's page is emitted")
+        .contents;
+    let mut laid_out = 0_usize;
+    for entry in &compiled.catalog.commands {
+        for locale in &compiled.catalog.locales {
+            let line = format!(
+                "laid out by the fixture: noctua {} — {}, ",
+                entry.name, locale.message[&entry.title]
+            );
+            assert!(
+                page.contains(&line),
+                "`{}` in `{}` was not laid out by the layout handed in:\n{page}",
+                entry.name,
+                locale.meta.bcp47
+            );
+            laid_out += 1;
+        }
+    }
+    assert_eq!(
+        page.matches("laid out by the fixture: ").count(),
+        laid_out,
+        "the page laid out a command it was not handed, or one twice"
+    );
+    assert!(
+        laid_out >= compiled.catalog.commands.len() * 2,
+        "{laid_out}"
+    );
+    for handed in [
+        "Usage:\n  noctua <command> [arguments]\n",
+        "| `help` | say what a command takes |",
+        "| 0 | the command ran |",
+    ] {
+        assert!(
+            page.contains(handed),
+            "`{handed}` is not on the page:\n{page}"
+        );
+    }
+}
+
+/// The keybindings page lists a binding the moment one is declared, with the
+/// display name of the command it runs in every locale, and says there is none
+/// while none is.
+#[test]
+fn the_keybindings_page_lists_a_binding_the_moment_one_is_declared() {
+    let none = "No command in the catalog declares a binding";
+    let page = |compiled: &nc_catalog_compiler::Compiled| {
+        compiled
+            .files
+            .iter()
+            .find(|file| file.path == "docs/keybindings.md")
+            .expect("the keybindings page is emitted")
+            .contents
+            .clone()
+    };
+    let shipped = page(
+        &compile(&repository(), Bootstrap::Refuse, &surfaces()).expect("the catalog compiles"),
+    );
+    assert!(shipped.contains(none), "{shipped}");
+
+    let scratch = Scratch::new("a-binding-declared");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "name = \"kernel.undo\"\n",
+        "name = \"kernel.undo\"\nkeybindings = [\"Leader+Chord+KeyZ\", \"Leader KeyZ\"]\n",
+    );
+    let compiled =
+        compile(&scratch.root, Bootstrap::Refuse, &surfaces()).expect("one binding compiles");
+    let declared = page(&compiled);
+    assert!(!declared.contains(none), "{declared}");
+    let title = |tag: &str| {
+        compiled
+            .catalog
+            .locales
+            .iter()
+            .find(|locale| locale.meta.bcp47 == tag)
+            .expect("the locale is compiled")
+            .message["command.kernel.undo.title"]
+            .clone()
+    };
+    let rows: Vec<String> = ["Leader KeyZ", "Leader+Chord+KeyZ"]
+        .iter()
+        .map(|binding| {
+            format!(
+                "| `{binding}` | `kernel.undo` | {} | {} |",
+                title("en"),
+                title("pt-BR")
+            )
+        })
+        .collect();
+    let at: Vec<usize> = rows
+        .iter()
+        .map(|row| {
+            declared
+                .find(row.as_str())
+                .unwrap_or_else(|| panic!("`{row}` is not on the page:\n{declared}"))
+        })
+        .collect();
+    assert!(
+        at[0] < at[1],
+        "the bindings are not in the order of their tables:\n{declared}"
+    );
+    assert!(
+        declared.contains("| Binding | Command | Display name (en) | Display name (pt-BR) |"),
+        "{declared}"
+    );
+}
+
+/// The MCP page holds every command as the tool `as_tool` makes of it, in
+/// every locale, from the catalog being compiled.
+#[test]
+fn the_mcp_page_holds_every_command_as_its_tool_in_every_locale() {
+    let compiled =
+        compile(&repository(), Bootstrap::Refuse, &surfaces()).expect("the catalog compiles");
+    let page = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == "docs/mcp-tools.md")
+        .expect("the MCP page is emitted")
+        .contents;
+    let mut tools = 0_usize;
+    for entry in &compiled.catalog.commands {
+        for locale in &compiled.catalog.locales {
+            let tool = nc_schema::entry::as_tool(
+                &Shown {
+                    name: &entry.name,
+                    display_name: &locale.message[&entry.title],
+                    line: &locale.message[&entry.description],
+                    paragraph: &locale.message[&entry.paragraph],
+                    tags: &locale.tags[&entry.tags],
+                    categories: &entry.categories,
+                },
+                &entry.args_schema,
+            )
+            .expect("a schema the catalog compiled");
+            let written = format!("In `{}`:\n\n```json\n{tool}\n```\n", locale.meta.bcp47);
+            assert!(
+                page.contains(&written),
+                "`{}`'s tool in `{}` is not on the page:\n{page}",
+                entry.name,
+                locale.meta.bcp47
+            );
+            tools += 1;
+        }
+    }
+    assert_eq!(
+        page.matches("```json\n").count(),
+        tools,
+        "the page holds a tool no command and locale make"
+    );
+    assert!(tools >= compiled.catalog.commands.len() * 2, "{tools}");
+}
+
+/// The keybindings page writes each channel's Leader as each keyboard labels
+/// it, alone and held with that channel's chord modifier.
+#[test]
+fn the_keybindings_page_writes_each_leader_alone_and_with_its_chord() {
+    let mut handed = surfaces();
+    handed.channels.push(ChannelKeys {
+        channel: "staging",
+        leader: Leader::of(Chord::new(
+            Modifiers::of(&[Modifier::Control, Modifier::Alt]),
+            Key::Space,
+        ))
+        .expect("a Leader holds a modifier"),
+        chord: Modifier::Super,
+    });
+    let compiled =
+        compile(&repository(), Bootstrap::Refuse, &handed).expect("the catalog compiles");
+    let page = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == "docs/keybindings.md")
+        .expect("the keybindings page is emitted")
+        .contents;
+    for row in [
+        "| Channel | Linux | Windows | macOS |",
+        "| `production` | Alt+Space | Alt+Space | Option+Space |",
+        "| `staging` | Ctrl+Alt+Space | Ctrl+Alt+Space | Control+Option+Space |",
+        "| Channel | Chord modifier | Linux | Windows | macOS |",
+        "| `production` | `Shift` | Alt+Shift+Space | Alt+Shift+Space | Option+Shift+Space |",
+        "| `staging` | `Super` | Ctrl+Alt+Super+Space | Ctrl+Alt+Win+Space | Control+Option+Command+Space |",
+        "| `KeyQ` | Q | Q | Q |",
+        "| `Enter` | Enter | Enter | Return |",
+    ] {
+        assert!(page.contains(row), "`{row}` is not on the page:\n{page}");
+    }
+    let shortcuts = page
+        .split("\n## System shortcuts\n")
+        .nth(1)
+        .expect("the page lists the chords the systems keep");
+    assert_eq!(
+        shortcuts
+            .lines()
+            .filter(|line| line.starts_with("| "))
+            .count(),
+        1 + nc_schema::keys::SYSTEM_SHORTCUTS.len(),
+        "the page does not list every chord a system keeps"
     );
 }

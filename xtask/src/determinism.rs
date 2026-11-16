@@ -50,7 +50,7 @@ use crate::relative_to;
 /// `nc-canon` is here with the emitter because the chain and the catalog both
 /// hash what it writes: a digest that differs between runs is the same defect
 /// one layer down, and it verifies on one side and not the other.
-pub(crate) const EMITS: [&str; 4] = [
+pub(crate) const EMITS: [&str; 9] = [
     "crates/nc-catalog-compiler/src",
     "crates/nc-canon/src",
     // The judge the compiler holds every command to: it decides whether the
@@ -77,6 +77,19 @@ pub(crate) const EMITS: [&str; 4] = [
     // reaches the crates the emitter *calls*, and this is the crate that calls
     // the emitter.
     "xtask/src/build.rs",
+    // **What the pages about what the catalog cannot see are built from.**
+    // `build.rs` hands the compiler the CLI's grammar, verbs and exit codes and
+    // the layout its help prints a command with, and each channel's default
+    // keys, so these files write bytes of `docs/cli.md` and
+    // `docs/keybindings.md` as surely as the emitter does — and no dependency
+    // edge leads from the emitter to them, for the reason none leads to
+    // `build.rs`: they are the crates that read what the emitter generates.
+    "apps/cli/src/args.rs",
+    "apps/cli/src/exit.rs",
+    "apps/cli/src/help.rs",
+    // The escaper the layout writes every text it is handed through.
+    "apps/cli/src/render.rs",
+    "crates/nc-channel/src/lib.rs",
 ];
 
 /// The directories [`EMITS`] covers, for a floor to count against.
@@ -99,6 +112,12 @@ pub(crate) const EMITS_UNDER: &[&str] = &[
     // `ok … line(s)` with a live `SystemTime::now()` in it. `lines_under`
     // takes a path and does not care that this one is a file.
     "xtask/src/build.rs",
+    // And the files the surfaces are built from, for the same reason.
+    "apps/cli/src/args.rs",
+    "apps/cli/src/exit.rs",
+    "apps/cli/src/help.rs",
+    "apps/cli/src/render.rs",
+    "crates/nc-channel/src/lib.rs",
 ];
 
 /// The crate whose output is written to disk and compared byte for byte.
@@ -2210,7 +2229,14 @@ mod tests {
     #[test]
     fn every_crate_the_emitter_reaches_is_read() {
         // The entries listed by hand, because no dependency edge reaches them.
-        const BY_HAND: [&str; 1] = ["xtask/src/build.rs"];
+        const BY_HAND: [&str; 6] = [
+            "xtask/src/build.rs",
+            "apps/cli/src/args.rs",
+            "apps/cli/src/exit.rs",
+            "apps/cli/src/help.rs",
+            "apps/cli/src/render.rs",
+            "crates/nc-channel/src/lib.rs",
+        ];
         // **`EMITS_UNDER` is the floor's scope, and this ties it to `EMITS`.**
         // Without that, dropping `crates/nc-canon/src` from it leaves
         // `ok … line(s) of the emitter read nothing that changes` and

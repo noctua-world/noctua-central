@@ -10154,8 +10154,16 @@ mod tests {
         // only the leaf.
         std::fs::create_dir_all(root.join("crates/nc-catalog-compiler/src"))
             .expect("a writable scratch");
-        std::fs::write(root.join("xtask/src/build.rs"), "// nothing here\n")
-            .expect("a writable scratch");
+        for file in crate::determinism::EMITS.iter().filter(|named| {
+            std::path::Path::new(named)
+                .extension()
+                .is_some_and(|kind| kind == "rs")
+        }) {
+            let at = root.join(file);
+            std::fs::create_dir_all(at.parent().expect("a file is in a directory"))
+                .expect("a writable scratch");
+            std::fs::write(at, "// nothing here\n").expect("a writable scratch");
+        }
         let (findings, read) = crate::determinism::nothing_the_emitter_reads_changes(&root)
             .expect("the scratch walks");
         reached(

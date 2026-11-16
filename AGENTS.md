@@ -273,11 +273,11 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   └── packs/{family,org,collective}/
 ├── migrations/                     HAND-WRITTEN — forward-only, numbered
 ├── local-migrations/               HAND-WRITTEN — the local SQLite database's, never mixed
-├── docs/                           GENERATED AND COMMITTED — the surfaces of §15.3
+├── docs/                           GENERATED AND COMMITTED — the surfaces of §15.3 and §20.5
 │   └── README.md                   HAND-WRITTEN — how to work on this repository; the root README.md presents the project
 ├── crates/
 │   ├── nc-catalog/                 GENERATED AND COMMITTED — the shared core
-│   ├── nc-catalog-compiler/        HAND-WRITTEN — what reads catalog/ and writes it
+│   ├── nc-catalog-compiler/        HAND-WRITTEN — what reads catalog/ and writes it, and every page beside it
 │   ├── nc-canon/                   canonical JSON and hashing (§16.4)
 │   │   └── canaries/               NOT COMPILED — a code the §15.1 walk must report
 │   ├── nc-ids/                     Snowflake, the machine flake, Denote naming (§16)
@@ -297,13 +297,13 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
-│   └── nc-schema/                  a command's schema subset, selector and judge (§11.4), and the Leader's grammar (§12.8)
+│   └── nc-schema/                  a command's schema subset, selector and judge (§11.4), the tool an MCP session is handed of it (§20.3), and the Leader's grammar (§12.8)
 ├── plugins/                        WASM components, one directory each (§11.3)
 │   └── reference/                  the plugin the kernel is proven with, its entries beside its manifest
 │       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
 │   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves (§11.1, §16.2)
-│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, and the installer (§20.2, §17.1)
+│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, and the installer (§20.2, §17.1)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
 ```
@@ -457,8 +457,8 @@ fails a gate a minute or two later.
 | a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that — one that starts a process through its crate's test doors, a `.spawn()` with nothing in its parentheses, included — but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml`, its entries — `commands.toml` and `i18n/<locale>.toml` for every locale — and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
-| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md` |
-| a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads, the one grammar every reader of a binding is held to, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and raises `nc_channel::keys::FORMAT`, because an older reader of a person's configuration refuses a file naming it and another channel's reader must know it cannot judge one; a person's own choice overrides the catalog's in their channel's configuration directory, `<config>/keybindings.json`, which `nc_channel::keys` reads beside the other channels' and `noctua help keybindings` shows, each refusal with its `NC-CHAN` code; and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
+| a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md`, what help says of the command a block of `docs/cli.md` in each locale, and its tool, by `nc_schema::entry::as_tool`, a block of `docs/mcp-tools.md` |
+| a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads, the one grammar every reader of a binding is held to, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds, and `docs/keybindings.md` lists every binding by its table and key with the display names of the command it runs. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and raises `nc_channel::keys::FORMAT`, because an older reader of a person's configuration refuses a file naming it and another channel's reader must know it cannot judge one; a person's own choice overrides the catalog's in their channel's configuration directory, `<config>/keybindings.json`, which `nc_channel::keys` reads beside the other channels' and `noctua help keybindings` shows, each refusal with its `NC-CHAN` code; and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
@@ -484,7 +484,8 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
 | a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
 
 Two things are true of all of them:
@@ -505,7 +506,8 @@ convention nothing enforces decays: 13 and 15 are judgements whose form a gate h
 whose substance no gate can; 16 is gated in its count and measured by a recipe in its
 effect; 22 is gated over the statements written today and by nothing over the next; 25 is
 held by its tests, and by no gate over a signal sent another way; 26 is held by its tests,
-and by no gate over a rule written again beside the judge.
+and by no gate over a rule written again beside the judge; 27 is held by its tests, and by
+no gate over a table a function the compiler is handed reads of its own.
 
 1. **The colour system is never named directly.** It reaches this repository through
    `noctua-design`, which vendors `noctua-colors`' generated output (`NOCTUA.md §8.6`); a
@@ -879,6 +881,23 @@ and by no gate over a rule written again beside the judge.
     and by `crates/nc-kernel/tests/activation.rs`, where the real component is refused for
     a text its entry misses. **Not held**: a rule written again beside the judge, in the
     kernel or the compiler, which a review sees and no gate does.
+
+27. **Every page comes out of the one compilation, and help and its page say one thing.**
+    Every file under `docs/` but `docs/README.md` is emitted by
+    `nc_catalog_compiler::compile`, the pages about what the catalog cannot see among them:
+    the CLI's grammar, verbs and exit codes and each channel's default keys cross as a
+    `Surfaces`, which `cargo xtask` builds from `nc_cli` and `nc_channel` and the compiler
+    links neither of, and every command a page shows is the catalog being compiled. Help on
+    a command and `docs/cli.md` are laid out by one function, `nc_cli::help::described`, which
+    reads only what it is handed, and a command's MCP tool is projected by one,
+    `nc_schema::entry::as_tool`. **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
+    in `xtask/src/check.rs`, over every page the compiler emits and every page committed;
+    `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` in
+    `xtask/src/build.rs`; and `the_cli_page_says_what_help_says` and
+    `the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees` in
+    `xtask/tests/the_pages_reach_the_catalog.rs`. **Not held**: a table a function in a
+    `Surfaces` reads of its own beyond the catalog that test changes, which a review sees
+    and no gate does.
 
 ## The security answer §2.4 asks for
 
@@ -3075,6 +3094,47 @@ text's Markdown or Typst is well formed, since nothing in this build parses or p
 and two display names or tags that differ only by look-alike characters, which needs the
 confusable folding `BLANK_RANGES` says this crate does not carry.
 
+### A page says what the code does, and nothing a value it publishes writes
+
+**Guaranteed.** Every page under `docs/` is what `nc_catalog_compiler::compile` emits, so a
+page edited by hand, a page nothing emits any more and a page two generations write
+differently each fail the gate. A page about what the catalog cannot see — the CLI's
+reference and the keybindings — publishes the tables the CLI and the channels hold, handed
+to the compiler as a `Surfaces` that carries no command, so every command a page shows,
+with every text and argument of it, is the catalog being compiled and never the one the
+tool that compiles it was built with; a surface with no verb, no exit code or no channel's
+Leader is refused rather than published as a page that says nothing. What help says of a
+command and what `docs/cli.md` says are one layout's, which escapes every text it is
+handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-tools.md` is
+the command's own name, its line and paragraph and its argument schema as written, once it
+compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
+person's words, and no tool carries them. No value a page publishes ends what it is in:
+every cell goes through `cell`, every fenced block is fenced longer than any run of
+backticks in it, and a tool is JSON written by `serde_json`, so a text holding a bar, a
+backtick, a quotation mark or a line break shows as that text.
+
+**Enforced by** `a_hand_edit_to_any_generated_page_is_drift` in `xtask/src/check.rs`, which
+edits every page the compiler emits, one at a time, and holds the emitted pages to the
+committed ones in both directions;
+`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` in
+`xtask/src/build.rs`, over a copy of the catalog that declares a command and renames
+another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
+`the_cli_page_lays_each_command_out_with_the_layout_it_was_handed` in
+`crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
+`crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
+outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
+`crates/nc-catalog-compiler/src/docs.rs`; and `xtask/tests/the_pages_reach_the_catalog.rs`,
+which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
+vocabulary and system shortcuts, and help itself. The files a surface is built from are
+read by the determinism gate as the emitter is (`EMITS`).
+
+**Not answered:** whether a page is read — the in-app pages that render them arrive in
+Stage 16; and the four things **What is deliberately not claimed** lists under the
+generated pages: that `docs/mcp-tools.md` is any session's tool list, that `docs/cli.md`
+names any channel's CLI but production's, that a function a surface hands the compiler
+reads nothing of its own, and that `docs/keybindings.md` shows anybody's keys but the
+defaults.
+
 ### A keybinding is one of three forms, written one way, and names one key and one command
 
 **Guaranteed.** Every keybinding the catalog declares is one of `NOCTUA.md §12.8`'s three
@@ -4246,6 +4306,27 @@ rather than anything decided for the project, and each is a maintainer's to reop
   until the earlier channel's file is written in a format this build reads, or this build
   is updated: two installs whose formats differ judge each other no further than that.
 
+**The generated pages**
+
+- **`docs/mcp-tools.md` is no session's tool list.** It is every command the catalog
+  declares, projected by the function the MCP server lists a session's tools with; which
+  of them a session sees is decided when it asks, for the principal it is, and a plugin's
+  tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage 15). A
+  tool is named as its command is, dotted, which some MCP clients refuse, and each locale
+  has its own definition: mapping the names and choosing the language a session is handed
+  are Stage 15's, and the page moves with `nc_schema::entry::as_tool` when they are made.
+- **`docs/cli.md` writes production's CLI**, `noctua`; every other channel's is the same
+  but for its name (`NOCTUA.md §17.1`). Its commands are the catalog's alone: a plugin's
+  are what `noctua help` lists while its daemon runs.
+- **A function a surface hands the compiler is held by a test, not by its type.**
+  `Surfaces` carries no command, but `Cli::described` is a function, and that it reads
+  nothing it is not handed is held over the catalog
+  `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` changes, and
+  over no other table it could read.
+- **`docs/keybindings.md` is the defaults**: a person's own keys are
+  `noctua help keybindings`'s, and a key is labelled by its place on a US board, as
+  **The keys** above says.
+
 **The gate and its run**
 
 - **`cargo xtask check` passes on a checkout of this repository alone, and says what it
@@ -4614,6 +4695,16 @@ added beside `crates/` and `plugins/` would sit outside every one of them with e
 floor balanced, because the floor recounts the same spelling.
 `every_gate_reads_every_member_tree` plants each gate's target in every tree the list
 names, one that holds no member yet included.
+
+### A page about what the catalog cannot see is still the compiler's
+
+Drift, staleness and the second generation read `Compiled.files`, so a page another step
+wrote would be one none of them reads — and so would its prose, which only
+`xtask/tests/the_pages_reach_the_catalog.rs` pins. The CLI's reference and the keybindings
+page publish tables the catalog does not hold, and still come out of `compile`: the compiler
+links neither `nc-cli` nor `nc-channel`, both of which read the crate it generates, so
+`cargo xtask` hands it a `Surfaces` typed through `nc_schema`, and the files it is built
+from are rows of `EMITS`, read by the determinism walk as the emitter is.
 
 ### A scanner narrower than the language it scans
 

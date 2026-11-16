@@ -32,8 +32,46 @@
 
 use std::path::{Path, PathBuf};
 
+use nc_catalog_compiler::Surfaces;
+use nc_catalog_compiler::surfaces::{ChannelKeys, Cli};
+use nc_schema::Schema;
+use nc_schema::entry::Shown;
+use nc_schema::keys::{Chord, Key, Leader, Modifier, Modifiers};
+
 fn root() -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).to_path_buf()
+}
+
+/// What `cargo xtask` hands the compiler, as a fixture: what this file
+/// holds is the order of what the catalog supplies, which the surfaces play
+/// no part in.
+fn surfaces() -> Surfaces {
+    Surfaces {
+        cli: Cli {
+            name: "noctua".to_owned(),
+            usage: "Usage:\n  noctua <command> [arguments]\n".to_owned(),
+            verbs: vec![("help".to_owned(), "say what a command takes".to_owned())],
+            exit_codes: vec![(0, "the command ran".to_owned())],
+            described: laid_out,
+        },
+        channels: vec![ChannelKeys {
+            channel: "production",
+            leader: Leader::of(Chord::new(Modifiers::of(&[Modifier::Alt]), Key::Space))
+                .expect("a Leader holds a modifier"),
+            chord: Modifier::Shift,
+        }],
+    }
+}
+
+/// The fixture's layout: the command's name and display name, and how many
+/// arguments its schema declares.
+fn laid_out(cli: &str, shown: &Shown<'_>, schema: &Schema) -> String {
+    format!(
+        "{cli} {} — {}, {} argument(s)\n",
+        shown.name,
+        shown.display_name,
+        schema.arguments().len()
+    )
 }
 
 /// A scratch directory under the temporary directory, removed however the
@@ -157,12 +195,18 @@ fn two_directory_orders_produce_the_same_bytes() {
          creation order, which `LISTED_AS_MADE` names"
     );
 
-    let first =
-        nc_catalog_compiler::compile(&en_first, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect("the catalog compiles");
-    let second =
-        nc_catalog_compiler::compile(&pt_first, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect("the catalog compiles");
+    let first = nc_catalog_compiler::compile(
+        &en_first,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect("the catalog compiles");
+    let second = nc_catalog_compiler::compile(
+        &pt_first,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect("the catalog compiles");
 
     let differing: Vec<&str> = first
         .files
@@ -211,9 +255,12 @@ fn two_directory_orders_produce_the_same_bytes() {
 /// is a diff a person can read.
 #[test]
 fn every_page_lists_its_entries_in_order() {
-    let compiled =
-        nc_catalog_compiler::compile(&root(), nc_catalog_compiler::ledger::Bootstrap::Refuse)
-            .expect("the catalog compiles");
+    let compiled = nc_catalog_compiler::compile(
+        &root(),
+        nc_catalog_compiler::ledger::Bootstrap::Refuse,
+        &surfaces(),
+    )
+    .expect("the catalog compiles");
     let mut checked = 0_usize;
     let mut pages = 0_usize;
     for page in &compiled.files {
@@ -373,9 +420,12 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
         std::fs::write(&path, text.replace(from, to)).expect("writable");
     }
 
-    let compiled =
-        nc_catalog_compiler::compile(&base, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect("a bar in a value is not a reason to refuse the catalog");
+    let compiled = nc_catalog_compiler::compile(
+        &base,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect("a bar in a value is not a reason to refuse the catalog");
 
     // Every row of one table has the column count its header does. A value that
     // ends its own cell adds one, which is exactly the breakage.
@@ -445,8 +495,12 @@ fn a_bar_never_reaches_the_selector_column(base: &Path) {
         ),
     )
     .expect("writable");
-    let refused = nc_catalog_compiler::compile(base, nc_catalog_compiler::ledger::Bootstrap::Allow)
-        .expect_err("a selector holding a bar is outside the selector grammar");
+    let refused = nc_catalog_compiler::compile(
+        base,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect_err("a selector holding a bar is outside the selector grammar");
     assert!(
         refused
             .iter()
@@ -579,12 +633,18 @@ fn wiki_texts_are_read_in_one_order_whatever_the_directory_order() {
         );
     }
 
-    let first =
-        nc_catalog_compiler::compile(&forward, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect("the catalog compiles");
-    let second =
-        nc_catalog_compiler::compile(&backward, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect("the catalog compiles");
+    let first = nc_catalog_compiler::compile(
+        &forward,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect("the catalog compiles");
+    let second = nc_catalog_compiler::compile(
+        &backward,
+        nc_catalog_compiler::ledger::Bootstrap::Allow,
+        &surfaces(),
+    )
+    .expect("the catalog compiles");
     assert!(
         first.catalog.wiki.len() > 1,
         "{} wiki text(s) were read, so their order cannot differ",
@@ -613,8 +673,12 @@ fn wiki_texts_are_read_in_one_order_whatever_the_directory_order() {
     let other = as_the_filesystem_gives_them(&backward.join("catalog/wiki/en/commands"));
     assert_ne!(one, other, "the two pairs came back in one order");
     let refused = |tree: &Path| {
-        nc_catalog_compiler::compile(tree, nc_catalog_compiler::ledger::Bootstrap::Allow)
-            .expect_err("two wiki texts for one entry in one locale are refused")
+        nc_catalog_compiler::compile(
+            tree,
+            nc_catalog_compiler::ledger::Bootstrap::Allow,
+            &surfaces(),
+        )
+        .expect_err("two wiki texts for one entry in one locale are refused")
     };
     let said = refused(&forward);
     assert!(

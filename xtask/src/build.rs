@@ -25,8 +25,8 @@ pub(crate) fn artifacts(
     root: &Path,
     bootstrap: nc_catalog_compiler::ledger::Bootstrap,
 ) -> Result<nc_catalog_compiler::Compiled, String> {
-    let mut compiled =
-        nc_catalog_compiler::compile(root, bootstrap).map_err(|problems| report(&problems))?;
+    let mut compiled = nc_catalog_compiler::compile(root, bootstrap, &surfaces(root))
+        .map_err(|problems| report(&problems))?;
     let catalog = &compiled.catalog;
 
     ui::ok("compiled catalog/");
@@ -56,6 +56,60 @@ pub(crate) fn artifacts(
         }
     }
     Ok(compiled)
+}
+
+/// What the catalog cannot see, from the crates that hold it, for the pages
+/// that publish it beside the registries.
+///
+/// **Tables and one layout, and never a command**: the CLI's grammar, verbs
+/// and exit codes are `nc_cli`'s and each channel's default keys are
+/// `nc_channel`'s, which the compiler links neither of, while every command a
+/// page shows comes from the catalog it is compiling. The layout,
+/// `nc_cli::help::described`, reads only what it is handed — the catalog this
+/// tool was built with is one build behind the one on disk whenever it has
+/// just changed, and `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links`
+/// holds the pages to the catalog on disk.
+pub(crate) fn surfaces(root: &Path) -> nc_catalog_compiler::Surfaces {
+    use nc_catalog_compiler::surfaces::{ChannelKeys, Cli};
+    use nc_channel::{Channel, Checkout};
+
+    /// Production's name: a page writes the CLI as one channel names it, and
+    /// says that every channel names its own.
+    const NAME: &str = "noctua";
+    nc_catalog_compiler::Surfaces {
+        cli: Cli {
+            name: NAME.to_owned(),
+            usage: nc_cli::help::usage(NAME),
+            verbs: nc_cli::args::VERBS
+                .iter()
+                .map(|verb| {
+                    (
+                        (*verb).to_owned(),
+                        nc_cli::help::what_it_does(verb).to_owned(),
+                    )
+                })
+                .collect(),
+            exit_codes: nc_cli::exit::Exit::ALL
+                .iter()
+                .map(|exit| (exit.code(), exit.meaning().to_owned()))
+                .collect(),
+            described: nc_cli::help::described,
+        },
+        // In the order their Leaders are settled. A development channel's
+        // Leader is the same for every checkout, so this one names it.
+        channels: [
+            Channel::Production,
+            Channel::Staging,
+            Channel::Development(Checkout::of(root)),
+        ]
+        .iter()
+        .map(|channel| ChannelKeys {
+            channel: channel.word(),
+            leader: channel.leader(),
+            chord: channel.chord_modifier(),
+        })
+        .collect(),
+    }
 }
 
 /// Writes every generated file whose contents changed.
@@ -561,6 +615,132 @@ mod checked {
 
 #[cfg(test)]
 mod tests {
+    /// A copy of the catalog under `scratch` that declares a command the
+    /// catalog this tool was built with does not, `kernel.rehearse`, and
+    /// gives `journal.verify` another English display name.
+    fn a_catalog_this_tool_was_not_built_with(scratch: &std::path::Path) {
+        crate::check::the_catalog_copied_into(scratch);
+        let edit = |relative: &str, from: &str, to: &str| {
+            let path = scratch.join(relative);
+            let text = std::fs::read_to_string(&path).expect("copied");
+            assert!(text.contains(from), "{relative} no longer holds `{from}`");
+            std::fs::write(&path, text.replacen(from, to, 1)).expect("writable");
+        };
+        let commands = scratch.join("catalog/commands.toml");
+        let mut declared = std::fs::read_to_string(&commands).expect("copied");
+        declared.push_str(
+            "\n[[command]]\nname = \"kernel.rehearse\"\ntitle = \"command.kernel.rehearse.title\"\n\
+             description = \"command.kernel.rehearse.description\"\n\
+             paragraph = \"command.kernel.rehearse.paragraph\"\ntags = \"command.kernel.rehearse.tags\"\n\
+             action = \"Read\"\nresource_selector = \"realm\"\nreversibility = \"read\"\nmutating = false\n\
+             args_schema = '{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"integer\",\"minimum\":1}},\"additionalProperties\":false}'\n",
+        );
+        std::fs::write(&commands, declared).expect("writable");
+        for (locale, texts, tags) in [
+            (
+                "en",
+                [
+                    "Rehearse a step",
+                    "Run a step as a rehearsal and change nothing.",
+                    "Walks through a step the way it would run, and keeps none of what it did.",
+                ],
+                "[\"rehearse\", \"dry run\"]",
+            ),
+            (
+                "pt-BR",
+                [
+                    "Ensaiar um passo",
+                    "Executar um passo como ensaio, sem mudar nada.",
+                    "Percorre um passo como ele seria executado, e não guarda nada do que fez.",
+                ],
+                "[\"ensaiar\", \"simulação\"]",
+            ),
+        ] {
+            let file = format!("catalog/i18n/{locale}.toml");
+            let [title, line, paragraph] = texts;
+            edit(
+                &file,
+                "\n[message]\n",
+                &format!(
+                    "\n[message]\n\"command.kernel.rehearse.title\" = \"{title}\"\n\
+                     \"command.kernel.rehearse.description\" = \"{line}\"\n\
+                     \"command.kernel.rehearse.paragraph\" = \"{paragraph}\"\n"
+                ),
+            );
+            edit(
+                &file,
+                "\n[tags]\n",
+                &format!("\n[tags]\n\"command.kernel.rehearse.tags\" = {tags}\n"),
+            );
+        }
+        edit(
+            "catalog/i18n/en.toml",
+            "\"command.journal.verify.title\" = \"Verify activity history\"",
+            "\"command.journal.verify.title\" = \"Verify the chain of activity\"",
+        );
+    }
+
+    /// The pages read the catalog they are handed, and not the one this tool
+    /// was built with.
+    ///
+    /// **What the crate this tool links cannot show.** A copy of the catalog
+    /// declares a command the linked one does not, and renames one it does:
+    /// the CLI's page and the MCP page show both as the copy has them, while
+    /// `nc_catalog`, compiled into this binary, knows neither. A layout that
+    /// read a table it was built with would leave every page one build behind
+    /// the catalog on disk and agree with the catalog it was built from.
+    #[test]
+    fn the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links() {
+        let held = crate::check::LeavesNothingBehind::new("pages-handed");
+        let scratch = held.root.clone();
+        a_catalog_this_tool_was_not_built_with(&scratch);
+        let compiled = super::artifacts(&scratch, nc_catalog_compiler::ledger::Bootstrap::Refuse)
+            .expect("the copy compiles");
+        let page = |name: &str| {
+            compiled
+                .files
+                .iter()
+                .find(|file| file.path == format!("docs/{name}"))
+                .unwrap_or_else(|| panic!("docs/{name} is emitted"))
+                .contents
+                .clone()
+        };
+        assert!(
+            nc_catalog::command("kernel.rehearse").is_none()
+                && nc_catalog::message("command.journal.verify.title", nc_catalog::Locale::En)
+                    == Some("Verify activity history"),
+            "the catalog this tool links already holds the copy's changes, so this proves \
+             nothing"
+        );
+        let cli = page("cli.md");
+        for said in [
+            "## `kernel.rehearse`\n",
+            "kernel.rehearse — Rehearse a step\nRun a step as a rehearsal and change nothing.\n",
+            "kernel.rehearse — Ensaiar um passo\n",
+            "  --steps <whole number, at least 1>\n",
+            "journal.verify — Verify the chain of activity\n",
+        ] {
+            assert!(
+                cli.contains(said),
+                "docs/cli.md does not say `{said}`:\n{cli}"
+            );
+        }
+        assert!(
+            !cli.contains("journal.verify — Verify activity history\n"),
+            "docs/cli.md shows the display name the linked catalog holds:\n{cli}"
+        );
+        let tools = page("mcp-tools.md");
+        for said in [
+            "{\"name\":\"kernel.rehearse\",\"description\":\"Run a step as a rehearsal and change nothing.\\n\\nWalks through",
+            "\"inputSchema\":{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"integer\",\"minimum\":1}},\"additionalProperties\":false}}",
+        ] {
+            assert!(
+                tools.contains(said),
+                "docs/mcp-tools.md does not say `{said}`:\n{tools}"
+            );
+        }
+    }
+
     /// The write loop counts the generated files and the ledger apart.
     ///
     /// **What [`super::run`] cannot drive.** With the loop inside `run` — one
