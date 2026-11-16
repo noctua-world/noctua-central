@@ -1147,7 +1147,9 @@ fn commands(catalog: &Catalog) -> String {
             &entry.tags,
         ];
         what_a_person_is_shown(catalog, keys, &tags, &mut out);
-        let _ = writeln!(out, "```json\n{}\n```\n", entry.args_schema);
+        // Fenced as every block of every page is, so no backtick a schema's
+        // annotation holds ends the block.
+        let _ = writeln!(out, "{}", fenced("json", &entry.args_schema));
     }
     out
 }

@@ -6804,3 +6804,39 @@ fn the_keybindings_page_writes_each_leader_alone_and_with_its_chord() {
         "the page does not list every chord a system keeps"
     );
 }
+
+/// A run of backticks in a value ends no block on any page that writes one.
+///
+/// An argument's description is its author's text, and three backticks in
+/// it would close a block of three: what followed would be read as the
+/// page's own Markdown. The commands page and the MCP page both write the
+/// schema, and both fence it longer than any run inside it.
+#[test]
+fn a_run_of_backticks_in_a_schema_ends_no_block_on_any_page() {
+    let scratch = Scratch::new("backticks-in-a-schema");
+    scratch.replacing(
+        "catalog/commands.toml",
+        "\"from\":{\"type\":\"integer\",\"minimum\":0}",
+        "\"from\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"the entry ``` to start at\"}",
+    );
+    let compiled =
+        compile(&scratch.root, Bootstrap::Refuse, &surfaces()).expect("an annotation compiles");
+    for name in ["docs/commands.md", "docs/mcp-tools.md"] {
+        let page = &compiled
+            .files
+            .iter()
+            .find(|file| file.path == name)
+            .unwrap_or_else(|| panic!("{name} is emitted"))
+            .contents;
+        assert!(
+            page.contains("````json\n") && page.contains("the entry ``` to start at"),
+            "{name} fenced a schema holding three backticks with three:\n{page}"
+        );
+        let opened = page.matches("\n````json\n").count();
+        let closed = page.matches("\n````\n").count();
+        assert_eq!(
+            opened, closed,
+            "{name} opens {opened} block(s) of four and closes {closed}"
+        );
+    }
+}

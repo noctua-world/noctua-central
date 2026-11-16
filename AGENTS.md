@@ -3123,7 +3123,9 @@ another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 `crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
 `crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
-`crates/nc-catalog-compiler/src/docs.rs`; and `xtask/tests/the_pages_reach_the_catalog.rs`,
+`crates/nc-catalog-compiler/src/docs.rs`, and
+`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` beside the compiler's gates, over
+the commands page and the MCP page alike; and `xtask/tests/the_pages_reach_the_catalog.rs`,
 which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
 vocabulary and system shortcuts, and help itself. The files a surface is built from are
 read by the determinism gate as the emitter is (`EMITS`).
