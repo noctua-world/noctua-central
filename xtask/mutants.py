@@ -8867,6 +8867,11 @@ WEAKENINGS = [
     ("compiler_surfaces", "bindings", "the keybindings page lists bindings in the order of their tables",
      "    bound.sort_by_key(|(binding, _)| *binding);",
      "    bound.sort_by_key(|(binding, _)| core::cmp::Reverse(*binding));"),
+    # A bound command's display name is a person's words: a backtick in it
+    # opens no code span on the keybindings page.
+    ("compiler_surfaces", "bindings", "a backtick in a bound command's display name is escaped",
+     "                    .map_or_else(|| \"—\".to_owned(), |shown| words(shown.display_name)),",
+     "                    .map_or_else(|| \"—\".to_owned(), |shown| cell(shown.display_name)),"),
     ("pages", "fenced", "a fenced block's fence is longer than any run of backticks inside it",
      "    let fence = \"`\".repeat(longest.max(2) + 1);",
      "    let fence = \"`\".repeat(3);"),

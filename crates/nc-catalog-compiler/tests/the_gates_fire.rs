@@ -6508,12 +6508,17 @@ fn a_standard_name_reaches_its_page_as_its_standard_writes_it() {
 
 /// A backtick in a person's words reaches the page as written.
 ///
-/// **A paragraph and tags are text a person reads**, not Markdown: two
-/// backticks in a paragraph, or one in each of two tags, would open a code
-/// span that hides both and shows the words between them, the comma joining
-/// two tags included, as code. Each backtick is escaped, so a renderer shows
-/// it and opens no span. The judge accepts a backtick in either, and no
-/// shipped text holds one, so only a copy that does can show the page.
+/// **A display name, a paragraph and tags are text a person reads**, not
+/// Markdown: two backticks in a display name or a paragraph, or one in each
+/// of two tags, would open a code span that hides both and shows the words
+/// between them, the comma joining two tags included, as code. Each backtick
+/// is escaped, so a renderer shows it and opens no span. The judge accepts a
+/// backtick in each, and no shipped text holds one, so only a copy that does
+/// can show the page.
+///
+/// **A display name is on two pages**: the commands page's own row, and the
+/// keybindings page's, which names the command each binding runs in every
+/// locale. No shipped command declares a binding, so the copy binds one.
 #[test]
 fn a_backtick_in_a_persons_words_reaches_the_page_as_written() {
     let scratch = Scratch::new("backticks-in-words");
@@ -6527,10 +6532,35 @@ fn a_backtick_in_a_persons_words_reaches_the_page_as_written() {
         r#""command.kernel.undo.paragraph" = "Finds your newest step"#,
         r#""command.kernel.undo.paragraph" = "Run `noctua undo` again. Finds your newest step"#,
     );
+    scratch.replacing(
+        "catalog/i18n/en.toml",
+        r#""command.kernel.undo.title" = "Undo""#,
+        r#""command.kernel.undo.title" = "Undo `the` step""#,
+    );
+    scratch.replacing(
+        "catalog/commands.toml",
+        "name = \"kernel.undo\"\n",
+        "name = \"kernel.undo\"\nkeybindings = [\"Leader KeyZ\"]\n",
+    );
     let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
         .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let keys = &compiled
+        .files
+        .iter()
+        .find(|file| file.path == "docs/keybindings.md")
+        .expect("the keybindings page is emitted")
+        .contents;
+    let bound = keys
+        .lines()
+        .find(|line| line.starts_with("| `Leader KeyZ` |"))
+        .unwrap_or_else(|| panic!("the binding is not on the page:\n{keys}"));
+    assert_eq!(
+        bound, "| `Leader KeyZ` | `kernel.undo` | Undo \\`the\\` step | Desfazer |",
+        "the bound command's display name is not shown as written"
+    );
     let undo = compiled_section(&compiled, "docs/commands.md", "kernel.undo");
     for (row, written) in [
+        ("| Display name | ", "Undo \\`the\\` step | Desfazer |"),
         ("| Tags | ", "undo, take\\`back, re\\`vert, go back | "),
         (
             "| Paragraph | ",

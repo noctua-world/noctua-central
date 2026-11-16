@@ -449,7 +449,7 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
 /// is not doubled. A registry's own description is another thing: an
 /// error's or a log event's may set a name as code on purpose, and keeps
 /// only the escapes of `cell`.
-fn words(text: &str) -> String {
+pub(crate) fn words(text: &str) -> String {
     cell(text).replace('`', "\\`")
 }
 

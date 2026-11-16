@@ -28,7 +28,7 @@ use nc_schema::entry::Shown;
 use nc_schema::keys::{Binding, Key, Keyboard, Leader, Modifier, SYSTEM_SHORTCUTS, Table};
 
 use crate::Problem;
-use crate::docs::{cell, fenced, header, shown_in, tags};
+use crate::docs::{cell, fenced, header, shown_in, tags, words};
 use crate::model::Catalog;
 
 /// Where the surfaces are built, which a refusal of them names.
@@ -290,7 +290,7 @@ fn bindings(catalog: &Catalog, out: &mut String) {
         for tag in &tags {
             cells.push(
                 shown_in(catalog, entry, tag)
-                    .map_or_else(|| "—".to_owned(), |shown| cell(shown.display_name)),
+                    .map_or_else(|| "—".to_owned(), |shown| words(shown.display_name)),
             );
         }
         let _ = writeln!(out, "| {} |", cells.join(" | "));

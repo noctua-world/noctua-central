@@ -3131,11 +3131,12 @@ handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-
 the command's own name, its line and paragraph and its argument schema as written, once it
 compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
 person's words, and no tool carries them. Every cell goes through `cell`, so no value ends
-its cell or its row. A person's words — a locale's sentence or tag — have each backtick
-escaped as well, so a text holding a bar, a backtick, a backslash or `<` shows as written;
-a description a registry writes for a developer, an error's or a log event's, may set a
-name as code with Markdown's code span, by design, and shows as one. A standard name and an
-identification value, the values set as code that may hold any printable character, go
+its cell or its row. A person's words — a locale's sentence or tag, on every page that
+shows one, a bound command's display name on the keybindings page included — have each
+backtick escaped as well, so a text holding a bar, a backtick, a backslash or `<` shows as
+written; a description a registry writes for a developer, an error's or a log event's, may
+set a name as code with Markdown's code span, by design, and shows as one. A standard name
+and an identification value, the values set as code that may hold any printable character, go
 through `code`, whose fence is longer than any run of backticks in it and whose text no
 Markdown escape reaches; the values the limits page sets as code are not held to a grammar
 by the compiler — a table's key and its `order_by` are held by xtask's limits gate to a
@@ -3158,10 +3159,11 @@ outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` 
 `a_run_of_backticks_in_a_schema_ends_no_block_on_any_page`,
 `a_standard_name_reaches_its_page_as_its_standard_writes_it` and
 `a_backtick_in_a_persons_words_reaches_the_page_as_written` beside the compiler's gates,
-over the commands page, the MCP page and the categories page; and `xtask/tests/the_pages_reach_the_catalog.rs`,
-which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
-vocabulary and system shortcuts, and help itself. The files a surface is built from are
-read by the determinism gate as the emitter is (`EMITS`).
+over the commands page, the keybindings page, the MCP page and the categories page; and
+`xtask/tests/the_pages_reach_the_catalog.rs`, which holds each page to the CLI's tables,
+`nc_channel`'s Leaders, `nc_schema::keys`' vocabulary and system shortcuts, and help
+itself. The files a surface is built from are read by the determinism gate as the emitter
+is (`EMITS`).
 
 **Not answered:** whether a page is read — the in-app pages that render them arrive in
 Stage 16; a store's name and a rate limit's surface, which the limits page sets as code
