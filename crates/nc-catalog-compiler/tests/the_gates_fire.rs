@@ -5711,6 +5711,21 @@ fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
         .expect("the scratch is writable");
     folded.place("catalog/wiki/pt-br/commands/kernel.undo.md", "# Desfazer\n");
     folded.must_fail("wiki-misplaced", "catalog/wiki/pt-br");
+    // **And a locale whose own file does not load**: its directory is that
+    // file's defect, reported at the file, and never a second one here.
+    let unloaded = Scratch::new("wiki-beside-a-locale-that-did-not-load");
+    unloaded.place("catalog/i18n/fr.toml", "this is = = not toml\n");
+    unloaded.place("catalog/wiki/fr/commands/kernel.undo.md", "# Annuler\n");
+    unloaded.must_fail("registry-malformed", "catalog/i18n/fr.toml");
+    let problems = unloaded.problems();
+    assert!(
+        !problems
+            .iter()
+            .any(|problem| problem.check == "wiki-misplaced"
+                && problem.file.starts_with("catalog/wiki/fr")),
+        "a locale whose file did not load had its wiki directory refused as well: {}",
+        render(&problems)
+    );
 }
 
 /// A link anywhere in the wiki tree is refused, never read through.
@@ -6491,6 +6506,54 @@ fn a_standard_name_reaches_its_page_as_its_standard_writes_it() {
     );
 }
 
+/// A backtick in a person's words reaches the page as written.
+///
+/// **A paragraph and tags are text a person reads**, not Markdown: two
+/// backticks in a paragraph, or one in each of two tags, would open a code
+/// span that hides both and shows the words between them, the comma joining
+/// two tags included, as code. Each backtick is escaped, so a renderer shows
+/// it and opens no span. The judge accepts a backtick in either, and no
+/// shipped text holds one, so only a copy that does can show the page.
+#[test]
+fn a_backtick_in_a_persons_words_reaches_the_page_as_written() {
+    let scratch = Scratch::new("backticks-in-words");
+    scratch.replacing(
+        "catalog/i18n/en.toml",
+        r#""command.kernel.undo.tags" = ["undo", "take back", "revert", "go back"]"#,
+        r#""command.kernel.undo.tags" = ["undo", "take`back", "re`vert", "go back"]"#,
+    );
+    scratch.replacing(
+        "catalog/i18n/en.toml",
+        r#""command.kernel.undo.paragraph" = "Finds your newest step"#,
+        r#""command.kernel.undo.paragraph" = "Run `noctua undo` again. Finds your newest step"#,
+    );
+    let compiled = compile(&scratch.root, Bootstrap::Refuse, &surfaces())
+        .unwrap_or_else(|problems| panic!("{}", render(&problems)));
+    let undo = compiled_section(&compiled, "docs/commands.md", "kernel.undo");
+    for (row, written) in [
+        ("| Tags | ", "undo, take\\`back, re\\`vert, go back | "),
+        (
+            "| Paragraph | ",
+            "Run \\`noctua undo\\` again. Finds your newest step",
+        ),
+    ] {
+        let line = undo
+            .lines()
+            .find(|line| line.starts_with(row))
+            .unwrap_or_else(|| panic!("`kernel.undo` has no `{row}` row: {undo}"));
+        assert!(
+            line.starts_with(&format!("{row}{written}")),
+            "the row does not show the words as written: {line}"
+        );
+        // **No backtick is left to open a span**: each one is escaped.
+        assert!(
+            line.match_indices('`')
+                .all(|(at, _)| line[..at].ends_with('\\')),
+            "a backtick on the row opens a code span: {line}"
+        );
+    }
+}
+
 /// An external identifier's wiki text is compiled with the format its
 /// extension names, and its page links each locale's file.
 ///
@@ -6574,6 +6637,17 @@ fn an_external_identifiers_wiki_text_is_compiled_with_its_format_and_linked_from
     assert!(
         !chrome.contains("| Wiki |"),
         "an identifier with no wiki text published a row for one: {chrome}"
+    );
+    // **The page names the tree it links**, as the commands page does: its
+    // `Source:` line is what tells a reader which file to edit.
+    let source = emitted("docs/external-identifiers.md");
+    assert!(
+        source.lines().nth(1).is_some_and(|line| line.starts_with(
+            "<!-- Source: catalog/external-identifiers.toml, catalog/i18n/ and catalog/wiki/."
+        )),
+        "the identifiers page links a wiki text and its source line does not name \
+         catalog/wiki/: {}",
+        source.lines().nth(1).unwrap_or_default()
     );
 }
 

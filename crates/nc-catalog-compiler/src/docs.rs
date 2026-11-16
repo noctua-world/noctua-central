@@ -436,7 +436,21 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
         .iter()
         .find(|locale| locale.meta.bcp47 == tag)
         .and_then(|locale| locale.message.get(key))
-        .map_or_else(|| "—".to_owned(), |text| cell(text))
+        .map_or_else(|| "—".to_owned(), |text| words(text))
+}
+
+/// A person's words in a cell, shown as written: `cell`, and every backtick
+/// escaped.
+///
+/// **A locale's sentence or tag is text a person reads**, never Markdown:
+/// two backticks in a paragraph, or one in each of two tags, would open a
+/// code span that hides both and shows what lies between as code — the `, `
+/// joining two tags included. Escaped after `cell`, so the backslash it adds
+/// is not doubled. A registry's own description is another thing: an
+/// error's or a log event's may set a name as code on purpose, and keeps
+/// only the escapes of `cell`.
+fn words(text: &str) -> String {
+    cell(text).replace('`', "\\`")
 }
 
 /// The locale tags, source first, as the columns of every message table.
@@ -1274,10 +1288,10 @@ fn what_a_person_is_shown(
                 .and_then(|locale| locale.tags.get(tag_list))
                 .map_or_else(
                     || "—".to_owned(),
-                    |words| {
-                        words
+                    |listed| {
+                        listed
                             .iter()
-                            .map(|word| cell(word))
+                            .map(|word| words(word))
                             .collect::<Vec<_>>()
                             .join(", ")
                     },
@@ -1410,7 +1424,7 @@ fn a_sets_categories(
 fn external_identifiers(catalog: &Catalog) -> String {
     let mut out = header(
         "External identifiers",
-        "catalog/external-identifiers.toml and catalog/i18n/",
+        "catalog/external-identifiers.toml, catalog/i18n/ and catalog/wiki/",
         "Every thing outside the platform the catalog identifies — an application, a \
          binary or a configuration file — with what a person is shown of it in each \
          locale and what identifies it on each system it is identified on (`NOCTUA.md \

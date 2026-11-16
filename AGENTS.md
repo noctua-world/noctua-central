@@ -3129,12 +3129,18 @@ command and what `docs/cli.md` says are one layout's, which escapes every text i
 handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-tools.md` is
 the command's own name, its line and paragraph and its argument schema as written, once it
 compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
-person's words, and no tool carries them. No value a page publishes ends what it is in:
-every cell goes through `cell`; a standard name and an identification value, the values set
-as code that may hold any printable character, go through `code`, whose fence is longer than
-any run of backticks in it and whose text no Markdown escape reaches; every fenced block is fenced longer than any run of
-backticks in it, and a tool is JSON written by `serde_json`, so a text holding a bar, a
-backtick, a backslash, a quotation mark or a line break shows as that text.
+person's words, and no tool carries them. Every cell goes through `cell`, so no value ends
+its cell or its row. A person's words — a locale's sentence or tag — have each backtick
+escaped as well, so a text holding a bar, a backtick, a backslash or `<` shows as written;
+a description a registry writes for a developer, an error's or a log event's, may set a
+name as code with Markdown's code span, by design, and shows as one. A standard name and an
+identification value, the values set as code that may hold any printable character, go
+through `code`, whose fence is longer than any run of backticks in it and whose text no
+Markdown escape reaches; the values the limits page sets as code are not held to a grammar
+by the compiler — a table's key and its `order_by` are held by xtask's limits gate to a
+table and a column the migrations declare. Every fenced block is fenced longer than any
+run of backticks in it, and a tool is JSON written by `serde_json`, so a text there holding
+a backtick, a quotation mark or a line break shows as that text.
 
 **Enforced by** `a_hand_edit_to_any_generated_page_is_drift` in `xtask/src/check.rs`, which
 edits every page the compiler emits, one at a time, and holds the emitted pages to the
@@ -3148,15 +3154,18 @@ another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
 `crates/nc-catalog-compiler/src/docs.rs`, with
 `a_value_written_as_code_is_shown_as_its_system_writes_it` beside it, and
-`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` and
-`a_standard_name_reaches_its_page_as_its_standard_writes_it` beside the compiler's gates,
+`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page`,
+`a_standard_name_reaches_its_page_as_its_standard_writes_it` and
+`a_backtick_in_a_persons_words_reaches_the_page_as_written` beside the compiler's gates,
 over the commands page, the MCP page and the categories page; and `xtask/tests/the_pages_reach_the_catalog.rs`,
 which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
 vocabulary and system shortcuts, and help itself. The files a surface is built from are
 read by the determinism gate as the emitter is (`EMITS`).
 
 **Not answered:** whether a page is read — the in-app pages that render them arrive in
-Stage 16; and the four things **What is deliberately not claimed** lists under the
+Stage 16; a store's name and a rate limit's surface, which the limits page sets as code
+and nothing holds free of a backtick, so one holding a backtick would end its code span
+early; and the four things **What is deliberately not claimed** lists under the
 generated pages: that `docs/mcp-tools.md` is any session's tool list, that `docs/cli.md`
 names any channel's CLI but production's, that a function a surface hands the compiler
 reads nothing of its own, and that `docs/keybindings.md` shows anybody's keys but the

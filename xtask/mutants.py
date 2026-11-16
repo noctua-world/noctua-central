@@ -1335,6 +1335,11 @@ WEAKENINGS = [
         .replace('|', "\\\\|")
         .replace('<', "&lt;")""",
      """    text.replace('\\\\', "\\\\\\\\").replace('<', "&lt;")"""),
+    # A person's words are shown as written: a backtick in a sentence or a
+    # tag opens no code span on the page.
+    ("pages", "words", "a backtick in a person's words is escaped",
+     "    cell(text).replace('`', \"\\\\`\")",
+     "    cell(text)"),
 
     # -- declared_in: whether a fixture wrote its own sentence ---------------
     # **The clause acceptance criterion 2 rests on.** Measured without its
@@ -3399,6 +3404,11 @@ WEAKENINGS = [
     ("compiler_metadata", "wiki", "a wiki locale directory is skipped only for a locale file of its name byte for byte",
      "&& unloaded.contains(&locale) {",
      "&& unloaded.iter().any(|stem| stem.eq_ignore_ascii_case(&locale)) {"),
+    # And skipped at all: a locale whose file did not load is reported at
+    # the file, and its wiki directory is not a second defect.
+    ("compiler_metadata", "wiki", "a wiki locale directory is skipped for a locale whose file did not load",
+     "&& unloaded.contains(&locale) {",
+     "&& false {"),
     ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
      "            let kind = entry.file_type().ok()?;",
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),

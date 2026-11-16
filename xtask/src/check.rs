@@ -37761,7 +37761,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2494] = [
+    static OPERATORS: [(&str, &str, &str); 2496] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38599,6 +38599,11 @@ Options:
         ),
         ("pages", "cell", "an angle bracket is escaped"),
         ("pages", "cell", "and so is the bar that would end the cell"),
+        (
+            "pages",
+            "words",
+            "a backtick in a person's words is escaped",
+        ),
         ("wall", "declared_in", "the subject side is asked at all"),
         ("wall", "declared_in", "a keyword list of seven, not six"),
         ("wall", "declared_in", "a declaration anywhere on the line"),
@@ -41051,6 +41056,11 @@ Options:
             "compiler_metadata",
             "wiki",
             "a wiki locale directory is skipped only for a locale file of its name byte for byte",
+        ),
+        (
+            "compiler_metadata",
+            "wiki",
+            "a wiki locale directory is skipped for a locale whose file did not load",
         ),
         (
             "compiler_metadata",
