@@ -34641,9 +34641,10 @@ mod the_meta_gate {
         ),
         (
             "crates/nc-schema/tests/properties.rs",
-            "a suite: the laws the argument schema and the judge obey, stated \
-             as properties rather than examples. The three sources it drives — \
-             `lib.rs`, `selector.rs` and `descriptor.rs` — are edited by the \
+            "a suite: the laws the argument schema, the judge, the entry judge \
+             and the Leader's grammar obey, stated as properties rather than \
+             examples. The five sources it drives — `lib.rs`, `selector.rs`, \
+             `descriptor.rs`, `entry.rs` and `keys.rs` — are edited by the \
              runner under the crate's own command, which builds this suite, and \
              a weakening of this file would remove evidence rather than uncover \
              an undecided clause",
@@ -34661,14 +34662,16 @@ mod the_meta_gate {
         (
             "crates/nc-catalog-compiler/tests/the_gates_fire.rs",
             "a suite: the compiler run over a catalog broken on purpose. The \
-             refusals it watches are written in `lib.rs`, `load.rs` and \
-             `problem.rs`, all three of which the runner edits",
+             refusals it watches are written in `lib.rs`, `load.rs`, \
+             `problem.rs`, `metadata.rs`, `registries.rs` and `surfaces.rs`, \
+             every one of which the runner edits",
         ),
         (
             "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
             "a suite: acceptance criterion 4 read a second way, against a \
-             shuffled `read_dir`. The ordering it holds is decided in `emit.rs` \
-             and `docs.rs`, both of which the runner edits",
+             shuffled `read_dir`. The ordering it holds is decided in `emit.rs`, \
+             `docs.rs` and the wiki walk of `metadata.rs`, all three of which the \
+             runner edits",
         ),
         (
             "crates/nc-fuzzy/tests/properties.rs",

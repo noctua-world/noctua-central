@@ -5705,7 +5705,7 @@ fn a_file_where_a_wiki_directory_belongs_fails_the_build() {
     // **A locale's directory in another case**, the shipped one taken away
     // first, so a system that folds case meets the name as written: it names
     // no locale byte for byte and is refused on every system, never skipped
-    // as the locale whose file a folding lookup of `pt-br.toml` would find.
+    // as the locale whose file a lookup that folds case would find.
     let folded = Scratch::new("wiki-locale-in-another-case");
     std::fs::remove_dir_all(folded.root.join("catalog/wiki/pt-BR"))
         .expect("the scratch is writable");

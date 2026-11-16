@@ -16,12 +16,17 @@ description = "The reference plugin: the component the kernel's suites load, one
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# The world's guest half, and the one `export!` this plugin calls.
-nc-guest.workspace = true
 # The probe answers in canonical JSON, the format every payload crossing the
 # boundary is (`NOCTUA.md §16.4`). It builds for `wasm32` with no import of its
 # own, so the component still imports the world and nothing else.
 nc-canon.workspace = true
+
+# **The world's guest half, and the one `export!` this plugin calls**, for
+# `wasm32` alone: `adapter`, the one file that names it, is compiled for that
+# target only, and a host build taking it would carry a dependency nothing it
+# compiles uses — which cargo warns of, and a warning is a failed criterion.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+nc-guest.workspace = true
 
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's tests.** Cargo

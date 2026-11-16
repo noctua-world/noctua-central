@@ -542,8 +542,9 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
         // A locale whose own file failed to load is reported there, and its
         // wiki directory is not a second defect. **Told by the file's name,
         // byte for byte, never by asking the file system for a path**: one
-        // that folds case finds `catalog/i18n/pt-br.toml` at `pt-BR.toml`,
-        // and would skip a misplaced `pt-br/` that every other system refuses.
+        // that folds case finds a locale's file under its tag written in
+        // another case, and would skip a directory so named, misplaced, that
+        // every other system refuses.
         if kind.is_dir() && !tags.contains(&locale.as_str()) && unloaded.contains(&locale) {
             continue;
         }
