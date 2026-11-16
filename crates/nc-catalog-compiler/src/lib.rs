@@ -33,6 +33,8 @@ pub mod model;
 pub mod problem;
 mod registries;
 pub use registries::identification_for_tests;
+pub mod surfaces;
+pub use surfaces::Surfaces;
 
 mod emit;
 
@@ -142,16 +144,23 @@ pub struct Compiled {
 ///
 /// `bootstrap` says whether a ledger nothing vouches for may be accepted.
 /// `cargo xtask check` always passes [`ledger::Bootstrap::Refuse`]; only
-/// `cargo xtask build --reserve` passes the other.
+/// `cargo xtask build --reserve` passes the other. `surfaces` is what the
+/// catalog cannot see and the pages publish beside it — the CLI's own words
+/// and each channel's keys — which `cargo xtask` builds from the crates that
+/// hold them.
 ///
 /// Touches nothing on disk beyond reading.
 ///
 /// # Errors
 ///
 /// Returns every problem found — a malformed registry, a missing message key, a
-/// renumbered error code, an edited ledger — located and sorted, rather than the
-/// first.
-pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Vec<Problem>> {
+/// renumbered error code, an edited ledger, a surface that holds nothing —
+/// located and sorted, rather than the first.
+pub fn compile(
+    root: &Path,
+    bootstrap: ledger::Bootstrap,
+    surfaces: &Surfaces,
+) -> Result<Compiled, Vec<Problem>> {
     // **Both classes, not the first one found.** Returning on `load`'s
     // problems would make a catalog with an i18n defect *and* a renumbered code
     // report only the i18n one — while this function's own doc promises "every
@@ -164,6 +173,7 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
     // exactly what the ledger needs to say anything useful about the codes in
     // it — and nothing is written while any problem stands.
     let (catalog, mut problems) = load::load(root);
+    problems.extend(surfaces::incomplete(surfaces));
 
     // **Pushed, not `?`-returned, and it says what `load` says.** A *fresh*
     // vector holding one problem, returned three lines under a comment promising
@@ -233,7 +243,7 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
     // generated Rust — which costs nothing and buys drift, staleness and
     // determinism for the documentation as well. A verb that wrote Markdown its
     // own way would be a second generation pipeline with none of them.
-    files.extend(docs::all(&catalog));
+    files.extend(docs::all(&catalog, surfaces));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(Compiled {
         catalog,

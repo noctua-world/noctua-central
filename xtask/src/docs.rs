@@ -5,7 +5,11 @@
 //! and external identifier, in both locales, from the same source the code
 //! consumes — so the documentation cannot drift from the behaviour. `§15.3`
 //! asks for documentation that is "as automated as possible", and the catalog
-//! is the instrument.
+//! is the instrument; every command is published as the tool an MCP session
+//! is handed, too. The pages about what the catalog cannot see — the CLI's
+//! reference and each channel's default keys — come out of the same
+//! compilation, from the tables `build::surfaces` builds out of `nc_cli` and
+//! `nc_channel`, so they are drift-checked like the rest (`§20.5`).
 //!
 //! **They are emitted through the same list as the generated Rust**, which is
 //! what makes them drift-checked, stale-checked and deterministic without any of

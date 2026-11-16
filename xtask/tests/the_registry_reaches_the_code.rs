@@ -20,19 +20,65 @@
 
 use std::path::{Path, PathBuf};
 
-use nc_catalog_compiler::compile;
 use nc_catalog_compiler::ledger::Bootstrap;
 use nc_catalog_compiler::model::{
     Catalog, Database as ModelDatabase, FieldType, Level, Severity as ModelSeverity,
     Strategy as ModelStrategy,
 };
+use nc_catalog_compiler::surfaces::{ChannelKeys, Cli};
+use nc_catalog_compiler::{Surfaces, compile};
 
 fn root() -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).to_path_buf()
 }
 
+/// The three channels, in the order their Leaders are settled; a
+/// development channel's Leader is the same for every checkout.
+fn channels() -> [nc_channel::Channel; 3] {
+    [
+        nc_channel::Channel::Production,
+        nc_channel::Channel::Staging,
+        nc_channel::Channel::Development(nc_channel::Checkout::of(&root())),
+    ]
+}
+
+/// What `cargo xtask` hands the compiler, built as `xtask/src/build.rs` builds it.
+///
+/// The CLI's tables come from `nc_cli` and each channel's keys
+/// from `nc_channel`.
+fn surfaces() -> Surfaces {
+    Surfaces {
+        cli: Cli {
+            name: "noctua".to_owned(),
+            usage: nc_cli::help::usage("noctua"),
+            verbs: nc_cli::args::VERBS
+                .iter()
+                .map(|verb| {
+                    (
+                        (*verb).to_owned(),
+                        nc_cli::help::what_it_does(verb).to_owned(),
+                    )
+                })
+                .collect(),
+            exit_codes: nc_cli::exit::Exit::ALL
+                .iter()
+                .map(|exit| (exit.code(), exit.meaning().to_owned()))
+                .collect(),
+            described: nc_cli::help::described,
+        },
+        channels: channels()
+            .iter()
+            .map(|channel| ChannelKeys {
+                channel: channel.word(),
+                leader: channel.leader(),
+                chord: channel.chord_modifier(),
+            })
+            .collect(),
+    }
+}
+
 fn catalog() -> Catalog {
-    compile(&root(), Bootstrap::Refuse)
+    compile(&root(), Bootstrap::Refuse, &surfaces())
         .expect("the catalog this repository ships compiles")
         .catalog
 }

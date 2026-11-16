@@ -14,6 +14,10 @@
 //! text a registry does not carry is refused when it is written, because a
 //! text nothing shows is a text nobody keeps true.
 //!
+//! **What an entry shows is one [`Shown`]**, whoever resolved it: the CLI's
+//! help on a command and `docs/cli.md` lay one out the same way, and
+//! [`as_tool`] projects a command as the tool an MCP session lists.
+//!
 //! # What this answers (`§2.4`)
 //!
 //! **A text shows a reader everything it holds.** Every text and every tag is
@@ -42,7 +46,9 @@
 use core::fmt;
 use std::collections::BTreeSet;
 
-use crate::{excerpt, shows_nothing, unseen};
+use serde_json::{Map, Value};
+
+use crate::{Schema, SchemaError, SchemaFault, excerpt, shows_nothing, unseen};
 
 /// The longest display name, in characters.
 pub const DISPLAY_NAME_MAX: usize = 64;
@@ -173,6 +179,27 @@ pub struct Rules<'a> {
     /// `[kernel] entry_bytes`, which the caller reads from the catalog, so the
     /// compiler and the kernel hold one number.
     pub entry_bytes: u64,
+}
+
+/// What a reader is shown of one entry, in one locale.
+///
+/// **Resolved by its caller, and judged by nobody here**: the catalog
+/// compiler hands it the texts of the catalog it is compiling, and the CLI the
+/// texts the daemon sent, which it escapes where it prints them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shown<'a> {
+    /// The entry's own name: a command's, dotted.
+    pub name: &'a str,
+    /// The display name.
+    pub display_name: &'a str,
+    /// The line description.
+    pub line: &'a str,
+    /// The paragraph.
+    pub paragraph: &'a str,
+    /// The tags, in the order written.
+    pub tags: &'a [String],
+    /// The categories it is listed under, by name.
+    pub categories: &'a [String],
 }
 
 /// Why a glyph was refused.
@@ -675,6 +702,40 @@ pub fn a_reason_is_prose(reason: &str) -> bool {
     reason.trim().chars().count() >= 20 && reason.split_whitespace().count() >= 4
 }
 
+/// A command as the tool an MCP session lists (`NOCTUA.md §20.3`).
+///
+/// **The one projection**: `docs/mcp-tools.md` publishes what it answers for
+/// every command the catalog declares, and the MCP server lists what it
+/// answers for every command a session may dispatch (Stage 15). The tool is
+/// called by the command's own name, dotted, because that is the name it is
+/// dispatched by; its description is the entry's two descriptions, the line
+/// and then the paragraph, a blank line between; and its input schema is the
+/// command's argument schema, as written, once it compiles inside the subset
+/// the kernel holds a dispatch to. A display name and tags are a person's
+/// words, and no tool carries them.
+///
+/// # Errors
+///
+/// The [`SchemaError`] [`Schema::compile`] refuses `args_schema` with: a
+/// schema the kernel would refuse is never a tool an agent is handed.
+pub fn as_tool(shown: &Shown<'_>, args_schema: &str) -> Result<Value, SchemaError> {
+    Schema::compile(args_schema)?;
+    // Read by the reader that compiled it, so a key written twice is refused
+    // there and the schema an agent is handed is the one judged.
+    let input_schema = crate::strict::parse(args_schema).map_err(|refused| SchemaError {
+        path: String::new(),
+        fault: SchemaFault::NotJson(refused),
+    })?;
+    let mut tool = Map::new();
+    tool.insert("name".to_owned(), Value::String(shown.name.to_owned()));
+    tool.insert(
+        "description".to_owned(),
+        Value::String(format!("{}\n\n{}", shown.line, shown.paragraph)),
+    );
+    tool.insert("inputSchema".to_owned(), input_schema);
+    Ok(Value::Object(tool))
+}
+
 /// The code points the Symbols-Only font draws, as inclusive ranges.
 ///
 /// **Measured, not transcribed**: the font's own charset, which `NOCTUA.md
@@ -929,9 +990,9 @@ pub fn placeholders(sentence: &str) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CATEGORIES_MAX, Entry, EntryProblem, GlyphProblem, InLocale, Rules, SYMBOLS_ONLY, TAGS_MAX,
-        Text, Texts, WIKI_BYTES_MAX, WikiFormat, WikiProblem, a_reason_is_prose, glyph, judge,
-        judge_wiki, placeholders, the_same_sentence,
+        CATEGORIES_MAX, Entry, EntryProblem, GlyphProblem, InLocale, Rules, SYMBOLS_ONLY, Shown,
+        TAGS_MAX, Text, Texts, WIKI_BYTES_MAX, WikiFormat, WikiProblem, a_reason_is_prose, as_tool,
+        glyph, judge, judge_wiki, placeholders, the_same_sentence,
     };
 
     /// Every text a command carries.
@@ -1620,5 +1681,58 @@ mod tests {
         assert!(placeholders(r#"such as {"type": "object"}"#).is_empty());
         assert!(placeholders("{}").is_empty());
         assert!(placeholders("{ spaced }").is_empty());
+    }
+
+    /// A command is a tool by its own name, its line and paragraph, and its
+    /// schema as written.
+    ///
+    /// The name is the dotted one a dispatch names; the description holds the
+    /// line, a blank line and the paragraph, in that order; the input schema
+    /// keeps the order its author wrote; and nothing a person is shown beside
+    /// those — the display name, the tags, the categories — reaches the tool.
+    #[test]
+    fn a_command_is_a_tool_by_its_name_its_two_descriptions_and_its_schema() {
+        let tags = vec!["verificar".to_owned()];
+        let categories = vec!["noctua.history".to_owned()];
+        let shown = Shown {
+            name: "journal.verify",
+            display_name: "Verify activity history",
+            line: "Check every recorded action.",
+            paragraph: "Reads the history and changes nothing.",
+            tags: &tags,
+            categories: &categories,
+        };
+        let schema = r#"{"type":"object","properties":{"from":{"type":"integer","minimum":0}},"additionalProperties":false}"#;
+        let tool = as_tool(&shown, schema).expect("inside the subset");
+        assert_eq!(
+            tool.to_string(),
+            format!(
+                r#"{{"name":"journal.verify","description":"Check every recorded action.\n\nReads the history and changes nothing.","inputSchema":{schema}}}"#
+            )
+        );
+        for unlisted in ["Verify activity history", "verificar", "noctua.history"] {
+            assert!(!tool.to_string().contains(unlisted), "{tool}");
+        }
+    }
+
+    /// A schema outside the subset is never a tool: an open object, and a key
+    /// written twice, which one reader keeps and another drops.
+    #[test]
+    fn a_schema_the_kernel_would_refuse_is_never_a_tool() {
+        let shown = Shown {
+            name: "journal.verify",
+            display_name: "Verify",
+            line: "Check.",
+            paragraph: "Reads.",
+            tags: &[],
+            categories: &[],
+        };
+        for refused in [
+            r#"{"type":"object"}"#,
+            r#"{"type":"object","additionalProperties":false,"additionalProperties":true}"#,
+            "[]",
+        ] {
+            assert!(as_tool(&shown, refused).is_err(), "{refused}");
+        }
     }
 }

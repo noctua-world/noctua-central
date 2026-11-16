@@ -3907,7 +3907,7 @@ fn the_excused_lines_are_counted(
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
     ("allow-logging:", 84),
-    ("allow-nondeterminism:", 22),
+    ("allow-nondeterminism:", 24),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
     ("nc:narrows:", 15),
@@ -3931,7 +3931,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 77] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 78] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3962,6 +3962,9 @@ const EXCUSED_WHERE: [(&str, &str, usize); 77] = [
         "allow-nondeterminism:",
         1,
     ),
+    // Where a checkout is, and the vector its digest is frozen to: neither
+    // reaches the default Leader the keybindings page publishes.
+    ("crates/nc-channel/src/lib.rs", "allow-nondeterminism:", 2),
     // The other channels' profiles, listed and then sorted by digest.
     ("crates/nc-channel/src/keys.rs", "allow-nondeterminism:", 1),
     ("crates/nc-ids/src/lib.rs", "allow-logging:", 1),
@@ -4085,7 +4088,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 77] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 50] = [
+const EXCUSED_IN: [(&str, usize); 51] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
@@ -4099,6 +4102,7 @@ const EXCUSED_IN: [(&str, usize); 50] = [
         1,
     ),
     ("crates/nc-channel/src/keys.rs", 1),
+    ("crates/nc-channel/src/lib.rs", 2),
     ("crates/nc-ids/src/lib.rs", 1),
     ("crates/nc-journal/src/entry.rs", 1),
     ("crates/nc-journal/tests/in_postgres.rs", 3),
@@ -18713,6 +18717,29 @@ impl Drop for LeavesNothingBehind {
     }
 }
 
+/// The repository's `catalog/`, copied under `scratch`, for a test that
+/// compiles a catalog it changes.
+///
+/// Beside [`LeavesNothingBehind`] for the reason it is: tests of more than one
+/// module build such a copy, and the walk that makes one is written once.
+#[cfg(test)]
+pub(crate) fn the_catalog_copied_into(scratch: &std::path::Path) {
+    let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+    let mut stack = vec![root.join("catalog")];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory).expect("the catalog is readable") {
+            let from = entry.expect("a directory entry").path();
+            let to = scratch.join(from.strip_prefix(root).expect("under the root"));
+            if from.is_dir() {
+                stack.push(from);
+            } else {
+                std::fs::create_dir_all(to.parent().expect("under the scratch")).expect("writable");
+                std::fs::copy(&from, &to).expect("writable");
+            }
+        }
+    }
+}
+
 /// Everything inside the guard's own directory that is not the scratch.
 ///
 /// No names are compared: the guard owns the directory, so anything in it that
@@ -19492,13 +19519,13 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 217] = [
+    const DOCUMENTED: [(&str, usize, usize); 218] = [
         ("cli/args.rs", 44, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
-        ("cli/help.rs", 41, 3),
+        ("cli/help.rs", 42, 3),
         ("cli/install.rs", 68, 18),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
@@ -19532,20 +19559,21 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 33, 15),
+        ("nc-catalog-compiler/docs.rs", 37, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
-        ("nc-catalog-compiler/lib.rs", 22, 16),
+        ("nc-catalog-compiler/lib.rs", 22, 17),
         ("nc-catalog-compiler/load.rs", 61, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 24, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
-        ("nc-catalog-compiler/the_gates_fire.rs", 112, 111),
+        ("nc-catalog-compiler/surfaces.rs", 15, 1),
+        ("nc-catalog-compiler/the_gates_fire.rs", 120, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
-            16,
+            18,
             2,
         ),
         ("nc-catalog/capabilities.rs", 7, 1),
@@ -19683,7 +19711,7 @@ mod the_frozen_path_rule {
         ("nc-prune/postgres.rs", 21, 10),
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
-        ("nc-schema/entry.rs", 45, 42),
+        ("nc-schema/entry.rs", 49, 42),
         ("nc-schema/keys.rs", 93, 21),
         ("nc-schema/lib.rs", 92, 67),
         ("nc-schema/properties.rs", 31, 2),
@@ -19691,8 +19719,8 @@ mod the_frozen_path_rule {
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
-        ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 686, 57),
+        ("xtask/build.rs", 31, 6),
+        ("xtask/check.rs", 688, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19712,8 +19740,8 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 48, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 40, 22),
+        ("xtask/the_pages_reach_the_catalog.rs", 57, 20),
+        ("xtask/the_registry_reaches_the_code.rs", 42, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -22500,8 +22528,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 834 scratches this tree
-    /// builds, 746 of the 834 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 838 scratches this tree
+    /// builds, 750 of the 838 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22585,7 +22613,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 256, 256),
+        ("nc-catalog-compiler/the_gates_fire.rs", 258, 258),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -22613,8 +22641,8 @@ mod the_frozen_path_rule {
         ("nc-platform/service.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
-        ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 42, 30),
+        ("xtask/build.rs", 9, 9),
+        ("xtask/check.rs", 43, 31),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -24458,9 +24486,12 @@ mod the_frozen_path_rule {
         // asking whether they meant it. Read from `what_drifted` rather than
         // from the verdict list, because the verdict is the count and the
         // sentences are what a reader sees.
-        let compiled =
-            nc_catalog_compiler::compile(&scratch, nc_catalog_compiler::ledger::Bootstrap::Refuse)
-                .expect("the scratch catalog compiles");
+        let compiled = nc_catalog_compiler::compile(
+            &scratch,
+            nc_catalog_compiler::ledger::Bootstrap::Refuse,
+            &crate::build::surfaces(&scratch),
+        )
+        .expect("the scratch catalog compiles");
         let named = super::what_drifted(&scratch, &compiled.files);
         assert!(
             named
@@ -24509,6 +24540,82 @@ mod the_frozen_path_rule {
 
         // And nothing removes the scratch here: `held` owns it, so it goes on
         // the failing paths above as well as on this one.
+    }
+
+    /// A hand edit to any generated page is drift, and the verdict names the
+    /// page.
+    ///
+    /// **Every page the emitter writes, one at a time**, and not one page
+    /// standing for the rest: the pages about what the catalog cannot see —
+    /// the CLI's and the keybindings — come out of the compiler as every
+    /// other page does, and a page written by some other step would be one no
+    /// drift check reads. The pages are the ones on disk, both ways, so a page
+    /// that left the emission is a failure here too.
+    #[test]
+    fn a_hand_edit_to_any_generated_page_is_drift() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let compiled = nc_catalog_compiler::compile(
+            root,
+            nc_catalog_compiler::ledger::Bootstrap::Refuse,
+            &crate::build::surfaces(root),
+        )
+        .expect("this catalog compiles");
+        let pages: Vec<nc_catalog_compiler::EmittedFile> = compiled
+            .files
+            .into_iter()
+            .filter(|file| {
+                file.path.starts_with("docs/")
+                    && std::path::Path::new(&file.path)
+                        .extension()
+                        .is_some_and(|kind| kind == "md")
+            })
+            .collect();
+        let mut on_disk: Vec<String> = std::fs::read_dir(root.join("docs"))
+            .expect("the pages are committed")
+            .flatten()
+            .map(|entry| format!("docs/{}", entry.file_name().to_string_lossy()))
+            .filter(|path| {
+                std::path::Path::new(path)
+                    .extension()
+                    .is_some_and(|kind| kind == "md")
+                    && !nc_catalog_compiler::HAND_WRITTEN_FILES.contains(&path.as_str())
+            })
+            .collect();
+        on_disk.sort();
+        let emitted: Vec<&str> = pages.iter().map(|page| page.path.as_str()).collect();
+        assert_eq!(
+            emitted, on_disk,
+            "the pages the compiler emits are not the pages committed under docs/"
+        );
+        for surface in ["docs/cli.md", "docs/keybindings.md", "docs/mcp-tools.md"] {
+            assert!(
+                emitted.contains(&surface),
+                "{surface} is not among the pages the compiler emits: {emitted:?}"
+            );
+        }
+
+        let held = super::LeavesNothingBehind::new("page-drift");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join("docs")).expect("writable");
+        for page in &pages {
+            std::fs::write(scratch.join(&page.path), &page.contents).expect("writable");
+        }
+        assert!(
+            super::what_drifted(&scratch, &pages).is_empty(),
+            "the pages as emitted already drift, so what follows proves nothing"
+        );
+        for page in &pages {
+            let path = scratch.join(&page.path);
+            std::fs::write(&path, format!("{}\nwritten by a hand\n", page.contents))
+                .expect("writable");
+            assert_eq!(
+                super::what_drifted(&scratch, &pages),
+                [format!("{} does not match the catalog", page.path)],
+                "a hand edit to {} was not drift, or not that page's alone",
+                page.path
+            );
+            std::fs::write(&path, &page.contents).expect("writable");
+        }
     }
 
     /// The other three verdicts `stale()` can reach, each watched firing.
@@ -25574,7 +25681,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 19996;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20097;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25593,7 +25700,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5192;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5241;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25610,7 +25717,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1744;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1763;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25644,7 +25751,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26604;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26766;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25698,7 +25805,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,604 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,766 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25731,7 +25838,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1744 of
+    /// this tree offers, **1763 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -25891,26 +25998,35 @@ mod the_frozen_path_rule {
     #[test]
     fn a_generation_that_differs_is_not_byte_identical() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-        let first =
-            nc_catalog_compiler::compile(root, nc_catalog_compiler::ledger::Bootstrap::Refuse)
-                .expect("this catalog compiles");
+        let first = nc_catalog_compiler::compile(
+            root,
+            nc_catalog_compiler::ledger::Bootstrap::Refuse,
+            &crate::build::surfaces(root),
+        )
+        .expect("this catalog compiles");
         assert!(
             crate::check::everything_it_wrote_is_the_same(&first, &first),
             "a generation compared with itself differs"
         );
 
-        let mut fewer_files =
-            nc_catalog_compiler::compile(root, nc_catalog_compiler::ledger::Bootstrap::Refuse)
-                .expect("compiles twice");
+        let mut fewer_files = nc_catalog_compiler::compile(
+            root,
+            nc_catalog_compiler::ledger::Bootstrap::Refuse,
+            &crate::build::surfaces(root),
+        )
+        .expect("compiles twice");
         fewer_files.files.pop().expect("the emitter writes files");
         assert!(
             !crate::check::everything_it_wrote_is_the_same(&fewer_files, &first),
             "a generation missing a file compared equal"
         );
 
-        let mut other_ledger =
-            nc_catalog_compiler::compile(root, nc_catalog_compiler::ledger::Bootstrap::Refuse)
-                .expect("compiles twice");
+        let mut other_ledger = nc_catalog_compiler::compile(
+            root,
+            nc_catalog_compiler::ledger::Bootstrap::Refuse,
+            &crate::build::surfaces(root),
+        )
+        .expect("compiles twice");
         other_ledger
             .ledger
             .contents
@@ -33835,6 +33951,11 @@ mod every_report_wire {
                 ("crates/nc-canon/src/", ""),
                 ("crates/nc-schema/src/", ""),
                 ("xtask/src/build.rs", "//! nothing.\n"),
+                ("apps/cli/src/args.rs", "//! nothing.\n"),
+                ("apps/cli/src/exit.rs", "//! nothing.\n"),
+                ("apps/cli/src/help.rs", "//! nothing.\n"),
+                ("apps/cli/src/render.rs", "//! nothing.\n"),
+                ("crates/nc-channel/src/lib.rs", "//! nothing.\n"),
             ],
         );
         let mut failures = Vec::new();
@@ -37597,7 +37718,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 231,
+            walked, 232,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37637,7 +37758,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2463] = [
+    static OPERATORS: [(&str, &str, &str); 2480] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47801,7 +47922,7 @@ Options:
         ),
         (
             "cli_help",
-            "command",
+            "described",
             "help on a command shows its paragraph",
         ),
         (
@@ -47890,7 +48011,7 @@ Options:
         ),
         (
             "cli_help",
-            "command",
+            "described",
             "a command's name is escaped in its own help",
         ),
         (
@@ -48700,6 +48821,91 @@ Options:
             "fuzzy_rank",
             "ranked",
             "equal scores keep the order the items were given in",
+        ),
+        (
+            "compiler_surfaces",
+            "incomplete",
+            "a surface with no verb is refused",
+        ),
+        (
+            "compiler_surfaces",
+            "incomplete",
+            "a surface with no exit code is refused",
+        ),
+        (
+            "compiler_surfaces",
+            "incomplete",
+            "a surface with no channel's Leader is refused",
+        ),
+        (
+            "compiler_surfaces",
+            "cli",
+            "the CLI's page lays a command out with the layout it is handed",
+        ),
+        (
+            "compiler_surfaces",
+            "cli",
+            "the CLI's page lays a command out in every locale",
+        ),
+        (
+            "compiler_surfaces",
+            "keybindings",
+            "a Leader is written held with its own channel's chord modifier",
+        ),
+        (
+            "compiler_surfaces",
+            "keybindings",
+            "every chord a system keeps is on the keybindings page",
+        ),
+        (
+            "compiler_surfaces",
+            "bindings",
+            "a binding the catalog declares reaches the keybindings page",
+        ),
+        (
+            "compiler_surfaces",
+            "bindings",
+            "the keybindings page lists bindings in the order of their tables",
+        ),
+        (
+            "pages",
+            "fenced",
+            "a fenced block's fence is longer than any run of backticks inside it",
+        ),
+        (
+            "pages",
+            "shown_in",
+            "a command is shown in the locale asked for",
+        ),
+        (
+            "pages",
+            "commands",
+            "a schema on the commands page is fenced longer than any run of backticks in it",
+        ),
+        (
+            "pages",
+            "mcp_tools",
+            "the MCP page holds each command's tool in every locale",
+        ),
+        (
+            "schema_entry",
+            "as_tool",
+            "a tool is called by its command's name",
+        ),
+        (
+            "schema_entry",
+            "as_tool",
+            "a tool's description holds the paragraph after the line",
+        ),
+        (
+            "schema_entry",
+            "as_tool",
+            "a schema the kernel refuses is never a tool",
+        ),
+        (
+            "generator",
+            "surfaces",
+            "the CLI's page is handed every exit code",
         ),
     ];
 

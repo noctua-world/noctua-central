@@ -21,11 +21,17 @@
 //! keybinding configuration gave a refusal: one rule for every text help
 //! prints that it did not write. No glyph is printed: a terminal is not
 //! promised the font that draws one.
+//!
+//! **One layout says what a command takes**, [`described`], and the CLI's
+//! generated reference, `docs/cli.md`, is written with it too: the catalog
+//! compiler hands it each command of the catalog it is compiling, so the
+//! page says what help says, and the layout reads nothing it is not handed.
 
 use core::fmt::Write as _;
 
 use nc_catalog::{ErrorCode, Locale};
 use nc_channel::keys::Effective;
+use nc_schema::entry::Shown;
 use nc_schema::keys::{Keyboard, Table};
 use nc_schema::{Argument, Schema, Shape};
 
@@ -447,18 +453,44 @@ fn said(code: ErrorCode, detail: &str, locale: Locale) -> String {
     )
 }
 
-/// Help on one command: its name and display name, its line, its paragraph,
-/// its categories and its tags, and each argument its schema declares.
+/// Help on one command, as the daemon sent it: its name and display name,
+/// its line, its paragraph, its categories and its tags, and each argument
+/// its schema declares.
 #[must_use]
 pub fn command(cli: &str, listed: &Listed, schema: &Schema) -> String {
-    let name = escaped(&listed.name);
+    described(
+        cli,
+        &Shown {
+            name: &listed.name,
+            display_name: &listed.display_name,
+            line: &listed.line,
+            paragraph: &listed.paragraph,
+            tags: &listed.tags,
+            categories: &listed.categories,
+        },
+        schema,
+    )
+}
+
+/// What `cli` says of one command, laid out from what it is handed.
+///
+/// **The one layout** for help on a command, which hands it the texts the
+/// daemon sent, and for `docs/cli.md`, which the catalog compiler builds from
+/// the catalog it is compiling: help and the page say the same by
+/// construction. It reads nothing but `shown` and `schema` — never a table
+/// this binary was built with, which would put the page one build behind the
+/// catalog — and escapes every text it is handed, as help escapes every text
+/// it did not write.
+#[must_use]
+pub fn described(cli: &str, shown: &Shown<'_>, schema: &Schema) -> String {
+    let name = escaped(shown.name);
     let mut text = format!(
         "{name} — {}\n{}\n\n{}\n\nCategories: {}\nTags: {}\n",
-        escaped(&listed.display_name),
-        escaped(&listed.line),
-        escaped(&listed.paragraph),
-        listed_as_words(&listed.categories),
-        listed_as_words(&listed.tags)
+        escaped(shown.display_name),
+        escaped(shown.line),
+        escaped(shown.paragraph),
+        listed_as_words(shown.categories),
+        listed_as_words(shown.tags)
     );
     let _ = write!(
         text,
@@ -1046,7 +1078,7 @@ mod tests {
         let hostile: &'static str = "a\u{1b}[2Jb\u{202e}c\u{7}d\u{2028}e";
         for at in 0..3 {
             let pick = |here: usize, plain: &'static str| if here == at { hostile } else { plain };
-            let paths = [pick(1, "/usr/bin/one"), pick(2, "/usr/bin/two")];
+            let paths = [pick(1, "usr/bin/one"), pick(2, "usr/bin/two")];
             let shown = super::identification_lines(
                 "Linux",
                 &[
@@ -1118,7 +1150,7 @@ mod tests {
         };
         Effective {
             channel: Channel::Staging,
-            file: "/profiles/noctua-staging\u{1b}[2J/keybindings.json".into(),
+            file: "profiles/noctua-staging\u{1b}[2J/keybindings.json".into(),
             leader: part.leader,
             chord: part.chord,
             warnings: warnings(part, &tables)

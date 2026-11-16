@@ -300,7 +300,7 @@ impl Checkout {
     /// that is not there names the same stack every time it is asked about.
     #[must_use]
     pub fn of(root: &Path) -> Self {
-        let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf()); // allow-nondeterminism: `canonicalize` gives where this checkout is, whose digest names its stack; the default Leader a page shows is one for every checkout, so no page reads it
         Self {
             digest: digest_of(&path.to_string_lossy()),
         }
@@ -1054,7 +1054,7 @@ mod tests {
     /// renamed and its volumes are stranded under the old name.
     #[test]
     fn the_digest_is_the_one_every_stack_was_named_with() {
-        assert_eq!(digest_of("/home/dev/noctua-central"), 0x5e24_507c);
+        assert_eq!(digest_of("/home/dev/noctua-central"), 0x5e24_507c); // allow-nondeterminism: an absolute path a test hashes, the vector every stack was named with, and no page reads it
         assert_eq!(digest_of(""), 0x811c_9dc5);
     }
 

@@ -564,7 +564,8 @@ held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
 `docs.rs`, and `metadata.rs`, which hands an entry's texts to its judge, and
 `registries.rs`, which holds the categories to the shape a set and a category
 have and an external identifier to the shape of each value it is identified
-by, and the rule the compiler judges a command's declaration and its entry
+by, and `surfaces.rs`, which publishes what the catalog cannot see from the
+tables it is handed, and the rule the compiler judges a command's declaration and its entry
 by, and the
 kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
 `entry.rs` — and the Leader's grammar every binding is read by, its `keys.rs`,

@@ -210,7 +210,7 @@ mod tests {
     use super::{Env, Failure};
     use crate::exit::Exit;
 
-    fn env(pairs: &[(&str, &str)]) -> Env {
+    fn environment_of(pairs: &[(&str, &str)]) -> Env {
         Env::of(|name| {
             pairs
                 .iter()
@@ -248,7 +248,7 @@ mod tests {
             (&[("LC_ALL", "pt_BR"), ("LANG", "en_US")], Locale::PtBR),
             (&[("LANGUAGE", "pt_BR")], Locale::En),
         ] {
-            assert_eq!(env(pairs).locale(), locale, "{pairs:?}");
+            assert_eq!(environment_of(pairs).locale(), locale, "{pairs:?}");
         }
     }
 

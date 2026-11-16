@@ -366,6 +366,12 @@ SOURCES = {
     # **What a set and a category are**: the categories registry's own rules,
     # decided by the compiler's suite, which breaks each of them alone.
     "compiler_registries": os.path.join(ROOT, "crates/nc-catalog-compiler/src/registries.rs"),
+    # **The pages about what the catalog cannot see**: a surface that holds
+    # nothing refused, the CLI's page laid out by the layout it is handed in
+    # every locale, and the keybindings page's Leaders, chords and bindings.
+    # Decided by the compiler's own suite, which compiles the catalog with
+    # surfaces of its own and reads the pages back.
+    "compiler_surfaces": os.path.join(ROOT, "crates/nc-catalog-compiler/src/surfaces.rs"),
     # **What a pack's version is, and what a realm pins against it.** The
     # manifest gate decides whether a realm running a pack it was not reviewed
     # against is refused, and a decision point reads the same `Manifest` — so a
@@ -8151,9 +8157,9 @@ WEAKENINGS = [
     ("cli_help", "everything", "a command is listed by its display name, escaped",
      "            escaped(&listed.display_name),\n            escaped(&listed.line)\n",
      "            listed.display_name.clone(),\n            escaped(&listed.line)\n"),
-    ("cli_help", "command", "help on a command shows its paragraph",
-     "        escaped(&listed.paragraph),",
-     "        escaped(&listed.line),"),
+    ("cli_help", "described", "help on a command shows its paragraph",
+     "        escaped(shown.paragraph),",
+     "        escaped(shown.line),"),
     ("cli_help", "listed_as_words", "a list with nothing in it says none",
      "    if texts.is_empty() {\n        return \"none\".to_owned();",
      "    if false {\n        return \"none\".to_owned();"),
@@ -8214,9 +8220,9 @@ WEAKENINGS = [
     ("cli_help", "everything", "a command's name is escaped in the list of every command",
      "        .map(|listed| escaped(&listed.name))",
      "        .map(|listed| listed.name.clone())"),
-    ("cli_help", "command", "a command's name is escaped in its own help",
-     "    let name = escaped(&listed.name);",
-     "    let name = listed.name.clone();"),
+    ("cli_help", "described", "a command's name is escaped in its own help",
+     "    let name = escaped(shown.name);",
+     "    let name = shown.name.to_owned();"),
     ("cli_run", "run", "help on everything shows the grammar when no registry is read",
      "                .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))\n",
      ""),
@@ -8758,6 +8764,59 @@ WEAKENINGS = [
     ("fuzzy_rank", "ranked", "equal scores keep the order the items were given in",
      "                .then(left.index.cmp(&right.index))",
      "                .then(right.index.cmp(&left.index))"),
+
+    # -- the generated surfaces: what the catalog cannot see, and the tool --
+    ("compiler_surfaces", "incomplete", "a surface with no verb is refused",
+     "        (cli.verbs.is_empty(), \"a verb\"),",
+     "        (false, \"a verb\"),"),
+    ("compiler_surfaces", "incomplete", "a surface with no exit code is refused",
+     "        (cli.exit_codes.is_empty(), \"an exit code\"),",
+     "        (false, \"an exit code\"),"),
+    ("compiler_surfaces", "incomplete", "a surface with no channel's Leader is refused",
+     "        (surfaces.channels.is_empty(), \"a channel's Leader\"),",
+     "        (false, \"a channel's Leader\"),"),
+    ("compiler_surfaces", "cli", "the CLI's page lays a command out with the layout it is handed",
+     "            let said = (cli.described)(&cli.name, &shown, &schema);",
+     "            let said = format!(\"{}\\n\", shown.name);"),
+    ("compiler_surfaces", "cli", "the CLI's page lays a command out in every locale",
+     "        for tag in tags(catalog) {",
+     "        for tag in tags(catalog).into_iter().take(1) {"),
+    ("compiler_surfaces", "keybindings", "a Leader is written held with its own channel's chord modifier",
+     "            on_each_keyboard(|keyboard| keys.leader.with(keys.chord).written_for(keyboard))",
+     "            on_each_keyboard(|keyboard| keys.leader.written_for(keyboard))"),
+    ("compiler_surfaces", "keybindings", "every chord a system keeps is on the keybindings page",
+     "    for kept in &SYSTEM_SHORTCUTS {",
+     "    for kept in SYSTEM_SHORTCUTS.iter().skip(1) {"),
+    ("compiler_surfaces", "bindings", "a binding the catalog declares reaches the keybindings page",
+     "    if bound.is_empty() {",
+     "    if true {"),
+    ("compiler_surfaces", "bindings", "the keybindings page lists bindings in the order of their tables",
+     "    bound.sort_by_key(|(binding, _)| *binding);",
+     "    bound.sort_by_key(|(binding, _)| core::cmp::Reverse(*binding));"),
+    ("pages", "fenced", "a fenced block's fence is longer than any run of backticks inside it",
+     "    let fence = \"`\".repeat(longest.max(2) + 1);",
+     "    let fence = \"`\".repeat(3);"),
+    ("pages", "shown_in", "a command is shown in the locale asked for",
+     "        .find(|locale| locale.meta.bcp47 == tag)?;",
+     "        .next()?;"),
+    ("pages", "commands", "a schema on the commands page is fenced longer than any run of backticks in it",
+     "        let _ = writeln!(out, \"{}\", fenced(\"json\", &entry.args_schema));",
+     "        let _ = writeln!(out, \"```json\\n{}\\n```\\n\", entry.args_schema);"),
+    ("pages", "mcp_tools", "the MCP page holds each command's tool in every locale",
+     "        for tag in tags(catalog) {",
+     "        for tag in tags(catalog).into_iter().take(1) {"),
+    ("schema_entry", "as_tool", "a tool is called by its command's name",
+     "    tool.insert(\"name\".to_owned(), Value::String(shown.name.to_owned()));",
+     "    tool.insert(\"name\".to_owned(), Value::String(shown.display_name.to_owned()));"),
+    ("schema_entry", "as_tool", "a tool's description holds the paragraph after the line",
+     "        Value::String(format!(\"{}\\n\\n{}\", shown.line, shown.paragraph)),",
+     "        Value::String(shown.line.to_owned()),"),
+    ("schema_entry", "as_tool", "a schema the kernel refuses is never a tool",
+     "    Schema::compile(args_schema)?;",
+     "    let _ = Schema::compile(args_schema);"),
+    ("generator", "surfaces", "the CLI's page is handed every exit code",
+     "            exit_codes: nc_cli::exit::Exit::ALL\n                .iter()\n",
+     "            exit_codes: nc_cli::exit::Exit::ALL\n                .iter()\n                .take(1)\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -8958,6 +9017,7 @@ ELSEWHERE = {
     "schema_keys": ["cargo", "test", "-q", "-p", "nc-schema"],
     "compiler_metadata": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
     "compiler_registries": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
+    "compiler_surfaces": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
     # An integration test is a target of its own, and `--bin xtask` cannot
     # reach one.
     "registry": [
