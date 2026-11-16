@@ -53,6 +53,7 @@ impl Serving {
         installed.install_plugin(
             "reference",
             GRANTED,
+            &nc_daemon::testing::entries_of("reference"),
             &nc_kernel::component_for_tests("reference"),
         );
         let runtime = tokio::runtime::Builder::new_multi_thread()

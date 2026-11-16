@@ -39,6 +39,7 @@ use nc_catalog::{Capability, ErrorCode};
 use serde::Deserialize;
 
 use crate::capability::GrantSet;
+use crate::entries::PluginEntries;
 use crate::limits::{LimitRefused, Limits, Lowering};
 
 /// The most domains one manifest may declare.
@@ -50,7 +51,8 @@ pub const ID_MAX: usize = 64;
 /// The longest a plugin's `namespace` may be, in bytes.
 pub const NAMESPACE_MAX: usize = 32;
 
-/// A plugin's manifest, read and judged.
+/// A plugin's manifest, read and judged, and the entries its commands are
+/// shown by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PluginManifest {
     id: String,
@@ -59,6 +61,7 @@ pub struct PluginManifest {
     domains: Vec<String>,
     subscriptions: Vec<String>,
     limits: Limits,
+    entries: PluginEntries,
 }
 
 /// One way a manifest is refused.
@@ -221,7 +224,8 @@ struct WrittenEvents {
 }
 
 impl PluginManifest {
-    /// Reads and judges a manifest.
+    /// Reads and judges a manifest, which describes no command yet: its
+    /// entries are [`PluginManifest::described_by`]'s.
     ///
     /// # Errors
     ///
@@ -255,6 +259,7 @@ impl PluginManifest {
                 domains,
                 subscriptions,
                 limits,
+                entries: PluginEntries::default(),
             }),
             _ => Err(ManifestError { problems }),
         }
@@ -294,6 +299,24 @@ impl PluginManifest {
     #[must_use]
     pub const fn limits(&self) -> &Limits {
         &self.limits
+    }
+
+    /// The manifest with `entries` as what its commands are shown by.
+    ///
+    /// **Carried inside the manifest**, so a plugin is loaded with the
+    /// entries it was read with, `Kernel::load` takes the one value it always
+    /// took, and a plugin started again after a crash is judged against the
+    /// same ones. A manifest no entries describe registers none of its own
+    /// commands: each is refused at `activate` for having no entry.
+    #[must_use]
+    pub fn described_by(self, entries: PluginEntries) -> Self {
+        Self { entries, ..self }
+    }
+
+    /// What the plugin's commands are shown by.
+    #[must_use]
+    pub const fn entries(&self) -> &PluginEntries {
+        &self.entries
     }
 }
 

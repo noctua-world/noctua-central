@@ -37,3 +37,21 @@ permit (
   action == Action::"Read",
   resource == Feature::"naming"
 );
+
+// Every person of the household finds commands.
+//
+// `kernel.find` is the registry filtered by the one fuzzy core
+// (`NOCTUA.md §12.4`): it reads the commands' names and tags, which
+// `Request::Registry` already lists to the same person, and nothing of the
+// realm's, and changes nothing, so anybody who can run a command may look one
+// up. **A person, and only a person: `principal is User` is this permit's own
+// constraint**, for the reason the naming permit gives — a device and an agent
+// are refused until Stage 15 gives an agent a permit of its own, and whether an
+// agent then finds only what it may dispatch is decided there. A frozen account
+// is refused by `family.a_frozen_account_acts_on_nothing`, as for every permit.
+@id("family.a_member_finds_commands")
+permit (
+  principal is User,
+  action == Action::"Read",
+  resource == Feature::"registry"
+);

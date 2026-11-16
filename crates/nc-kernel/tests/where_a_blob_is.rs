@@ -377,7 +377,8 @@ async fn opened(name: &str) -> Fixture {
         "id = \"{REFERENCE}\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
          \"blobs.read\", \"blobs.write\", \"commands.dispatch\"]\n"
     ))
-    .expect("a manifest the kernel reads");
+    .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))
         .await

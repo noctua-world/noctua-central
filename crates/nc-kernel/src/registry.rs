@@ -8,8 +8,13 @@
 //! namespace is one the catalog describes for a plugin to implement
 //! (`NOCTUA.md §15.2`): it is registered when a plugin declares it, matching
 //! the catalog in every field a dispatch is decided by, and is not registered
-//! otherwise. The title is the one field not compared — the catalog's is a
-//! message key both locales translate, and it is the one listed.
+//! otherwise. The title is the one field not compared: such a command is shown
+//! by the catalog's entry, as every command of the kernel's own is.
+//!
+//! **Every command is listed with its entry** ([`CommandEntry`]): its display
+//! name, line description, paragraph and tags in every locale, its categories
+//! and its glyph — the catalog's, resolved from its keys, for a command the
+//! catalog writes, and the plugin's own for one it does not.
 //!
 //! **A plugin's commands are judged at `activate`, whole** (`NOCTUA.md §11.7`),
 //! and every problem is reported rather than the first, each with its own code:
@@ -28,6 +33,19 @@
 //!   selector is the kernel's own commands' — an action the schema declares, a
 //!   resource type that action applies to, and the whole realm selected only by
 //!   a command that reads — a realm-wide change is the kernel's;
+//! - each command whose name is its plugin's to have by its entry,
+//!   `[NC-PLUG-0029]`: the entries the manifest is described by
+//!   (`crate::entries`) hold a row for the command, under its name inside the
+//!   namespace, unless the catalog describes it — then they hold none, since
+//!   the catalog's is the one entry; the row is held to
+//!   `nc_schema::entry::judge`, the judge every command of the catalog is held
+//!   to, its texts in every locale — a text missing from one is refused naming
+//!   the command and the locale; a declaration the descriptor judge admitted
+//!   declares as its title the entry's English display name, so the component
+//!   and its directory cannot say two things; and no display name, in any
+//!   locale, is one a command of the catalog shows in any locale, compared by
+//!   `the_same_sentence`. A row no command claims is neither registered nor
+//!   refused;
 //! - each subscription by the manifest, `[NC-PLUG-0009]`: one its
 //!   `[events] subscribe` declares, once;
 //! - and the count by the catalog: more than `commands_per_plugin` commands is
@@ -39,7 +57,11 @@
 //! What this answers (`NOCTUA.md §2.4`): command squatting — a plugin cannot
 //! register a command in a namespace it was not given, in one the kernel keeps,
 //! or under a name already registered — and a command nothing can authorize,
-//! which never reaches the registry. A plugin that would select the realm to
+//! which never reaches the registry. A plugin cannot describe a command that
+//! is not its own, nor show one of its own under a name a command of the
+//! catalog is shown by — `Undo`, in a list beside the kernel's — and what it
+//! says of its commands is judged as the catalog's is before anything shows
+//! it. A plugin that would select the realm to
 //! change it is refused, because a permit for that action on the realm would
 //! then authorize every such command of every plugin; and one that would select
 //! a feature of the platform is refused, because the permit for that feature is
@@ -52,8 +74,9 @@
 use std::collections::BTreeMap;
 
 use nc_authz::Pdp;
-use nc_catalog::{ErrorCode, KERNEL};
+use nc_catalog::{ErrorCode, KERNEL, Locale};
 use nc_schema::descriptor::{self, DescriptorProblem, Judged, Reversibility};
+use nc_schema::entry::{self, Rules, Text};
 use nc_schema::selector::{REALM_TYPE, Selector};
 
 use crate::manifest::PluginManifest;
@@ -69,8 +92,10 @@ const THE_REALM_IS_READ_WITH: &str = "Read";
 ///
 /// A command's name is not cut: a refusal repeats it only when it is well
 /// formed, which holds it to ASCII and to `NAME_MAX` characters, and a name
-/// cut short would be one the plugin never declared.
-const QUOTED: usize = 64;
+/// cut short would be one the plugin never declared. A name a plugin's entries
+/// hold is cut to it as well (`crate::entries`), since one the grammar refuses
+/// can be any text.
+pub(crate) const QUOTED: usize = 64;
 
 /// Who runs a registered command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,14 +106,61 @@ pub enum Owner {
     Plugin(PluginSlot),
 }
 
+/// What a command shows a person, in every locale (`NOCTUA.md §20.4`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandEntry {
+    /// Its texts in each locale, in `Locale::ALL`'s order.
+    texts: Vec<EntryTexts>,
+    /// The categories it is listed under, by name, as its entry names them.
+    pub categories: Vec<String>,
+    /// The glyph it is shown with, a code point the Symbols-Only font draws.
+    pub glyph: Option<char>,
+}
+
+/// What a command shows a person in one locale.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EntryTexts {
+    /// The name a person reads first.
+    pub display_name: String,
+    /// One line saying what it does.
+    pub line: String,
+    /// A paragraph saying more.
+    pub paragraph: String,
+    /// The words a search finds it by, synonyms included.
+    pub tags: Vec<String>,
+}
+
+impl CommandEntry {
+    /// An entry of `texts`, one for each locale in `Locale::ALL`'s order.
+    ///
+    /// The last is repeated for a locale it does not reach, and a locale past
+    /// it is dropped.
+    #[must_use]
+    pub fn new(mut texts: Vec<EntryTexts>, categories: Vec<String>, glyph: Option<char>) -> Self {
+        let last = texts.last().cloned().unwrap_or_default();
+        texts.resize(Locale::ALL.len(), last);
+        Self {
+            texts,
+            categories,
+            glyph,
+        }
+    }
+
+    /// What it shows in `locale`.
+    #[must_use]
+    pub fn in_locale(&self, locale: Locale) -> &EntryTexts {
+        &self.texts[locale.index()]
+    }
+}
+
 /// A command the kernel can dispatch, as the registry lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisteredCommand {
     /// Its name.
     pub name: String,
-    /// What a person is shown for it: the catalog's message key for a command
-    /// the catalog declares, the plugin's own label for one it does not.
-    pub title: String,
+    /// What a person is shown for it: the catalog's entry for a command the
+    /// catalog writes, the plugin's own for one it does not.
+    pub entry: CommandEntry,
     /// The JSON Schema of its arguments, as declared.
     pub args_schema: String,
     /// Whether it mutates state.
@@ -136,11 +208,12 @@ impl Declared {
         }
     }
 
-    /// The declaration as the registry lists it, run by `owner`.
-    fn listed(&self, owner: Owner) -> RegisteredCommand {
+    /// The declaration as the registry lists it, run by `owner` and shown
+    /// by `entry`.
+    fn listed(&self, owner: Owner, entry: CommandEntry) -> RegisteredCommand {
         RegisteredCommand {
             name: self.name.clone(),
-            title: self.title.clone(),
+            entry,
             args_schema: self.args_schema.clone(),
             mutating: self.mutating,
             action: self.action.clone(),
@@ -180,33 +253,40 @@ pub(crate) struct Registry {
 }
 
 impl Registry {
-    /// The kernel's own commands, read out of the catalog.
+    /// The kernel's own commands, read out of the catalog, each with its
+    /// entry resolved in every locale.
     ///
     /// # Panics
     ///
-    /// When a command of the catalog is one the judge refuses — which the
-    /// catalog compiler refuses to build, with the same judge.
+    /// When a command of the catalog is one the judge refuses, or names a key
+    /// no locale resolves — which the catalog compiler refuses to build, with
+    /// the same judge and the same keys.
     pub(crate) fn from_catalog() -> Self {
-        Self::over(nc_catalog::COMMANDS.iter().map(|command| Declared {
-            name: command.name.to_owned(),
-            title: command.title_key.to_owned(),
-            args_schema: command.args_schema.to_owned(),
-            mutating: command.mutating,
-            action: command.action.to_owned(),
-            resource_selector: command.resource_selector.to_owned(),
-            reversibility: match command.reversibility {
-                nc_catalog::Reversibility::Read => Reversibility::Read,
-                nc_catalog::Reversibility::Write => Reversibility::Write,
-                nc_catalog::Reversibility::Irreversible => Reversibility::Irreversible,
-            },
+        Self::over(nc_catalog::COMMANDS.iter().map(|command| {
+            (
+                Declared {
+                    name: command.name.to_owned(),
+                    title: command.title_key.to_owned(),
+                    args_schema: command.args_schema.to_owned(),
+                    mutating: command.mutating,
+                    action: command.action.to_owned(),
+                    resource_selector: command.resource_selector.to_owned(),
+                    reversibility: match command.reversibility {
+                        nc_catalog::Reversibility::Read => Reversibility::Read,
+                        nc_catalog::Reversibility::Write => Reversibility::Write,
+                        nc_catalog::Reversibility::Irreversible => Reversibility::Irreversible,
+                    },
+                },
+                catalog_entry(command),
+            )
         }))
     }
 
     /// A registry over `catalog`: each command in a namespace the kernel keeps
     /// is the kernel's, and every other one is described for a plugin.
-    fn over(catalog: impl IntoIterator<Item = Declared>) -> Self {
+    fn over(catalog: impl IntoIterator<Item = (Declared, CommandEntry)>) -> Self {
         let mut registry = Self::default();
-        for command in catalog {
+        for (command, entry) in catalog {
             let judged = descriptor::judge(&command.as_written()).unwrap_or_else(|problems| {
                 panic!(
                     "the catalog's `{}` is one the judge refuses, and the catalog compiler \
@@ -215,7 +295,7 @@ impl Registry {
                 )
             });
             let admitted = Admitted {
-                listed: command.listed(Owner::Kernel),
+                listed: command.listed(Owner::Kernel, entry),
                 judged,
             };
             if in_a_reserved_namespace(&command.name) {
@@ -323,10 +403,28 @@ impl Registry {
                     format!("{subject} {why}"),
                 ));
             }
-            if let (true, Some(judged)) = (problems.len() == before, judged) {
+            // **Only a name the plugin may have is looked up in its entries**:
+            // one malformed, outside its namespace or in one the kernel keeps
+            // is refused above already, and a row is keyed by the name inside
+            // the namespace, which such a name does not have.
+            let entry = match relative_to(&command.name, manifest.namespace()) {
+                Some(relative) if descriptor::command_name_is_well_formed(&command.name) => self
+                    .entry_of(command, relative, judged.is_some(), manifest)
+                    .map_err(|found| {
+                        problems.extend(found.into_iter().map(|why| {
+                            LoadProblem::new(
+                                ErrorCode::PluginEntriesInvalid,
+                                format!("{subject} {why}"),
+                            )
+                        }));
+                    })
+                    .ok(),
+                _ => None,
+            };
+            if let (true, Some(judged), Some(entry)) = (problems.len() == before, judged, entry) {
                 admitted.push(self.described.get(&command.name).map_or_else(
                     || Admitted {
-                        listed: command.listed(Owner::Plugin(slot)),
+                        listed: command.listed(Owner::Plugin(slot), entry),
                         judged: judged.clone(),
                     },
                     |described| Admitted {
@@ -381,6 +479,148 @@ impl Registry {
             "is the catalog's command of that name, and its {field} is not the catalog's"
         ))
     }
+
+    /// The entry `command` is shown by, named `relative` inside its plugin's
+    /// namespace — or every reason it has none, each the predicate a refusal
+    /// writes after its subject.
+    ///
+    /// The catalog's, for a command the catalog describes, whose plugin then
+    /// writes it no row; the plugin's own row otherwise, held to the one
+    /// judge, and then — once the judge admits it — to the title the command
+    /// declared, when the descriptor judge admitted that (`declared`), and to
+    /// the display names the catalog's commands are shown by.
+    fn entry_of(
+        &self,
+        command: &Declared,
+        relative: &str,
+        declared: bool,
+        manifest: &PluginManifest,
+    ) -> Result<CommandEntry, Vec<String>> {
+        let row = manifest.entries().row(relative);
+        if let Some(described) = self.described.get(&command.name) {
+            return match row {
+                None => Ok(described.listed.entry.clone()),
+                Some(_) => Err(vec![format!(
+                    "is described by the catalog, and its plugin's `commands.toml` describes it \
+                     too, as `{relative}`: the catalog's entry is the one it is shown by"
+                )]),
+            };
+        }
+        let Some(row) = row else {
+            return Err(vec![format!(
+                "has no entry: its plugin's `commands.toml` lists no `{relative}`"
+            )]);
+        };
+        // The categories an entry may name are the ones the catalog's categories
+        // registry holds, the list a command of the catalog is held to: one no
+        // set holds is one no list can show the command under.
+        let categories: Vec<&str> = nc_catalog::CATEGORIES
+            .iter()
+            .map(|category| category.name)
+            .collect();
+        let entry = row
+            .judged(&Rules {
+                requires: &Text::ALL,
+                categories: &categories,
+                entry_bytes: KERNEL.entry_bytes,
+            })
+            .map_err(|found| found.iter().map(ToString::to_string).collect::<Vec<_>>())?;
+        let mut whys = Vec::new();
+        let english = &entry.in_locale(Locale::En).display_name;
+        if declared && command.title != *english {
+            whys.push(format!(
+                "declares the title {}, and its English display name is {}: the two are one \
+                 text, written in the component and in its directory",
+                quoted(&command.title),
+                quoted(english)
+            ));
+        }
+        for &locale in Locale::ALL {
+            let ours = &entry.in_locale(locale).display_name;
+            if let Some(theirs) = self.catalog_commands().find(|theirs| {
+                Locale::ALL.iter().any(|&shown| {
+                    entry::the_same_sentence(
+                        ours,
+                        &theirs.listed.entry.in_locale(shown).display_name,
+                    )
+                })
+            }) {
+                whys.push(format!(
+                    "has the `{}` display name {}, which the catalog's `{}` is shown by",
+                    locale.tag(),
+                    quoted(ours),
+                    theirs.listed.name
+                ));
+            }
+        }
+        if whys.is_empty() {
+            Ok(entry)
+        } else {
+            Err(whys)
+        }
+    }
+
+    /// Every command of the catalog this registry was made over: the kernel's
+    /// own, and those it describes for a plugin.
+    fn catalog_commands(&self) -> impl Iterator<Item = &Admitted> {
+        self.commands
+            .values()
+            .filter(|command| command.listed.owner == Owner::Kernel)
+            .chain(self.described.values())
+    }
+}
+
+/// The entry the catalog writes for `command`, resolved from its keys in
+/// every locale.
+///
+/// # Panics
+///
+/// When a key resolves in no locale — which the catalog compiler refuses to
+/// build, so a kernel built over the catalog never meets one.
+fn catalog_entry(command: &nc_catalog::Command) -> CommandEntry {
+    let resolved = |key: &str, locale: Locale| {
+        nc_catalog::message(key, locale).unwrap_or_else(|| {
+            panic!(
+                "the catalog's `{}` names `{key}`, which no locale resolves, and the catalog \
+                 compiler refuses a key that does not",
+                command.name
+            )
+        })
+    };
+    CommandEntry::new(
+        Locale::ALL
+            .iter()
+            .map(|&locale| EntryTexts {
+                display_name: resolved(command.title_key, locale).to_owned(),
+                line: resolved(command.description_key, locale).to_owned(),
+                paragraph: resolved(command.paragraph_key, locale).to_owned(),
+                tags: nc_catalog::tags(command.tags_key, locale)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "the catalog's `{}` names the tags `{}`, which no locale resolves",
+                            command.name, command.tags_key
+                        )
+                    })
+                    .iter()
+                    .map(|&tag| tag.to_owned())
+                    .collect(),
+            })
+            .collect(),
+        command
+            .categories
+            .iter()
+            .map(|&category| category.to_owned())
+            .collect(),
+        command.glyph,
+    )
+}
+
+/// The name `name` has inside `namespace`, when it is in that namespace.
+///
+/// A plugin's namespace is never one the kernel keeps, which `Kernel::load`
+/// refuses before any of its commands is judged.
+fn relative_to<'a>(name: &'a str, namespace: &str) -> Option<&'a str> {
+    name.strip_prefix(namespace)?.strip_prefix('.')
 }
 
 /// Why a judged command cannot be decided as declared, when it cannot.
@@ -534,11 +774,12 @@ pub(crate) fn quoted_up_to(text: &str, most: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Declared, Owner, RESERVED, Registry, quoted};
+    use super::{CommandEntry, Declared, EntryTexts, Owner, RESERVED, Registry, quoted};
     use crate::PluginSlot;
+    use crate::entries::PluginEntries;
     use crate::manifest::PluginManifest;
-    use nc_catalog::ErrorCode;
-    use nc_schema::descriptor::{NAME_MAX, Reversibility};
+    use nc_catalog::{ErrorCode, Locale};
+    use nc_schema::descriptor::{self, NAME_MAX, Reversibility};
 
     /// A note's arguments: one required entity of type `Content`.
     const A_NOTE: &str = r#"{"type":"object","properties":{"note":{"type":"string","x-entity":"Content","maxLength":128}},"required":["note"],"additionalProperties":false}"#;
@@ -559,6 +800,97 @@ mod tests {
 
     fn notes() -> PluginManifest {
         manifest("id = \"noctua:notes\"\nnamespace = \"notes\"\ncapabilities = []\n")
+    }
+
+    /// The texts of one entry in one locale, every rule met.
+    fn texts(display_name: &str, line: &str, tag: &str) -> EntryTexts {
+        EntryTexts {
+            display_name: display_name.to_owned(),
+            line: line.to_owned(),
+            paragraph: format!("{line}, and nothing more than that."),
+            tags: vec![tag.to_owned()],
+        }
+    }
+
+    /// The entry a catalog command a test describes is shown by: written by
+    /// the catalog, so no plugin's.
+    fn the_catalogs() -> CommandEntry {
+        CommandEntry::new(
+            vec![
+                texts("Look a note up", "Shows a note", "lookup"),
+                texts("Consultar uma nota", "Mostra uma nota", "consulta"),
+            ],
+            Vec::new(),
+            None,
+        )
+    }
+
+    /// A registry over `catalog`, each command shown by [`the_catalogs`].
+    fn over(catalog: impl IntoIterator<Item = Declared>) -> Registry {
+        Registry::over(catalog.into_iter().map(|command| (command, the_catalogs())))
+    }
+
+    /// One locale's texts of one row, as its file writes them.
+    fn row_of(relative: &str, display_name: &str, line: &str, tag: &str) -> String {
+        format!(
+            "[command.\"{relative}\"]\ndisplay_name = \"{display_name}\"\nline = \"{line}\"\n\
+             paragraph = \"{line}, and nothing more than that.\"\ntags = [\"{tag}\"]\n"
+        )
+    }
+
+    /// Entries of a row for each of `relatives`, every rule met, each English
+    /// display name the one beside it.
+    fn entries(relatives: &[(&str, &str)]) -> PluginEntries {
+        let (mut table, mut english, mut portuguese) =
+            (String::new(), String::new(), String::new());
+        for (relative, display_name) in relatives {
+            table += "[[command]]\nname = \"";
+            table += relative;
+            table += "\"\n";
+            english.push_str(&row_of(
+                relative,
+                display_name,
+                "Shows what a note says",
+                "note",
+            ));
+            portuguese.push_str(&row_of(
+                relative,
+                &format!("Ler: {display_name}"),
+                "Mostra o que uma nota diz",
+                "nota",
+            ));
+        }
+        PluginEntries::parse(
+            &table,
+            &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
+        )
+        .expect("entries of the shape the kernel reads")
+    }
+
+    /// `manifest`, described by a sound row for each of `commands`.
+    ///
+    /// Each command `registry` does not describe and whose name is the
+    /// plugin's to have, its English display name the command's title.
+    fn described(
+        registry: &Registry,
+        manifest: PluginManifest,
+        commands: &[Declared],
+    ) -> PluginManifest {
+        let namespace = manifest.namespace().to_owned();
+        let mut rows: Vec<(&str, &str)> = Vec::new();
+        for command in commands {
+            let Some(relative) = super::relative_to(&command.name, &namespace) else {
+                continue;
+            };
+            if descriptor::command_name_is_well_formed(&command.name)
+                && !registry.described.contains_key(&command.name)
+                && !rows.iter().any(|(listed, _)| *listed == relative)
+            {
+                let title = Some(command.title.as_str()).filter(|title| !title.is_empty());
+                rows.push((relative, title.unwrap_or("Read a note")));
+            }
+        }
+        manifest.described_by(entries(&rows))
     }
 
     /// A read of a note, named `name`, which every rule admits.
@@ -583,7 +915,8 @@ mod tests {
         subscriptions: &[&str],
     ) -> Vec<(ErrorCode, String)> {
         let subscriptions: Vec<String> = subscriptions.iter().map(|&s| s.to_owned()).collect();
-        match registry.admit(manifest, PluginSlot(0), commands, &subscriptions, &pdp()) {
+        let manifest = described(registry, manifest.clone(), commands);
+        match registry.admit(&manifest, PluginSlot(0), commands, &subscriptions, &pdp()) {
             Ok(_) => Vec::new(),
             Err(problems) => problems
                 .iter()
@@ -612,7 +945,50 @@ mod tests {
         for command in &listed {
             assert_eq!(command.owner, Owner::Kernel, "`{}`", command.name);
             let written = nc_catalog::command(&command.name).expect("a catalog command");
-            assert_eq!(command.title, written.title_key);
+            // **Every text in every locale, resolved from its key**: a registry
+            // that listed the English texts in both, or the keys themselves,
+            // would show a Portuguese reader English, or a key.
+            for &locale in Locale::ALL {
+                let shown = command.entry.in_locale(locale);
+                let resolved =
+                    |key| nc_catalog::message(key, locale).expect("a key the catalog has");
+                assert_eq!(
+                    shown.display_name,
+                    resolved(written.title_key),
+                    "`{}`",
+                    command.name
+                );
+                assert_eq!(
+                    shown.line,
+                    resolved(written.description_key),
+                    "`{}`",
+                    command.name
+                );
+                assert_eq!(
+                    shown.paragraph,
+                    resolved(written.paragraph_key),
+                    "`{}`",
+                    command.name
+                );
+                assert_eq!(
+                    shown.tags,
+                    nc_catalog::tags(written.tags_key, locale).expect("tags the catalog has"),
+                    "`{}`",
+                    command.name
+                );
+            }
+            assert_ne!(
+                command.entry.in_locale(Locale::En).display_name,
+                command.entry.in_locale(Locale::PtBR).display_name,
+                "`{}`",
+                command.name
+            );
+            assert_eq!(command.entry.glyph, written.glyph, "`{}`", command.name);
+            assert_eq!(
+                command.entry.categories, written.categories,
+                "`{}`",
+                command.name
+            );
             assert_eq!(command.args_schema, written.args_schema);
             assert_eq!(command.action, written.action);
             assert_eq!(command.resource_selector, written.resource_selector);
@@ -649,11 +1025,12 @@ mod tests {
     #[test]
     fn a_plugin_declaring_commands_every_rule_admits_registers_them_as_its_own() {
         let mut registry = Registry::from_catalog();
+        let declared = [a_read("notes.note.get"), a_read("notes.note.peek")];
         let admitted = registry
             .admit(
-                &notes(),
+                &described(&registry, notes(), &declared),
                 PluginSlot(3),
-                &[a_read("notes.note.get"), a_read("notes.note.peek")],
+                &declared,
                 &[],
                 &pdp(),
             )
@@ -672,11 +1049,12 @@ mod tests {
     fn a_plugin_forgotten_takes_its_commands_with_it_and_no_other() {
         let mut registry = Registry::from_catalog();
         let kernels = registry.listed().len();
+        let declared = [a_read("notes.note.get")];
         let admitted = registry
             .admit(
-                &notes(),
+                &described(&registry, notes(), &declared),
                 PluginSlot(3),
-                &[a_read("notes.note.get")],
+                &declared,
                 &[],
                 &pdp(),
             )
@@ -881,11 +1259,12 @@ mod tests {
             )]
         );
         let mut registry = Registry::from_catalog();
+        let declared = [a_read("notes.note.get")];
         let first = registry
             .admit(
-                &notes(),
+                &described(&registry, notes(), &declared),
                 PluginSlot(0),
-                &[a_read("notes.note.get")],
+                &declared,
                 &[],
                 &pdp(),
             )
@@ -903,7 +1282,7 @@ mod tests {
 
     #[test]
     fn a_command_the_catalog_describes_is_admitted_only_as_the_catalog_writes_it() {
-        let registry = Registry::over([a_read("notes.note.get")]);
+        let registry = over([a_read("notes.note.get")]);
         let seen = registry.listed();
         assert!(
             seen.is_empty(),
@@ -956,7 +1335,7 @@ mod tests {
             ..a_read("notes.note.get")
         };
         let problems = refused(
-            &Registry::over([Declared {
+            &over([Declared {
                 reversibility: Reversibility::Write,
                 mutating: true,
                 ..a_read("notes.note.get")
@@ -971,7 +1350,7 @@ mod tests {
                 .any(|(_, sentence)| sentence.contains("its reversibility")),
             "{problems:?}"
         );
-        let elsewhere = Registry::over([Declared {
+        let elsewhere = over([Declared {
             resource_selector: "argument:note".to_owned(),
             args_schema: A_NOTE.to_owned(),
             ..a_read("notes.note.get")
@@ -992,7 +1371,7 @@ mod tests {
 
     /// A claimed command is listed as the catalog writes it.
     ///
-    /// Its title is the catalog's key, it is run by the plugin that claimed it,
+    /// Its entry is the catalog's, it is run by the plugin that claimed it,
     /// and one selecting another argument than the catalog's is refused naming
     /// the selector.
     #[test]
@@ -1002,7 +1381,7 @@ mod tests {
             args_schema: TWO.to_owned(),
             ..a_read("notes.note.get")
         };
-        let registry = Registry::over([described]);
+        let registry = over([described]);
         let ours = Declared {
             args_schema: TWO.to_owned(),
             ..a_read("notes.note.get")
@@ -1016,7 +1395,7 @@ mod tests {
                 &pdp(),
             )
             .expect("the catalog's declaration, whatever the title");
-        assert_eq!(admitted[0].listed.title, "command.notes.note.get.title");
+        assert_eq!(admitted[0].listed.entry, the_catalogs());
         assert_eq!(admitted[0].listed.owner, Owner::Plugin(PluginSlot(2)));
         let elsewhere = Declared {
             resource_selector: "argument:page".to_owned(),
@@ -1036,7 +1415,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "the catalog compiler holds every command to the same judge")]
     fn a_catalog_command_the_judge_refuses_is_a_build_the_compiler_did_not_make() {
-        let _ = Registry::over([Declared {
+        let _ = over([Declared {
             action: String::new(),
             ..a_read("journal.broken")
         }]);
@@ -1341,6 +1720,385 @@ mod tests {
             problems[0].1.contains(&quoted(&past)) && !problems[0].1.contains(&past),
             "the action is cut: {}",
             problems[0].1
+        );
+    }
+
+    /// The codes and sentences `admit` refused `declared` with, `manifest`
+    /// described by `entries` and nothing else.
+    fn refused_with(
+        registry: &Registry,
+        entries: PluginEntries,
+        declared: &[Declared],
+    ) -> Vec<(ErrorCode, String)> {
+        match registry.admit(
+            &notes().described_by(entries),
+            PluginSlot(0),
+            declared,
+            &[],
+            &pdp(),
+        ) {
+            Ok(_) => Vec::new(),
+            Err(problems) => problems
+                .iter()
+                .map(|problem| (problem.code(), problem.sentence().to_owned()))
+                .collect(),
+        }
+    }
+
+    /// The entries of one row, `note.get`, its texts in each locale as given.
+    fn one_row(english: &str, portuguese: &str) -> PluginEntries {
+        PluginEntries::parse(
+            "[[command]]\nname = \"note.get\"\n",
+            &[(Locale::En, english), (Locale::PtBR, portuguese)],
+        )
+        .expect("entries of the shape the kernel reads")
+    }
+
+    /// A command whose entry misses a locale is refused, naming both.
+    ///
+    /// At `activate`, the command and the locale — the whole locale, or one
+    /// text of it.
+    #[test]
+    fn a_command_whose_entry_misses_a_locale_is_refused_naming_the_command_and_the_locale() {
+        let english = row_of("note.get", "Read a note", "Shows what a note says", "note");
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                one_row(&english, ""),
+                &[a_read("notes.note.get")]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.get` of `noctua:notes` says nothing at all in `pt-BR`".to_owned()
+            )]
+        );
+        let unnamed = row_of(
+            "note.get",
+            "Ler uma nota",
+            "Mostra o que uma nota diz",
+            "nota",
+        )
+        .replace("display_name = \"Ler uma nota\"\n", "");
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                one_row(&english, &unnamed),
+                &[a_read("notes.note.get")]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.get` of `noctua:notes` has no `pt-BR` display name".to_owned()
+            )]
+        );
+    }
+
+    /// A command the plugin's `commands.toml` lists no row for is refused,
+    /// and nothing of the plugin is admitted.
+    #[test]
+    fn a_command_with_no_row_in_commands_toml_is_refused() {
+        let registry = Registry::from_catalog();
+        let declared = [a_read("notes.note.get"), a_read("notes.note.peek")];
+        assert_eq!(
+            refused_with(
+                &registry,
+                entries(&[("note.get", "Read a note")]),
+                &declared
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.peek` of `noctua:notes` has no entry: its plugin's \
+                 `commands.toml` lists no `note.peek`"
+                    .to_owned()
+            )]
+        );
+        assert_eq!(
+            refused_with(&registry, PluginEntries::default(), &declared[..1]).len(),
+            1,
+            "a manifest no entries describe registers none of its commands"
+        );
+    }
+
+    /// A plugin that describes a command of the catalog, or copies a catalog
+    /// command's name, is refused.
+    ///
+    /// **The catalog's entry is the one it is shown by**: a row for a command
+    /// the catalog describes is refused, and so is a display name a command of
+    /// the catalog is shown by; with no row, the command is admitted as the
+    /// catalog writes it.
+    #[test]
+    fn a_plugin_that_describes_a_catalog_command_or_copies_its_name_is_refused() {
+        let registry = over([a_read("notes.note.get")]);
+        assert_eq!(
+            refused_with(
+                &registry,
+                entries(&[("note.get", "Read a note")]),
+                &[a_read("notes.note.get")]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.get` of `noctua:notes` is described by the catalog, and its \
+                 plugin's `commands.toml` describes it too, as `note.get`: the catalog's entry \
+                 is the one it is shown by"
+                    .to_owned()
+            )]
+        );
+        assert_eq!(
+            refused_with(
+                &registry,
+                PluginEntries::default(),
+                &[a_read("notes.note.get")]
+            ),
+            []
+        );
+        let copied = Declared {
+            title: "Redo".to_owned(),
+            ..a_read("notes.note.get")
+        };
+        let problems = refused_with(
+            &Registry::from_catalog(),
+            entries(&[("note.get", "Redo")]),
+            &[copied],
+        );
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(problems[0].0, ErrorCode::PluginEntriesInvalid);
+        assert!(
+            problems[0]
+                .1
+                .ends_with("which the catalog's `kernel.redo` is shown by"),
+            "{}",
+            problems[0].1
+        );
+    }
+
+    /// A title the component declares that is not its entry's English
+    /// display name is refused, and an empty title is refused once, as a
+    /// field the declaration misses.
+    #[test]
+    fn a_title_that_is_not_the_english_display_name_is_refused() {
+        let renamed = Declared {
+            title: "Read the note".to_owned(),
+            ..a_read("notes.note.get")
+        };
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                entries(&[("note.get", "Read a note")]),
+                &[renamed]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.get` of `noctua:notes` declares the title `Read the note`, and its \
+                 English display name is `Read a note`: the two are one text, written in the \
+                 component and in its directory"
+                    .to_owned()
+            )]
+        );
+        let untitled = Declared {
+            title: String::new(),
+            ..a_read("notes.note.get")
+        };
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                entries(&[("note.get", "Read a note")]),
+                &[untitled]
+            ),
+            [(
+                ErrorCode::PluginDescriptorMissingField,
+                "`notes.note.get` of `noctua:notes` declares no title".to_owned()
+            )]
+        );
+    }
+
+    /// A display name a command of the catalog is shown by is refused, in
+    /// either locale and whichever locale the catalog shows it in, as the
+    /// untranslated rule compares sentences.
+    #[test]
+    fn a_display_name_the_catalog_shows_is_refused_in_either_locale() {
+        let registry = Registry::from_catalog();
+        for (english, portuguese, locale, shown) in [
+            ("Undo", "Ler uma nota", "en", "Undo"),
+            ("undo.", "Ler uma nota", "en", "undo."),
+            ("Read a note", "Desfazer", "pt-BR", "Desfazer"),
+            ("Desfazer", "Ler uma nota", "en", "Desfazer"),
+        ] {
+            let entries = one_row(
+                &row_of("note.get", english, "Shows what a note says", "note"),
+                &row_of("note.get", portuguese, "Mostra o que uma nota diz", "nota"),
+            );
+            let declared = Declared {
+                title: english.to_owned(),
+                ..a_read("notes.note.get")
+            };
+            assert_eq!(
+                refused_with(&registry, entries, &[declared]),
+                [(
+                    ErrorCode::PluginEntriesInvalid,
+                    format!(
+                        "`notes.note.get` of `noctua:notes` has the `{locale}` display name \
+                         `{shown}`, which the catalog's `kernel.undo` is shown by"
+                    )
+                )],
+                "{english} / {portuguese}"
+            );
+        }
+    }
+
+    /// A plugin's entry past the bound in bytes is refused, as a catalog's is.
+    ///
+    /// **The catalog's bound, read by the kernel**: a paragraph inside its
+    /// bound in characters, two bytes each, takes the locale's texts past the
+    /// bound together, and an entry at it is admitted.
+    #[test]
+    fn a_plugins_entry_past_the_entry_bound_is_refused_as_the_catalogs_would_be() {
+        let most = usize::try_from(nc_catalog::KERNEL.entry_bytes).expect("fits");
+        let portuguese = row_of(
+            "note.get",
+            "Ler uma nota",
+            "Mostra o que uma nota diz",
+            "nota",
+        );
+        // A tag is its own bytes and the quotation marks and the comma it is
+        // listed in.
+        let others = "Read a note".len() + "Shows what a note says".len() + "note".len() + 3;
+        let written = |paragraph: &str| {
+            format!(
+                "[command.\"note.get\"]\ndisplay_name = \"Read a note\"\nline = \"Shows what a \
+                 note says\"\nparagraph = \"{paragraph}\"\ntags = [\"note\"]\n"
+            )
+        };
+        let at_the_bound = "é".repeat((most - others) / 2) + &"a".repeat((most - others) % 2);
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                one_row(&written(&at_the_bound), &portuguese),
+                &[a_read("notes.note.get")]
+            ),
+            []
+        );
+        let past = format!("{at_the_bound}a");
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                one_row(&written(&past), &portuguese),
+                &[a_read("notes.note.get")]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                format!(
+                    "`notes.note.get` of `noctua:notes` has `en` texts of {} bytes together, \
+                     each tag with the quotation marks and the comma it is listed in, past the \
+                     {most} an entry may hold in one locale",
+                    most + 1
+                )
+            )]
+        );
+    }
+
+    /// A category a plugin's entry names is held to the catalog's, as a
+    /// command of the catalog's is.
+    ///
+    /// One the categories registry holds is admitted and listed as the entry
+    /// names it; one no set holds refuses the command, naming the category.
+    #[test]
+    fn a_category_a_plugins_entry_names_is_one_the_catalog_holds() {
+        let english = row_of("note.get", "Read a note", "Shows what a note says", "note");
+        let portuguese = row_of(
+            "note.get",
+            "Ler uma nota",
+            "Mostra o que uma nota diz",
+            "nota",
+        );
+        let filed = |category: &str| {
+            PluginEntries::parse(
+                &format!("[[command]]\nname = \"note.get\"\ncategories = [\"{category}\"]\n"),
+                &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
+            )
+            .expect("entries of the shape the kernel reads")
+        };
+        let admitted = Registry::from_catalog()
+            .admit(
+                &notes().described_by(filed("noctua.reference")),
+                PluginSlot(0),
+                &[a_read("notes.note.get")],
+                &[],
+                &pdp(),
+            )
+            .expect("a category the registry holds");
+        assert_eq!(admitted[0].listed.entry.categories, ["noctua.reference"]);
+        assert_eq!(
+            refused_with(
+                &Registry::from_catalog(),
+                filed("noctua.unheard-of"),
+                &[a_read("notes.note.get")]
+            ),
+            [(
+                ErrorCode::PluginEntriesInvalid,
+                "`notes.note.get` of `noctua:notes` names the category `noctua.unheard-of`, \
+                 which its registry does not hold"
+                    .to_owned()
+            )]
+        );
+    }
+
+    /// A row no declared command claims is neither registered nor refused.
+    #[test]
+    fn a_row_no_declared_command_claims_is_neither_registered_nor_refused() {
+        let mut registry = Registry::from_catalog();
+        let declared = [a_read("notes.note.get")];
+        let admitted = registry
+            .admit(
+                &notes().described_by(entries(&[
+                    ("note.get", "Read a note"),
+                    ("note.spare", "Read a spare note"),
+                ])),
+                PluginSlot(0),
+                &declared,
+                &[],
+                &pdp(),
+            )
+            .expect("a row left over is no refusal");
+        registry.register(admitted);
+        assert!(registry.lookup("notes.note.get").is_some());
+        assert!(registry.lookup("notes.note.spare").is_none());
+    }
+
+    /// A plugin's command is registered with its entry in every locale, as
+    /// its plugin wrote it.
+    #[test]
+    fn a_registered_plugin_command_carries_its_entry_in_every_locale() {
+        let registry = Registry::from_catalog();
+        let english = row_of("note.get", "Read a note", "Shows what a note says", "note");
+        let portuguese = row_of(
+            "note.get",
+            "Ler uma nota",
+            "Mostra o que uma nota diz",
+            "nota",
+        );
+        let glyphed = PluginEntries::parse(
+            "[[command]]\nname = \"note.get\"\nglyph = \"U+F0E2\"\n",
+            &[(Locale::En, &english), (Locale::PtBR, &portuguese)],
+        )
+        .expect("entries of the shape the kernel reads");
+        let admitted = registry
+            .admit(
+                &notes().described_by(glyphed),
+                PluginSlot(0),
+                &[a_read("notes.note.get")],
+                &[],
+                &pdp(),
+            )
+            .expect("every rule admits it");
+        assert_eq!(
+            admitted[0].listed.entry,
+            CommandEntry::new(
+                vec![
+                    texts("Read a note", "Shows what a note says", "note"),
+                    texts("Ler uma nota", "Mostra o que uma nota diz", "nota"),
+                ],
+                Vec::new(),
+                Some('\u{f0e2}'),
+            )
         );
     }
 }

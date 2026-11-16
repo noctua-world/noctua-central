@@ -15,6 +15,11 @@ use nc_canon::Value;
 use nc_catalog::ErrorCode;
 use nc_ipc::{Answer, IpcError, Request, State, Token, Welcome, frame};
 
+/// The protocol this build speaks, as a hand-written message names it.
+fn ours() -> i64 {
+    i64::from(nc_ipc::PROTOCOL)
+}
+
 /// A welcome for a test's daemon.
 fn welcome() -> Welcome {
     Welcome {
@@ -186,7 +191,10 @@ async fn a_client_whose_proof_is_wrong_or_missing_is_turned_away_before_a_reques
                 .await
                 .expect("read")
                 .expect("a challenge");
-            let mut fields = vec![("protocol", Value::Integer(1)), ("nonce", random_hex())];
+            let mut fields = vec![
+                ("protocol", Value::Integer(ours())),
+                ("nonce", random_hex()),
+            ];
             fields.extend(proof.clone().map(|proof| ("proof", proof)));
             frame::write(&mut client, &message("hello", fields))
                 .await
@@ -221,7 +229,7 @@ async fn a_hello_holding_a_field_the_protocol_does_not_read_is_refused() {
         let hello = message(
             "hello",
             vec![
-                ("protocol", Value::Integer(1)),
+                ("protocol", Value::Integer(ours())),
                 ("nonce", random_hex()),
                 ("proof", random_hex()),
                 ("user", Value::text("ana")),
@@ -256,7 +264,7 @@ async fn a_client_of_another_protocol_is_refused_as_that() {
         let hello = message(
             "hello",
             vec![
-                ("protocol", Value::Integer(2)),
+                ("protocol", Value::Integer(ours() + 1)),
                 ("nonce", random_hex()),
                 ("proof", random_hex()),
             ],
@@ -269,8 +277,8 @@ async fn a_client_of_another_protocol_is_refused_as_that() {
     })
     .await;
     match verdict {
-        Err(IpcError::Protocol { theirs: 2 }) => {}
-        other => panic!("a client of protocol 2 was {other:?}"),
+        Err(IpcError::Protocol { theirs }) if theirs == ours() + 1 => {}
+        other => panic!("a client of protocol {} was {other:?}", ours() + 1),
     }
     assert_eq!(goodbye, ErrorCode::IpcProtocol.code());
 }
@@ -326,7 +334,10 @@ async fn a_daemon_whose_proof_is_forged_or_reflected_is_sent_nothing_more() {
         let by_hand = async {
             let challenge = message(
                 "challenge",
-                vec![("protocol", Value::Integer(1)), ("nonce", random_hex())],
+                vec![
+                    ("protocol", Value::Integer(ours())),
+                    ("nonce", random_hex()),
+                ],
             );
             frame::write(&mut daemon, &challenge).await.expect("sent");
             let hello = frame::read(&mut daemon)
@@ -377,7 +388,10 @@ async fn a_welcome_naming_no_process_is_refused() {
     let by_hand = async {
         let challenge = message(
             "challenge",
-            vec![("protocol", Value::Integer(1)), ("nonce", random_hex())],
+            vec![
+                ("protocol", Value::Integer(ours())),
+                ("nonce", random_hex()),
+            ],
         );
         frame::write(&mut daemon, &challenge).await.expect("sent");
         frame::read(&mut daemon)

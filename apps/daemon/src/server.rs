@@ -34,11 +34,15 @@
 //!
 //! # What each answer holds
 //!
-//! - **A command of the registry** is one object: `name`, `title` — the
-//!   catalog's message key for a command of the kernel's own, the plugin's
-//!   label for one of a plugin's — `args_schema` as the text it was declared
-//!   in, `mutating`, `action`, `resource_selector`, `reversibility` (`read`,
-//!   `write` or `irreversible`) and `owner` (`kernel` or `plugin`).
+//! - **A command of the registry** is one object: `name`; its entry's texts
+//!   in the locale the request names — `display_name`, `line`, `paragraph`
+//!   and `tags` — the catalog's for a command it writes and the plugin's own
+//!   for one it does not, `categories` by name and `glyph` as `U+XXXX` or
+//!   `null`; `args_schema` as the text it was declared in, `mutating`,
+//!   `action`, `resource_selector`, `reversibility` (`read`, `write` or
+//!   `irreversible`) and `owner` (`kernel` or `plugin`). **Every text is
+//!   resolved here**, the catalog's as much as a plugin's, so a client links
+//!   no catalog to show a command and escapes every text it was sent alike.
 //! - **The status** is one object: `channel`, `checkout` for a development
 //!   install, `version`, `pid`, `instance`, `state`, `since`, `realm`,
 //!   `person`, `plugins` — each with its `name`, whether it `loaded`, and the
@@ -53,7 +57,7 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use core::time::Duration;
 
 use nc_canon::Value;
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_ids::Clock as _;
 use nc_ipc::{Answer, Refusal, RefusalKind, Request, State, Welcome};
 use nc_kernel::logging::LogSink;
@@ -318,8 +322,14 @@ impl Server {
                 self.stop();
                 Answer::Stopping
             }
-            Request::Registry => match self.kernel_if_running() {
-                Ok(kernel) => Answer::Registry(kernel.registry().iter().map(listed).collect()),
+            Request::Registry { locale } => match self.kernel_if_running() {
+                Ok(kernel) => Answer::Registry(
+                    kernel
+                        .registry()
+                        .iter()
+                        .map(|command| listed(command, locale))
+                        .collect(),
+                ),
                 Err(refusal) => Answer::Refused(refusal),
             },
             Request::Dispatch { command, args } => match self.admitted() {
@@ -600,12 +610,25 @@ fn schedule(done: &Done) -> Value {
     Value::object(fields)
 }
 
-/// A command of the registry, as one object.
-fn listed(command: &RegisteredCommand) -> Value {
+/// A command of the registry, as one object, its texts in `locale`.
+fn listed(command: &RegisteredCommand, locale: Locale) -> Value {
     use nc_schema::descriptor::Reversibility;
+    let texts = command.entry.in_locale(locale);
+    let texts_of =
+        |all: &[String]| Value::Array(all.iter().map(|one| Value::text(one.as_str())).collect());
     Value::object([
         ("name", Value::text(command.name.as_str())),
-        ("title", Value::text(command.title.as_str())),
+        ("display_name", Value::text(texts.display_name.as_str())),
+        ("line", Value::text(texts.line.as_str())),
+        ("paragraph", Value::text(texts.paragraph.as_str())),
+        ("tags", texts_of(&texts.tags)),
+        ("categories", texts_of(&command.entry.categories)),
+        (
+            "glyph",
+            command.entry.glyph.map_or(Value::Null, |glyph| {
+                Value::text(format!("U+{:04X}", u32::from(glyph)))
+            }),
+        ),
         ("args_schema", Value::text(command.args_schema.as_str())),
         ("mutating", Value::Bool(command.mutating)),
         ("action", Value::text(command.action.as_str())),
@@ -657,8 +680,11 @@ mod tests {
     use core::time::Duration;
 
     use nc_canon::Value;
-    use nc_catalog::ErrorCode;
+    use nc_catalog::{ErrorCode, Locale};
     use nc_ipc::{Answer, Refusal, RefusalKind, Request, State};
+
+    /// A request for the registry, in English.
+    const REGISTRY: Request = Request::Registry { locale: Locale::En };
 
     use super::{Named, Server};
 
@@ -717,37 +743,81 @@ mod tests {
         }
     }
 
-    /// A command is listed with every field the registry holds, its
-    /// reversibility and its owner by their words.
-    #[test]
-    fn a_command_is_listed_with_every_field_the_registry_holds() {
+    /// A command of the registry, its entry in both locales.
+    fn a_command() -> nc_kernel::registry::RegisteredCommand {
+        use nc_kernel::registry::{CommandEntry, EntryTexts};
         use nc_schema::descriptor::Reversibility;
-        let command = nc_kernel::registry::RegisteredCommand {
+        nc_kernel::registry::RegisteredCommand {
             name: "journal.verify".to_owned(),
-            title: "command.journal.verify.title".to_owned(),
+            entry: CommandEntry::new(
+                vec![
+                    EntryTexts {
+                        display_name: "Verify".to_owned(),
+                        line: "Check the history.".to_owned(),
+                        paragraph: "Checks \"every\" entry.".to_owned(),
+                        tags: vec!["verify".to_owned(), "check".to_owned()],
+                    },
+                    EntryTexts {
+                        display_name: "Verificar".to_owned(),
+                        line: "Conferir o histórico.".to_owned(),
+                        paragraph: "Confere cada registro.".to_owned(),
+                        tags: vec!["verificar".to_owned()],
+                    },
+                ],
+                vec!["noctua.history".to_owned()],
+                Some('\u{f058}'),
+            ),
             args_schema: "{\"type\":\"object\"}".to_owned(),
             mutating: false,
             action: "Read".to_owned(),
             resource_selector: "realm".to_owned(),
             reversibility: Reversibility::Irreversible,
             owner: nc_kernel::registry::Owner::Kernel,
-        };
+        }
+    }
+
+    /// A command is listed with every field the registry holds.
+    ///
+    /// Its texts in the locale asked, its glyph by its code point, its
+    /// reversibility and its owner by their words.
+    #[test]
+    fn a_command_is_listed_with_every_field_the_registry_holds() {
+        use nc_schema::descriptor::Reversibility;
+        let command = a_command();
         assert_eq!(
-            super::listed(&command).to_canonical(),
+            super::listed(&command, Locale::En).to_canonical(),
             "{\"action\":\"Read\",\"args_schema\":\"{\\\"type\\\":\\\"object\\\"}\",\
-             \"mutating\":false,\"name\":\"journal.verify\",\"owner\":\"kernel\",\
-             \"resource_selector\":\"realm\",\"reversibility\":\"irreversible\",\
-             \"title\":\"command.journal.verify.title\"}"
+             \"categories\":[\"noctua.history\"],\"display_name\":\"Verify\",\
+             \"glyph\":\"U+F058\",\"line\":\"Check the history.\",\"mutating\":false,\
+             \"name\":\"journal.verify\",\"owner\":\"kernel\",\
+             \"paragraph\":\"Checks \\\"every\\\" entry.\",\"resource_selector\":\"realm\",\
+             \"reversibility\":\"irreversible\",\"tags\":[\"verify\",\"check\"]}"
+        );
+        let unglyphed = nc_kernel::registry::RegisteredCommand {
+            entry: nc_kernel::registry::CommandEntry::new(
+                vec![command.entry.in_locale(Locale::En).clone()],
+                Vec::new(),
+                None,
+            ),
+            ..command.clone()
+        };
+        let listed = super::listed(&unglyphed, Locale::En).to_canonical();
+        assert!(
+            listed.contains("\"glyph\":null") && listed.contains("\"categories\":[]"),
+            "{listed}"
         );
         for (reversibility, word) in [
             (Reversibility::Read, "read"),
             (Reversibility::Write, "write"),
         ] {
-            let listed = super::listed(&nc_kernel::registry::RegisteredCommand {
-                reversibility,
-                mutating: true,
-                ..command.clone()
-            })
+            let listed = super::listed(
+                &nc_kernel::registry::RegisteredCommand {
+                    reversibility,
+                    mutating: true,
+                    ..command.clone()
+                },
+                Locale::En,
+            )
             .to_canonical();
             assert!(
                 listed.contains(&format!("\"reversibility\":\"{word}\"")),
@@ -755,6 +825,149 @@ mod tests {
             );
             assert!(listed.contains("\"mutating\":true"), "{listed}");
         }
+    }
+
+    /// A command is listed in the locale asked for: every text in it, and
+    /// nothing of the other.
+    #[test]
+    fn a_command_is_listed_in_the_locale_asked_for() {
+        let listed = super::listed(&a_command(), Locale::PtBR).to_canonical();
+        assert!(
+            listed.contains("\"display_name\":\"Verificar\"")
+                && listed.contains("\"line\":\"Conferir o histórico.\"")
+                && listed.contains("\"paragraph\":\"Confere cada registro.\"")
+                && listed.contains("\"tags\":[\"verificar\"]"),
+            "{listed}"
+        );
+        assert!(
+            !listed.contains("Verify") && !listed.contains("Check"),
+            "{listed}"
+        );
+    }
+
+    /// A plugin's entries at their bound fit half a frame: every command one
+    /// plugin may declare, its texts the heaviest the judge admits in the
+    /// locale asked, listed, is no more than half of `ipc_frame_max_bytes`.
+    ///
+    /// **The answer as the daemon writes it, of an entry the judge admits**,
+    /// not a sum. A byte of a sentence or a tag costs the entry one and the
+    /// answer at most two, which `"` and `\` reach, every other character
+    /// JSON writes longer being one the judge refuses as unseen; every
+    /// sentence is at its bound in characters of them. A tag's quotation marks
+    /// and comma cost the entry three bytes and the answer only three, so
+    /// fewer, longer tags list more: for every count of tags from one to
+    /// `TAGS_MAX`, the tags are made as long as the judge still admits the
+    /// entry, and the heaviest of those answers is the one held. A listing
+    /// that stopped escaping, a judge that stopped counting a tag's
+    /// punctuation, or an `entry_bytes` raised past the frame fails here.
+    ///
+    /// **And the bound the compiler holds**: texts of `entry_bytes`, every
+    /// byte one JSON writes as two, fit half a frame exactly.
+    #[test]
+    fn a_plugins_entries_at_their_bound_fit_half_a_frame() {
+        use nc_kernel::registry::{CommandEntry, EntryTexts};
+        use nc_schema::entry::{self, Entry, InLocale, Rules, TAGS_MAX, Text, Texts};
+        let most = usize::try_from(nc_catalog::KERNEL.entry_bytes).expect("fits");
+        let commands = usize::try_from(nc_catalog::KERNEL.commands_per_plugin).expect("fits");
+        let frame = usize::try_from(nc_catalog::DAEMON.ipc_frame_max_bytes).expect("fits");
+        let texts_alone = |texts: &EntryTexts| {
+            let listed = |texts: &EntryTexts| {
+                let command = nc_kernel::registry::RegisteredCommand {
+                    entry: CommandEntry::new(vec![texts.clone()], Vec::new(), None),
+                    ..a_command()
+                };
+                super::listed(&command, Locale::En).to_canonical().len()
+            };
+            listed(texts) - listed(&EntryTexts::default())
+        };
+        let doubled = texts_alone(&EntryTexts {
+            paragraph: "\"".repeat(most),
+            ..EntryTexts::default()
+        });
+        assert_eq!(doubled, most * 2, "each `\"` is written as two bytes");
+        assert!(
+            doubled * commands <= frame / 2,
+            "{commands} commands of {doubled} bytes of texts each are past half of a frame of \
+             {frame}"
+        );
+
+        let admitted = |texts: &EntryTexts| {
+            entry::judge(
+                &Entry {
+                    locales: &[InLocale {
+                        locale: Locale::En.tag(),
+                        texts: Texts {
+                            display_name: Some(&texts.display_name),
+                            line: Some(&texts.line),
+                            paragraph: Some(&texts.paragraph),
+                            tags: Some(&texts.tags),
+                        },
+                    }],
+                    categories: &[],
+                    glyph: None,
+                    same_in_both: &[],
+                },
+                &Rules {
+                    requires: &Text::ALL,
+                    categories: &[],
+                    entry_bytes: nc_catalog::KERNEL.entry_bytes,
+                },
+            )
+            .is_ok()
+        };
+        // Tags no fold of case makes one: each spells its place in `"` and `\`,
+        // then `long` more `"`, and one more again for the first `longer`.
+        let width = TAGS_MAX.next_power_of_two().trailing_zeros();
+        let shaped = |count: usize, long: usize, longer: usize| EntryTexts {
+            display_name: "\"".repeat(Text::DisplayName.bound()),
+            line: "\\".repeat(Text::Line.bound()),
+            paragraph: "\"".repeat(Text::Paragraph.bound()),
+            tags: (0..count)
+                .map(|at| {
+                    let place: String = (0..width)
+                        .map(|bit| if (at >> bit) % 2 == 1 { '\\' } else { '"' })
+                        .collect();
+                    place + &"\"".repeat(long + usize::from(at < longer))
+                })
+                .collect(),
+        };
+        // The largest number `admits` holds of below `refused`, found by
+        // halving: it holds of nought, and once it fails it fails of every
+        // larger one, since a longer tag is never admitted where a shorter one
+        // was refused.
+        let largest = |admits: &dyn Fn(usize) -> bool, mut refused: usize| {
+            let mut held = 0;
+            while refused - held > 1 {
+                let between = held + (refused - held) / 2;
+                if admits(between) {
+                    held = between;
+                } else {
+                    refused = between;
+                }
+            }
+            held
+        };
+        let listed = (1..=TAGS_MAX)
+            .map(|count| {
+                assert!(admitted(&shaped(count, 0, 0)), "{count} tag(s)");
+                // Every tag as long as the judge admits, a tag `entry_bytes`
+                // longer being past the entry's bytes, and then as many of
+                // them as it admits a character longer still.
+                let long = largest(&|long| admitted(&shaped(count, long, 0)), most);
+                let longer = largest(&|longer| admitted(&shaped(count, long, longer)), count + 1);
+                texts_alone(&shaped(count, long, longer))
+            })
+            .max()
+            .expect("a count of tags");
+        assert!(
+            listed > most,
+            "every `\"` and `\\` is written as two bytes, and {listed} are not"
+        );
+        assert!(
+            listed * commands <= frame / 2,
+            "{commands} commands of the heaviest texts the judge admits, {listed} bytes each \
+             listed, are past half of a frame of {frame}"
+        );
     }
 
     /// Nothing is dispatched, and no registry is read, before the kernel runs
@@ -768,7 +981,7 @@ mod tests {
         };
         for state in [State::Starting, State::WaitingForClock, State::Recovering] {
             server.reach(state);
-            for request in [dispatch(), Request::Registry] {
+            for request in [dispatch(), REGISTRY] {
                 let refusal = refused(&server, request).await;
                 assert_eq!(refusal.code, ErrorCode::DaemonNotRunning, "{state:?}");
                 assert_eq!(refusal.kind, RefusalKind::Unavailable);
@@ -781,7 +994,7 @@ mod tests {
         }
         assert_eq!(server.answer(Request::Stop).await, Answer::Stopping);
         assert_eq!(server.state(), State::Stopping);
-        for request in [dispatch(), Request::Registry] {
+        for request in [dispatch(), REGISTRY] {
             let refusal = refused(&server, request).await;
             assert_eq!(refusal.code, ErrorCode::DaemonStopping);
             assert_eq!(refusal.kind, RefusalKind::Unavailable);

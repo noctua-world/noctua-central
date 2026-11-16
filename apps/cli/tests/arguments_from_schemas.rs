@@ -197,11 +197,14 @@ fn every_schema_reads_its_flags_back_into_the_instance() {
             "noctua",
             &nc_cli::client::Listed {
                 name: name.clone(),
-                title: String::new(),
+                display_name: String::new(),
+                line: String::new(),
+                paragraph: String::new(),
+                tags: Vec::new(),
+                categories: Vec::new(),
                 args_schema: text.clone(),
             },
             &schema,
-            nc_catalog::Locale::En,
         );
         for argument in &arguments {
             assert!(

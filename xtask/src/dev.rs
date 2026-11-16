@@ -606,7 +606,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         if let Some(name) = member.path.strip_prefix("plugins/") {
             sources.push((
                 name.to_owned(),
-                root.join(&member.path).join(nc_channel::PLUGIN_MANIFEST),
+                root.join(&member.path),
                 root.join(format!("target/plugins/components/{name}.wasm")),
             ));
         }
@@ -618,9 +618,9 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         &world,
         sources
             .iter()
-            .map(|(name, manifest, component)| nc_cli::install::Plugin {
+            .map(|(name, directory, component)| nc_cli::install::Plugin {
                 name,
-                manifest,
+                directory,
                 component,
             })
             .collect(),

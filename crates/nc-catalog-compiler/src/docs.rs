@@ -843,7 +843,7 @@ fn kernel(catalog: &Catalog) -> String {
          deadline of a whole call tree, every host call it makes but a dispatch to \
          `host_call_deadline_ms`, its kills but those at a call tree's deadline to \
          `restart_budget` inside `restart_window_ms`, its declarations to \
-         `commands_per_plugin`, a call tree's dispatches to its deadline, depth and count, \
+         `commands_per_plugin` and each one's texts to `entry_bytes`, a call tree's dispatches to its deadline, depth and count, \
          each question the decision point asks the directory to `host_call_deadline_ms`, \
          a confirmation or an approval to `confirmation_ttl_ms`, a dispatch's arguments \
          and answer to `payload_bytes`, the store's keys, values and listings to theirs, \

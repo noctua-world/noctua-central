@@ -525,6 +525,7 @@ fn manifest(id: &str, namespace: &str, also: &[&str], limits: &str) -> PluginMan
          \"net\"{also}]\n[net]\ndomains = [\"example.com\"]\n{limits}"
     ))
     .expect("a manifest the kernel reads")
+    .described_by(nc_kernel::entries_for_tests("reference"))
 }
 
 /// A kernel with the reference plugin loaded under a manifest whose `[limits]`

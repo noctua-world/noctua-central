@@ -3,7 +3,7 @@
 //! **One handler for each command the catalog declares in a namespace the
 //! kernel keeps, and none for any other.** `catalog/commands.toml` declares
 //! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
-//! `naming.propose` and `naming.read`; the
+//! `naming.propose`, `naming.read` and `kernel.find`; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -65,6 +65,11 @@
 //! a kept identifier is read in `nc-ids`, which cannot log, and comes back as
 //! text, so nothing here turns a caller's text into an identifier the log
 //! could carry.
+//!
+//! **`kernel.find` is the registry filtered by the one fuzzy core**
+//! (`NOCTUA.md §12.4`), `Read` on `Feature::"registry"`, which the family pack
+//! gives every person of the realm (`family.a_member_finds_commands`);
+//! `crate::find` says what it reads and answers.
 //!
 //! What this answers (`NOCTUA.md §2.4`): a declared command that answers that
 //! it is not built, a pruner run by a caller the pack does not let delete on
@@ -148,6 +153,8 @@ pub(crate) enum Builtin {
     Propose,
     /// `naming.read`: a file's name, read back into its parts.
     ReadName,
+    /// `kernel.find`: the commands a query finds (`crate::find`).
+    Find,
 }
 
 impl Builtin {
@@ -155,13 +162,14 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
         Self::Redo,
         Self::Propose,
         Self::ReadName,
+        Self::Find,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -173,6 +181,7 @@ impl Builtin {
             Self::Redo => crate::history::REDO,
             Self::Propose => PROPOSE,
             Self::ReadName => READ,
+            Self::Find => crate::find::FIND,
         }
     }
 

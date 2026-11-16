@@ -397,7 +397,8 @@ async fn granted_everything() -> (
          domains = [\"example.com\"]\n\n[events]\nsubscribe = [\"reference.probed\"]\n",
         every.join(", ")
     ))
-    .expect("a manifest granting everything");
+    .expect("a manifest granting everything")
+    .described_by(nc_kernel::entries_for_tests("reference"));
     assert_eq!(manifest.grants(), &GrantSet::every());
     kernel
         .load(manifest, &nc_kernel::component_for_tests("reference"))

@@ -91,3 +91,78 @@ action = "Read"
 resource = 'Feature::"naming"'
 decision = "allow"
 because = "family.a_member_names_files"
+
+[[case]]
+name = "a member of the house finds a command"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"registry"'
+decision = "allow"
+because = "family.a_member_finds_commands"
+
+[[case]]
+# A child as much as an adult: what the house can run is no secret in it.
+name = "a child of the house finds a command too"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Feature::"registry"'
+decision = "allow"
+because = "family.a_member_finds_commands"
+
+[[case]]
+# **The verb.** Finding is a read, and with the permit's action dropped a member
+# would be given every verb over the feature.
+name = "a member finds a command and writes nothing to the registry"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"registry"'
+decision = "deny"
+no_permit_matched = "family.a_member_finds_commands"
+
+[[case]]
+# **Who is asking.** Ana's laptop is attested, so no floor refuses it; the
+# permit's `principal is User` is what does, and with the type test deleted
+# this exact request is allowed.
+name = "a device of the house finds no command, however attested"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Feature::"registry"'
+decision = "deny"
+no_permit_matched = "family.a_member_finds_commands"
+
+[[case]]
+# And an agent acting openly as one — `via_agent` set, so no core `forbid`
+# refuses it and the permit is the only thing that can, until Stage 15 gives an
+# agent a permit of its own.
+name = "nor does an agent finding commands openly, until it has a permit of its own"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Feature::"registry"'
+context = { via_agent = true }
+decision = "deny"
+no_permit_matched = "family.a_member_finds_commands"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member read every feature the realm holds — `gallery`, which no
+# other permit gives her, is the one that shows it.
+name = "the finding permit reaches no other feature"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"gallery"'
+decision = "deny"
+no_permit_matched = "family.a_member_finds_commands"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the naming permit's is:
+# the permit asks no membership, so over the whole world a person of another
+# realm is allowed it, and only the decision point's slice of `home` denies her.
+name = "an outsider finds a command, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Read"
+resource = 'Feature::"registry"'
+decision = "allow"
+because = "family.a_member_finds_commands"

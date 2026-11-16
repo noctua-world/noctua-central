@@ -148,6 +148,47 @@ pub(crate) fn component(name: &str) -> Vec<u8> {
         .unwrap_or_else(|error| panic!("`{path}` cannot be read ({error}): {REBUILD}"))
 }
 
+/// The entries `plugins/<name>` describes its commands with, as text.
+///
+/// Its command table, and each locale's texts in `Locale::ALL`'s order.
+///
+/// **The source tree's layout, which is the one an install copies**: the
+/// command table beside `plugin.toml`, and one file per locale under `i18n/`,
+/// named for its tag — the names `nc_channel::plugin_files` gives every
+/// installer, which reads them from this same directory.
+///
+/// # Panics
+///
+/// When a file is missing or not UTF-8.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn entry_files(name: &str) -> (String, Vec<(nc_catalog::Locale, String)>) {
+    let directory = repository().join("plugins").join(name);
+    let read = |path: PathBuf| {
+        std::fs::read_to_string(&path).unwrap_or_else(|error| {
+            panic!(
+                "`plugins/{name}` describes its commands in `{}`, which cannot be read: {error}",
+                path.display()
+            )
+        })
+    };
+    (
+        read(directory.join("commands.toml")),
+        nc_catalog::Locale::ALL
+            .iter()
+            .map(|&locale| {
+                (
+                    locale,
+                    read(
+                        directory
+                            .join("i18n")
+                            .join(format!("{}.toml", locale.tag())),
+                    ),
+                )
+            })
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::current;

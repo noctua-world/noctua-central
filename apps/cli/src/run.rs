@@ -139,40 +139,34 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             crate::control::Done::Status(status) => Ok(render::answered(json, &status)),
         };
     }
-    let locale = env.locale();
     let cli = found.layout.cli.as_str();
     let mut connection = client::connect(found)
         .await
         .map_err(|refused| unasked(&refused))?;
+    // **In the environment's language**: the daemon resolves every command's
+    // texts, the catalog's as much as a plugin's, and help shows them as sent.
     let registry = connection
-        .registry()
+        .registry(env.locale())
         .await
         .map_err(|refused| unasked(&refused))?;
     match asked {
         Asked::Help(Topic::Command(name)) => {
             let (listed, schema) = registered(&registry, &name, cli)?;
-            Ok(render::shown(
-                json,
-                help::command(cli, listed, &schema, locale),
-            ))
+            Ok(render::shown(json, help::command(cli, listed, &schema)))
         }
         Asked::Command { name, words } => {
             let (listed, schema) = registered(&registry, &name, cli)?;
             match args::arguments(&schema, &name, &words) {
                 Err(unread) => Err(refused_by_the_cli(&unread)),
-                Ok(Read::Help) => Ok(render::shown(
-                    json,
-                    help::command(cli, listed, &schema, locale),
-                )),
+                Ok(Read::Help) => Ok(render::shown(json, help::command(cli, listed, &schema))),
                 Ok(Read::Arguments(value)) => dispatched(&mut connection, &name, value, json).await,
             }
         }
         // Help on everything; a verb that controls the daemon was answered
         // above, before the connection.
-        Asked::Help(_) | Asked::Control(_) => Ok(render::shown(
-            json,
-            help::everything(cli, &registry, locale),
-        )),
+        Asked::Help(_) | Asked::Control(_) => {
+            Ok(render::shown(json, help::everything(cli, &registry)))
+        }
     }
 }
 
@@ -249,7 +243,7 @@ mod tests {
     /// irreversible command of a plugin's taking a required note.
     fn registry() -> Answer {
         Answer::Registry(vec![
-            entry("journal.verify", "command.journal.verify.title", VERIFY),
+            entry("journal.verify", "Verify activity history", VERIFY),
             entry(
                 "reference.irreversible.do",
                 "Do something that cannot be undone",
@@ -439,8 +433,13 @@ mod tests {
         );
     }
 
-    /// Help lists every command the registry holds by its name and title, and
-    /// help on one shows the arguments its schema declares.
+    /// The registry in English, as a client asks for it.
+    const IN_ENGLISH: Request = Request::Registry {
+        locale: nc_catalog::Locale::En,
+    };
+
+    /// Help lists every command the registry holds by its name, display name
+    /// and line, and help on one shows the arguments its schema declares.
     #[test]
     fn help_reads_the_registry() {
         let (installed, daemon) = serving("hlp", vec![Vec::new(), Vec::new(), Vec::new()]);
@@ -471,8 +470,29 @@ mod tests {
         assert_eq!(flag.stdout, one.stdout);
         assert_eq!(
             daemon.heard(),
-            [Request::Registry, Request::Registry, Request::Registry],
+            [IN_ENGLISH, IN_ENGLISH, IN_ENGLISH],
             "help dispatched something"
+        );
+    }
+
+    /// The registry is asked in the environment's language, so the daemon
+    /// answers every command's texts in it.
+    #[test]
+    fn the_registry_is_asked_in_the_environments_language() {
+        let (installed, daemon) = serving("lng", vec![Vec::new(), Vec::new()]);
+        for (variable, value) in [("LANG", "pt_BR.UTF-8"), ("LC_ALL", "en_US.UTF-8")] {
+            let env = Env::of(|asked| (asked == variable).then(|| value.into()));
+            let outcome = super::run(&argv(&["help"]), &installed.found, &env);
+            assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+        }
+        assert_eq!(
+            daemon.heard(),
+            [
+                Request::Registry {
+                    locale: nc_catalog::Locale::PtBR
+                },
+                IN_ENGLISH
+            ]
         );
     }
 
@@ -504,12 +524,12 @@ mod tests {
         assert_eq!(
             heard,
             [
-                Request::Registry,
+                IN_ENGLISH,
                 Request::Dispatch {
                     command: "journal.verify".to_owned(),
                     args: Value::object([("from", Value::Integer(7))])
                 },
-                Request::Registry,
+                IN_ENGLISH,
                 Request::Dispatch {
                     command: "journal.verify".to_owned(),
                     args: Value::object([("from", Value::Integer(0))])
@@ -645,10 +665,7 @@ mod tests {
         );
         assert_eq!(outcome.stderr, "");
         assert!(
-            daemon
-                .heard()
-                .iter()
-                .all(|request| *request == Request::Registry),
+            daemon.heard().iter().all(|request| *request == IN_ENGLISH),
             "something refused before it was sent was dispatched"
         );
     }

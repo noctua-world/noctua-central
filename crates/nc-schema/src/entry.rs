@@ -167,6 +167,12 @@ pub struct Rules<'a> {
     pub requires: &'a [Text],
     /// The categories an entry may name.
     pub categories: &'a [&'a str],
+    /// The most bytes an entry's texts may hold in one locale, tags included,
+    /// each with the quotation marks and the comma it is listed in.
+    ///
+    /// `[kernel] entry_bytes`, which the caller reads from the catalog, so the
+    /// compiler and the kernel hold one number.
+    pub entry_bytes: u64,
 }
 
 /// Why a glyph was refused.
@@ -218,6 +224,15 @@ pub enum EntryProblem {
         locale: String,
         /// The text.
         text: Text,
+    },
+    /// One locale's texts past [`Rules::entry_bytes`] together, in bytes.
+    TooManyBytes {
+        /// The locale.
+        locale: String,
+        /// How many bytes they hold.
+        held: u64,
+        /// How many they may hold.
+        most: u64,
     },
     /// A text past its bound, in characters.
     TooLong {
@@ -319,6 +334,12 @@ impl fmt::Display for EntryProblem {
                 formatter,
                 "has a `{locale}` {text}, which no entry of its registry carries"
             ),
+            Self::TooManyBytes { locale, held, most } => write!(
+                formatter,
+                "has `{locale}` texts of {held} bytes together, each tag with the quotation \
+                 marks and the comma it is listed in, past the {most} an entry may hold in one \
+                 locale"
+            ),
             Self::TooLong { locale, text, held } => write!(
                 formatter,
                 "has a `{locale}` {text} of {held} characters, past the {} it may hold",
@@ -393,9 +414,10 @@ impl std::error::Error for EntryProblem {}
 /// # Errors
 ///
 /// Every [`EntryProblem`] found, never an empty list: per locale in the order
-/// handed, the texts in [`Text::ALL`]'s order — [`EntryProblem::LocaleMissing`]
-/// standing for every [`EntryProblem::Missing`] of a locale that wrote nothing
-/// — then the exemptions, the categories and the glyph.
+/// handed, the texts in [`Text::ALL`]'s order and then their bytes together —
+/// [`EntryProblem::LocaleMissing`] standing for every [`EntryProblem::Missing`]
+/// of a locale that wrote nothing — then the exemptions, the categories and
+/// the glyph.
 pub fn judge(entry: &Entry<'_>, rules: &Rules<'_>) -> Result<(), Vec<EntryProblem>> {
     let mut problems = Vec::new();
     let source = entry.locales.first();
@@ -452,6 +474,14 @@ pub fn judge(entry: &Entry<'_>, rules: &Rules<'_>) -> Result<(), Vec<EntryProble
                 locale: locale.to_owned(),
             });
         }
+        let held = u64::try_from(bytes_of(texts)).unwrap_or(u64::MAX);
+        if held > rules.entry_bytes {
+            problems.push(EntryProblem::TooManyBytes {
+                locale: locale.to_owned(),
+                held,
+                most: rules.entry_bytes,
+            });
+        }
     }
     judge_exemptions(entry, &mut problems);
     judge_categories(entry.categories, rules.categories, &mut problems);
@@ -465,6 +495,34 @@ pub fn judge(entry: &Entry<'_>, rules: &Rules<'_>) -> Result<(), Vec<EntryProble
     } else {
         Err(problems)
     }
+}
+
+/// The bytes one locale's texts hold together, in UTF-8: every sentence
+/// written and every tag, each tag with the three bytes a list writes around
+/// it.
+///
+/// **One sum for the whole locale, beside each text's own bound in
+/// characters**: a frame carries bytes, and a paragraph and thirty-two tags
+/// each at their bound in characters hold far more than an answer can carry
+/// for every command of a plugin, so the bytes are what bound one entry's
+/// share of it.
+///
+/// **A tag is counted with its two quotation marks and the comma after it**:
+/// thirty-two tags of one character are thirty-two bytes of text and
+/// ninety-five of the list around them. Left uncounted, an entry that spent
+/// its bytes on tags would take more of a frame than twice its bytes, the
+/// share the compiler holds every plugin's commands to.
+fn bytes_of(texts: &Texts<'_>) -> usize {
+    let sentences = [texts.display_name, texts.line, texts.paragraph]
+        .into_iter()
+        .flatten()
+        .map(str::len);
+    let tags = texts
+        .tags
+        .unwrap_or_default()
+        .iter()
+        .map(|tag| tag.len() + 3);
+    sentences.chain(tags).sum()
 }
 
 /// One sentence's bound, characters and placeholders.
@@ -879,6 +937,9 @@ mod tests {
     /// Every text a command carries.
     const EVERY_TEXT: [Text; 4] = Text::ALL;
 
+    /// The bytes an entry may hold in one locale, as the catalog has them.
+    const ENTRY_BYTES: u64 = 2_048;
+
     /// The texts of one locale, as owned strings a test can break one of.
     #[derive(Clone)]
     struct Written {
@@ -955,6 +1016,29 @@ mod tests {
             &Rules {
                 requires: &EVERY_TEXT,
                 categories: &["noctua.history", "noctua.maintenance"],
+                entry_bytes: ENTRY_BYTES,
+            },
+        )
+    }
+
+    /// Judges written locales as [`judged`] does, held to no bound in bytes.
+    ///
+    /// What a test of the bounds in characters reads: `é` is two bytes, and
+    /// a paragraph of it at its bound in characters is past the entry's in
+    /// bytes.
+    fn judged_in_characters(locales: &[Written]) -> Result<(), Vec<EntryProblem>> {
+        let in_locales: Vec<InLocale<'_>> = locales.iter().map(Written::texts).collect();
+        judge(
+            &Entry {
+                locales: &in_locales,
+                categories: &[],
+                glyph: None,
+                same_in_both: &[],
+            },
+            &Rules {
+                requires: &EVERY_TEXT,
+                categories: &[],
+                entry_bytes: u64::MAX,
             },
         )
     }
@@ -1023,7 +1107,7 @@ mod tests {
                 let mut locales = sound();
                 locales[at].set(text, Some(&at_the_bound));
                 assert_eq!(
-                    judged(&locales),
+                    judged_in_characters(&locales),
                     Ok(()),
                     "a {text} of exactly {} characters was refused",
                     text.bound()
@@ -1031,7 +1115,7 @@ mod tests {
                 let past = "é".repeat(text.bound() + 1);
                 locales[at].set(text, Some(&past));
                 assert_eq!(
-                    judged(&locales),
+                    judged_in_characters(&locales),
                     Err(vec![EntryProblem::TooLong {
                         locale: locales[at].locale.to_owned(),
                         text,
@@ -1191,6 +1275,7 @@ mod tests {
             &Rules {
                 requires: &[Text::DisplayName, Text::Line],
                 categories: &[],
+                entry_bytes: ENTRY_BYTES,
             },
         )
         .expect_err("a paragraph and tags are written");
@@ -1214,6 +1299,52 @@ mod tests {
                     text: Text::Tags
                 },
             ]
+        );
+    }
+
+    /// One locale's texts are held to the entry's bytes together, its tags
+    /// included with the quotation marks and the comma each is listed in, and
+    /// texts at the bound are not.
+    ///
+    /// **In bytes, not characters**: `ç` is two of them, so a paragraph of
+    /// 1,024 of it is inside its bound in characters and twice that in bytes.
+    #[test]
+    fn an_entry_past_its_bytes_is_refused_and_one_at_them_is_not() {
+        let mut locales = sound();
+        // Each tag is its own bytes and the two quotation marks and the comma
+        // the registry answer lists it in.
+        let others: usize = ["Desfazer", "Desfazer o seu último passo."]
+            .iter()
+            .map(|text| text.len())
+            .chain(["desfazer", "voltar atrás"].iter().map(|tag| tag.len() + 3))
+            .sum();
+        let room = usize::try_from(ENTRY_BYTES).expect("fits") - others;
+        locales[1].paragraph = Some("ç".repeat(room / 2) + &"a".repeat(room % 2));
+        assert_eq!(judged(&locales), Ok(()), "at the bound");
+        locales[1].tags = Some(vec![
+            "desfazer".to_owned(),
+            "voltar atrás".to_owned(),
+            "a".to_owned(),
+        ]);
+        assert_eq!(
+            judged(&locales),
+            Err(vec![EntryProblem::TooManyBytes {
+                locale: "pt-BR".to_owned(),
+                held: ENTRY_BYTES + 4,
+                most: ENTRY_BYTES,
+            }]),
+            "a tag of one character is four bytes past it, with the three it is listed in"
+        );
+        let said = EntryProblem::TooManyBytes {
+            locale: "pt-BR".to_owned(),
+            held: ENTRY_BYTES + 1,
+            most: ENTRY_BYTES,
+        }
+        .to_string();
+        assert_eq!(
+            said,
+            "has `pt-BR` texts of 2049 bytes together, each tag with the quotation marks and the \
+             comma it is listed in, past the 2048 an entry may hold in one locale"
         );
     }
 
