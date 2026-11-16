@@ -8096,12 +8096,25 @@ WEAKENINGS = [
     ("channel_keys", "checkouts_under", "a base that will not list refuses",
      "        Err(error) => return Err(unlisted(&error)),",
      "        Err(_) => return Ok(Vec::new()),"),
-    ("channel_keys", "checkouts_under", "more checkouts than the bound refuse",
-     "        if found.len() > CHANNELS_MAX {",
+    # **Installed checkouts are counted, and profiles only listed.** Every
+    # checkout ever installed leaves its profile, and one an uninstall left
+    # binds nothing, so the bound a configured Leader is refused past is on
+    # installed checkouts, and the listing's own bound is far past it.
+    ("channel_keys", "siblings", "more checkouts than the bound refuse",
+     "                if developments > CHANNELS_MAX {",
+     "                if false {"),
+    ("channel_keys", "siblings", "the bound itself does not refuse",
+     "                if developments > CHANNELS_MAX {",
+     "                if developments >= CHANNELS_MAX {"),
+    ("channel_keys", "checkouts_under", "more profiles than the listing's bound refuse",
+     "        if found.len() > PROFILES_MAX {",
      "        if false {"),
-    ("channel_keys", "checkouts_under", "the bound itself does not refuse",
-     "        if found.len() > CHANNELS_MAX {",
-     "        if found.len() >= CHANNELS_MAX {"),
+    ("channel_keys", "checkouts_under", "the listing's bound itself does not refuse",
+     "        if found.len() > PROFILES_MAX {",
+     "        if found.len() >= PROFILES_MAX {"),
+    ("channel_keys", "checkouts_under", "a profile an uninstall left is not counted as a checkout",
+     "        if found.len() > PROFILES_MAX {",
+     "        if found.len() > CHANNELS_MAX {"),
     ("channel_keys", "checkout_named", "a real install reads no test install's profile",
      "        None => rest,",
      "        None => rest.split('-').next()?,"),
@@ -8730,6 +8743,15 @@ WEAKENINGS = [
     ("fuzzy_align", "scattered", "a word start outweighs every adjacent pair",
      "    let start_at = |i: usize| START * u32::from(field.starts[i]);",
      "    let start_at = |i: usize| START * u32::from(false);"),
+    # **Narrowed, not zeroed**: each weight held to the width it must clear.
+    # A field of real length tells them apart, which the exhaustive law's
+    # ten characters cannot.
+    ("fuzzy_align", "NEXT", "an adjacent pair's weight is past every earliness",
+     "const NEXT: u32 = 1 << (usize::BITS - (FIELD_CHARS_MAX - 1).leading_zeros());",
+     "const NEXT: u32 = 1 << 4;"),
+    ("fuzzy_align", "START", "a word start's weight is past every count of pairs",
+     "const START: u32 = NEXT << (usize::BITS - (QUERY_CHARS_MAX - 1).leading_zeros());",
+     "const START: u32 = NEXT << 3;"),
     ("fuzzy_align", "scattered", "an adjacent pair adds its weight",
      "                Some(&cell) if i + 1 < n && cell > 0 => cell + NEXT,",
      "                Some(&cell) if i + 1 < n && cell > 0 => cell,"),

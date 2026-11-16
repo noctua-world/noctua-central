@@ -2874,16 +2874,20 @@ one table of at most the product of the two bounds, which the `Matcher` keeps an
 The matcher is a pure function of what it is handed: no I/O, no regular expression, no
 `unsafe`, no system `cfg`, and no panic on any character. Its score is packed into widths
 derived in `const` from the same bounds and kept below `2^53`, so a JSON client reads it
-exactly and no count of word starts lifts a match past a higher tier.
+exactly and no count of word starts lifts a match past a higher tier. The scattered
+alignment's table weighs one word start past every count of adjacent pairs and one pair past
+every earliness, each weight derived from the bound it must clear.
 
 **Enforced by** the bounds in `crates/nc-fuzzy/src/lib.rs` and the `const` assertions in
 `crates/nc-fuzzy/src/score.rs`; the unit tests beside them —
 `a_query_longer_than_its_bound_is_refused`, `a_field_is_read_to_its_bound`,
 `a_field_cut_at_its_bound_is_never_matched_whole`,
-`the_widest_score_a_query_can_reach_is_a_safe_json_integer`; and
+`the_widest_score_a_query_can_reach_is_a_safe_json_integer`, and, in
+`crates/nc-fuzzy/src/align.rs`, `an_adjacent_pair_outweighs_any_earliness` and
+`a_word_start_outweighs_any_count_of_pairs`, over fields of real length; and
 `crates/nc-fuzzy/tests/properties.rs`, whose laws run over arbitrary characters and
 fields past the bound (`no_text_and_no_query_makes_the_matcher_panic`) and whose last law
-holds every alignment chosen to an exhaustive search.
+holds the alignments of fields up to ten characters to an exhaustive search.
 
 **Not answered:** how many items a caller hands it — a list of a million costs a million
 matches, and a surface that matches a registry bounds the list and its answer itself, as
@@ -3244,8 +3248,10 @@ A Leader holding no modifier or its own chord modifier is refused for that befor
 other channel is listed or read, so what another channel's file says never changes that
 refusal. A file before it that its own reader would refuse is that channel's defaults; one this
 build cannot judge — of a later format, or one the disk did not answer for — a manifest
-the disk did not answer for, and a state base that will not list or holds more than
-`CHANNELS_MAX` checkouts refuse the configured Leader rather than guess (`NC-CHAN-0017`). Nothing of another channel is written, locked or
+the disk did not answer for, a state base that will not list or holds more than
+`PROFILES_MAX` development profiles, and more than `CHANNELS_MAX` installed checkouts
+refuse the configured Leader rather than guess (`NC-CHAN-0017`); a profile an uninstall
+left is listed and binds nothing, so it counts against the listing's bound alone. Nothing of another channel is written, locked or
 removed: its profile directories are listed, its manifest asked whether it is there, and
 its file judged and read.
 
@@ -3267,8 +3273,10 @@ it could not read; a choice past the file's bound is refused before it is writte
 a writer judges is the file its reader reads; what a refusal quotes of the file is escaped
 and cut, and a command's name is repeated whole once it is well-formed; a refused bindings part
 keeps the configured Leader, and the reverse; a file before it that its reader refuses is
-that channel's defaults, while one of a later format, more checkouts than are read and a
-base that will not list refuse the configured Leader; another namespace's installs are
+that channel's defaults, while one of a later format, more installed checkouts than are
+read, more profiles than a listing reads and a base that will not list refuse the
+configured Leader, and as many profiles an uninstall left as the checkouts' bound and one
+more refuse nothing; another namespace's installs are
 never read; and a read leaves every file and directory under the bases as it was — by the
 unit tests of `crates/nc-channel/src/keys.rs`, which hold a profile directory's name to
 the leaf `layout` writes in both directions and a configuration to the file's bound, and

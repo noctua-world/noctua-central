@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 
 use nc_catalog::ErrorCode;
 use nc_channel::found::{self, Found};
-use nc_channel::keys::{self, CHANNELS_MAX, Configuration, Effective, KeysRefused, Part};
+use nc_channel::keys::{
+    self, CHANNELS_MAX, Configuration, Effective, KeysRefused, PROFILES_MAX, Part,
+};
 use nc_channel::{Bases, Channel, Checkout, Install, Namespace, layout};
 use nc_schema::keys::{Binding, Chord, Leader, LeaderPart, LeaderRule, Modifier, Warning};
 
@@ -1039,32 +1041,46 @@ fn a_checkout_whose_predecessor_cannot_be_judged_keeps_its_default_leader() {
     assert_the_leader(&keys::effective(&developed), "Control+Super+Space");
 }
 
-/// More checkouts than are read, or a state base that cannot be listed,
-/// refuses the configured Leader.
+/// More installed checkouts than are read, or a state base that cannot be
+/// listed, refuses the configured Leader, and profiles an uninstall left
+/// refuse nothing.
 ///
 /// Rather than judge it against some of the channels beside it, the default
-/// stands.
+/// stands. **Only an installed checkout counts**: every checkout ever installed
+/// keeps its profile when it is uninstalled, and one whose manifest is gone
+/// binds nothing, so as many of those as the bound and one more refuse nothing.
 #[test]
 fn checkouts_past_their_bound_or_a_base_that_will_not_list_refuse_the_configured_leader() {
     let scratch = Scratch::new("bound");
     let staging = scratch.installed(Channel::Staging, HERE);
     scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+F12"));
-    for digest in 1..=CHANNELS_MAX {
-        let leftover = Checkout::parse(&format!("f{digest:07x}")).expect("eight digits");
+    let mut leftovers = Vec::new();
+    for digest in 1..=CHANNELS_MAX + 1 {
+        let leftover = Checkout::parse(&format!("e{digest:07x}")).expect("eight digits");
         let names = layout(
             &scratch.install(Channel::Development(leftover), HERE),
             "scratch",
         );
         scratch.made(&names.state);
+        leftovers.push(names.state);
     }
     assert_the_leader(&keys::effective(&staging), "Control+Alt+F12");
-    let one_more = layout(&scratch.install(development("f1000000"), HERE), "scratch");
-    scratch.made(&one_more.state);
+    for leftover in &leftovers {
+        std::fs::remove_dir(leftover).expect("the leftover is removed");
+    }
+    for digest in 1..=CHANNELS_MAX {
+        scratch.installed(development(&format!("f{digest:07x}")), HERE);
+    }
+    assert_the_leader(&keys::effective(&staging), "Control+Alt+F12");
+    let one_more = development("f1000000");
+    scratch.installed(one_more, HERE);
     let refused = keys::effective(&staging);
     assert!(
         the_refusal(&refused, ErrorCode::ChannelKeybindingsUnjudged)
             .to_string()
-            .contains(&format!("more than {CHANNELS_MAX} development checkouts")),
+            .contains(&format!(
+                "more than {CHANNELS_MAX} development checkouts are installed"
+            )),
         "{refused:?}"
     );
     // **Rule 1 before the checkouts are listed**: a part that breaks it is
@@ -1076,7 +1092,7 @@ fn checkouts_past_their_bound_or_a_base_that_will_not_list_refuse_the_configured
         None,
     );
     scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+F12"));
-    std::fs::remove_dir(&one_more.state).expect("the leftover is removed");
+    scratch.uninstalled(one_more, HERE);
     assert_the_leader(&keys::effective(&staging), "Control+Alt+F12");
 
     nc_platform::testing::hide_its_entries(&scratch.0.join("s")).expect("the base is hidden");
@@ -1088,6 +1104,37 @@ fn checkouts_past_their_bound_or_a_base_that_will_not_list_refuse_the_configured
         "{unlisted:?}"
     );
     nc_platform::testing::make_private(&scratch.0.join("s")).expect("listed again");
+}
+
+/// Profiles past what a listing reads refuse the configured Leader, and
+/// as many as it reads refuse nothing.
+///
+/// **The listing's own bound**, far past the installed checkouts' because
+/// every checkout ever installed leaves a profile: each is asked whether its
+/// manifest is there, and this bounds how many are asked.
+#[test]
+fn profiles_past_what_a_listing_reads_refuse_the_configured_leader() {
+    let scratch = Scratch::new("profiles");
+    let staging = scratch.installed(Channel::Staging, HERE);
+    scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+F12"));
+    for digest in 1..=PROFILES_MAX {
+        let leftover = Checkout::parse(&format!("d{digest:07x}")).expect("eight digits");
+        let names = layout(
+            &scratch.install(Channel::Development(leftover), HERE),
+            "scratch",
+        );
+        scratch.made(&names.state);
+    }
+    assert_the_leader(&keys::effective(&staging), "Control+Alt+F12");
+    let one_more = layout(&scratch.install(development("d1000000"), HERE), "scratch");
+    scratch.made(&one_more.state);
+    let refused = keys::effective(&staging);
+    assert!(
+        the_refusal(&refused, ErrorCode::ChannelKeybindingsUnjudged)
+            .to_string()
+            .contains(&format!("more than {PROFILES_MAX} development profiles")),
+        "{refused:?}"
+    );
 }
 
 /// An install never reads a configuration under another namespace, under the

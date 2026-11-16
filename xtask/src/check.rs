@@ -19591,15 +19591,15 @@ mod the_frozen_path_rule {
         ("nc-catalog/wiki.rs", 6, 2),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            40,
+            41,
             3,
         ),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 46, 12),
+        ("nc-channel/keys.rs", 47, 12),
         ("nc-channel/lib.rs", 59, 15),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/the_names_are_disjoint.rs", 28, 0),
-        ("nc-fuzzy/align.rs", 19, 13),
+        ("nc-fuzzy/align.rs", 21, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
         ("nc-fuzzy/lib.rs", 5, 9),
         ("nc-fuzzy/properties.rs", 27, 1),
@@ -22528,8 +22528,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 840 scratches this tree
-    /// builds, 752 of the 840 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 841 scratches this tree
+    /// builds, 753 of the 841 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22621,8 +22621,8 @@ mod the_frozen_path_rule {
         ),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            19,
-            19,
+            20,
+            20,
         ),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
@@ -25681,7 +25681,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20119;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20127;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25751,7 +25751,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26813;
+    const THE_REARRANGEMENTS_JUDGED: usize = 26833;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25805,7 +25805,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,813 are accepted by the first-line
+    /// rules the gates apply: **518 of 26,833 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37758,7 +37758,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2486] = [
+    static OPERATORS: [(&str, &str, &str); 2491] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47823,13 +47823,28 @@ Options:
         ),
         (
             "channel_keys",
-            "checkouts_under",
+            "siblings",
             "more checkouts than the bound refuse",
         ),
         (
             "channel_keys",
-            "checkouts_under",
+            "siblings",
             "the bound itself does not refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "more profiles than the listing's bound refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "the listing's bound itself does not refuse",
+        ),
+        (
+            "channel_keys",
+            "checkouts_under",
+            "a profile an uninstall left is not counted as a checkout",
         ),
         (
             "channel_keys",
@@ -48763,6 +48778,16 @@ Options:
             "fuzzy_align",
             "scattered",
             "a word start outweighs every adjacent pair",
+        ),
+        (
+            "fuzzy_align",
+            "NEXT",
+            "an adjacent pair's weight is past every earliness",
+        ),
+        (
+            "fuzzy_align",
+            "START",
+            "a word start's weight is past every count of pairs",
         ),
         (
             "fuzzy_align",
