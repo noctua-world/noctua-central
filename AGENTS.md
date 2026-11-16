@@ -3069,7 +3069,9 @@ catalog has, named for an entry of that registry, in the format its lower-case e
 locale and in one format across them — is held to 64 KiB with nothing a reader cannot see
 but its line breaks, and every path of the tree is read as what it is, never through a link:
 a link, or a file where a directory belongs, is refused as misplaced, so the walk reads
-nothing outside `catalog/wiki/`. A text missing from a locale names its entry and the text
+nothing outside `catalog/wiki/`; and a locale's directory is told by its name byte for byte,
+never by a lookup a file system folds, so one named for a locale in another case is
+misplaced on every system. A text missing from a locale names its entry and the text
 it is. Anything else fails the build, and nothing is generated while a problem stands.
 
 **Enforced by** `crates/nc-schema/src/entry.rs` — `judge`, `glyph` and `judge_wiki`, a unit
@@ -3128,9 +3130,11 @@ handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-
 the command's own name, its line and paragraph and its argument schema as written, once it
 compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
 person's words, and no tool carries them. No value a page publishes ends what it is in:
-every cell goes through `cell`, every fenced block is fenced longer than any run of
+every cell goes through `cell`; a standard name and an identification value, the values set
+as code that may hold any printable character, go through `code`, whose fence is longer than
+any run of backticks in it and whose text no Markdown escape reaches; every fenced block is fenced longer than any run of
 backticks in it, and a tool is JSON written by `serde_json`, so a text holding a bar, a
-backtick, a quotation mark or a line break shows as that text.
+backtick, a backslash, a quotation mark or a line break shows as that text.
 
 **Enforced by** `a_hand_edit_to_any_generated_page_is_drift` in `xtask/src/check.rs`, which
 edits every page the compiler emits, one at a time, and holds the emitted pages to the
@@ -3142,9 +3146,11 @@ another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 `crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
 `crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
-`crates/nc-catalog-compiler/src/docs.rs`, and
-`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` beside the compiler's gates, over
-the commands page and the MCP page alike; and `xtask/tests/the_pages_reach_the_catalog.rs`,
+`crates/nc-catalog-compiler/src/docs.rs`, with
+`a_value_written_as_code_is_shown_as_its_system_writes_it` beside it, and
+`a_run_of_backticks_in_a_schema_ends_no_block_on_any_page` and
+`a_standard_name_reaches_its_page_as_its_standard_writes_it` beside the compiler's gates,
+over the commands page, the MCP page and the categories page; and `xtask/tests/the_pages_reach_the_catalog.rs`,
 which holds each page to the CLI's tables, `nc_channel`'s Leaders, `nc_schema::keys`'
 vocabulary and system shortcuts, and help itself. The files a surface is built from are
 read by the determinism gate as the emitter is (`EMITS`).

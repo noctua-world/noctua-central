@@ -3393,6 +3393,12 @@ WEAKENINGS = [
     ("compiler_metadata", "wiki", "the wiki tree is not read through a link standing for it",
      "    match std::fs::symlink_metadata(&top) {",
      "    match std::fs::metadata(&top) {"),
+    # A locale whose file failed to load is told by its name as written,
+    # so a directory named for it in another case is refused on every
+    # system, as a folding file system would otherwise skip it.
+    ("compiler_metadata", "wiki", "a wiki locale directory is skipped only for a locale file of its name byte for byte",
+     "&& unloaded.contains(&locale) {",
+     "&& unloaded.iter().any(|stem| stem.eq_ignore_ascii_case(&locale)) {"),
     ("compiler_metadata", "listed", "no path under the wiki tree is read through a link",
      "            let kind = entry.file_type().ok()?;",
      "            let kind = std::fs::metadata(entry.path()).ok()?.file_type();"),
@@ -8853,6 +8859,9 @@ WEAKENINGS = [
     ("pages", "mcp_tools", "the MCP page holds each command's tool in every locale",
      "        for tag in tags(catalog) {",
      "        for tag in tags(catalog).into_iter().take(1) {"),
+    ("pages", "a_sets_categories", "a standard name is written as code and not escaped as a cell's text",
+     "                    .map_or_else(|| \"—\".to_owned(), code),",
+     "                    .map_or_else(|| \"—\".to_owned(), |name| format!(\"`{}`\", cell(name))),"),
     ("schema_entry", "as_tool", "a tool is called by its command's name",
      "    tool.insert(\"name\".to_owned(), Value::String(shown.name.to_owned()));",
      "    tool.insert(\"name\".to_owned(), Value::String(shown.display_name.to_owned()));"),
