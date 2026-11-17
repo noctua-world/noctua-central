@@ -19552,7 +19552,7 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 20, 8),
-        ("cli/chosen.rs", 24, 10),
+        ("cli/chosen.rs", 26, 10),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
@@ -22565,8 +22565,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 871 scratches this tree
-    /// builds, 783 of the 871 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 872 scratches this tree
+    /// builds, 784 of the 872 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22634,7 +22634,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 63] = [
         ("cli/checkouts.rs", 5, 5),
-        ("cli/chosen.rs", 5, 5),
+        ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 18, 18),
@@ -25724,7 +25724,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20560;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20568;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25743,7 +25743,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5468;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5465;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25760,7 +25760,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1847;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1846;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25794,7 +25794,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27325;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27339;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25848,7 +25848,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,325 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,339 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25881,7 +25881,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1847 of
+    /// this tree offers, **1846 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37852,7 +37852,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2559] = [
+    static OPERATORS: [(&str, &str, &str); 2563] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48868,6 +48868,26 @@ Options:
             "a bin directory another account may write in is refused",
         ),
         ("cli_chosen", "removed", "a launcher's pointer goes with it"),
+        (
+            "cli_chosen",
+            "cleared",
+            "what an interrupted pointing left is removed only when it names a checkout's CLI here",
+        ),
+        (
+            "cli_chosen",
+            "cleared",
+            "a temporary launcher is removed only when it holds the launcher's own bytes",
+        ),
+        (
+            "cli_chosen",
+            "cleared",
+            "what stands at a temporary link's name is refused unless it is a link",
+        ),
+        (
+            "cli_chosen",
+            "point",
+            "a launcher's temporary pointer is judged before the launcher is written",
+        ),
         (
             "cli_checkouts",
             "named",

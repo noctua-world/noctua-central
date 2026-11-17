@@ -2076,7 +2076,10 @@ regular file, a link anywhere else, a launcher with no pointer and one pointing 
 are refused, named and left as they were. The install judges it before anything is
 stopped or written, so a refusal leaves an earlier install running and untouched, and
 points it last. It is pointed through a new link or file made beside it, synced and
-renamed over it, so it names the old CLI or the new one at every moment. **A launcher runs
+renamed over it, so it names the old CLI or the new one at every moment; what an
+interrupted pointing left at that temporary name is removed only when it is what this
+install writes there — a link or a pointer to such a CLI, or the very launcher being made
+— and refused, named and left as it was otherwise. **A launcher runs
 nothing it did not read privately**: its directory judged as above and its pointer this
 user's alone, read no further than `RECORD_BYTES_MAX`, naming a plain absolute path,
 before it runs that CLI with every argument and its standard streams, ending with its exit
@@ -2090,7 +2093,8 @@ copies to the clipboard's tool on its standard input, never as an argument.
 
 **Enforced by** the tests of `apps/cli/src/chosen.rs` — a name made, pointed again and
 removed as a link and as a launcher, a regular file, a link elsewhere, a launcher with no
-pointer and one pointing at another namespace's CLI each refused and left as it was, a
+pointer and one pointing at another namespace's CLI each refused and left as it was, what
+an interrupted pointing left beside the name cleared only when this install wrote it, a
 bin directory another account may write in refused with nothing written, and a target
 taken as a checkout's CLI only where the layout names one — of `apps/cli/src/install.rs`,
 where an install makes the name and records its checkout, a second checkout's points it

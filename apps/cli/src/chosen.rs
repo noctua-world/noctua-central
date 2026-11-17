@@ -25,11 +25,13 @@
 //! launcher whose pointer is this user's alone — to exactly the CLI
 //! `nc_channel::layout` names for a development checkout of this install's
 //! bases and namespace; anything else, a regular file or a link elsewhere
-//! included, is refused, named, and left as it was. **And the directory must
-//! be this user's**, and no other account may write in it
-//! (`nc_platform::judge_written_by_user_alone`): one another account could add
-//! to would let it choose what the person runs. A directory that is missing
-//! is made, each level private.
+//! included, is refused, named, and left as it was. What an interrupted
+//! pointing left at the temporary name beside it is held the same way:
+//! removed only when it is a link or a pointer to such a CLI, or the very
+//! launcher being made. **And the directory must be this user's**, and no
+//! other account may write in it (`nc_platform::judge_written_by_user_alone`):
+//! one another account could add to would let it choose what the person runs.
+//! A directory that is missing is made, each level private.
 //!
 //! # What this does not answer
 //!
@@ -253,23 +255,27 @@ pub fn point(
     match reach {
         Reach::Link => {
             let beside = beside(link);
-            cleared(&beside, true, user)?;
+            cleared(&beside, Left::Link, install, user)?;
             nc_platform::link(cli, &beside).map_err(|error| failed("made", &beside, &error))?;
             renamed(&beside, link)
         }
         Reach::Launcher => {
+            let pointer_at = pointer_beside(link);
+            // Both temporary names are judged before either file is written.
+            cleared(&beside(&pointer_at), Left::Pointer, install, user)?;
             if std::fs::symlink_metadata(link).is_err() {
                 let bytes =
                     std::fs::read(launcher).map_err(|error| failed("read", launcher, &error))?;
-                written(link, &bytes, true, user)?;
+                written(link, &bytes, Left::Launcher(&bytes), install, user)?;
             }
             let pointer = Pointer {
                 cli: cli.to_path_buf(),
             };
             written(
-                &pointer_beside(link),
+                &pointer_at,
                 pointer.to_canonical().as_bytes(),
-                false,
+                Left::Pointer,
+                install,
                 user,
             )
         }
@@ -308,33 +314,86 @@ fn beside(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
-/// What an interrupted write left at `beside` removed: a link, where `link`
-/// says one is what it left, or a file this user's alone.
-fn cleared(beside: &Path, link: bool, user: &User) -> Result<(), Unpointed> {
-    let left = match std::fs::symlink_metadata(beside) {
+/// What a pointing writes at the temporary name beside the name it changes.
+///
+/// **What an interrupted one left there is removed only when it is this**,
+/// and refused, named and left as it was otherwise.
+#[derive(Debug, Clone, Copy)]
+enum Left<'a> {
+    /// A symbolic link to a checkout's CLI.
+    Link,
+    /// A launcher's pointer naming a checkout's CLI.
+    Pointer,
+    /// A launcher: these bytes, runnable.
+    Launcher(&'a [u8]),
+}
+
+/// What an interrupted write left at `beside` removed, once it reads as
+/// what `left` says is written there for `install`.
+///
+/// **Refused, named and left as it was otherwise**, as the name itself is:
+/// the temporary name is in the person's bin directory too.
+fn cleared(beside: &Path, left: Left<'_>, install: &Install, user: &User) -> Result<(), Unpointed> {
+    let found = match std::fs::symlink_metadata(beside) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(failed("read", beside, &error)),
         Ok(found) => found,
     };
-    if link {
-        if !left.file_type().is_symlink() {
-            return Err(refused_at(beside, "is not a symbolic link"));
+    let target = match left {
+        Left::Link if found.file_type().is_symlink() => {
+            std::fs::read_link(beside).map_err(|error| failed("read", beside, &error))?
         }
-    } else {
-        nc_platform::judge(beside, Kind::File, user).map_err(|judged| match judged {
-            Judged::Refused(refused) => refused_at(beside, &format!("was refused: {refused}")),
-            Judged::Failed(failure) => Unpointed::Failed(failure.to_string()),
-        })?;
+        Left::Link => return Err(refused_at(beside, "is not a symbolic link")),
+        Left::Pointer => {
+            let Some(text) = nc_channel::checkouts::read_bounded(beside, user)
+                .map_err(|what| refused_at(beside, &format!("was not read: {what}")))?
+            else {
+                return Ok(());
+            };
+            Pointer::parse(&text)
+                .map_err(|what| refused_at(beside, &format!("does not read as a pointer: {what}")))?
+                .cli
+        }
+        Left::Launcher(bytes) => {
+            nc_platform::judge(beside, Kind::File, user).map_err(|judged| match judged {
+                Judged::Refused(refused) => refused_at(beside, &format!("was refused: {refused}")),
+                Judged::Failed(failure) => Unpointed::Failed(failure.to_string()),
+            })?;
+            let same = u64::try_from(bytes.len()).is_ok_and(|length| length == found.len())
+                && std::fs::read(beside).map_err(|error| failed("read", beside, &error))? == bytes;
+            if !same {
+                return Err(refused_at(
+                    beside,
+                    "holds other bytes than the launcher being made",
+                ));
+            }
+            return std::fs::remove_file(beside).map_err(|error| failed("removed", beside, &error));
+        }
+    };
+    if !is_a_checkouts_cli(&target, install) {
+        return Err(refused_at(
+            beside,
+            &format!(
+                "points at `{}`, which is no development checkout's CLI here",
+                target.display()
+            ),
+        ));
     }
     std::fs::remove_file(beside).map_err(|error| failed("removed", beside, &error))
 }
 
-/// `bytes` written at `path` through a private file beside it, runnable
-/// when `executable`, synced and renamed over it.
-fn written(path: &Path, bytes: &[u8], executable: bool, user: &User) -> Result<(), Unpointed> {
+/// `bytes` written at `path` through a private file beside it, runnable for
+/// a launcher, synced and renamed over it; `left` is what it is.
+fn written(
+    path: &Path,
+    bytes: &[u8],
+    left: Left<'_>,
+    install: &Install,
+    user: &User,
+) -> Result<(), Unpointed> {
     let beside = beside(path);
-    cleared(&beside, false, user)?;
-    let mut file = if executable {
+    cleared(&beside, left, install, user)?;
+    let mut file = if matches!(left, Left::Launcher(_)) {
         nc_platform::create_private_executable(&beside)
     } else {
         nc_platform::create_private(&beside)
@@ -530,6 +589,86 @@ mod tests {
                 Ok(Some(theirs)),
                 "it was changed"
             );
+        }
+    }
+
+    /// What stands at a temporary name beside the name is cleared only when
+    /// this install writes it there, and refused and left as it was otherwise.
+    ///
+    /// **A link elsewhere, a person's file and a pointer elsewhere** are each
+    /// refused, named, left, and nothing is pointed; a link or a pointer to a
+    /// checkout's CLI here, and the launcher's own bytes, are cleared.
+    #[test]
+    fn what_an_interrupted_pointing_left_is_cleared_only_when_this_install_wrote_it() {
+        for reach in reaches() {
+            let scratch = Scratch::new(&format!("beside-{reach:?}"));
+            let user = user(&scratch);
+            let ours = scratch.install("0000000a", "tc6");
+            let elsewhere = scratch.install("0000000a", "tc7");
+            let (cli, theirs) = (cli_of(&layout(&ours, "")), cli_of(&layout(&elsewhere, "")));
+            let another = cli_of(&layout(&scratch.install("0000000b", "tc6"), ""));
+            let launcher = scratch.file("launcher", "the CLI's bytes");
+            let bin = scratch.0.join("bin");
+            nc_platform::create_private_directory(&bin).expect("a bin directory");
+            let link = super::link_in(&bin, &ours).expect("a name");
+            let refused_and_left = |at: &Path, what: &str| {
+                let refused =
+                    super::point(&link, &cli, &ours, reach, &launcher, &user).expect_err(what);
+                assert!(
+                    matches!(&refused, Unpointed::Refused(said) if said.contains(&at.display().to_string())),
+                    "{what}: {refused}"
+                );
+                assert!(std::fs::symlink_metadata(at).is_ok(), "{what} was removed");
+                assert_eq!(
+                    super::pointed(&link, reach, &user),
+                    Ok(None),
+                    "{what}: pointed"
+                );
+            };
+            let temporary = super::beside(&link);
+            if reach == Reach::Link {
+                nc_platform::link(&theirs, &temporary).expect("a link elsewhere");
+                refused_and_left(&temporary, "a link elsewhere");
+                assert_eq!(std::fs::read_link(&temporary).expect("left"), theirs);
+                std::fs::remove_file(&temporary).expect("removed");
+                std::fs::write(&temporary, "a person's own file").expect("a file");
+                refused_and_left(&temporary, "a file where a link is made");
+                std::fs::remove_file(&temporary).expect("removed");
+                nc_platform::link(&another, &temporary).expect("a link left behind");
+            } else {
+                std::fs::write(&temporary, "a person's own file").expect("a file");
+                nc_platform::testing::make_private(&temporary).expect("private");
+                refused_and_left(&temporary, "a person's file where a launcher is made");
+                assert_eq!(
+                    std::fs::read_to_string(&temporary).expect("left"),
+                    "a person's own file"
+                );
+                std::fs::write(&temporary, "the CLI's bytes").expect("a launcher left behind");
+                let pointer = super::beside(&pointer_beside(&link));
+                let pointing = |cli: &Path| {
+                    std::fs::write(
+                        &pointer,
+                        nc_channel::checkouts::Pointer {
+                            cli: cli.to_path_buf(),
+                        }
+                        .to_canonical(),
+                    )
+                    .expect("a pointer");
+                    nc_platform::testing::make_private(&pointer).expect("private");
+                };
+                pointing(&theirs);
+                refused_and_left(&pointer, "a pointer elsewhere");
+                let left = std::fs::read_to_string(&pointer).expect("left");
+                assert_eq!(
+                    nc_channel::checkouts::Pointer::parse(&left).map(|left| left.cli),
+                    Ok(theirs.clone())
+                );
+                pointing(&another);
+            }
+            super::point(&link, &cli, &ours, reach, &launcher, &user).expect("cleared and pointed");
+            assert_eq!(super::pointed(&link, reach, &user), Ok(Some(cli.clone())));
+            assert!(!temporary.exists(), "what was left stays");
+            assert!(!super::beside(&pointer_beside(&link)).exists());
         }
     }
 
