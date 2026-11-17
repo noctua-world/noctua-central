@@ -305,6 +305,7 @@ mod tests {
 
     use crate::exit::Exit;
     use crate::install::{Chosen, Installed, Plan};
+    use crate::picker::Entry;
     use crate::render::Env;
 
     /// A scratch home for one test, removed however the test leaves.
@@ -440,6 +441,58 @@ mod tests {
                 "a checkout with no record is dated by its manifest"
             );
         }
+    }
+
+    /// The picker lists the checkout installed most recently first, and marks
+    /// the one `noctua-dev` reaches and no other.
+    ///
+    /// **A checkout that records nothing is placed by its manifest's last
+    /// write**, among the others by their records, and says how to record one.
+    #[test]
+    fn the_picker_lists_the_checkout_installed_last_first_and_marks_the_one_reached() {
+        let scratch = Scratch::new("ordered");
+        let newest = scratch.installed("0000000a", "tl5", 3_000);
+        scratch.installed("0000000b", "tl5", 1_000);
+        let unrecorded = scratch.installed("0000000c", "tl5", 2_000);
+        let layout = &unrecorded.found.layout;
+        std::fs::remove_file(layout.checkout_record.as_ref().expect("a record"))
+            .expect("an install from before records");
+        let between = std::time::UNIX_EPOCH + std::time::Duration::from_millis(1_500);
+        nc_platform::set_modified(&layout.manifest, between).expect("dated");
+        let user = &newest.found.user;
+        let listed = nc_channel::checkouts::listed(&newest.found.install, user).expect("listed");
+        let link = crate::install::newest_link(&listed).expect("where the name lives");
+        let now = crate::chosen::pointed(&link, nc_platform::REACH, user)
+            .expect("read")
+            .and_then(|target| nc_channel::checkouts::pointed_at(&target, &listed));
+        assert_eq!(
+            now,
+            nc_channel::Checkout::parse("0000000c").ok(),
+            "the name reaches the checkout installed last"
+        );
+        let directory = |digest: &str| {
+            Some(
+                scratch
+                    .0
+                    .join(format!("checkout-{digest}"))
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        };
+        let entry = |digest: &str, directory: Option<String>, note: &str, chosen: bool| Entry {
+            digest: digest.to_owned(),
+            directory,
+            note: note.to_owned(),
+            chosen,
+        };
+        assert_eq!(
+            super::entries(&super::newest_first(&listed), now),
+            [
+                entry("0000000a", directory("0000000a"), "", false),
+                entry("0000000c", None, super::UNRECORDED, true),
+                entry("0000000b", directory("0000000b"), "", false),
+            ]
+        );
     }
 
     /// The install time listed for the checkout at `at`.

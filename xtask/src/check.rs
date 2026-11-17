@@ -19531,7 +19531,7 @@ mod the_frozen_path_rule {
     const DOCUMENTED: [(&str, usize, usize); 226] = [
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
-        ("cli/checkouts.rs", 19, 8),
+        ("cli/checkouts.rs", 20, 8),
         ("cli/chosen.rs", 24, 10),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
@@ -22545,8 +22545,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 870 scratches this tree
-    /// builds, 782 of the 870 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 871 scratches this tree
+    /// builds, 783 of the 871 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22613,7 +22613,7 @@ mod the_frozen_path_rule {
     /// its place moves the second while the first does not.
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 63] = [
-        ("cli/checkouts.rs", 4, 4),
+        ("cli/checkouts.rs", 5, 5),
         ("cli/chosen.rs", 5, 5),
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
@@ -25704,7 +25704,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20556;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20558;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25774,7 +25774,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27315;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27320;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25828,7 +25828,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,315 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,320 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37823,7 +37823,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2556] = [
+    static OPERATORS: [(&str, &str, &str); 2558] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48858,6 +48858,16 @@ Options:
             "cli_checkouts",
             "chosen",
             "a choice points the name at the chosen checkout's CLI",
+        ),
+        (
+            "cli_checkouts",
+            "newest_first",
+            "the picker lists the checkout installed most recently first",
+        ),
+        (
+            "cli_checkouts",
+            "entries",
+            "the picker marks the checkout noctua-dev reaches",
         ),
         (
             "cli_picker",
