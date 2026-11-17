@@ -19561,7 +19561,7 @@ mod the_frozen_path_rule {
         ("cli/launcher.rs", 13, 6),
         ("cli/lib.rs", 1, 13),
         ("cli/main.rs", 7, 5),
-        ("cli/picker.rs", 31, 5),
+        ("cli/picker.rs", 33, 5),
         ("cli/render.rs", 25, 4),
         ("cli/run.rs", 28, 5),
         ("cli/terminal.rs", 14, 21),
@@ -25724,7 +25724,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20577;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20583;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25743,7 +25743,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5469;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5475;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25760,7 +25760,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1848;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1850;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25794,7 +25794,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27358;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27370;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25848,7 +25848,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,358 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,370 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25881,7 +25881,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1848 of
+    /// this tree offers, **1850 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37852,7 +37852,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2565] = [
+    static OPERATORS: [(&str, &str, &str); 2568] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48944,6 +48944,21 @@ Options:
         ("cli_picker", "fitted", "a line cut ends in an ellipsis"),
         ("cli_picker", "marked", "a matched position is highlighted"),
         ("cli_picker", "plain", "a text the picker draws is escaped"),
+        (
+            "cli_picker",
+            "opened",
+            "a directory longer than a name is read is read again from a later word",
+        ),
+        (
+            "cli_picker",
+            "opened",
+            "a backslash splits a directory's words as it splits a path's names",
+        ),
+        (
+            "cli_picker",
+            "matched",
+            "a position found in a later read of a directory is drawn where it is",
+        ),
         ("cli_terminal", "drop", "the guard leaves the terminal"),
         ("cli_terminal", "read_key", "a release is no key"),
         ("cli_terminal", "read_key", "Ctrl-C leaves the picker"),

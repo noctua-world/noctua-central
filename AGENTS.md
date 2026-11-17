@@ -4035,6 +4035,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   build's, so a choice rewrites the pointer alone.
 - **The picker counts a character as one column**: a character a terminal draws two
   columns wide makes its line that much wider than the width it was cut to.
+- **The picker matches a word of a directory within `nc_fuzzy::FIELD_CHARS_MAX`
+  characters**: a longer directory is read again from each word the read before does not
+  hold whole, so every word is reached, but one word longer than that is matched within
+  its first that many alone.
 - **`noctua-dev` is the development channel's alone**: putting `noctua` and
   `noctua-staging` on `PATH` is the installers' (Stage 19), and nothing edits a shell's
   start-up files, the registry or `PATH` itself.

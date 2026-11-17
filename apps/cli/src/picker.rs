@@ -8,6 +8,11 @@
 //! The empty query lists every checkout in the order given, and the best match
 //! is selected each time the query changes.
 //!
+//! **Every word of a directory is reached, however long it is**: the matcher
+//! reads a name to `nc_fuzzy::FIELD_CHARS_MAX` characters, so a longer
+//! directory is read again from each word the name before does not hold whole,
+//! and a position found there is drawn where it is in the whole directory.
+//!
 //! **Every text from disk is escaped for the terminal** before it is drawn
 //! ([`crate::render::escaped`]): a directory's name is whatever the disk holds.
 //! A character drawn as its escape is highlighted whole when it is matched.
@@ -28,7 +33,8 @@
 //! # What this does not answer
 //!
 //! A character a terminal draws two columns wide, which a line counts as
-//! one.
+//! one; and a word of a directory longer than `nc_fuzzy::FIELD_CHARS_MAX`
+//! characters, which is matched within that many alone.
 
 use nc_fuzzy::{Item, Matcher, Query, Role};
 
@@ -81,7 +87,8 @@ pub enum Step {
 /// The field of an item that holds the digest.
 const DIGEST: usize = 0;
 
-/// The field of an item that holds the directory.
+/// The field of an item that holds the directory, and the first of those that
+/// hold it from a later word on.
 const DIRECTORY: usize = 1;
 
 /// The line that says what the keys do, drawn above the query.
@@ -117,6 +124,9 @@ pub struct Picker {
     entries: Vec<Entry>,
     /// Each entry read once into the fields a query is matched against.
     items: Vec<Item>,
+    /// Where each entry's directory fields open in its directory, as `char`
+    /// indices.
+    openings: Vec<Vec<usize>>,
     /// The one matcher, kept between keys.
     matcher: Matcher,
     /// What has been typed.
@@ -132,18 +142,24 @@ impl Picker {
     /// given, the first selected.
     #[must_use]
     pub fn new(entries: Vec<Entry>) -> Self {
-        let items = entries
-            .iter()
-            .map(|entry| {
-                Item::new([
-                    (Role::Name, entry.digest.as_str()),
-                    (Role::Name, entry.directory.as_deref().unwrap_or_default()),
-                ])
-            })
-            .collect();
+        let mut items = Vec::with_capacity(entries.len());
+        let mut openings = Vec::with_capacity(entries.len());
+        for entry in &entries {
+            let directory = entry.directory.as_deref().unwrap_or_default();
+            let opened = opened(directory);
+            items.push(Item::new(
+                std::iter::once((Role::Name, entry.digest.as_str())).chain(
+                    opened
+                        .iter()
+                        .map(|&(_, byte)| (Role::Name, directory.get(byte..).unwrap_or_default())),
+                ),
+            ));
+            openings.push(opened.into_iter().map(|(at, _)| at).collect());
+        }
         let mut picker = Self {
             entries,
             items,
+            openings,
             matcher: Matcher::new(),
             query: String::new(),
             shown: Vec::new(),
@@ -227,10 +243,14 @@ impl Picker {
                     directory: Vec::new(),
                 };
                 for hit in ranked.found().hits() {
-                    match hit.field() {
-                        DIGEST => shown.digest.extend_from_slice(hit.positions()),
-                        DIRECTORY => shown.directory.extend_from_slice(hit.positions()),
-                        _ => {}
+                    if hit.field() == DIGEST {
+                        shown.digest.extend_from_slice(hit.positions());
+                    } else if let Some(&open) =
+                        self.openings[ranked.index()].get(hit.field().saturating_sub(DIRECTORY))
+                    {
+                        shown
+                            .directory
+                            .extend(hit.positions().iter().map(|at| at + open));
                     }
                 }
                 shown
@@ -272,6 +292,38 @@ impl Picker {
         }
         lines
     }
+}
+
+/// Where each field `directory` is read as opens, as a `char` index and a byte
+/// index: at its start, and at each word the field opened before does not
+/// read whole.
+///
+/// So every word of it up to `nc_fuzzy::FIELD_CHARS_MAX` characters long is
+/// read whole by one field. Its words are split where `nc_fuzzy` splits a
+/// name's, and at a backslash, which joins a path's names on Windows.
+fn opened(directory: &str) -> Vec<(usize, usize)> {
+    let mut opened = vec![(0, 0)];
+    let mut open = 0;
+    let mut word = None;
+    // A separator past the last character ends the last word.
+    let read = directory.char_indices().chain([(directory.len(), '/')]);
+    for (at, (byte, character)) in read.enumerate() {
+        let splits = nc_fuzzy::is_separator(character) || character == '\\';
+        match word {
+            None if !splits => word = Some((at, byte)),
+            Some(start) if splits => {
+                // A word opening where the last field does is read as far as
+                // it can be already.
+                if at > open + nc_fuzzy::FIELD_CHARS_MAX && start.0 > open {
+                    opened.push(start);
+                    open = start.0;
+                }
+                word = None;
+            }
+            _ => {}
+        }
+    }
+    opened
 }
 
 /// One column of a line: what is drawn there, and whether it is highlighted.
@@ -535,6 +587,45 @@ mod tests {
         assert_eq!(lines[4], "›   00000007  /c7");
         let tiny: Vec<String> = picker.lines(80, 0).iter().map(|line| seen(line)).collect();
         assert_eq!(tiny.last().map(String::as_str), Some("›   00000007  /c7"));
+    }
+
+    /// A word of a directory far past what the matcher reads of a name is
+    /// matched, and drawn highlighted where it is in the directory.
+    ///
+    /// **Split as a path's names are split** on Linux and macOS and on
+    /// Windows, and wherever in the directory the word lies: past the first
+    /// name read, and past the second.
+    #[test]
+    fn every_word_of_a_directory_longer_than_a_name_is_read_is_matched_in_place() {
+        let (a, b) = ("a".repeat(120), "b".repeat(120));
+        for directory in [
+            format!("/home/ana/{a}/middle-word/{b}/noctua-tail"),
+            format!("C:\\Users\\ana\\{a}\\middle-word\\{b}\\noctua-tail"),
+        ] {
+            assert!(directory.chars().count() > 2 * nc_fuzzy::FIELD_CHARS_MAX);
+            for word in ["middle", "tail"] {
+                let mut picker = Picker::new(vec![
+                    entry("0123abcd", Some(&directory), false),
+                    entry("89efcd45", Some("/home/ana/noctua-central"), false),
+                ]);
+                typed(&mut picker, word);
+                assert_eq!(picker.matching(), [0], "{word} in {directory}");
+                let line = &picker.lines(1_000, 10)[2];
+                let before = directory.find(word).expect("the word is there");
+                assert_eq!(
+                    line.find(HIGHLIGHT).map(|at| seen(&line[..at])),
+                    Some(format!(
+                        "›   0123abcd  {}",
+                        crate::render::escaped(&directory[..before])
+                    )),
+                    "{word} was not drawn where it is: {line:?}"
+                );
+                assert!(
+                    line.contains(&format!("{HIGHLIGHT}{word}{PLAIN}")),
+                    "{line:?}"
+                );
+            }
+        }
     }
 
     /// Every text from disk, and every character typed, is escaped for the
