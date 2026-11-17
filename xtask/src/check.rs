@@ -12408,16 +12408,15 @@ impl Audit {
 /// in the entry and its argument above `ignore` in `deny.toml`.
 /// `RUSTSEC-2026-0459` needs a database and a `-wal` another account wrote,
 /// and every database the shipped code and the gate open is judged or made
-/// this user's own first. `RUSTSEC-2026-0543` says `chrono` is unmaintained and
-/// names no defect, and a defect found in it is an advisory of another id.
+/// this user's own first.
 ///
 /// **The list empties when the lock reaches the patched release.** An entry no
 /// crate matches makes cargo-deny warn `advisory-not-detected` while
 /// `unused-ignored-advisory` is `warn`, which [`THE_AUDIT_IS_NOT_NARROWED`]
 /// holds, and the warning fails the dependency step, so the change that moves
-/// the lock to `libsqlite3-sys` 0.39, or `cedar-policy-core` off `chrono`, takes
-/// its entry out of `deny.toml` and out of this list.
-const THE_ADVISORIES_LEFT_OUT: [&str; 2] = ["RUSTSEC-2026-0459", "RUSTSEC-2026-0543"];
+/// the lock to `libsqlite3-sys` 0.39 takes the entry out of `deny.toml` and
+/// out of this list.
+const THE_ADVISORIES_LEFT_OUT: [&str; 1] = ["RUSTSEC-2026-0459"];
 
 /// What the `ignore` row of [`THE_AUDIT_IS_NOT_NARROWED`] needs.
 const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
@@ -27834,56 +27833,50 @@ mod the_frozen_path_rule {
             std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
         )
         .expect("this repository has a deny.toml");
-        let [left_out, kept @ ..] = super::THE_ADVISORIES_LEFT_OUT;
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
         let another = "RUSTSEC-2099-0001";
         let entry = |id: &str| format!("{{ id = \"{id}\", reason = \"it does not reach here\" }}");
-        // **The rest of the list as it is shipped**, so each case changes the
-        // first entry alone.
-        let rest: String = kept
-            .iter()
-            .flat_map(|id| [", ".to_owned(), entry(id)])
-            .collect();
         for (label, written, reported) in [
             ("the list emptied", "ignore = []".to_owned(), true),
             ("the key taken out", String::new(), true),
             (
                 "an extra advisory",
-                format!("ignore = [{}{rest}, {}]", entry(left_out), entry(another)),
+                format!("ignore = [{}, {}]", entry(left_out), entry(another)),
                 true,
             ),
             (
                 "another advisory in its place",
-                format!("ignore = [{}{rest}]", entry(another)),
+                format!("ignore = [{}]", entry(another)),
                 true,
             ),
             (
                 "the entry as a bare id, with no reason",
-                format!("ignore = [\"{left_out}\"{rest}]"),
+                format!("ignore = [\"{left_out}\"]"),
                 true,
             ),
             (
                 "the entry as a table with no reason",
-                format!("ignore = [{{ id = \"{left_out}\" }}{rest}]"),
+                format!("ignore = [{{ id = \"{left_out}\" }}]"),
                 true,
             ),
             (
                 "the entry with an empty reason",
-                format!("ignore = [{{ id = \"{left_out}\", reason = \"\" }}{rest}]"),
+                format!("ignore = [{{ id = \"{left_out}\", reason = \"\" }}]"),
                 true,
             ),
             (
                 "the entry with a blank reason",
-                format!("ignore = [{{ id = \"{left_out}\", reason = \"  \" }}{rest}]"),
+                format!("ignore = [{{ id = \"{left_out}\", reason = \"  \" }}]"),
                 true,
             ),
             (
                 "a yanked crate let through in its place",
-                format!("ignore = [{{ crate = \"libsqlite3-sys\", reason = \"planted\" }}{rest}]"),
+                "ignore = [{ crate = \"libsqlite3-sys\", reason = \"planted\" }]".to_owned(),
                 true,
             ),
             (
-                "every entry, with its reason",
-                format!("ignore = [{}{rest}]", entry(left_out)),
+                "the one entry, with its reason",
+                format!("ignore = [{}]", entry(left_out)),
                 false,
             ),
         ] {
@@ -27918,16 +27911,8 @@ mod the_frozen_path_rule {
             std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
         )
         .expect("this repository has a deny.toml");
-        let [left_out, kept @ ..] = super::THE_ADVISORIES_LEFT_OUT;
-        let reason = "it does not reach here";
-        // **The rest of the list as it is shipped**, beside the first entry in
-        // every case, which is the one each case changes.
-        let rest: String = kept
-            .iter()
-            .flat_map(|id| [", { id = \"", id, "\", reason = \"", reason, "\" }"])
-            .collect();
-        let one = format!("{{ id = \"{left_out}\", reason = \"{reason}\" }}{rest}");
-        let kept: Vec<(&str, &str)> = kept.iter().map(|id| (*id, reason)).collect();
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
+        let one = format!("{{ id = \"{left_out}\", reason = \"it does not reach here\" }}");
         let extra = "{ id = \"RUSTSEC-2099-0001\", reason = \"planted\" }";
         let tables = |entries: &[(&str, &str)]| -> String {
             let appended: Vec<String> = entries
@@ -27951,38 +27936,25 @@ mod the_frozen_path_rule {
             ),
             (
                 "an extra entry as a table of its own",
-                tables(
-                    &[(left_out, reason)]
-                        .into_iter()
-                        .chain(kept.iter().copied())
-                        .chain([("RUSTSEC-2099-0001", "planted")])
-                        .collect::<Vec<_>>(),
-                ),
+                tables(&[
+                    (left_out, "it does not reach here"),
+                    ("RUSTSEC-2099-0001", "planted"),
+                ]),
                 true,
             ),
             (
-                "the first entry as a table, with an empty reason",
-                tables(
-                    &[(left_out, "")]
-                        .into_iter()
-                        .chain(kept.iter().copied())
-                        .collect::<Vec<_>>(),
-                ),
+                "the one entry as a table, with an empty reason",
+                tables(&[(left_out, "")]),
                 true,
             ),
             (
-                "the key quoted, with every entry",
+                "the key quoted, with the one entry",
                 ignoring(&shipped, &format!("\"ignore\" = [{one}]")),
                 false,
             ),
             (
-                "every entry as a table, with its reason",
-                tables(
-                    &[(left_out, reason)]
-                        .into_iter()
-                        .chain(kept.iter().copied())
-                        .collect::<Vec<_>>(),
-                ),
+                "the one entry as a table, with its reason",
+                tables(&[(left_out, "it does not reach here")]),
                 false,
             ),
             (
@@ -28014,7 +27986,7 @@ mod the_frozen_path_rule {
             std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
         )
         .expect("this repository has a deny.toml");
-        let [left_out, ..] = super::THE_ADVISORIES_LEFT_OUT;
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
         // The table renamed, so that `advisories` is written once, as a value:
         // written twice, the file is not TOML, which is the first case below.
         let renamed = shipped.replace("\n[advisories]\n", "\n[not-advisories]\n");
@@ -28048,10 +28020,7 @@ mod the_frozen_path_rule {
         }
         assert_eq!(
             super::the_advisories_left_out(&shipped),
-            Ok(super::THE_ADVISORIES_LEFT_OUT
-                .iter()
-                .map(|id| ((*id).to_owned(), true))
-                .collect()),
+            Ok(vec![(left_out.to_owned(), true)]),
             "the shipped file is read as something else"
         );
         drop(held);

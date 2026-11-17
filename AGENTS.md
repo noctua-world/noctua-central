@@ -3897,12 +3897,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
   defence in depth.
 - **`tokio` is a direct dependency of `nc-local`**, for its blocking pool (the
   Dependencies table): already in the graph, and still the developer's to confirm.
-- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
-  extension, which the packs use for a grant's validity and the request's `now`.
-  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
-  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
-  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
-  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
 
 **The kernel and the local database**
 
