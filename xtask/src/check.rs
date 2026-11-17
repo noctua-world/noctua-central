@@ -19558,14 +19558,14 @@ mod the_frozen_path_rule {
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 42, 3),
         ("cli/install.rs", 81, 18),
-        ("cli/launcher.rs", 10, 6),
+        ("cli/launcher.rs", 13, 6),
         ("cli/lib.rs", 1, 13),
         ("cli/main.rs", 7, 5),
         ("cli/picker.rs", 31, 5),
         ("cli/render.rs", 25, 4),
         ("cli/run.rs", 28, 5),
         ("cli/terminal.rs", 14, 21),
-        ("cli/the_launcher_passes_everything_through.rs", 6, 4),
+        ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
@@ -22565,8 +22565,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 872 scratches this tree
-    /// builds, 784 of the 872 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 874 scratches this tree
+    /// builds, 786 of the 874 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22638,9 +22638,9 @@ mod the_frozen_path_rule {
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 18, 18),
-        ("cli/launcher.rs", 2, 2),
+        ("cli/launcher.rs", 3, 3),
         ("cli/run.rs", 9, 9),
-        ("cli/the_launcher_passes_everything_through.rs", 3, 3),
+        ("cli/the_launcher_passes_everything_through.rs", 4, 4),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
@@ -25724,7 +25724,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20568;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20577;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25743,7 +25743,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5465;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5469;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25760,7 +25760,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1846;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1848;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25794,7 +25794,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27339;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27358;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25848,7 +25848,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,339 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,358 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25881,7 +25881,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1846 of
+    /// this tree offers, **1848 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37852,7 +37852,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2563] = [
+    static OPERATORS: [(&str, &str, &str); 2565] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48956,6 +48956,16 @@ Options:
             "cli_launcher",
             "pointed",
             "a pointer in a directory another account may write in is not read",
+        ),
+        (
+            "cli_launcher",
+            "may_launch",
+            "a copy of the CLI with no manifest is a launcher where others may read its directory",
+        ),
+        (
+            "cli_launcher",
+            "may_launch",
+            "a copy of the CLI beside a manifest is an install, never a launcher",
         ),
         (
             "cli_args",

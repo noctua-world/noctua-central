@@ -2083,7 +2083,10 @@ install writes there — a link or a pointer to such a CLI, or the very launcher
 nothing it did not read privately**: its directory judged as above and its pointer this
 user's alone, read no further than `RECORD_BYTES_MAX`, naming a plain absolute path,
 before it runs that CLI with every argument and its standard streams, ending with its exit
-code; one refused ends in `NC-CLI-0014` and exit 12, having run nothing. **A record or a
+code; one refused ends in `NC-CLI-0014` and exit 12, having run nothing. A copy of the CLI
+with no manifest beside it is a launcher in a bin directory others may read, as a person's
+commonly is, as in a private one: no install is read from a directory others may read, and a
+copy beside a manifest is refused as an install, never run as a launcher. **A record or a
 pointer is read only as written**: canonical JSON of one format with every key it holds
 and nothing else, judged private first, refused otherwise. An uninstall leaves the name to
 another checkout only when it points at the one removed, and leaves a name it would refuse
@@ -2104,7 +2107,7 @@ anything is written; of `apps/cli/src/checkouts.rs`, `apps/cli/src/launcher.rs`,
 `crates/nc-channel/src/checkouts.rs` and `crates/nc-platform/src/lib.rs`, where a
 directory another user may write in is refused on every system; by
 `apps/cli/tests/the_launcher_passes_everything_through.rs`, which runs a launcher on every
-system; by `noctua_dev_is_the_development_channels_and_meets_no_other_name` in
+system, in a private bin directory and in one others may read; by `noctua_dev_is_the_development_channels_and_meets_no_other_name` in
 `crates/nc-channel/tests/the_names_are_disjoint.rs`; and by the operators over those
 sources in `xtask/mutants.py`.
 

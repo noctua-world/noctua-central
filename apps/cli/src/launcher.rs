@@ -8,6 +8,12 @@
 //! run. The CLI named reads its own install beside itself, judged as every
 //! binary's is, so the launcher decides nothing a channel's install decides.
 //!
+//! **In a bin directory others may read**, as a person's commonly is: an
+//! install's manifest is never read there, so a CLI with none beside it is
+//! refused as no install's and still reads its pointer, judging the directory
+//! written by this user alone. A manifest beside it keeps it an install,
+//! refused as one, and nothing is run.
+//!
 //! **Compiled and tested on every system**, though only Windows installs one:
 //! `apps/cli/tests/the_launcher_passes_everything_through.rs` runs a launcher
 //! on Linux and macOS as on Windows.
@@ -52,9 +58,17 @@ pub enum Through {
 /// install.
 #[must_use]
 pub fn through(refused: &Refused, argv: &[OsString], env: &Env) -> Through {
-    if let Refused::NoManifest { .. } = refused
-        && let Some(executable) = running()
-        && let Some(launched) = launched_from(&executable, argv)
+    match running() {
+        Some(executable) => through_at(&executable, refused, argv, env),
+        None => Through::Said(crate::unfound(argv, refused, env)),
+    }
+}
+
+/// How the CLI at `executable`, canonicalized, which found no install beside
+/// itself — `refused` — ends, run with `argv` in `env`.
+fn through_at(executable: &Path, refused: &Refused, argv: &[OsString], env: &Env) -> Through {
+    if may_launch(executable, refused)
+        && let Some(launched) = launched_from(executable, argv)
     {
         return match launched {
             Ok(code) => Through::Ran(code),
@@ -66,6 +80,22 @@ pub fn through(refused: &Refused, argv: &[OsString], env: &Env) -> Through {
         };
     }
     Through::Said(crate::unfound(argv, refused, env))
+}
+
+/// Whether the CLI at `executable`, refused with `refused`, may be a
+/// launcher.
+///
+/// One with no manifest beside it, in a directory private to its user or in
+/// one others may read, which no install is read from.
+fn may_launch(executable: &Path, refused: &Refused) -> bool {
+    match refused {
+        Refused::NoManifest { .. } => true,
+        Refused::NotPrivate(_) => executable.parent().is_some_and(|directory| {
+            std::fs::symlink_metadata(directory.join(nc_channel::MANIFEST))
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+        }),
+        Refused::Manifest(_) | Refused::Unavailable { .. } => false,
+    }
 }
 
 /// The executable running now, canonicalized.
@@ -239,5 +269,62 @@ mod tests {
             "{}",
             refused.detail
         );
+    }
+
+    /// A copy of the CLI with no manifest beside it, in a directory others may
+    /// read, is refused as no install's and still runs what its pointer names.
+    ///
+    /// One with a manifest beside it is an install refused as one, and runs
+    /// nothing, whatever pointer is beside it.
+    #[test]
+    fn a_launcher_runs_in_a_directory_others_may_read_and_an_install_there_does_not() {
+        let scratch = Scratch::new("read");
+        let launcher = scratch.0.join("noctua-dev-t2");
+        drop(nc_platform::create_private(&launcher).expect("a stand-in launcher"));
+        let pointer = nc_channel::checkouts::pointer_beside(&launcher);
+        let absent = scratch.0.join("absent-cli");
+        scratch.file(
+            pointer
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("a name"),
+            &nc_channel::checkouts::Pointer {
+                cli: absent.clone(),
+            }
+            .to_canonical(),
+        );
+        nc_platform::testing::open_to_another_user(&scratch.0).expect("read by another");
+        let launcher = std::fs::canonicalize(&launcher).expect("canonical");
+        let argv: Vec<OsString> = vec![OsString::from("help")];
+        let env = crate::render::Env::of(|_| None);
+        let refused =
+            nc_channel::found::beside(&launcher).expect_err("no install where others read");
+        assert!(
+            matches!(refused, nc_channel::found::Refused::NotPrivate(_)),
+            "{refused}"
+        );
+        let super::Through::Said(ran) = super::through_at(&launcher, &refused, &argv, &env) else {
+            panic!("a CLI that did not start ended as one that ran");
+        };
+        assert!(
+            ran.stderr.contains(ErrorCode::CliLauncherRefused.code())
+                && ran.stderr.contains(&absent.display().to_string())
+                && ran.stderr.contains("did not start"),
+            "the pointer was not followed: {}",
+            ran.stderr
+        );
+        scratch.file(nc_channel::MANIFEST, "{}");
+        let refused = nc_channel::found::beside(&launcher).expect_err("still refused");
+        let super::Through::Said(said) = super::through_at(&launcher, &refused, &argv, &env) else {
+            panic!("an install refused ran as a launcher");
+        };
+        assert!(
+            said.stderr
+                .contains(ErrorCode::ChannelManifestNotPrivate.code())
+                && !said.stderr.contains(ErrorCode::CliLauncherRefused.code()),
+            "an install was taken for a launcher: {}",
+            said.stderr
+        );
+        assert_eq!(said.code(), Exit::NoInstall.code());
     }
 }

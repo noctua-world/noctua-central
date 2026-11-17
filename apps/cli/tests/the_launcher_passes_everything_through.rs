@@ -4,7 +4,8 @@
 //! **On every system**, though only Windows installs a launcher: the built
 //! `noctua` is copied into a scratch bin directory under `noctua-dev`'s name,
 //! with no install beside it and a private pointer naming Python, which writes
-//! back what it was handed and ends with a code of its own. A copy with no
+//! back what it was handed and ends with a code of its own. The directory is
+//! private, or read by others as a person's commonly is. A copy with no
 //! pointer is a CLI with no install.
 
 use std::io::Write as _;
@@ -108,7 +109,28 @@ fn ran(launcher: &Path, arguments: &[&str], input: &[u8]) -> std::process::Outpu
 fn a_launcher_passes_every_argument_its_streams_and_the_exit_code_through() {
     let scratch = Scratch::new("through");
     let launcher = launcher_in(&scratch.0, "noctua-dev-tw1");
-    let pointer = nc_channel::checkouts::pointer_beside(&launcher);
+    passes_everything_through(&launcher);
+}
+
+/// A launcher in a bin directory others may read, as a person's commonly is,
+/// passes everything through as one in a private directory does.
+///
+/// **The directory is judged written by its user alone**, which reading by
+/// others leaves it; a binary's own install is never read from such a
+/// directory, so the copy there is refused as no install's and is a launcher.
+#[test]
+fn a_launcher_in_a_bin_directory_others_may_read_passes_everything_through() {
+    let scratch = Scratch::new("read");
+    let launcher = launcher_in(&scratch.0, "noctua-dev-tw3");
+    nc_platform::testing::open_to_another_user(&scratch.0).expect("read by another");
+    passes_everything_through(&launcher);
+}
+
+/// Points `launcher` at Python, runs it, and holds every argument, its
+/// standard streams and its exit code to what Python was handed and ended
+/// with.
+fn passes_everything_through(launcher: &Path) {
+    let pointer = nc_channel::checkouts::pointer_beside(launcher);
     nc_platform::create_private(&pointer)
         .and_then(|mut file| {
             file.write_all(
@@ -122,7 +144,7 @@ fn a_launcher_passes_every_argument_its_streams_and_the_exit_code_through() {
                   sys.stdout.write(ascii(sys.argv[1:]) + '|' + ascii(read)); \
                   sys.stderr.write('said on its error'); sys.exit(7)";
     let output = ran(
-        &launcher,
+        launcher,
         &["-c", script, "a b", "ç", "", "--json"],
         b"handed in",
     );
