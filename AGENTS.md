@@ -287,8 +287,8 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-log/                     the central log's type wall (§15.4)
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
-│   ├── nc-platform/                a path one user's alone, which process this is, and a program the service manager restores, per system (§2.7) — THE ONE `unsafe`
-│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), and a person's keybindings, read beside the other channels' (§12.8)
+│   ├── nc-platform/                a path one user's alone, which process this is, a program the service manager restores, the user's bin directory and the clipboard's tool, per system (§2.7) — THE ONE `unsafe`
+│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
@@ -303,7 +303,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
 │   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves (§11.1, §16.2)
-│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, and the installer (§20.2, §17.1)
+│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, the installer, `noctua-dev` and the `checkouts` picker (§20.2, §17.1)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
 ```
@@ -376,12 +376,18 @@ manager as `noctua-daemon --restored` — a systemd user unit, a launch agent, a
 unless the profile carried the `stopped` mark, a person's stop or one an install or an
 uninstall that did not finish left; on Linux it enables lingering where logind
 lets it, so the daemon starts at boot, and otherwise prints the command and the NixOS
-option that do. It leaves `PATH` as it is: the CLI is `noctua-dev-<checkout>` at the path
-it prints. `--uninstall` finds the service manager first — from an environment that does
+option that do. Last, it points `noctua-dev`, in the user's bin directory, at the CLI
+`noctua-dev-<checkout>` it installed, records the checkout beside the manifest, and prints
+where `noctua-dev` is; it leaves `PATH` and every file a shell reads at its start as they
+are, so where the bin directory is not on `PATH` it prints the one line that puts it there
+for the person's shell. `--uninstall` finds the service manager first — from an environment that does
 not reach it, it removes nothing — then stops the daemon, unregisters its restorer, with
 the one `systemctl --user daemon-reload` a unit the user's manager has read at a login or
-a boot needs before it goes, and removes the binaries and the manifest, and the mark its
-own stop wrote, and keeps the profile — a person's stop with it. The environment is read then and never by a binary — the base directories and
+a boot needs before it goes, and removes the binaries, the manifest and the record, and the mark its
+own stop wrote, and keeps the profile — a person's stop with it; when `noctua-dev` pointed
+at this checkout, it points it at the one installed most recently of those that remain, or
+removes it. The environment is read then and never by a binary — the base directories, the
+home the bin directory is under, and
 `NC_INSTALL_NAMESPACE`, which relocates the install as a test's, which never asks for
 lingering and whose restorer is kept where no login reads it on systemd and launchd — the
 runtime directory the next boot forgets, the profile an agent is bootstrapped from for
@@ -484,7 +490,7 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, process control, and choosing the development checkout `noctua-dev` reaches — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
 | a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
 
@@ -942,6 +948,7 @@ entry owns.
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 | Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
 | A stop reaching a process that is not the daemon, or a restorer starting a daemon a person stopped | the daemon asked first, a signal only through the process its PID record is held to, and the `stopped` mark written durably before anything is asked and read by the daemon's own restored start | "The CLI starts and stops its own channel's daemon, and signals nothing it did not hold to its record" |
+| A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
 
@@ -1998,7 +2005,10 @@ to this checkout"). Names are compared
 case-folded, as a pipe and a case-insensitive file system compare them. For one user,
 production, staging and two development checkouts, each as a real install and relocated
 under each of two namespaces, all under the same bases, share no name but the default
-Leader, which is held apart across the three channels and only there. Across two users
+Leader, which is held apart across the three channels and only there, and `noctua-dev`,
+the development channel's, which every checkout of one bases and namespace shares and
+which meets no other name — a namespace is never eight hexadecimal digits, which is how a
+checkout is written, so `noctua-dev-<namespace>` is never a checkout's CLI. Across two users
 they share no pipe, mutex, unit, label or task; the names each user keeps in a home and a
 `PATH` of their own, such as the CLI's and the application identities, are the same for
 two users' installs of one channel, and so is a checkout's stack, which is the
@@ -2043,6 +2053,62 @@ judging the file this user's alone is the reader's, and stops other accounts onl
 whether anything uses a name as derived, which is each consumer's — the daemon, the CLI,
 the installer and the service manager's registration are what read a layout. What the
 names leave narrowed is under **What is deliberately not claimed**.
+
+### `noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make
+
+`apps/cli/src/chosen.rs` (whose header has the two ways it reaches a CLI) writes it;
+`cargo xtask dev --install` and the `checkouts` verb ask it to.
+
+**Guaranteed.** `noctua-dev` — `noctua-dev-<namespace>` for a test's install, which is
+how no test's install names the developer's — is the one name a development install
+writes outside the directories `nc_channel::layout` derives, in the user's bin directory,
+.local/bin under the home on every system, read from the environment by the installer
+alone (`nc_platform::bin_directory`) and recorded beside the manifest, so no binary reads
+the environment for it. **The directory is this user's and written by this user alone**
+(`nc_platform::judge_written_by_user_alone`): a directory another account owns or may
+write in — a group or other write bit on Unix, an entry letting anybody but the user,
+`SYSTEM` or the Administrators group write on Windows — a link and a file are refused,
+named, and nothing is written in them; one that is missing is made, each level private.
+**What stands at the name is replaced only when this install made it**: nothing, or a
+symbolic link — on Windows a launcher whose pointer is this user's alone — to exactly the
+CLI `layout` names for a development checkout of this install's bases and namespace; a
+regular file, a link anywhere else, a launcher with no pointer and one pointing elsewhere
+are refused, named and left as they were. The install judges it before anything is
+stopped or written, so a refusal leaves an earlier install running and untouched, and
+points it last. It is pointed through a new link or file made beside it, synced and
+renamed over it, so it names the old CLI or the new one at every moment. **A launcher runs
+nothing it did not read privately**: its directory judged as above and its pointer this
+user's alone, read no further than `RECORD_BYTES_MAX`, naming a plain absolute path,
+before it runs that CLI with every argument and its standard streams, ending with its exit
+code; one refused ends in `NC-CLI-0014` and exit 12, having run nothing. **A record or a
+pointer is read only as written**: canonical JSON of one format with every key it holds
+and nothing else, judged private first, refused otherwise. An uninstall leaves the name to
+another checkout only when it points at the one removed, and leaves a name it would refuse
+as it is. The `checkouts` verb lists every checkout with its texts escaped for the
+terminal, refuses a digest no installed checkout has (`NC-CLI-0010`), and hands the path it
+copies to the clipboard's tool on its standard input, never as an argument.
+
+**Enforced by** the tests of `apps/cli/src/chosen.rs` — a name made, pointed again and
+removed as a link and as a launcher, a regular file, a link elsewhere, a launcher with no
+pointer and one pointing at another namespace's CLI each refused and left as it was, a
+bin directory another account may write in refused with nothing written, and a target
+taken as a checkout's CLI only where the layout names one — of `apps/cli/src/install.rs`,
+where an install makes the name and records its checkout, a second checkout's points it
+there, uninstalls leave it to the checkout installed last or remove it, another
+checkout's uninstall leaves it, and an install over a name it did not make refuses before
+anything is written; of `apps/cli/src/checkouts.rs`, `apps/cli/src/launcher.rs`,
+`crates/nc-channel/src/checkouts.rs` and `crates/nc-platform/src/lib.rs`, where a
+directory another user may write in is refused on every system; by
+`apps/cli/tests/the_launcher_passes_everything_through.rs`, which runs a launcher on every
+system; by `noctua_dev_is_the_development_channels_and_meets_no_other_name` in
+`crates/nc-channel/tests/the_names_are_disjoint.rs`; and by the operators over those
+sources in `xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which can replace the name, the
+launcher or its pointer between a judgement and a run; what sits earlier on the person's
+`PATH`, which is theirs to order; whoever no access list stops — root, `SYSTEM` and the
+Administrators group; and the clipboard's tool, found on `PATH` (under **What is
+deliberately not claimed**).
 
 ### A daemon's endpoint lets in its user alone, and each end reads the other off the system
 
@@ -2630,6 +2696,13 @@ program reach a channel's daemon through.
   and warning by its code and the catalog's message in the environment's language, and
   its detail and the file's path written as a daemon's texts are; it exits 0, because the
   defaults it shows beside a refusal are the keys in force.
+- **`checkouts` asks no daemon, and escapes what the disk gave it.** It lists the
+  development checkouts installed beside this one — the listing the Leader settlement
+  reads, `nc_channel::checkouts` — each with its directory, its CLI and when it was
+  installed written as a daemon's texts are, in one JSON document with `--json` or with no
+  terminal, and in a picker at one, whose terminal is left as it was found however it
+  ends (`apps/cli/src/terminal.rs`); leaving the picker changes nothing and ends in exit
+  13. What a choice changes is the next entry's.
 
 **Enforced by** the unit tests of each module in `apps/cli/src/` — the client's and a
 run's against a daemon in-process, in a scratch install, that answers as a script says:
@@ -3824,6 +3897,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   defence in depth.
 - **`tokio` is a direct dependency of `nc-local`**, for its blocking pool (the
   Dependencies table): already in the graph, and still the developer's to confirm.
+- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
+  extension, which the packs use for a grant's validity and the request's `now`.
+  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
+  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
+  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
+  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
 
 **The kernel and the local database**
 
@@ -3897,12 +3976,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
   written only by the account the process runs as, the one this bullet does not answer:
   every database the shipped code opens goes through `nc_local`, which holds the directory,
   the file and each companion to this user's alone before SQLite reads them, and the gate's
-- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
-  extension, which the packs use for a grant's validity and the request's `now`.
-  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
-  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
-  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
-  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
   own scratch is a directory `xtask/src/local.rs` makes private and refuses to find.
   `deny.toml` leaves RUSTSEC-2026-0459 out of the audit on that ground until the lock can
   reach `libsqlite3-sys` 0.39. A test suite's scratch directory is one it made itself, with
@@ -3947,6 +4020,23 @@ rather than anything decided for the project, and each is a maintainer's to reop
   (`crates/nc-ids/src/naming.rs`), and the commands answer what the builder does today.
 
 **Channels and installs**
+
+- **The clipboard's tools are found on `PATH`**: `wl-copy`, `xclip` or `xsel`, `pbcopy`,
+  `clip.exe`, as each system's shell would find them, so a program of the same name earlier
+  on a person's `PATH` is handed the path a choice copies. A path not copied is said, and
+  undoes nothing.
+- **A checkout installed before checkouts recorded themselves lists without its
+  directory**: its digest and its CLI's path, dated by its manifest's last write, saying
+  that installing it again records its directory; it can still be chosen. Its binaries,
+  of an older build, know no `checkouts` verb and no launcher.
+- **A launcher on Windows is copied once, when it is missing**: a running program cannot
+  be replaced there, and what it does — read its pointer and run the CLI named — is every
+  build's, so a choice rewrites the pointer alone.
+- **The picker counts a character as one column**: a character a terminal draws two
+  columns wide makes its line that much wider than the width it was cut to.
+- **`noctua-dev` is the development channel's alone**: putting `noctua` and
+  `noctua-staging` on `PATH` is the installers' (Stage 19), and nothing edits a shell's
+  start-up files, the registry or `PATH` itself.
 
 - **A checkout is 32 bits of its path's digest**, kept because it already names every
   developer's compose volumes: two checkouts whose paths share a digest are one checkout
@@ -5379,7 +5469,7 @@ decision — `NOCTUA.md §4` is where `wit-component`, `wit-parser` and `ureq` w
 and none was chosen by preference. `ureq-proto` and `url` are in the graph under `ureq`
 and `sqlx`, and are named because the kernel matches on a type of each.
 `unicode-normalization` was the developer's choice on 2026-11-14, over a table written
-here.
+here, and `crossterm` on 2026-11-17, for the `checkouts` picker.
 
 | Crate | Why it is not written here |
 |---|---|
@@ -5395,10 +5485,11 @@ here.
 | `url` | The WHATWG parser a plugin's URL is held to before anything is sent, as a browser reads one, so every spelling of an address parses as an address the kernel refuses rather than as a name. Already in the graph under `sqlx`; taken directly because the kernel matches on its `Host` |
 | `blake3` | The journal's chain and the machine flake both hash (`§14.9`, `§16.2`), a confirmation is bound to its dispatch's arguments by their digest, a blob is named by the hash of its bytes (`§13`), computed in `nc-kernel` as they are written, and each end of an IPC connection proves it holds the channel's token by a hash keyed by it, compared in constant time (`crates/nc-ipc`). Already `noctua-colors`' |
 | `unicode-normalization` | The canonical decomposition `crates/nc-fuzzy` folds a letter to its base letter by (`NOCTUA.md §12.4`): `é` to `e`, `ç` to `c` — the rule `noctua-design`'s matcher asks the browser for as `normalize("NFD")[0]`. Not written here because the table is Unicode's data, and a transcription of it is a defect this tree has measured once: `crates/nc-ids/src/naming.rs` records a hand-written table two entries out of step. A direct dependency of `nc-fuzzy` alone, `default-features = false`, since the decomposition it calls needs nothing of `std`. Already in the graph at this version under `stringprep` and `unicode-security`, with `tinyvec`, so it adds no package (`cargo tree -i unicode-normalization`). Its Hangul path holds `unsafe` of its own, which this workspace's `forbid` does not reach, as for every dependency |
+| `crossterm` | The terminal the `checkouts` picker runs in (`NOCTUA.md §17.1`): raw mode entered and always left, the alternate screen, keys read as events and lines drawn, on Linux, macOS and Windows, whose console is set through calls of its own — a terminal's modes are each system's to get right, and getting them wrong leaves a person's shell unusable. A direct dependency of `nc-cli` alone, used by `apps/cli/src/terminal.rs` alone, `default-features = false` with `events` and `windows`, without which it refuses to build on Windows. It brings `crossterm_winapi`, `winapi` and its two import crates for Windows, `signal-hook`, `signal-hook-mio` and `signal-hook-registry` on Unix, and `document-features` with `litrs` while it compiles; `mio`, `rustix`, `parking_lot` and `bitflags` were in the graph already (`cargo tree -i crossterm`). Its own `unsafe` is outside this workspace's `forbid`, as every dependency's is |
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate — and the arguments the CLI holds to it, read back from their canonical text as the kernel reads them |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
-| `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half alone and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`); a process held to its PID record and signalled through it — a pidfd on Linux (`pidfd_open`, `pidfd_send_signal`), signal 0 and `kill` on macOS — and the user the process runs as (`getuid`); and the group a test reads back (`getpgid`), all through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
+| `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half alone and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`); a process held to its PID record and signalled through it — a pidfd on Linux (`pidfd_open`, `pidfd_send_signal`), signal 0 and `kill` on macOS — and the user the process runs as (`getuid`, and `geteuid` where no private directory is at hand to probe); and the group a test reads back (`getpgid`), all through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
 | `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
 | `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); when this process started, which its PID record holds (`GetProcessTimes`); a process held to its PID record through one handle — opened to query, terminate and wait for it (`OpenProcess`), its creation time, its image's path (`QueryFullProcessImageNameW`) and its token's user read through it, and it ended and waited for through it (`TerminateProcess`, `WaitForSingleObject`), and one this user may not hold read through a handle opened to query it alone, which is never held; and its own standard handles kept from every child but as the handles a spawn hands one (`SetHandleInformation`); and, behind the test doors alone, a descriptor written onto one path or one process through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`), and a thread made to act as this user holding no privilege (`CreateRestrictedToken`, `ImpersonateLoggedOnUser`, `RevertToSelf`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |

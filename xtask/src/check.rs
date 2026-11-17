@@ -3962,11 +3962,15 @@ const EXCUSED_WHERE: [(&str, &str, usize); 78] = [
         "allow-nondeterminism:",
         1,
     ),
+    // The development checkouts' profiles, listed and then sorted by digest.
+    (
+        "crates/nc-channel/src/checkouts.rs",
+        "allow-nondeterminism:",
+        1,
+    ),
     // Where a checkout is, and the vector its digest is frozen to: neither
     // reaches the default Leader the keybindings page publishes.
     ("crates/nc-channel/src/lib.rs", "allow-nondeterminism:", 2),
-    // The other channels' profiles, listed and then sorted by digest.
-    ("crates/nc-channel/src/keys.rs", "allow-nondeterminism:", 1),
     ("crates/nc-ids/src/lib.rs", "allow-logging:", 1),
     ("crates/nc-journal/src/entry.rs", "allow-logging:", 1),
     (
@@ -4101,7 +4105,7 @@ const EXCUSED_IN: [(&str, usize); 51] = [
         "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
         1,
     ),
-    ("crates/nc-channel/src/keys.rs", 1),
+    ("crates/nc-channel/src/checkouts.rs", 1),
     ("crates/nc-channel/src/lib.rs", 2),
     ("crates/nc-ids/src/lib.rs", 1),
     ("crates/nc-journal/src/entry.rs", 1),
@@ -7769,7 +7773,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 52] = [
+const SUITES: [(&str, &str); 53] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7784,6 +7788,7 @@ const SUITES: [(&str, &str); 52] = [
     // Every catalog and reference-plugin schema read from a command line and
     // back: it touches no disk and spawns nothing.
     ("nc-cli", "arguments_from_schemas.rs"),
+    ("nc-cli", "the_launcher_passes_everything_through.rs"),
     // The daemon's binary, copied into a scratch install beside a manifest.
     ("nc-daemon", "the_binary_prepares_a_profile.rs"),
     // A child of the test binary killed while it mints behind the real mark,
@@ -7985,7 +7990,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1072] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1075] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8025,7 +8030,10 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1072] = [
     "noctua-daemon",
     "the CLI and the daemon did not build: {said}",
     "the build said it made no binary `{name}`, so there is nothing to install: build it with `cargo build --package nc-cli --package nc-daemon --bins` and read what cargo says",
-    "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
+    "the CLI is `{}`",
+    "`noctua-dev`, `{}`, is removed: no development checkout remains",
+    "`noctua-dev`, `{}`, now reaches `{}`, the checkout installed most recently of those that remain",
+    "`{}` is not on `PATH`, so `noctua-dev` is reached by its path until it is: {}",
     "the daemon the earlier install ran was stopped first: {}",
     "the release does not fire on a push",
     "the release fires on `{}`",
@@ -11264,7 +11272,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 755] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -12037,6 +12045,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 755] = [
     "lingering is not enabled, so the daemon starts at your first login and not at boot: run `loginctl enable-linger {name}`, or `sudo loginctl enable-linger {name}` where logind refuses you, or on NixOS set {option} — logind said {said}",
     "logind keeps your user manager from boot on (lingering), so the daemon starts with the computer",
     "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
+    "`noctua-dev` reaches it, from `{}`",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -17465,7 +17474,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 3),
-        ("nc-cli", 3),
+        ("nc-cli", 4),
         ("nc-daemon", 11),
         ("nc-fuzzy", 3),
         ("nc-guest", 1),
@@ -19520,18 +19529,24 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 218] = [
-        ("cli/args.rs", 44, 10),
+    const DOCUMENTED: [(&str, usize, usize); 226] = [
+        ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
+        ("cli/checkouts.rs", 19, 8),
+        ("cli/chosen.rs", 24, 10),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 42, 3),
-        ("cli/install.rs", 68, 18),
-        ("cli/lib.rs", 1, 8),
-        ("cli/main.rs", 6, 5),
-        ("cli/render.rs", 20, 4),
+        ("cli/install.rs", 81, 18),
+        ("cli/launcher.rs", 10, 6),
+        ("cli/lib.rs", 1, 13),
+        ("cli/main.rs", 7, 5),
+        ("cli/picker.rs", 31, 5),
+        ("cli/render.rs", 25, 4),
         ("cli/run.rs", 28, 5),
+        ("cli/terminal.rs", 14, 21),
+        ("cli/the_launcher_passes_everything_through.rs", 6, 4),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 11, 5),
         ("daemon/device.rs", 22, 5),
@@ -19595,11 +19610,12 @@ mod the_frozen_path_rule {
             42,
             3,
         ),
+        ("nc-channel/checkouts.rs", 41, 11),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 47, 12),
-        ("nc-channel/lib.rs", 59, 15),
+        ("nc-channel/keys.rs", 40, 11),
+        ("nc-channel/lib.rs", 61, 16),
         ("nc-channel/record.rs", 15, 10),
-        ("nc-channel/the_names_are_disjoint.rs", 28, 0),
+        ("nc-channel/the_names_are_disjoint.rs", 29, 0),
         ("nc-fuzzy/align.rs", 21, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
         ("nc-fuzzy/lib.rs", 5, 9),
@@ -19692,13 +19708,14 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 22, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
+        ("nc-platform/clipboard.rs", 18, 11),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 94, 22),
+        ("nc-platform/lib.rs", 110, 23),
         ("nc-platform/process.rs", 46, 15),
         ("nc-platform/service.rs", 181, 21),
-        ("nc-platform/testing.rs", 34, 4),
-        ("nc-platform/unix.rs", 99, 4),
-        ("nc-platform/windows.rs", 141, 13),
+        ("nc-platform/testing.rs", 35, 4),
+        ("nc-platform/unix.rs", 105, 4),
+        ("nc-platform/windows.rs", 147, 13),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22529,8 +22546,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 846 scratches this tree
-    /// builds, 758 of the 846 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 870 scratches this tree
+    /// builds, 782 of the 870 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22596,11 +22613,15 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 57] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 63] = [
+        ("cli/checkouts.rs", 4, 4),
+        ("cli/chosen.rs", 5, 5),
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
-        ("cli/install.rs", 15, 15),
+        ("cli/install.rs", 18, 18),
+        ("cli/launcher.rs", 2, 2),
         ("cli/run.rs", 9, 9),
+        ("cli/the_launcher_passes_everything_through.rs", 3, 3),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
@@ -22625,6 +22646,7 @@ mod the_frozen_path_rule {
             21,
             21,
         ),
+        ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
         ("nc-ipc/endpoint.rs", 2, 2),
@@ -22637,7 +22659,8 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 29, 29),
+        ("nc-platform/clipboard.rs", 2, 2),
+        ("nc-platform/lib.rs", 32, 32),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
@@ -25682,7 +25705,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20142;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20560;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25701,7 +25724,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5247;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5470;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25718,7 +25741,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1765;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1847;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25752,7 +25775,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 26868;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27313;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25806,7 +25829,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 26,868 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,313 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25839,7 +25862,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1765 of
+    /// this tree offers, **1847 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27814,6 +27837,12 @@ mod the_frozen_path_rule {
         let [left_out, kept @ ..] = super::THE_ADVISORIES_LEFT_OUT;
         let another = "RUSTSEC-2099-0001";
         let entry = |id: &str| format!("{{ id = \"{id}\", reason = \"it does not reach here\" }}");
+        // **The rest of the list as it is shipped**, so each case changes the
+        // first entry alone.
+        let rest: String = kept
+            .iter()
+            .flat_map(|id| [", ".to_owned(), entry(id)])
+            .collect();
         for (label, written, reported) in [
             ("the list emptied", "ignore = []".to_owned(), true),
             ("the key taken out", String::new(), true),
@@ -27837,12 +27866,6 @@ mod the_frozen_path_rule {
                 format!("ignore = [{{ id = \"{left_out}\" }}{rest}]"),
                 true,
             ),
-        // **The rest of the list as it is shipped**, so each case changes the
-        // first entry alone.
-        let rest: String = kept
-            .iter()
-            .flat_map(|id| [", ".to_owned(), entry(id)])
-            .collect();
             (
                 "the entry with an empty reason",
                 format!("ignore = [{{ id = \"{left_out}\", reason = \"\" }}{rest}]"),
@@ -28380,7 +28403,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 755;
+    const THE_REST_IT_SAYS: usize = 756;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28528,7 +28551,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 506] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 510] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29654,6 +29677,14 @@ mod the_frozen_path_rule {
         ),
         ("}) =>", "{} is uninstalled"),
         (
+            "—",
+            "`noctua-dev`, `{}`, now reaches `{}`, the checkout installed most recently of those that remain",
+        ),
+        (
+            "—",
+            "`noctua-dev`, `{}`, is removed: no development checkout remains",
+        ),
+        (
             "if let Some(name) = unregistered",
             "its restorer, `{name}`, is unregistered from this system's service manager",
         ),
@@ -29666,9 +29697,14 @@ mod the_frozen_path_rule {
             "the daemon the earlier install ran was stopped first: {}",
         ),
         ("—", "{} is installed"),
+        ("—", "the CLI is `{}`"),
         (
-            "—",
-            "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
+            "if let Some(link) = &installed.link",
+            "`noctua-dev` reaches it, from `{}`",
+        ),
+        (
+            "if let Some(bin) = link.parent() && !nc_platform::is_on_path(bin, std::env::var_os(\"PATH\").as_deref())",
+            "`{}` is not on `PATH`, so `noctua-dev` is reached by its path until it is: {}",
         ),
         (
             "if let Some(registered) = &installed.registered",
@@ -34445,7 +34481,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 59] = [
+    const NOT_MUTATED: [(&str, &str); 60] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34955,6 +34991,17 @@ mod the_meta_gate {
              edited by the runner, whose commands for it run this suite beside \
              that module's unit tests, and a weakening of this file would remove \
              evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/cli/tests/the_launcher_passes_everything_through.rs",
+            "a suite: the built CLI copied as a launcher, a pointer beside it, run \
+             with every kind of argument, its standard input, output and error, and \
+             an exit code of its own, and a copy with no pointer run as a CLI with no \
+             install. It spawns a process, so no mutation command runs it: what it \
+             drives in `launcher.rs` and `main.rs` is decided by the unit tests of \
+             `launcher.rs` and `main.rs`, which the runner's commands for them run, \
+             and a weakening of this file would remove evidence rather than uncover \
+             an undecided clause",
         ),
     ];
 
@@ -35528,7 +35575,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 14] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 15] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35584,6 +35631,10 @@ mod the_meta_gate {
         ),
         (
             "apps/daemon/tests/the_stop_mark_silences_every_restorer.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/cli/tests/the_launcher_passes_everything_through.rs",
             SPAWNS_A_PROCESS,
         ),
     ];
@@ -37763,7 +37814,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 232,
+            walked, 240,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37803,7 +37854,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2498] = [
+    static OPERATORS: [(&str, &str, &str); 2556] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46773,6 +46824,11 @@ Options:
         ("channel", "Namespace", "a namespace is bounded in length"),
         ("channel", "Namespace", "a namespace holds no separator"),
         ("channel", "Namespace", "a namespace holds a digit"),
+        (
+            "channel",
+            "Namespace",
+            "a namespace is never a checkout's digest",
+        ),
         ("channel", "plain", "a base holds no control character"),
         (
             "channel",
@@ -46870,6 +46926,12 @@ Options:
         ("channel", "layout", "the pipe carries the user"),
         ("channel", "layout", "a relocated install follows no feed"),
         ("channel", "layout", "a relocated install names no stack"),
+        ("channel", "chosen", "noctua-dev carries the namespace"),
+        (
+            "channel",
+            "layout",
+            "a development install records its checkout",
+        ),
         ("channel", "leaf", "a namespace is a part of its own"),
         (
             "channel",
@@ -47877,54 +47939,99 @@ Options:
             "a configured Leader that breaks a rule is refused",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "installed",
             "a channel counts only while its manifest is there",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "installed",
             "a manifest the disk did not answer for refuses the configured Leader",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkouts_under",
             "a base that will not list refuses",
         ),
         (
-            "channel_keys",
-            "siblings",
+            "channel_checkouts",
+            "installed_checkouts",
             "more checkouts than the bound refuse",
         ),
         (
-            "channel_keys",
-            "siblings",
+            "channel_checkouts",
+            "installed_checkouts",
             "the bound itself does not refuse",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkouts_under",
             "more profiles than the listing's bound refuse",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkouts_under",
             "the listing's bound itself does not refuse",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkouts_under",
             "a profile an uninstall left is not counted as a checkout",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkout_named",
             "a real install reads no test install's profile",
         ),
         (
-            "channel_keys",
+            "channel_checkouts",
             "checkout_named",
             "a test install reads only its own namespace's profiles",
+        ),
+        (
+            "channel_checkouts",
+            "Record",
+            "a time before the epoch is refused",
+        ),
+        (
+            "channel_checkouts",
+            "formatted",
+            "a record of another format is refused",
+        ),
+        (
+            "channel_checkouts",
+            "object",
+            "a key a record does not hold is refused",
+        ),
+        (
+            "channel_checkouts",
+            "path",
+            "a path a record holds is plain and absolute",
+        ),
+        (
+            "channel_checkouts",
+            "listed",
+            "a record's time is when it was installed",
+        ),
+        (
+            "channel_checkouts",
+            "pointed_at",
+            "a link points at a checkout only at exactly its CLI",
+        ),
+        (
+            "channel_checkouts",
+            "read_bounded",
+            "a record past its bound is refused",
+        ),
+        (
+            "channel_checkouts",
+            "read_bounded",
+            "a record another account can reach is not read",
+        ),
+        (
+            "channel_checkouts",
+            "pointer_beside",
+            "a launcher's pointer is named for it",
         ),
         (
             "channel_keys",
@@ -48178,19 +48285,84 @@ Options:
         ),
         ("platform_unix", "ended_in", "a zombie has ended"),
         (
+            "platform_unix",
+            "judge_written_by_user_alone",
+            "a directory another user may write in is refused",
+        ),
+        (
+            "platform_unix",
+            "judge_written_by_user_alone",
+            "a directory another user owns is refused",
+        ),
+        (
+            "platform_unix",
+            "judge_written_by_user_alone",
+            "a link where the directory should be is refused",
+        ),
+        (
             "platform",
             "bases_of",
             "an XDG directory that is not absolute is passed over",
         ),
         (
             "platform",
-            "bases_of",
+            "absolute_variable",
             "a base that is not an absolute path is refused",
         ),
         (
             "platform",
             "bases_of",
             "a device is kept in the local folder, never the roaming one",
+        ),
+        (
+            "platform",
+            "bin_of",
+            "Windows keeps the bin directory under the profile",
+        ),
+        (
+            "platform",
+            "bin_of",
+            "the bin directory is the home's local bin",
+        ),
+        (
+            "platform",
+            "is_on_path",
+            "a directory is on the search path only as one of its entries",
+        ),
+        (
+            "platform",
+            "path_line_of",
+            "zsh's line is for the file zsh reads",
+        ),
+        (
+            "platform_clipboard",
+            "tools",
+            "an empty Wayland display names none",
+        ),
+        (
+            "platform_clipboard",
+            "tools",
+            "wl-copy is tried only where a Wayland display is named",
+        ),
+        (
+            "platform_clipboard",
+            "encoded",
+            "UTF-16 opens with its byte-order mark",
+        ),
+        (
+            "platform_clipboard",
+            "handed",
+            "the text is the tool's standard input",
+        ),
+        (
+            "platform_clipboard",
+            "handed",
+            "a tool that ends badly did not take the text",
+        ),
+        (
+            "platform_clipboard",
+            "copy",
+            "the first tool that takes the text ends the trying",
         ),
         (
             "channel_record",
@@ -48641,6 +48813,131 @@ Options:
             "cli_install",
             "uninstall_restored_by",
             "an uninstall reads the mark before its own stop",
+        ),
+        (
+            "cli_install",
+            "repointed_after",
+            "a name pointing at another checkout is left",
+        ),
+        (
+            "cli_install",
+            "repointed_after",
+            "the checkout installed most recently is the one left the name",
+        ),
+        (
+            "cli_install",
+            "judged_link",
+            "what stands at the name is judged before anything is stopped",
+        ),
+        (
+            "cli_install",
+            "install_restored_by",
+            "an install records its checkout",
+        ),
+        (
+            "cli_install",
+            "uninstall_restored_by",
+            "an uninstall removes the record with the install",
+        ),
+        (
+            "cli_chosen",
+            "is_a_checkouts_cli",
+            "a target is a checkout's CLI only at exactly the path the layout names",
+        ),
+        (
+            "cli_chosen",
+            "may_point",
+            "a name pointing anywhere else is refused",
+        ),
+        (
+            "cli_chosen",
+            "pointed",
+            "a regular file where a link should be is refused",
+        ),
+        (
+            "cli_chosen",
+            "pointed",
+            "a launcher with no pointer is refused",
+        ),
+        (
+            "cli_chosen",
+            "bin_judged",
+            "a bin directory another account may write in is refused",
+        ),
+        ("cli_chosen", "removed", "a launcher's pointer goes with it"),
+        (
+            "cli_checkouts",
+            "named",
+            "a digest chooses that checkout and no other",
+        ),
+        (
+            "cli_checkouts",
+            "listing",
+            "the list says which checkout noctua-dev reaches",
+        ),
+        (
+            "cli_checkouts",
+            "said_chosen",
+            "a choice prints the chosen CLI's path",
+        ),
+        (
+            "cli_checkouts",
+            "note_of",
+            "a checkout with no record says how to record one",
+        ),
+        (
+            "cli_checkouts",
+            "chosen",
+            "a choice points the name at the chosen checkout's CLI",
+        ),
+        (
+            "cli_picker",
+            "key",
+            "the selection stops at the end of the list",
+        ),
+        ("cli_picker", "key", "Up moves the selection one up"),
+        ("cli_picker", "key", "a query is held to its bound"),
+        ("cli_picker", "key", "Esc and Ctrl-C leave"),
+        (
+            "cli_picker",
+            "matched",
+            "a query changed selects the best match",
+        ),
+        (
+            "cli_picker",
+            "lines",
+            "the list scrolls to keep the selection in view",
+        ),
+        ("cli_picker", "fitted", "a line cut ends in an ellipsis"),
+        ("cli_picker", "marked", "a matched position is highlighted"),
+        ("cli_picker", "plain", "a text the picker draws is escaped"),
+        ("cli_terminal", "drop", "the guard leaves the terminal"),
+        ("cli_terminal", "read_key", "a release is no key"),
+        ("cli_terminal", "read_key", "Ctrl-C leaves the picker"),
+        (
+            "cli_launcher",
+            "passed_on",
+            "a launcher ends with its CLI's code, and fails where none is named",
+        ),
+        (
+            "cli_launcher",
+            "pointed",
+            "a pointer in a directory another account may write in is not read",
+        ),
+        (
+            "cli_args",
+            "read",
+            "checkouts takes the digest that follows it",
+        ),
+        (
+            "cli_exit",
+            "code",
+            "leaving the picker has a code of its own",
+        ),
+        (
+            "cli_render",
+            "at_a_terminal",
+            "a terminal is said once the binary says so",
         ),
         (
             "platform_service",

@@ -93,13 +93,20 @@ configuration directory's `systemd` folder, a launch agent in your Library's
 and starts it, unless the profile carries the stop mark — which your `stop` writes, and
 so does an install or a `dev --uninstall` that failed after stopping the daemon; one that
 finishes takes away the mark its own stop wrote, and keeps yours — and then the daemon
-stays down until `noctua-dev-<checkout> start`. **It does not
-change `PATH`**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
-it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
-`stop` stops it and keeps it down whatever restores it, until `start`, and `status` says
-how it is. `cargo xtask dev --uninstall` stops the daemon, unregisters it from the
+stays down until `noctua-dev start`. **Last, it points `noctua-dev`** — a link on
+Linux and macOS, a launcher on Windows — in your bin directory, .local/bin under your home,
+at this checkout's CLI, `noctua-dev-<checkout>`, and prints where it is; it never changes
+`PATH` or a file your shell reads at its start, so when that directory is not on your
+`PATH` it prints the one line that puts it there for your shell. `noctua-dev start` starts
+the daemon, `stop` stops it and keeps it down whatever restores it, until `start`, and
+`status` says how it is. **With more than one checkout installed**, `noctua-dev checkouts`
+lists them and, at a terminal, opens a picker — type to filter, Up and Down to move,
+Enter to choose, Esc to leave — and `noctua-dev checkouts <checkout>` chooses one by its
+digest: choosing points `noctua-dev` at that checkout's CLI and copies the CLI's path to
+your clipboard. `cargo xtask dev --uninstall` stops the daemon, unregisters it from the
 service manager and removes the binaries and the mark its own stop wrote, and keeps the
-profile, your own `stop` with it; on Linux, once your user
+profile, your own `stop` with it, and leaves `noctua-dev` to the checkout you installed
+most recently of those that remain, or removes it; on Linux, once your user
 manager has read the unit's link at a login or a boot, unregistering it asks for one
 `systemctl --user daemon-reload`, the only reload anything here asks for. Run from an
 environment that does not reach the service manager — no `systemctl` on `PATH` by an
