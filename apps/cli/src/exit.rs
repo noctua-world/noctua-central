@@ -41,11 +41,13 @@ pub enum Exit {
     ProcessControl,
     /// No install was found beside this executable.
     NoInstall,
+    /// The picker was left without a choice.
+    Left,
 }
 
 impl Exit {
     /// Every outcome, in the order of its code.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Success,
         Self::Failed,
         Self::Invalid,
@@ -59,6 +61,7 @@ impl Exit {
         Self::Refused,
         Self::ProcessControl,
         Self::NoInstall,
+        Self::Left,
     ];
 
     /// The exit code a run that ends this way carries.
@@ -78,6 +81,7 @@ impl Exit {
             Self::Refused => 10,
             Self::ProcessControl => 11,
             Self::NoInstall => 12,
+            Self::Left => 13,
         }
     }
 
@@ -114,6 +118,7 @@ impl Exit {
             Self::NoInstall => {
                 "no install was found beside this executable, or its manifest was refused"
             }
+            Self::Left => "the picker was left without a choice, so nothing was changed",
         }
     }
 
@@ -155,13 +160,13 @@ mod tests {
 
     use super::Exit;
 
-    /// Every outcome has a code of its own, the codes run from 0 to 12 with
+    /// Every outcome has a code of its own, the codes run from 0 to 13 with
     /// none skipped, and `ALL` holds each outcome once, in that order — the
     /// table the plan writes (`NOCTUA.md §20.2`).
     #[test]
     fn every_outcome_is_one_row_and_the_codes_are_the_tables() {
         let codes: Vec<u8> = Exit::ALL.iter().map(|exit| exit.code()).collect();
-        assert_eq!(codes, (0..=12).collect::<Vec<u8>>());
+        assert_eq!(codes, (0..=13).collect::<Vec<u8>>());
         for (at, exit) in Exit::ALL.iter().enumerate() {
             assert!(
                 !Exit::ALL[..at].contains(exit),
@@ -182,6 +187,7 @@ mod tests {
             (Exit::Refused, 10),
             (Exit::ProcessControl, 11),
             (Exit::NoInstall, 12),
+            (Exit::Left, 13),
         ] {
             assert_eq!(exit.code(), code, "{exit:?}");
         }

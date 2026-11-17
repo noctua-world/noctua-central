@@ -383,6 +383,21 @@ rustix = { version = "1.1", default-features = false }
 # it. 0.1.25 is the release whose tables are Unicode 17.0.
 unicode-normalization = { version = "0.1.25", default-features = false }
 
+# **The terminal the `checkouts` picker runs in** (`NOCTUA.md §17.1`): raw
+# mode entered and always left, the alternate screen, keys read as events and
+# lines drawn, on Linux, macOS and Windows, whose console needs calls of its own
+# — a terminal's modes are each system's to set, and getting them wrong leaves
+# a person's shell unusable. A direct dependency of `nc-cli` alone, approved
+# by the developer on 2026-11-17. **`default-features = false`**, with the
+# two features the picker uses: `events`, the keys, and `windows`, without
+# which it refuses to build on Windows — never `bracketed-paste`, `serde`,
+# `event-stream`, `osc52` or `derive-more`. It brings `crossterm_winapi`,
+# `winapi` and its two import crates for Windows, `signal-hook`,
+# `signal-hook-mio` and `signal-hook-registry` for a resize on Unix, and
+# `document-features` with `litrs` at build time; `mio`, `rustix`,
+# `parking_lot` and `bitflags` are in the graph already.
+crossterm = { version = "0.29", default-features = false, features = ["events", "windows"] }
+
 # The ledger's checksum, which is what catches an edit made outside the compiler.
 # `NOCTUA.md §16.2` and `§14.9` both name BLAKE3, and it is already
 # `noctua-colors`'.

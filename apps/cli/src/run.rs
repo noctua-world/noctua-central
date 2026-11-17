@@ -62,6 +62,14 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
             on_a_runtime(found, line.json, env, Asked::Help(Topic::Everything))
                 .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))
         }
+        // **Answered with no daemon**: the checkouts are found on disk, and
+        // choosing one changes a name outside every profile.
+        Asked::Checkouts(digest) => Ok(crate::checkouts::answered(
+            found,
+            line.json,
+            env,
+            digest.as_deref(),
+        )),
         asked => on_a_runtime(found, line.json, env, asked),
     };
     ended.unwrap_or_else(|failure| render::failed(line.json, locale, &failure))
@@ -168,8 +176,8 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             }
         }
         // Help on everything; a verb that controls the daemon was answered
-        // above, before the connection.
-        Asked::Help(_) | Asked::Control(_) => {
+        // above, before the connection, and the checkouts before any.
+        Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(_) => {
             Ok(render::shown(json, help::everything(cli, &registry)))
         }
     }

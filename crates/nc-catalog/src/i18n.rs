@@ -2369,6 +2369,27 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.cli.checkout-unknown",
+        [
+            "No development checkout with that digest is installed here, so nothing was chosen.",
+            "Nenhum checkout de desenvolvimento com esse resumo está instalado aqui, então nada foi escolhido.",
+        ],
+    ),
+    (
+        "error.cli.checkouts-unlisted",
+        [
+            "The development checkouts installed here could not be listed. Try again in a moment.",
+            "Não foi possível listar os checkouts de desenvolvimento instalados aqui. Tente de novo em instantes.",
+        ],
+    ),
+    (
+        "error.cli.chosen-not-pointed",
+        [
+            "noctua-dev was not changed: its folder, or what is already there, is not this installation's to change, or it could not be written.",
+            "O noctua-dev não foi alterado: a pasta dele, ou o que já está lá, não cabe a esta instalação alterar, ou não pôde ser gravado.",
+        ],
+    ),
+    (
         "error.cli.command-line-unreadable",
         [
             "Noctua did not understand that command line, so it did nothing. Its help says what each command takes.",
@@ -2397,6 +2418,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.cli.launcher-refused",
+        [
+            "This launcher's settings could belong to another account, or could not be read, so nothing was run. Install again.",
+            "As configurações deste lançador podem pertencer a outra conta, ou não puderam ser lidas, então nada foi executado. Instale de novo.",
+        ],
+    ),
+    (
         "error.cli.output-failed",
         [
             "This program could not write its answer, so part of it may be missing.",
@@ -2408,6 +2436,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua did not answer, and the program its records name could not be shown to be Noctua, so nothing was stopped.",
             "O Noctua não respondeu, e não foi possível mostrar que o programa indicado nos registros dele é o Noctua, então nada foi parado.",
+        ],
+    ),
+    (
+        "error.cli.terminal-unanswered",
+        [
+            "The terminal did not answer, so nothing was chosen. Try again, or choose by the checkout's digest.",
+            "O terminal não respondeu, então nada foi escolhido. Tente de novo, ou escolha pelo resumo do checkout.",
         ],
     ),
     (
@@ -3779,12 +3814,17 @@ pub const KEYS: &[&str] = &[
     "error.channel.no-manifest",
     "error.channel.unknown",
     "error.cli.answer-unreadable",
+    "error.cli.checkout-unknown",
+    "error.cli.checkouts-unlisted",
+    "error.cli.chosen-not-pointed",
     "error.cli.command-line-unreadable",
     "error.cli.daemon-did-not-start",
     "error.cli.daemon-did-not-stop",
     "error.cli.daemon-misnamed",
+    "error.cli.launcher-refused",
     "error.cli.output-failed",
     "error.cli.process-unverified",
+    "error.cli.terminal-unanswered",
     "error.cli.token-not-private",
     "error.cli.token-unreadable",
     "error.daemon.device-unreadable",

@@ -58,13 +58,18 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod args;
+pub mod checkouts;
+pub mod chosen;
 pub mod client;
 pub mod control;
 pub mod exit;
 pub mod help;
 pub mod install;
+pub mod launcher;
+pub mod picker;
 pub mod render;
 pub mod run;
+pub mod terminal;
 
 pub use render::{Env, Outcome};
 pub use run::run;

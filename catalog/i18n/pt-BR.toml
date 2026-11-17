@@ -216,6 +216,11 @@ dir   = "ltr"
 "error.cli.daemon-did-not-start" = "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar, ou o que o gerenciador de serviços do sistema diz dele, aparece ao lado desta mensagem."
 "error.cli.daemon-did-not-stop" = "Foi pedido ao Noctua que parasse e ele não parou, então pode ainda estar em execução. Tente de novo daqui a pouco."
 "error.cli.process-unverified" = "O Noctua não respondeu, e não foi possível mostrar que o programa indicado nos registros dele é o Noctua, então nada foi parado."
+"error.cli.checkout-unknown" = "Nenhum checkout de desenvolvimento com esse resumo está instalado aqui, então nada foi escolhido."
+"error.cli.checkouts-unlisted" = "Não foi possível listar os checkouts de desenvolvimento instalados aqui. Tente de novo em instantes."
+"error.cli.chosen-not-pointed" = "O noctua-dev não foi alterado: a pasta dele, ou o que já está lá, não cabe a esta instalação alterar, ou não pôde ser gravado."
+"error.cli.terminal-unanswered" = "O terminal não respondeu, então nada foi escolhido. Tente de novo, ou escolha pelo resumo do checkout."
+"error.cli.launcher-refused" = "As configurações deste lançador podem pertencer a outra conta, ou não puderam ser lidas, então nada foi executado. Instale de novo."
 
 # --- The entries that prove the catalog's mechanism ---
 "notification.catalog.mechanism.title" = "O Noctua está funcionando"
