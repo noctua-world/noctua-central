@@ -66,9 +66,12 @@ type Named<T> = Vec<(String, T)>;
 ///
 /// **No `..` in the pattern**: a field `Layout` gains fails to compile here
 /// until it is read into one of the two lists — a name the comparisons below
-/// never see is a name two installs may share. The Leader is the one field held
-/// apart differently (see [`the_leader_is_held_apart_across_the_three_channels_and_only_there`]),
-/// and is read here only so the pattern is whole.
+/// never see is a name two installs may share. Two fields are held apart
+/// differently, and are read here only so the pattern is whole: the Leader
+/// (see [`the_leader_is_held_apart_across_the_three_channels_and_only_there`])
+/// and the name of the checkout installed or chosen last, which every checkout
+/// of one install's bases and namespace shares (see
+/// [`noctua_dev_is_the_development_channels_and_meets_no_other_name`]).
 fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
     let Layout {
         install,
@@ -108,6 +111,8 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         leader: _,
         update,
         stack,
+        checkout_record,
+        chosen_cli: _,
     } = layout.clone();
     let paths = vec![
         ("install".to_owned(), install),
@@ -132,6 +137,10 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("socket".to_owned(), socket),
         ("daemon_err".to_owned(), daemon_err),
     ];
+    let mut paths = paths;
+    if let Some(record) = checkout_record {
+        paths.push(("checkout_record".to_owned(), record));
+    }
     let mut names = vec![
         ("cli".to_owned(), cli),
         ("daemon".to_owned(), daemon),
@@ -346,6 +355,7 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ("token", state.join("run").join("token")),
         ("socket", state.join("run").join("s")),
         ("daemon_err", state.join("log").join("daemon.err")),
+        ("checkout_record", state.join("bin").join("checkout.json")),
     ];
     assert_eq!(
         paths,
@@ -433,7 +443,8 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
             log_endpoint: None,
         };
         let (paths, _) = parts(&layout(&install, "1000"));
-        assert_eq!(paths.len(), 21);
+        let recorded = usize::from(matches!(channel, Channel::Development(_)));
+        assert_eq!(paths.len(), 21 + recorded);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),
@@ -443,6 +454,62 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
                 root.display()
             );
         }
+    }
+}
+
+/// `noctua-dev` is the development channel's, and meets no other name.
+///
+/// **Every checkout of one install's bases and namespace shares it**, since it
+/// names the one installed or chosen last: production and staging have none,
+/// a relocated install's carries its namespace, and none of them — real or
+/// relocated, for either user — is any name any install derives, case-folded.
+/// So a test's install never names the developer's, and no checkout's CLI is
+/// ever reached by it in place of its own name.
+#[test]
+fn noctua_dev_is_the_development_channels_and_meets_no_other_name() {
+    let chosen_of = |channel: Channel, namespace: Option<&str>, user: &str| {
+        let install = Install {
+            channel,
+            bases: bases_under(&nowhere().join("default")),
+            namespace: namespace.map(|text| Namespace::parse(text).expect("a namespace")),
+            log_endpoint: None,
+        };
+        layout(&install, user).chosen_cli
+    };
+    let [one, other] = checkouts();
+    for user in ["1000", "S-1-5-21-1-2-3-1001"] {
+        for published in [Channel::Production, Channel::Staging] {
+            for namespace in [None, Some("t1")] {
+                assert_eq!(chosen_of(published, namespace, user), None);
+            }
+        }
+        assert_eq!(
+            chosen_of(Channel::Development(one), None, user).as_deref(),
+            Some("noctua-dev")
+        );
+        assert_eq!(
+            chosen_of(Channel::Development(other), Some("t1"), user).as_deref(),
+            Some("noctua-dev-t1")
+        );
+        for namespace in [None, Some("t1"), Some("t2")] {
+            assert_eq!(
+                chosen_of(Channel::Development(one), namespace, user),
+                chosen_of(Channel::Development(other), namespace, user),
+                "two checkouts of one namespace name the one installed last apart"
+            );
+        }
+    }
+    let every: BTreeSet<String> = derived()
+        .into_iter()
+        .flat_map(|install| install.every)
+        .collect();
+    let mut chosen = BTreeSet::new();
+    for namespace in [None, Some("t1"), Some("t2")] {
+        let name = chosen_of(Channel::Development(one), namespace, "1000")
+            .expect("a development install's")
+            .to_lowercase();
+        assert!(!every.contains(&name), "`{name}` is another install's name");
+        assert!(chosen.insert(name), "two namespaces share one");
     }
 }
 
@@ -994,7 +1061,7 @@ fn a_refusal_quotes_the_manifest_escaped_and_cut() {
 }
 
 /// A namespace is a short word of lower-case letters and digits holding a
-/// digit, and nothing else.
+/// digit, never a checkout's eight hexadecimal digits, and nothing else.
 #[test]
 fn a_namespace_is_short_lower_case_and_holds_a_digit() {
     for accepted in ["t1", "1", "0123456789abcdef", "a9z"] {
@@ -1008,6 +1075,9 @@ fn a_namespace_is_short_lower_case_and_holds_a_digit() {
         "t",
         "staging",
         "daemon",
+        // **A checkout's spelling**: `noctua-dev-<namespace>` would be its CLI.
+        "0123abcd",
+        "00000000",
         "T1",
         "t.1",
         "t_1",
