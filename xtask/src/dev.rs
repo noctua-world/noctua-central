@@ -553,8 +553,13 @@ fn stands_aside(runs_the_stack: bool) -> bool {
 /// carried the `stopped` mark — `NOCTUA.md §17.3`. **On Linux, lingering** is
 /// what starts it at boot rather than at the first login: kept where logind
 /// keeps it, enabled where it lets this user, and otherwise the command and
-/// the NixOS option that enable it are printed. `PATH` is not changed: the
-/// CLI is at the path this prints.
+/// the NixOS option that enable it are printed. **Last, `noctua-dev`** in
+/// the user's bin directory is pointed at this checkout's CLI
+/// (`nc_cli::chosen`), its record written beside the manifest; `PATH` is
+/// not changed and no shell's file edited, so where the bin directory is not
+/// on `PATH` the one line that puts it there is printed. `--uninstall` leaves
+/// `noctua-dev` to the checkout installed most recently of those that remain,
+/// or removes it, when it pointed at this one.
 ///
 /// # Errors
 ///
@@ -576,6 +581,8 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
     if uninstall {
         return uninstalled(&install);
     }
+    let chosen = nc_cli::install::chosen(root, &|name: &str| std::env::var_os(name))
+        .map_err(|unmade| unmade.to_string())?;
     let built = crate::check::cargo(
         root,
         &[
@@ -624,6 +631,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
                 component,
             })
             .collect(),
+        Some(chosen),
     );
     let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
     said_installed(&installed)
@@ -696,8 +704,22 @@ fn uninstalled(install: &nc_channel::Install) -> Result<(), String> {
         Some(nc_cli::install::Uninstalled {
             layout,
             unregistered,
+            repointed,
         }) => {
             ui::ok(&format!("{} is uninstalled", layout.cli));
+            match repointed {
+                Some(nc_cli::install::Repointed::To { link, cli }) => ui::detail(&format!(
+                    "`noctua-dev`, `{}`, now reaches `{}`, the checkout installed most recently \
+                     of those that remain",
+                    link.display(),
+                    cli.display()
+                )),
+                Some(nc_cli::install::Repointed::Removed(link)) => ui::detail(&format!(
+                    "`noctua-dev`, `{}`, is removed: no development checkout remains",
+                    link.display()
+                )),
+                None => {}
+            }
             if let Some(name) = unregistered {
                 ui::detail(&format!(
                     "its restorer, `{name}`, is unregistered from this system's service \
@@ -733,10 +755,22 @@ fn said_installed(installed: &nc_cli::install::Installed) -> Result<(), String> 
         ));
     }
     ui::ok(&format!("{} is installed", installed.found.layout.cli));
-    ui::detail(&format!(
-        "the CLI is `{}`; `PATH` is not changed, so it is run by that path or a link you make",
-        installed.cli.display()
-    ));
+    ui::detail(&format!("the CLI is `{}`", installed.cli.display()));
+    if let Some(link) = &installed.link {
+        ui::ok(&format!(
+            "`noctua-dev` reaches it, from `{}`",
+            link.display()
+        ));
+        if let Some(bin) = link.parent()
+            && !nc_platform::is_on_path(bin, std::env::var_os("PATH").as_deref())
+        {
+            ui::warn(&format!(
+                "`{}` is not on `PATH`, so `noctua-dev` is reached by its path until it is: {}",
+                bin.display(),
+                nc_platform::path_line(|name: &str| std::env::var_os(name))
+            ));
+        }
+    }
     let cli = installed.cli.display();
     if let Some(registered) = &installed.registered {
         ui::ok(&format!(

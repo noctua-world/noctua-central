@@ -65,16 +65,17 @@ use windows_sys::Win32::Security::{
     SECURITY_DESCRIPTOR, SetSecurityDescriptorControl, SetSecurityDescriptorDacl,
     SetSecurityDescriptorOwner, TOKEN_INFORMATION_CLASS, TOKEN_QUERY, TokenOwner, TokenUser,
 };
+#[cfg(any(test, feature = "test-support"))]
+use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
 use windows_sys::Win32::Storage::FileSystem::{
     CREATE_NEW, CreateDirectoryW, CreateFileW, DELETE, FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY,
     FILE_ALL_ACCESS, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_READONLY,
     FILE_ATTRIBUTE_REPARSE_POINT, FILE_DELETE_CHILD, FILE_FLAG_BACKUP_SEMANTICS,
     FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, FILE_TRAVERSE, FILE_WRITE_ATTRIBUTES, READ_CONTROL,
+    FILE_SHARE_WRITE, FILE_TRAVERSE, FILE_WRITE_ATTRIBUTES, FILE_WRITE_EA, READ_CONTROL, WRITE_DAC,
+    WRITE_OWNER,
 };
-#[cfg(any(test, feature = "test-support"))]
-use windows_sys::Win32::Storage::FileSystem::{SYNCHRONIZE, WRITE_DAC, WRITE_OWNER};
 use windows_sys::Win32::System::SystemServices::{
     ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE, SECURITY_DESCRIPTOR_REVISION,
 };
@@ -177,7 +178,6 @@ impl Sid {
     }
 
     /// The well-known SID `S-1-<authority>-<subs…>`, built from its parts.
-    #[cfg(any(test, feature = "test-support"))]
     fn well_known(authority: u8, subs: &[u32]) -> Self {
         let mut bytes = vec![1, u8::try_from(subs.len()).unwrap_or(u8::MAX)];
         bytes.extend_from_slice(&[0, 0, 0, 0, 0, authority]);
@@ -297,7 +297,7 @@ fn token_sid(token: &OwnedHandle, class: TOKEN_INFORMATION_CLASS) -> io::Result<
 
 /// Who this process runs as, asked of its token once and kept: a process's
 /// token does not change its user.
-fn this_user() -> io::Result<User> {
+pub(crate) fn this_user() -> io::Result<User> {
     static USER: OnceLock<User> = OnceLock::new();
     if let Some(user) = USER.get() {
         return Ok(user.clone());
@@ -880,6 +880,92 @@ fn judged(path: &Path, file: &File, kind: Kind, user: &User, owned: Owned) -> Re
         ));
     }
     Ok(())
+}
+
+/// What nobody but the user may hold on a directory written by its user
+/// alone: adding a file or a folder, deleting, and changing its attributes,
+/// its extended attributes, its access list or its owner.
+const WRITES: u32 = FILE_ADD_FILE
+    | FILE_ADD_SUBDIRECTORY
+    | FILE_DELETE_CHILD
+    | DELETE
+    | FILE_WRITE_ATTRIBUTES
+    | FILE_WRITE_EA
+    | WRITE_DAC
+    | WRITE_OWNER;
+
+/// Whom no access list stops, and who may so hold [`WRITES`] on a directory
+/// written by its user alone.
+///
+/// **`SYSTEM`**, `S-1-5-18`, and the Administrators group, `S-1-5-32-544`.
+fn above_every_list() -> [Sid; 2] {
+    [Sid::well_known(5, &[18]), Sid::well_known(5, &[32, 544])]
+}
+
+/// Whether the directory `path` is the user's, and no entry of its access list
+/// lets anybody but the user — or whom no list stops — write in it.
+///
+/// **Read as [`judged`] reads a path**, through one handle that opens a link
+/// as itself; an inherited entry counts as any other, an entry only what is
+/// made inside inherits does not reach the directory itself, and an entry of a
+/// type this does not read is refused rather than guessed at.
+pub(crate) fn judge_written_by_user_alone(path: &Path, user: &User) -> Result<(), Judged> {
+    let reading =
+        |error: io::Error| Failed::new(format!("`{}` could not be read", path.display()), error);
+    let refused = |what: String| Err(Judged::Refused(Refusal::of(path, what)));
+    let file = opened(path, READ_CONTROL | FILE_READ_ATTRIBUTES).map_err(reading)?;
+    let attributes = file.metadata().map_err(reading)?.file_attributes();
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return refused(A_LINK.to_owned());
+    }
+    if attributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+        return refused("is not a directory".to_owned());
+    }
+    let security = security_of(&file).map_err(reading)?;
+    if security.owner != user.sid && security.owner != user.creates_as {
+        return refused(format!(
+            "belongs to user {} and this process runs as user {}",
+            security.owner, user.sid
+        ));
+    }
+    let Some(entries) = security.entries else {
+        return refused("has no access list at all, so another user can write in it".to_owned());
+    };
+    let above = above_every_list();
+    for entry in entries {
+        match entry {
+            Ace::Unread(unread) => {
+                return refused(format!(
+                    "has an access entry of type {unread}, which this does not read, so it is \
+                     taken as one that lets another user write in it"
+                ));
+            }
+            Ace::Known {
+                allows: true,
+                flags,
+                mask,
+                sid,
+            } if flags & INHERIT_ONLY_ACE == 0
+                && sid != user.sid
+                && !above.contains(&sid)
+                && mapped(mask) & WRITES != 0 =>
+            {
+                return refused(format!("has an access list that lets {sid} write in it"));
+            }
+            Ace::Known { .. } => {}
+        }
+    }
+    Ok(())
+}
+
+/// A name in the bin directory reaches its executable through a launcher
+/// here: a symbolic link needs a privilege a user may not hold.
+pub(crate) const REACH: crate::Reach = crate::Reach::Launcher;
+
+/// A symbolic link at `at` to the file `target`, for a process that holds
+/// the privilege to make one.
+pub(crate) fn link(target: &Path, at: &Path) -> io::Result<()> {
+    std::os::windows::fs::symlink_file(target, at)
 }
 
 /// `directory`, held through a private file `name` in it under an exclusive
@@ -1962,6 +2048,18 @@ pub(crate) fn make_private(path: &Path) -> io::Result<()> {
 #[cfg(any(test, feature = "test-support"))]
 fn everyone() -> Sid {
     Sid::well_known(1, &[0])
+}
+
+/// Lets `Users`, `S-1-5-32-545`, add a file to the directory `path`, and
+/// answers what a refusal of a directory written by its user alone says.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn let_another_user_write(path: &Path) -> io::Result<String> {
+    let user = this_user()?;
+    let users = Sid::well_known(5, &[32, 545]);
+    let mut entries = private_entries(&user.sid, Kind::Directory);
+    entries.push(Ace::allow(users.clone(), FILE_ADD_FILE, 0));
+    set_security(path, &user.sid, Some(&entries))?;
+    Ok(format!("has an access list that lets {users} write in it"))
 }
 
 /// Lets `Everyone` read `path` beside the user, and answers its SID.

@@ -22,7 +22,13 @@
 //! anything signals it, and a daemon started detached ([`process`]); and an
 //! installer the base directories a user's profiles are kept under
 //! ([`base_directories`]) and an executable written private
-//! ([`create_private_executable`]). This crate is what they need, and no more.
+//! ([`create_private_executable`]). The one name an installer writes outside
+//! a profile asks three more: the user's bin directory ([`bin_directory`]),
+//! judged written by its user alone ([`judge_written_by_user_alone`]), and a
+//! link in it ([`link`]) where this system reaches by one ([`REACH`]); and the
+//! CLI's choice of a checkout the clipboard's tool ([`clipboard`]), and who it
+//! runs as with no private directory at hand ([`this_user`]). This crate is
+//! what they need, and no more.
 //!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
@@ -92,6 +98,7 @@
 // doctest is a crate of its own, outside the root's lints.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod clipboard;
 pub mod service;
 pub mod testing;
 mod unix;
@@ -134,8 +141,9 @@ pub enum Kind {
 
 /// The user this process runs as, as this system names one.
 ///
-/// **Found by [`user_in`], and nothing else.** On Unix the answer needs a
-/// directory to make a probe in, so there is no answer apart from one.
+/// **Found by [`user_in`]**, which judges a directory private on the way,
+/// **or by [`this_user`]** where no private directory is at hand: a launcher
+/// in the user's bin directory, which others may read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User(imp::User);
 
@@ -325,6 +333,18 @@ pub fn user_in(directory: &Path) -> Result<User, Judged> {
     imp::user_in(directory).map(User)
 }
 
+/// The user this process runs as, asked of the system rather than of a
+/// directory: the effective user on Unix, whom what this process creates
+/// belongs to, and the user its token names on Windows.
+///
+/// # Errors
+///
+/// [`std::io::Error`] as the system answered it, where it can fail: a
+/// token on Windows that could not be asked.
+pub fn this_user() -> std::io::Result<User> {
+    imp::this_user().map(User)
+}
+
 /// Whether `path` is a `kind`, and this user's alone with everything its owner
 /// needs; it is left exactly as it was either way.
 ///
@@ -355,6 +375,29 @@ pub fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
 /// [`Judged::Refused`] and [`Judged::Failed`], as [`judge`] answers them.
 pub fn judge_made_by_default(path: &Path, user: &User) -> Result<(), Judged> {
     imp::judge_made_by_default(path, &user.0)
+}
+
+/// Whether the directory `path` is this user's and nobody else may write in
+/// it; it is left exactly as it was either way.
+///
+/// **A directory others may read, which no other account may change**: what
+/// the user's bin directory is held to before a name is written in it, since
+/// a person's `PATH` runs what is there, and another account able to add or
+/// replace a name there would choose what the person runs. A link is refused
+/// however it points, as [`judge`] refuses one. On Unix the owner must be the
+/// user and no group or other write bit set; on Windows the owner must be the
+/// user — or the owner the token gives what this process creates — and every
+/// entry that lets anybody but the user write, add, delete or change the
+/// access list must name `SYSTEM` or the Administrators group, whom no access
+/// list stops.
+///
+/// # Errors
+///
+/// [`Judged::Refused`] for each way it is not, and [`Judged::Failed`] when it
+/// could not be read — with [`std::io::ErrorKind::NotFound`] when nothing is
+/// there.
+pub fn judge_written_by_user_alone(path: &Path, user: &User) -> Result<(), Judged> {
+    imp::judge_written_by_user_alone(path, &user.0)
 }
 
 /// Creates `directory`, one level, private to this user from its first
@@ -569,26 +612,7 @@ pub(crate) fn bases_of(
     bases: Bases,
     variable: &dyn Fn(&str) -> Option<std::ffi::OsString>,
 ) -> std::io::Result<BaseDirectories> {
-    let absolute = |name: &str| -> std::io::Result<PathBuf> {
-        let value = variable(name).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("`{name}` is not set, so no base directory can be read from it"),
-            )
-        })?;
-        let path = PathBuf::from(value);
-        if path.is_absolute() {
-            Ok(path)
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!(
-                    "`{name}` is `{}`, which is not an absolute path",
-                    path.display()
-                ),
-            ))
-        }
-    };
+    let absolute = |name: &str| absolute_variable(name, variable);
     match bases {
         Bases::Xdg => {
             let home = absolute("HOME")?;
@@ -624,6 +648,145 @@ pub(crate) fn bases_of(
             })
         }
     }
+}
+
+/// The absolute path the variable `name` holds, read through `variable`: a
+/// home, or a Windows folder.
+///
+/// **The one reading of a variable an installer takes a directory from**, so
+/// the base directories and the bin directory refuse an unset or relative
+/// one alike.
+fn absolute_variable(
+    name: &str,
+    variable: &dyn Fn(&str) -> Option<std::ffi::OsString>,
+) -> std::io::Result<PathBuf> {
+    let value = variable(name).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("`{name}` is not set, so no directory can be read from it"),
+        )
+    })?;
+    let path = PathBuf::from(value);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "`{name}` is `{}`, which is not an absolute path",
+                path.display()
+            ),
+        ))
+    }
+}
+
+/// The directory an installer keeps the one name it writes outside a
+/// profile in: .local/bin under the user's home, on every system.
+///
+/// **The home is `HOME` on Unix and `USERPROFILE` on Windows**, where `uv`
+/// and `pipx` keep the same directory, so one line on a person's `PATH`
+/// reaches what each of them installs. Read at install, never by a running
+/// binary, as [`base_directories`] are: the installer records where it wrote
+/// the name, and every later reader takes it from that record.
+///
+/// # Errors
+///
+/// [`std::io::ErrorKind::NotFound`] when the home's variable is unset, and
+/// [`std::io::ErrorKind::InvalidInput`] when it is not an absolute path.
+pub fn bin_directory(
+    variable: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> std::io::Result<PathBuf> {
+    bin_of(imp::BASES, &variable)
+}
+
+/// The bin directory of the system whose bases are `bases`, read through
+/// what `variable` answers.
+///
+/// **Every system's convention**, compiled and tested on every system.
+pub(crate) fn bin_of(
+    bases: Bases,
+    variable: &dyn Fn(&str) -> Option<std::ffi::OsString>,
+) -> std::io::Result<PathBuf> {
+    let home = match bases {
+        Bases::Xdg | Bases::Library => "HOME",
+        Bases::KnownFolders => "USERPROFILE",
+    };
+    Ok(absolute_variable(home, variable)?
+        .join(".local")
+        .join("bin"))
+}
+
+/// Whether `bin` is one of the directories the search path `path` names, as
+/// this system splits one.
+#[must_use]
+pub fn is_on_path(bin: &Path, path: Option<&std::ffi::OsStr>) -> bool {
+    path.is_some_and(|path| std::env::split_paths(path).any(|directory| directory == bin))
+}
+
+/// The one line that puts the bin directory on `PATH` for the person whose
+/// environment `variable` reads, which they run or add themselves: nothing
+/// here edits a file a shell reads at its start.
+///
+/// **By the shell `SHELL` names on Unix** — fish's own command, or the
+/// `export` for the file zsh, bash or any other shell reads — and the user's
+/// own `Path` through PowerShell on Windows.
+#[must_use]
+pub fn path_line(variable: impl Fn(&str) -> Option<std::ffi::OsString>) -> String {
+    path_line_of(imp::BASES, variable("SHELL").as_deref())
+}
+
+/// The line [`path_line`] writes for the system whose bases are `bases`, and
+/// the shell `shell`: every system's, compiled and tested on every system.
+pub(crate) fn path_line_of(bases: Bases, shell: Option<&std::ffi::OsStr>) -> String {
+    if matches!(bases, Bases::KnownFolders) {
+        return "run `[Environment]::SetEnvironmentVariable('Path', \
+                \"$env:USERPROFILE\\.local\\bin;\" + \
+                [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')` in PowerShell, \
+                then open a new terminal"
+            .to_owned();
+    }
+    let shell = shell
+        .and_then(|shell| Path::new(shell).file_name())
+        .and_then(std::ffi::OsStr::to_str);
+    let export = "`export PATH=\"$HOME/.local/bin:$PATH\"`";
+    match shell {
+        Some("fish") => "run `fish_add_path $HOME/.local/bin` once".to_owned(),
+        Some("zsh") => format!("add {export} to the end of ~/.zshrc"),
+        Some("bash") => format!("add {export} to the end of ~/.bashrc"),
+        _ => format!("add {export} to the end of ~/.profile"),
+    }
+}
+
+/// How a name in the user's bin directory reaches an executable kept
+/// elsewhere, on a system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reach {
+    /// A symbolic link to it, which a user makes without a privilege.
+    Link,
+    /// A launcher: a copy of a program that reads, from a private file beside
+    /// itself, which executable to run, and runs it.
+    ///
+    /// **Windows'**: a symbolic link there needs a privilege a user may not
+    /// hold.
+    Launcher,
+}
+
+/// How a name in the user's bin directory reaches an executable on this
+/// system: a link on Unix, a launcher on Windows.
+pub const REACH: Reach = imp::REACH;
+
+/// A symbolic link at `at` to the file `target`, made as it is, never
+/// followed.
+///
+/// **Where [`REACH`] is [`Reach::Link`]**: on Windows a symbolic link needs a
+/// privilege a user may not hold, and nothing there asks for one.
+///
+/// # Errors
+///
+/// What the system answered — [`std::io::ErrorKind::AlreadyExists`] for a
+/// name that is there, a link included.
+pub fn link(target: &Path, at: &Path) -> std::io::Result<()> {
+    imp::link(target, at)
 }
 
 /// Sets the time the file `path` was last written to `at`, and leaves its
@@ -2283,6 +2446,201 @@ mod tests {
                 .expect_err("a name that is there")
                 .kind(),
             std::io::ErrorKind::AlreadyExists
+        );
+    }
+
+    /// The bin directory is .local/bin under the home, on every system.
+    ///
+    /// `HOME` on Unix and `USERPROFILE` on Windows, each refused unset or
+    /// relative; **every system's rule on every system**, through `bin_of`,
+    /// and this system's own is the one `bin_directory` reads.
+    #[test]
+    fn the_bin_directory_is_local_bin_under_the_home_on_every_system() {
+        use std::ffi::OsString;
+
+        use super::{Bases, bin_of};
+
+        // Absolute on every system, and nothing is made under it.
+        let root = std::env::current_exe().expect("this test binary");
+        let at = |name: &str| root.with_file_name(name);
+        let environment = |pairs: Vec<(&'static str, OsString)>| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(variable, _)| *variable == name)
+                    .map(|(_, value)| value.clone())
+            }
+        };
+        let everything = environment(vec![
+            ("HOME", at("h").into_os_string()),
+            ("USERPROFILE", at("profile").into_os_string()),
+            ("LOCALAPPDATA", at("local").into_os_string()),
+        ]);
+        for bases in [Bases::Xdg, Bases::Library] {
+            assert_eq!(
+                bin_of(bases, &everything).expect("read"),
+                at("h").join(".local").join("bin"),
+                "{bases:?}"
+            );
+        }
+        assert_eq!(
+            bin_of(Bases::KnownFolders, &everything).expect("read"),
+            at("profile").join(".local").join("bin"),
+            "Windows keeps it under the profile, where `uv` and `pipx` keep theirs"
+        );
+        assert_eq!(
+            super::bin_directory(&everything).expect("read"),
+            bin_of(super::imp::BASES, &everything).expect("read"),
+        );
+        for (bases, pairs, kind) in [
+            (Bases::Xdg, vec![], std::io::ErrorKind::NotFound),
+            (
+                Bases::Library,
+                vec![("HOME", OsString::from("relative"))],
+                std::io::ErrorKind::InvalidInput,
+            ),
+            (
+                Bases::KnownFolders,
+                vec![("HOME", at("h").into_os_string())],
+                std::io::ErrorKind::NotFound,
+            ),
+        ] {
+            let refused = bin_of(bases, &environment(pairs)).expect_err("refused");
+            assert_eq!(refused.kind(), kind, "{bases:?}: {refused}");
+        }
+    }
+
+    /// A directory written by its user alone is taken, and one another user
+    /// may write in is refused and left as it was.
+    ///
+    /// So are a link to a directory, a file, another user's directory and
+    /// nothing at all; one another user may only read is taken, since a
+    /// person's bin directory is commonly read by everybody.
+    #[test]
+    fn a_directory_another_user_may_write_in_is_refused() {
+        let scratch = Scratch::new("written");
+        let user = user_in(&scratch.0).expect("private");
+        let bin = scratch.0.join("bin");
+        super::create_private_directory(&bin).expect("a directory");
+        super::judge_written_by_user_alone(&bin, &user).expect("its user's alone");
+        testing::open_to_another_user(&bin).expect("read by another");
+        super::judge_written_by_user_alone(&bin, &user).expect("read by others, written by one");
+        let said = testing::let_another_user_write(&bin).expect("written by another");
+        let before = testing::access(&bin).expect("read");
+        let written = refused(super::judge_written_by_user_alone(&bin, &user));
+        assert!(written.contains(&said), "{written} / {said}");
+        assert_eq!(
+            testing::access(&bin).expect("read"),
+            before,
+            "it was changed"
+        );
+        testing::make_private(&bin).expect("private again");
+        let other = refused(super::judge_written_by_user_alone(
+            &bin,
+            &testing::someone_else(&user),
+        ));
+        assert!(other.contains("belongs to user"), "{other}");
+        let file = scratch.0.join("file");
+        drop(super::create_private(&file).expect("a file"));
+        let not = refused(super::judge_written_by_user_alone(&file, &user));
+        assert!(not.contains("is not a directory"), "{not}");
+        let linked = scratch.0.join("linked");
+        testing::link_directory(&bin, &linked).expect("a link");
+        let link = refused(super::judge_written_by_user_alone(&linked, &user));
+        assert!(link.contains("symbolic link"), "{link}");
+        match super::judge_written_by_user_alone(&scratch.0.join("nothing"), &user) {
+            Err(Judged::Failed(failed)) => {
+                assert_eq!(failed.error().kind(), std::io::ErrorKind::NotFound);
+            }
+            other => panic!("nothing there was {other:?}"),
+        }
+    }
+
+    /// A link the bin directory reaches an executable through points where it
+    /// was made to, and a name that is there is refused, never followed.
+    ///
+    /// **Where this system reaches by a link**: on Windows a launcher reaches
+    /// it, and making a symbolic link needs a privilege a user may not hold.
+    #[test]
+    fn a_link_points_where_it_was_made_to_and_a_name_there_is_refused() {
+        if super::REACH != super::Reach::Link {
+            return;
+        }
+        let scratch = Scratch::new("link");
+        let target = scratch.0.join("target");
+        drop(super::create_private(&target).expect("a file"));
+        let at = scratch.0.join("at");
+        super::link(&target, &at).expect("a link");
+        assert_eq!(std::fs::read_link(&at).expect("a link"), target);
+        assert_eq!(
+            super::link(&target, &at).expect_err("a name there").kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+    }
+
+    /// The search path is split as this system splits one, and the line that
+    /// adds the bin directory to it names the shell's own way.
+    ///
+    /// The line is fish's own command, the `export` for the file zsh, bash or
+    /// any other shell reads, and PowerShell's on Windows — on every system,
+    /// through `path_line_of`.
+    #[test]
+    fn the_line_that_adds_the_bin_directory_names_the_shells_own_way() {
+        use std::ffi::OsStr;
+
+        use super::{Bases, path_line_of};
+
+        let bin = std::env::current_exe()
+            .expect("this test binary")
+            .with_file_name("bin");
+        let other = bin.with_file_name("other");
+        let path = std::env::join_paths([other.clone(), bin.clone()]).expect("a search path");
+        assert!(super::is_on_path(&bin, Some(&path)));
+        assert!(!super::is_on_path(
+            &bin,
+            Some(&std::env::join_paths([other]).expect("a path"))
+        ));
+        assert!(!super::is_on_path(&bin, None));
+        for (shell, said) in [
+            (
+                Some("/run/current-system/sw/bin/fish"),
+                "fish_add_path $HOME/.local/bin",
+            ),
+            (Some("/bin/zsh"), "end of ~/.zshrc"),
+            (Some("/usr/bin/bash"), "end of ~/.bashrc"),
+            (Some("/bin/dash"), "end of ~/.profile"),
+            (None, "end of ~/.profile"),
+        ] {
+            for bases in [Bases::Xdg, Bases::Library] {
+                let line = path_line_of(bases, shell.map(OsStr::new));
+                assert!(line.contains(said), "{shell:?}: {line}");
+                if !said.contains("fish") {
+                    assert!(
+                        line.contains("export PATH=\"$HOME/.local/bin:$PATH\""),
+                        "{line}"
+                    );
+                }
+            }
+        }
+        let windows = path_line_of(Bases::KnownFolders, Some(OsStr::new("/bin/zsh")));
+        assert!(
+            windows.contains("SetEnvironmentVariable('Path'"),
+            "{windows}"
+        );
+        assert!(
+            windows.contains("$env:USERPROFILE\\.local\\bin;"),
+            "{windows}"
+        );
+    }
+
+    /// The user the system names this process is the one a probe in a
+    /// private directory names.
+    #[test]
+    fn this_user_is_the_user_a_private_directory_names() {
+        let scratch = Scratch::new("who");
+        assert_eq!(
+            super::this_user().expect("asked"),
+            user_in(&scratch.0).expect("private")
         );
     }
 }

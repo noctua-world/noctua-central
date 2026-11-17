@@ -45,6 +45,15 @@
 //!    which it cannot tell from one — an uninstall that finishes removes the
 //!    mark its own stop wrote.
 //!
+//! 8. **`noctua-dev`**, where the plan names the user's bin directory
+//!    (`cargo xtask dev --install` does): the checkout's record written beside
+//!    the manifest, as the manifest is — its directory, where `noctua-dev`
+//!    lives and when it was installed (`nc_channel::checkouts::Record`) — and,
+//!    last, `noctua-dev` pointed at this install's CLI ([`crate::chosen`]).
+//!    **What stands at the name is judged before anything is stopped**, with
+//!    its directory, so a name this install did not make refuses the install
+//!    whole rather than after it ran.
+//!
 //! **Where the restorer's definition is kept is the install's**: a real
 //! install's where its manager reads it at each login
 //! (`nc_platform::service::Manager::loaded_at_login`, under the bases the
@@ -52,12 +61,17 @@
 //! directory, which the next boot forgets, or in its own profile, from which
 //! launchd loads it for this login alone, while Task Scheduler keeps a test's
 //! task as its own and starts it at each logon until it is unregistered.
-//! Nothing is added to `PATH`: the CLI is reached at its path in the install,
-//! which the installer prints. **An uninstall reaches the manager first**, as
+//! Nothing is added to `PATH`, and no file a shell reads at its start is
+//! edited: the CLI is reached at its path in the install, which the installer
+//! prints, and through `noctua-dev` where the bin directory is on `PATH`.
+//! **An uninstall reaches the manager first**, as
 //! an install does, and asks whether it holds the restorer — from an
 //! environment that does not reach it, or of a manager that cannot say, it
 //! stops and removes nothing, since that manager may hold the restorer — then
-//! stops the daemon and unregisters its restorer.
+//! stops the daemon and unregisters its restorer. **And it leaves
+//! `noctua-dev` to another checkout**: when the name points at the checkout it
+//! removes, it is pointed at the checkout installed most recently of those that
+//! remain, or removed when none remains; pointing anywhere else, it is left.
 //!
 //! # What this does not answer
 //!
@@ -147,6 +161,47 @@ pub fn development(
     })
 }
 
+/// Where an install points `noctua-dev`, and what it records of its
+/// checkout beside the manifest.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Chosen {
+    /// The user's bin directory, which `noctua-dev` is written in.
+    pub bin: PathBuf,
+    /// The checkout's directory, as `nc_channel::Checkout::root_of` names it.
+    pub directory: PathBuf,
+    /// When it is installed, in milliseconds since the Unix epoch.
+    pub installed: i64,
+}
+
+/// Where the development install of the checkout at `checkout` points its
+/// name in the bin directory, and what it records of the checkout.
+///
+/// The bin directory is read from the environment `variable` reads
+/// (`nc_platform::bin_directory`), and the checkout's directory and the time
+/// now are recorded.
+///
+/// # Errors
+///
+/// [`Unmade`] for a home the environment does not name, or names as no
+/// absolute path, and a clock before the epoch.
+pub fn chosen(
+    checkout: &Path,
+    variable: &dyn Fn(&str) -> Option<std::ffi::OsString>,
+) -> Result<Chosen, Unmade> {
+    let bin = nc_platform::bin_directory(variable)
+        .map_err(|error| Unmade(format!("the bin directory was not read: {error}")))?;
+    let installed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|since| i64::try_from(since.as_millis()).ok())
+        .ok_or_else(|| Unmade("this system's clock is before 1970".to_owned()))?;
+    Ok(Chosen {
+        bin,
+        directory: nc_channel::Checkout::root_of(checkout),
+        installed,
+    })
+}
+
 /// What an install is made from.
 #[derive(Debug, Clone)]
 pub struct Plan<'a> {
@@ -163,6 +218,9 @@ pub struct Plan<'a> {
     /// Whether the daemon is registered with the system's service manager, which
     /// restores it when it dies and starts it at each login.
     pub restorer: bool,
+    /// Where `noctua-dev` is pointed and the checkout recorded, when the plan
+    /// asks for both.
+    pub chosen: Option<Chosen>,
 }
 
 /// The plan of a development install, with its restorer.
@@ -170,7 +228,8 @@ pub struct Plan<'a> {
 /// **The one `cargo xtask dev --install` makes**, and the suite that proves
 /// the restorer installs: `install` made from the binaries `cli` and `daemon`
 /// a build left, the world `world` and the `plugins`, its daemon registered
-/// with this system's service manager.
+/// with this system's service manager, and `noctua-dev` pointed where `chosen`
+/// says, when it says.
 #[must_use]
 pub const fn development_plan<'a>(
     install: Install,
@@ -178,6 +237,7 @@ pub const fn development_plan<'a>(
     daemon: &'a Path,
     world: &'a str,
     plugins: Vec<Plugin<'a>>,
+    chosen: Option<Chosen>,
 ) -> Plan<'a> {
     Plan {
         install,
@@ -186,6 +246,7 @@ pub const fn development_plan<'a>(
         world,
         plugins,
         restorer: true,
+        chosen,
     }
 }
 
@@ -214,6 +275,9 @@ pub struct Installed {
     pub stopped: Option<String>,
     /// The restorer registered, when the plan asked for one.
     pub registered: Option<Registered>,
+    /// Where `noctua-dev` is, pointed at this install's CLI, when the plan
+    /// asked for it.
+    pub link: Option<PathBuf>,
 }
 
 /// A daemon registered with this system's service manager, which restores it.
@@ -240,6 +304,24 @@ pub struct Uninstalled {
     /// The restorer unregistered, by the name its manager knew it by; nothing
     /// when none was registered.
     pub unregistered: Option<String>,
+    /// What became of `noctua-dev`, when it pointed at this install.
+    pub repointed: Option<Repointed>,
+}
+
+/// What an uninstall did with `noctua-dev`, which pointed at the install it
+/// removed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Repointed {
+    /// It points at the CLI of the checkout installed most recently of those
+    /// that remain.
+    To {
+        /// Where `noctua-dev` is.
+        link: PathBuf,
+        /// The CLI it points at.
+        cli: PathBuf,
+    },
+    /// No checkout remains, and it was removed from where it was.
+    Removed(PathBuf),
 }
 
 /// Why an install was not made, or not removed.
@@ -309,7 +391,7 @@ pub fn install(plan: &Plan<'_>) -> Result<Installed, Unmade> {
 
 /// What [`install`] does, with the profile initialized by `initialize`,
 /// handed the copied daemon and the world file.
-fn install_with(
+pub(crate) fn install_with(
     plan: &Plan<'_>,
     initialize: impl FnOnce(&Path, &Path) -> Result<(), Unmade>,
 ) -> Result<Installed, Unmade> {
@@ -339,14 +421,19 @@ fn install_restored_by<R: Restoring>(
     let user = nc_platform::user_in(&state).map_err(|judged| not_taken(&judged))?;
     let layout = nc_channel::layout(&plan.install, &user.to_string());
     directory(&layout.install, Some(&user))?;
-    let cli = layout
-        .install
-        .join(format!("{}{}", layout.cli, nc_platform::EXECUTABLE_SUFFIX));
+    let cli = nc_channel::checkouts::cli_of(&layout);
     let daemon = layout.install.join(format!(
         "{}{}",
         layout.daemon,
         nc_platform::EXECUTABLE_SUFFIX
     ));
+    // **What stands at `noctua-dev` judged before anything is stopped**, with
+    // its directory: a name this install did not make refuses it whole.
+    let link = plan
+        .chosen
+        .as_ref()
+        .map(|chosen| judged_link(&plan.install, chosen, &user).map(|link| (link, chosen)))
+        .transpose()?;
     // **The manager found, and asked, before anything is stopped**: an install
     // that cannot reach it leaves an earlier daemon running and writes no
     // mark, which the next install would read as a person's stop.
@@ -373,6 +460,9 @@ fn install_restored_by<R: Restoring>(
     )?;
     let found = nc_channel::found::beside(&cli)
         .map_err(|refused| Unmade(format!("the install written does not read back: {refused}")))?;
+    if let (Some((link, chosen)), Some(record)) = (&link, &layout.checkout_record) {
+        recorded(record, link, chosen, &user)?;
+    }
     let world = layout.state.join("world.json.install");
     replaced(&world, plan.world.as_bytes(), &user, false)?;
     let initialized = initialize(&daemon, &world);
@@ -408,12 +498,59 @@ fn install_restored_by<R: Restoring>(
         Some((restorer, _)) => Some(restorer.registered(&daemon, &found, marked)?),
         None => None,
     };
+    // **Last**, once everything it reaches is there.
+    let link = link
+        .map(|(link, _)| pointed_last(link, &cli, &plan.install, &user))
+        .transpose()?;
     Ok(Installed {
         found,
         cli,
         stopped,
         registered,
+        link,
     })
+}
+
+/// Where `noctua-dev` lives for `install`, in the bin directory `chosen`
+/// names, once what stands there and its directory are judged this install's
+/// to change.
+fn judged_link(install: &Install, chosen: &Chosen, user: &User) -> Result<PathBuf, Unmade> {
+    let link = crate::chosen::link_in(&chosen.bin, install).ok_or_else(|| {
+        Unmade("`noctua-dev` is a development install's, and this is not one".to_owned())
+    })?;
+    crate::chosen::may_point(&link, install, nc_platform::REACH, user)
+        .map_err(|refused| Unmade(refused.to_string()))?;
+    Ok(link)
+}
+
+/// What the checkout `chosen` describes records of itself at `record`: its
+/// directory, where `noctua-dev` lives — `link` — and when it was installed,
+/// written as the manifest is.
+fn recorded(record: &Path, link: &Path, chosen: &Chosen, user: &User) -> Result<(), Unmade> {
+    let written = nc_channel::checkouts::Record {
+        directory: chosen.directory.clone(),
+        link: link.to_path_buf(),
+        installed: chosen.installed,
+    };
+    replaced(record, written.to_canonical().as_bytes(), user, false)
+}
+
+/// `noctua-dev` at `link` pointed at the CLI `cli` of `install`, which an
+/// install does last; a launcher missing is that CLI's copy.
+fn pointed_last(
+    link: PathBuf,
+    cli: &Path,
+    install: &Install,
+    user: &User,
+) -> Result<PathBuf, Unmade> {
+    crate::chosen::point(&link, cli, install, nc_platform::REACH, cli, user).map_err(
+        |unpointed| {
+            Unmade(format!(
+                "the install is made, and `noctua-dev` was not pointed at it: {unpointed}"
+            ))
+        },
+    )?;
+    Ok(link)
 }
 
 /// The name `manager` knows the daemon of `layout` by: its unit, the label
@@ -637,9 +774,7 @@ fn uninstall_restored_by<R: Restoring>(
     restorer_of: impl FnOnce(&Install, &Layout, &User) -> Result<R, Unmade>,
 ) -> Result<Option<Uninstalled>, Unmade> {
     let layout = nc_channel::layout(install, "");
-    let cli = layout
-        .install
-        .join(format!("{}{}", layout.cli, nc_platform::EXECUTABLE_SUFFIX));
+    let cli = nc_channel::checkouts::cli_of(&layout);
     let Some(found) = made_before(&cli)
         .map_err(|refused| Unmade(format!("the install does not read: {refused}")))?
     else {
@@ -658,6 +793,18 @@ fn uninstall_restored_by<R: Restoring>(
     let held = restorer
         .held()
         .map_err(|unmade| Unmade(format!("{unmade}, so nothing was removed")))?;
+    // Read before the record goes with the install: where `noctua-dev` lives.
+    let recorded = found
+        .layout
+        .checkout_record
+        .as_deref()
+        .and_then(|record| {
+            nc_channel::checkouts::read_bounded(record, &found.user)
+                .ok()
+                .flatten()
+        })
+        .and_then(|text| nc_channel::checkouts::Record::parse(&text).ok())
+        .map(|record| record.link);
     // Read before the stop, which writes one: a mark there before is a
     // person's stop, kept with the profile; the stop's own goes with the install.
     let marked_before = marked(&found.layout, &found.user)?;
@@ -669,7 +816,13 @@ fn uninstall_restored_by<R: Restoring>(
         layout.daemon,
         nc_platform::EXECUTABLE_SUFFIX
     ));
-    for file in [&cli, &daemon, &layout.manifest] {
+    let files = [
+        Some(&cli),
+        Some(&daemon),
+        Some(&layout.manifest),
+        layout.checkout_record.as_ref(),
+    ];
+    for file in files.into_iter().flatten() {
         match nc_platform::judge(file, Kind::File, &found.user) {
             Ok(()) => {
                 std::fs::remove_file(file).map_err(|error| unmade("removed", file, &error))?;
@@ -690,10 +843,74 @@ fn uninstall_restored_by<R: Restoring>(
             ))
         })?;
     }
+    let repointed =
+        repointed_after(&found.install, &cli, recorded, &found.user).map_err(|unpointed| {
+            Unmade(format!(
+                "the install is removed, and `noctua-dev`, which pointed at it, was not pointed \
+                 elsewhere: {unpointed}"
+            ))
+        })?;
     Ok(Some(Uninstalled {
         layout,
         unregistered,
+        repointed,
     }))
+}
+
+/// `noctua-dev` left to another checkout once the install of `install`,
+/// whose CLI was `removed`, is gone: pointed at the checkout installed most
+/// recently of those that remain, or removed when none does — and only when it
+/// points at `removed`.
+///
+/// **Where it lives** is what the removed install `recorded`, or else what the
+/// checkout installed most recently of those that remain records.
+fn repointed_after(
+    install: &Install,
+    removed: &Path,
+    recorded: Option<PathBuf>,
+    user: &User,
+) -> Result<Option<Repointed>, crate::chosen::Unpointed> {
+    let remaining = nc_channel::checkouts::listed(install, user)
+        .map_err(|unlisted| crate::chosen::Unpointed::Failed(unlisted.to_string()))?;
+    let newest = remaining
+        .iter()
+        .max_by_key(|listed| (listed.installed, listed.checkout));
+    let Some(link) = recorded.or_else(|| newest_link(&remaining)) else {
+        return Ok(None);
+    };
+    let reach = nc_platform::REACH;
+    // **A name that is not this install's to change is left**: the uninstall
+    // removed its install, and what stands there is somebody else's.
+    let Ok(Some(target)) = crate::chosen::pointed(&link, reach, user) else {
+        return Ok(None);
+    };
+    if target != removed {
+        return Ok(None);
+    }
+    if let Some(newest) = newest {
+        crate::chosen::point(&link, &newest.cli, install, reach, &newest.cli, user)?;
+        return Ok(Some(Repointed::To {
+            link,
+            cli: newest.cli.clone(),
+        }));
+    }
+    crate::chosen::removed(&link, install, reach, user)?;
+    Ok(Some(Repointed::Removed(link)))
+}
+
+/// Where `noctua-dev` lives, as the checkout of `listed` installed most
+/// recently of those that record it says.
+#[must_use]
+pub fn newest_link(listed: &[nc_channel::checkouts::Listed]) -> Option<PathBuf> {
+    listed
+        .iter()
+        .filter_map(|one| match &one.recorded {
+            nc_channel::checkouts::Recorded::Read(record) => Some(record),
+            nc_channel::checkouts::Recorded::Absent
+            | nc_channel::checkouts::Recorded::Refused(_) => None,
+        })
+        .max_by_key(|record| record.installed)
+        .map(|record| record.link.clone())
 }
 
 /// The install the CLI at `cli` is of, or nothing where none was made there:
@@ -979,6 +1196,7 @@ mod tests {
                 component: &component,
             }],
             restorer: false,
+            chosen: None,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let layout = nc_channel::layout(&install, &user.to_string());
@@ -1073,6 +1291,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let installed = super::install_with(&plan, |daemon: &Path, _: &Path| {
@@ -1103,6 +1322,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         let user = nc_platform::user_in(&scratch.0).expect("private");
         let layout = nc_channel::layout(&install, &user.to_string());
@@ -1154,6 +1374,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
         let removed = super::uninstall(&install)
@@ -1191,6 +1412,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         let installed =
             super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
@@ -1253,6 +1475,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         for persons in [false, true] {
             if persons {
@@ -1359,7 +1582,7 @@ mod tests {
         let scratch = Scratch::new("plan");
         let (cli, daemon) = (scratch.0.join("noctua"), scratch.0.join("noctua-daemon"));
         let install = scratch.install("tp1");
-        let plan = super::development_plan(install.clone(), &cli, &daemon, "{}", Vec::new());
+        let plan = super::development_plan(install.clone(), &cli, &daemon, "{}", Vec::new(), None);
         assert!(plan.restorer, "a development install registers no restorer");
         assert_eq!(plan.install, install);
         assert_eq!(
@@ -1478,7 +1701,7 @@ mod tests {
             }
         };
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new());
+        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
         super::install_restored_by(&first, initialize_as_the_daemon(&layout, &kept), restorer())
             .expect("made");
         assert_eq!(
@@ -1489,7 +1712,7 @@ mod tests {
                 "registered, marked false"
             ]
         );
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new());
+        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
         let installed = super::install_restored_by(&again, |_: &Path, _: &Path| Ok(()), restorer())
             .expect("made again");
         assert!(
@@ -1554,7 +1777,7 @@ mod tests {
             }
         };
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new());
+        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
         super::install_restored_by(&first, initialize_as_the_daemon(&layout, &kept), restorer())
             .expect("made");
         drop(seen.take());
@@ -1566,7 +1789,7 @@ mod tests {
             .expect("written again")
             .write_all(later.as_bytes())
             .expect("written");
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new());
+        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
         let refused = super::install_restored_by(&again, |_: &Path, _: &Path| Ok(()), restorer())
             .expect_err("an earlier install this build cannot read");
         assert!(
@@ -1611,14 +1834,14 @@ mod tests {
         let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let earlier = recorded(&layout, &seen);
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new());
+        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
         super::install_restored_by(
             &first,
             initialize_as_the_daemon(&layout, &kept),
             |_: &nc_channel::Install, _: &nc_channel::Layout, _: &nc_platform::User| Ok(earlier),
         )
         .expect("made");
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new());
+        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
         let unfound = super::install_restored_by(
             &again,
             |_: &Path, _: &Path| Ok(()),
@@ -1681,6 +1904,7 @@ mod tests {
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         let installed =
             super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
@@ -1804,5 +2028,198 @@ mod tests {
              \"world\":{\"entities\":[]}}"
         );
         assert!(super::development_world("{").is_err());
+    }
+
+    /// A development install of the checkout `digest` relocated under its
+    /// namespace `namespace`, its bases under `scratch`'s home.
+    fn checkout_install(scratch: &Scratch, digest: &str, namespace: &str) -> nc_channel::Install {
+        nc_channel::Install {
+            channel: nc_channel::Channel::Development(
+                nc_channel::Checkout::parse(digest).expect("a digest"),
+            ),
+            ..scratch.install(namespace)
+        }
+    }
+
+    /// A plan of `install` from the binaries `cli` and `daemon`, pointing its
+    /// name in `bin` and recording a directory, installed at `at`.
+    fn pointing<'a>(
+        install: &nc_channel::Install,
+        cli: &'a Path,
+        daemon: &'a Path,
+        bin: &Path,
+        at: i64,
+    ) -> Plan<'a> {
+        Plan {
+            install: install.clone(),
+            cli,
+            daemon,
+            world: "{}",
+            plugins: Vec::new(),
+            restorer: false,
+            chosen: Some(super::Chosen {
+                bin: bin.to_path_buf(),
+                directory: bin.with_file_name(format!("checkout-{at}")),
+                installed: at,
+            }),
+        }
+    }
+
+    /// An install makes `noctua-dev` in the bin directory, pointing at its
+    /// own CLI, and records its checkout beside its manifest.
+    ///
+    /// A second checkout's install points it at that checkout's CLI, and the
+    /// record names where it is.
+    #[test]
+    fn an_install_makes_noctua_dev_and_a_second_checkouts_install_points_it_there() {
+        let scratch = Scratch::new("pointed");
+        let (cli, daemon) = (
+            scratch.file("noctua", "c"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let bin = scratch.0.join("home").join(".local").join("bin");
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let one = checkout_install(&scratch, "0000000a", "tp2");
+        let other = checkout_install(&scratch, "0000000b", "tp2");
+        let first = super::install_with(
+            &pointing(&one, &cli, &daemon, &bin, 1_000),
+            |_: &Path, _: &Path| Ok(()),
+        )
+        .expect("made");
+        let link = first.link.clone().expect("noctua-dev was pointed");
+        assert_eq!(link.parent(), Some(bin.as_path()));
+        assert_eq!(
+            crate::chosen::pointed(&link, nc_platform::REACH, &user),
+            Ok(Some(first.cli.clone()))
+        );
+        let record = first
+            .found
+            .layout
+            .checkout_record
+            .clone()
+            .expect("a development install's");
+        nc_platform::judge(&record, nc_platform::Kind::File, &user).expect("private");
+        assert_eq!(
+            nc_channel::checkouts::Record::parse(
+                &std::fs::read_to_string(&record).expect("written")
+            ),
+            Ok(nc_channel::checkouts::Record {
+                directory: bin.with_file_name("checkout-1000"),
+                link: link.clone(),
+                installed: 1_000,
+            })
+        );
+        let second = super::install_with(
+            &pointing(&other, &cli, &daemon, &bin, 2_000),
+            |_: &Path, _: &Path| Ok(()),
+        )
+        .expect("made");
+        assert_eq!(
+            second.link.as_ref(),
+            Some(&link),
+            "one name for every checkout"
+        );
+        assert_eq!(
+            crate::chosen::pointed(&link, nc_platform::REACH, &user),
+            Ok(Some(second.cli.clone())),
+            "the second install did not point it at itself"
+        );
+        assert_ne!(first.cli, second.cli);
+    }
+
+    /// Uninstalling the checkout `noctua-dev` points at points it at the one
+    /// installed most recently of those that remain, and uninstalling the last
+    /// removes it; uninstalling another checkout leaves it.
+    #[test]
+    fn an_uninstall_leaves_noctua_dev_to_the_checkout_installed_last() {
+        let scratch = Scratch::new("left");
+        let (cli, daemon) = (
+            scratch.file("noctua", "c"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let bin = scratch.0.join("home").join(".local").join("bin");
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let installs = [
+            checkout_install(&scratch, "0000000a", "tq1"),
+            checkout_install(&scratch, "0000000c", "tq1"),
+            checkout_install(&scratch, "0000000b", "tq1"),
+        ];
+        let mut clis = Vec::new();
+        for (at, install) in (1_i64..).zip(&installs) {
+            let installed = super::install_with(
+                &pointing(install, &cli, &daemon, &bin, at * 1_000),
+                |_: &Path, _: &Path| Ok(()),
+            )
+            .expect("made");
+            clis.push(installed.cli);
+        }
+        let link = crate::chosen::link_in(&bin, &installs[0]).expect("a name");
+        let pointed = || crate::chosen::pointed(&link, nc_platform::REACH, &user).expect("read");
+        assert_eq!(pointed(), Some(clis[2].clone()));
+        // **Its own checkout's uninstall points it at the one installed last of
+        // the two that remain**, the second installed — not the first, and not
+        // the lower digest.
+        let removed = super::uninstall(&installs[2])
+            .expect("removed")
+            .expect("one");
+        assert_eq!(
+            removed.repointed,
+            Some(super::Repointed::To {
+                link: link.clone(),
+                cli: clis[1].clone(),
+            })
+        );
+        assert_eq!(pointed(), Some(clis[1].clone()));
+        // **Another checkout's uninstall leaves it.**
+        let removed = super::uninstall(&installs[0])
+            .expect("removed")
+            .expect("one");
+        assert_eq!(removed.repointed, None);
+        assert_eq!(
+            pointed(),
+            Some(clis[1].clone()),
+            "another's uninstall moved it"
+        );
+        let removed = super::uninstall(&installs[1])
+            .expect("removed")
+            .expect("one");
+        assert_eq!(
+            removed.repointed,
+            Some(super::Repointed::Removed(link.clone()))
+        );
+        assert_eq!(pointed(), None, "the last uninstall left it");
+    }
+
+    /// An install over a name it did not make refuses before anything is
+    /// stopped or written, and leaves the name as it was.
+    #[test]
+    fn an_install_over_a_name_it_did_not_make_refuses_before_anything() {
+        let scratch = Scratch::new("theirs");
+        let (cli, daemon) = (
+            scratch.file("noctua", "c"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let bin = scratch.0.join("bin");
+        nc_platform::create_private_directory(&bin).expect("a bin directory");
+        let install = checkout_install(&scratch, "0000000a", "tq2");
+        let link = crate::chosen::link_in(&bin, &install).expect("a name");
+        std::fs::write(&link, "a person's own").expect("a regular file");
+        let refused = super::install_with(
+            &pointing(&install, &cli, &daemon, &bin, 1),
+            |_: &Path, _: &Path| Ok(()),
+        )
+        .expect_err("refused");
+        assert!(
+            refused
+                .to_string()
+                .contains("which this install did not make"),
+            "{refused}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&link).expect("left"),
+            "a person's own"
+        );
+        let layout = nc_channel::layout(&install, "");
+        assert!(!layout.manifest.exists(), "the install went ahead");
     }
 }

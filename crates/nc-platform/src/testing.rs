@@ -138,6 +138,17 @@ pub fn open_to_another_user(path: &Path) -> io::Result<String> {
     imp::open_to_another_user(path)
 }
 
+/// Lets another user write in the directory `path`, and answers the words a
+/// refusal of a directory written by its user alone names that by: on Unix
+/// its mode; on Windows the group let in.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn let_another_user_write(path: &Path) -> io::Result<String> {
+    imp::let_another_user_write(path)
+}
+
 /// Takes from the owner of `path` what the store needs to write it — and
 /// write in it, for a directory — and answers the words a refusal of it says.
 ///
