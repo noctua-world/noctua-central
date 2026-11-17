@@ -6,7 +6,14 @@
 //! |---|---|
 //! | Linux, and every Unix but macOS | `wl-copy` when the environment names a Wayland display, then `xclip -selection clipboard`, then `xsel --clipboard --input` |
 //! | macOS | `pbcopy`, told the text is UTF-8 through `LC_ALL`, since it reads the encoding from the locale |
-//! | Windows | `clip.exe`, handed the text as UTF-16 with its byte-order mark, which is what it reads as Unicode |
+//! | Windows | PowerShell's `Set-Clipboard`, handed the text as bytes it decodes as UTF-8 itself |
+//!
+//! **Windows' tool was measured, not assumed**, on the hosted Windows runner,
+//! with a path that is not ASCII read back through `Get-Clipboard`: `clip.exe`
+//! handed UTF-16 with its byte-order mark kept the mark as a character at the
+//! head of the path, and handed UTF-8 it read the console's code page, which
+//! was right there and is not on a machine set to another; `Set-Clipboard`,
+//! handed bytes it decodes as UTF-8 itself, put the path whole.
 //!
 //! **Which tools a system has is [`tools`]', a pure function of the system and
 //! the environment**, so the Linux job tests every system's choice. A tool that
@@ -52,14 +59,11 @@ pub const SYSTEM: System = if cfg!(target_os = "macos") {
 /// The variable that names a Wayland display, the one this reads.
 pub const WAYLAND_DISPLAY: &str = "WAYLAND_DISPLAY";
 
-/// How a tool reads the bytes it is handed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Input {
-    /// As UTF-8.
-    Utf8,
-    /// As UTF-16, little-endian, opened by its byte-order mark.
-    Utf16WithMark,
-}
+/// What PowerShell runs to put its standard input on Windows' clipboard: the
+/// bytes read whole and decoded as UTF-8 here, so no code page of the
+/// console's reads them.
+pub const SET_CLIPBOARD: &str = "$i = [Console]::OpenStandardInput(); $m = New-Object IO.MemoryStream; \
+     $i.CopyTo($m); Set-Clipboard -Value ([Text.Encoding]::UTF8.GetString($m.ToArray()))";
 
 /// A program that puts its standard input on the clipboard.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,19 +74,15 @@ pub struct Tool {
     pub arguments: Vec<String>,
     /// What it is started with in its environment, beside what it inherits.
     pub environment: Vec<(String, String)>,
-    /// How it reads what it is handed.
-    pub input: Input,
 }
 
 impl Tool {
-    /// `program` with `arguments`, reading UTF-8 and inheriting the
-    /// environment as it is.
+    /// `program` with `arguments`, inheriting the environment as it is.
     fn of(program: &str, arguments: &[&str]) -> Self {
         Self {
             program: program.to_owned(),
             arguments: arguments.iter().map(|&word| word.to_owned()).collect(),
             environment: Vec::new(),
-            input: Input::Utf8,
         }
     }
 }
@@ -111,10 +111,10 @@ pub fn tools(system: System, variable: &dyn Fn(&str) -> Option<OsString>) -> Vec
             environment: vec![("LC_ALL".to_owned(), "en_US.UTF-8".to_owned())],
             ..Tool::of("pbcopy", &[])
         }],
-        System::Windows => vec![Tool {
-            input: Input::Utf16WithMark,
-            ..Tool::of("clip.exe", &[])
-        }],
+        System::Windows => vec![Tool::of(
+            "powershell.exe",
+            &["-NoProfile", "-NonInteractive", "-Command", SET_CLIPBOARD],
+        )],
     }
 }
 
@@ -172,21 +172,6 @@ pub fn copy(text: &str, tools: &[Tool]) -> Result<String, Uncopied> {
     Err(Uncopied(tried))
 }
 
-/// The bytes `text` is handed to a tool reading `input` as.
-#[must_use]
-pub fn encoded(text: &str, input: Input) -> Vec<u8> {
-    match input {
-        Input::Utf8 => text.as_bytes().to_vec(),
-        Input::Utf16WithMark => {
-            let mut bytes = vec![0xff, 0xfe];
-            for unit in text.encode_utf16() {
-                bytes.extend_from_slice(&unit.to_le_bytes());
-            }
-            bytes
-        }
-    }
-}
-
 /// `text` handed to `tool` on its standard input, and the tool waited for,
 /// for `within` at most: nothing, or what became of it.
 #[expect(
@@ -214,7 +199,7 @@ fn handed(text: &str, tool: &Tool, within: Duration) -> Result<(), String> {
     let written = child
         .stdin
         .take()
-        .map(|mut input| input.write_all(&encoded(text, tool.input)));
+        .map(|mut input| input.write_all(text.as_bytes()));
     let deadline = Instant::now() + within;
     let status = loop {
         match child.try_wait() {
@@ -247,7 +232,7 @@ fn handed(text: &str, tool: &Tool, within: Duration) -> Result<(), String> {
 mod tests {
     use std::ffi::OsString;
 
-    use super::{Input, System, Tool};
+    use super::{System, Tool};
 
     fn environment(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<OsString> {
         let pairs: Vec<(String, OsString)> = pairs
@@ -269,9 +254,9 @@ mod tests {
     /// Each system's tools are chosen by the system and the environment alone.
     ///
     /// On Linux `wl-copy` first only where a Wayland display is named, then X's
-    /// two tools; `pbcopy` on macOS, told the text is UTF-8; and `clip.exe` on
-    /// Windows, handed UTF-16 with its mark. No tool is handed the text as an
-    /// argument.
+    /// two tools; `pbcopy` on macOS, told the text is UTF-8; and on Windows
+    /// `Set-Clipboard`, decoding the bytes as UTF-8 itself. No tool is handed
+    /// the text as an argument.
     #[test]
     fn each_systems_tools_are_chosen_by_the_system_and_the_environment() {
         let wayland = super::tools(
@@ -295,30 +280,27 @@ mod tests {
             [("LC_ALL".to_owned(), "en_US.UTF-8".to_owned())]
         );
         let windows = super::tools(System::Windows, &environment(&[]));
-        assert_eq!(programs(&windows), ["clip.exe"]);
-        assert_eq!(windows[0].input, Input::Utf16WithMark);
+        assert_eq!(programs(&windows), ["powershell.exe"]);
+        let script = windows[0].arguments.last().expect("a script");
+        assert!(
+            script.contains("OpenStandardInput()")
+                && script.contains("Set-Clipboard -Value ([Text.Encoding]::UTF8.GetString("),
+            "Windows' tool does not decode its input as UTF-8 itself: {script}"
+        );
+        assert_eq!(
+            windows[0].arguments[..3],
+            ["-NoProfile", "-NonInteractive", "-Command"]
+        );
         for system in [System::Linux, System::MacOs, System::Windows] {
             for tool in super::tools(system, &environment(&[("WAYLAND_DISPLAY", "w")])) {
-                assert!(tool.arguments.len() <= 2, "{tool:?}");
-                if tool.input == Input::Utf8 {
-                    assert_ne!(system, System::Windows, "{tool:?}");
-                }
+                assert!(
+                    tool.arguments
+                        .iter()
+                        .all(|word| !word.contains("noctua-dev")),
+                    "{tool:?}"
+                );
             }
         }
-    }
-
-    /// A text is handed over as UTF-8, or as UTF-16 opened by its mark.
-    #[test]
-    fn a_text_is_utf_8_or_utf_16_opened_by_its_mark() {
-        let text = "C:\\Zoë\\日本";
-        assert_eq!(super::encoded(text, Input::Utf8), text.as_bytes());
-        let wide = super::encoded(text, Input::Utf16WithMark);
-        assert_eq!(&wide[..2], [0xff, 0xfe]);
-        let units: Vec<u16> = wide[2..]
-            .chunks(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect();
-        assert_eq!(String::from_utf16(&units).expect("UTF-16"), text);
     }
 
     /// The text is the tool's standard input and never an argument, and a
@@ -330,11 +312,10 @@ mod tests {
     fn the_text_is_the_tools_input_and_a_tool_that_fails_is_passed_over() {
         let scratch = Scratch::new("copied");
         let kept = scratch.0.join("kept");
-        let python = |script: &str, input| Tool {
+        let python = |script: &str| Tool {
             program: crate::testing::PYTHON.to_owned(),
             arguments: vec!["-c".to_owned(), script.to_owned()],
             environment: Vec::new(),
-            input,
         };
         let writes = format!(
             "import sys; open({:?}, 'wb').write(sys.stdin.buffer.read() + repr(sys.argv[1:]).encode())",
@@ -343,11 +324,8 @@ mod tests {
         let text = "/home/zoë/naïve — 日本/noctua-dev";
         let tools = [
             Tool::of("nc-no-such-clipboard-tool", &[]),
-            python(
-                "import sys; sys.stdin.buffer.read(); sys.exit(3)",
-                Input::Utf8,
-            ),
-            python(&writes, Input::Utf8),
+            python("import sys; sys.stdin.buffer.read(); sys.exit(3)"),
+            python(&writes),
         ];
         let copied = super::copy(text, &tools).expect("the third took it");
         assert_eq!(copied, crate::testing::PYTHON);

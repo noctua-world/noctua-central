@@ -19708,7 +19708,7 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 22, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/clipboard.rs", 18, 11),
+        ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/lib.rs", 110, 23),
         ("nc-platform/process.rs", 46, 15),
@@ -25705,7 +25705,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20560;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20556;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25724,7 +25724,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5470;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5468;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25775,7 +25775,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27313;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27315;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25829,7 +25829,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,313 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,315 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -48346,8 +48346,8 @@ Options:
         ),
         (
             "platform_clipboard",
-            "encoded",
-            "UTF-16 opens with its byte-order mark",
+            "SET_CLIPBOARD",
+            "Windows' tool decodes the text as UTF-8 itself",
         ),
         (
             "platform_clipboard",

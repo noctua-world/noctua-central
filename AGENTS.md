@@ -4022,7 +4022,7 @@ rather than anything decided for the project, and each is a maintainer's to reop
 **Channels and installs**
 
 - **The clipboard's tools are found on `PATH`**: `wl-copy`, `xclip` or `xsel`, `pbcopy`,
-  `clip.exe`, as each system's shell would find them, so a program of the same name earlier
+  `powershell.exe`, as each system's shell would find them, so a program of the same name earlier
   on a person's `PATH` is handed the path a choice copies. A path not copied is said, and
   undoes nothing.
 - **A checkout installed before checkouts recorded themselves lists without its

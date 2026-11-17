@@ -469,7 +469,6 @@ mod tests {
             program: "nc-no-such-clipboard-tool".to_owned(),
             arguments: Vec::new(),
             environment: Vec::new(),
-            input: nc_platform::clipboard::Input::Utf8,
         }]);
         let outcome = super::answered(&other.found, false, &no_tool, Some("0000000a"));
         assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
