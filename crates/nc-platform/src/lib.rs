@@ -309,6 +309,15 @@ pub mod system {
     /// its own output, by the system's name, and the Linux and macOS jobs run
     /// them.
     pub const POSIX_SESSIONS: bool = crate::imp::POSIX_SESSIONS;
+
+    /// Whether a name in the user's bin directory reaches its program by a
+    /// symbolic link here ([`crate::REACH`]): false on Windows.
+    ///
+    /// **What the suite about that link stands aside for where it is false**:
+    /// making one there needs a privilege a user may not hold, so nothing
+    /// there makes one. It says so in its own output, by the system's name,
+    /// and the Linux and macOS jobs run it.
+    pub const NAMES_REACH_BY_LINKS: bool = matches!(crate::REACH, crate::Reach::Link);
 }
 
 /// Whether [`sync_directory`] syncs anything here, and so can fail.
@@ -1175,17 +1184,18 @@ mod tests {
     #[test]
     fn linux_lacks_nothing_a_suite_stands_aside_for() {
         let expected = if cfg!(target_os = "linux") {
-            (Some("/dev/shm"), true, true)
+            (Some("/dev/shm"), true, true, true)
         } else if cfg!(windows) {
-            (None, false, false)
+            (None, false, false, false)
         } else {
-            (None, true, true)
+            (None, true, true, true)
         };
         assert_eq!(
             (
                 super::system::LISTED_AS_MADE,
                 super::system::A_POSIX_SHELL,
-                super::system::POSIX_SESSIONS
+                super::system::POSIX_SESSIONS,
+                super::system::NAMES_REACH_BY_LINKS
             ),
             expected,
             "what this system lacks for a suite is not what it is written to lack"
@@ -2562,8 +2572,22 @@ mod tests {
     /// **Where this system reaches by a link**: on Windows a launcher reaches
     /// it, and making a symbolic link needs a privilege a user may not hold.
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a suite this system stands aside says so in its own output, as every one \
+                  the gate names does"
+    )]
     fn a_link_points_where_it_was_made_to_and_a_name_there_is_refused() {
-        if super::REACH != super::Reach::Link {
+        use std::io::Write as _;
+
+        if !super::system::NAMES_REACH_BY_LINKS {
+            let mut out = std::io::stdout().lock();
+            let _ = writeln!(
+                out,
+                "skipped, not applicable on {}: a name in the bin directory reaches its \
+                 program through a launcher here, and the Linux and macOS jobs run it",
+                std::env::consts::OS
+            );
             return;
         }
         let scratch = Scratch::new("link");

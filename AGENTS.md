@@ -5189,8 +5189,9 @@ holds to each other.
 **A suite that needs what a system lacks asks `nc_platform::system`, and the gate names
 it.** The system's answer is a constant of that crate, fixed per system as
 `RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
-made, `A_POSIX_SHELL`, and `POSIX_SESSIONS`, a session of the POSIX kind for a process to
-leave — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
+made, `A_POSIX_SHELL`, `POSIX_SESSIONS`, a session of the POSIX kind for a process to
+leave, and `NAMES_REACH_BY_LINKS`, a name in the bin directory reaching its program by a
+symbolic link — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
 `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every system. That module is compiled in every build, not behind `test-support`, because the
 gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
 cargo counts the test as passed and captures that line with the rest of a passing test's
@@ -5199,8 +5200,9 @@ same constants: before the tests, a `not applicable` line for each suite this sy
 aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
 system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
 `finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
-order on disk) and on Windows (that, the checkout script's guards and the two suites about
-leaving a session, `nc-platform`'s and the daemon's) a suite that stopped saying so is a
+order on disk) and on Windows (that, the checkout script's guards, the two suites about
+leaving a session, `nc-platform`'s and the daemon's, and `nc-platform`'s about the link a
+name in the bin directory reaches its program by) a suite that stopped saying so is a
 refusal, and
 `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
 system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts

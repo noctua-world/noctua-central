@@ -195,7 +195,7 @@ pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static
 /// a refusal on the system that stood it aside. On Linux the list is empty,
 /// which `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it`
 /// and `nothing_is_not_applicable_on_linux` hold.
-fn what_does_not_apply(stack: Stack, has: [bool; 4]) -> Vec<String> {
+fn what_does_not_apply(stack: Stack, has: [bool; 5]) -> Vec<String> {
     let mut parts: Vec<String> = the_parts_not_applicable(stack)
         .iter()
         .map(|part| (*part).to_owned())
@@ -5723,7 +5723,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 6] = [
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`]. On Linux none of these does, which
 /// `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
 /// since the Linux job is the one that runs them.
-const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 4] = [
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 5] = [
     // A directory listed in the order its entries were made, without which the
     // suite about the order on disk has two layouts in one order.
     (
@@ -5758,6 +5758,14 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 4] = [
         "skipped, not applicable on",
         1,
     ),
+    // A name in the bin directory reached by a symbolic link, which the suite
+    // about that link reads. `nc-platform`'s own, so named here by hand.
+    (
+        "crates/nc-platform/src/lib.rs",
+        "!super::system::NAMES_REACH_BY_LINKS",
+        "skipped, not applicable on",
+        1,
+    ),
 ];
 
 /// Every suite a system stands aside where it lacks what the suite needs, by
@@ -5777,11 +5785,12 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 4] = [
 /// chooses it, in [`the_suites_the_system_stands_aside`], and
 /// `every_suite_a_system_stands_aside_says_so` drives that and holds what it
 /// prints to this list.
-pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 4] = [
+pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 5] = [
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
     "running the suite about leaving a session, which needs sessions of the POSIX kind",
     "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
+    "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
 ];
 
 /// What this system has of what each suite of
@@ -5791,16 +5800,17 @@ pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 4] = [
 /// is the one place a system is asked what it has (`NOCTUA.md §2.7`), fixed
 /// when it is built, and each suite's guard asks the same constant, so the
 /// gate and a guard cannot disagree about which suite stood aside.
-const WHAT_THIS_SYSTEM_HAS: [bool; 4] = [
+const WHAT_THIS_SYSTEM_HAS: [bool; 5] = [
     nc_platform::system::LISTED_AS_MADE.is_some(),
     nc_platform::system::A_POSIX_SHELL,
     nc_platform::system::POSIX_SESSIONS,
     nc_platform::system::POSIX_SESSIONS,
+    nc_platform::system::NAMES_REACH_BY_LINKS,
 ];
 
 /// The suites a system that has `has` stands aside, in order: each one whose
 /// need it lacks. Owned, for the reason [`what_does_not_apply`] gives.
-fn the_suites_not_applicable(has: [bool; 4]) -> Vec<String> {
+fn the_suites_not_applicable(has: [bool; 5]) -> Vec<String> {
     THE_SUITES_A_SYSTEM_STANDS_ASIDE
         .into_iter()
         .zip(has)
@@ -5817,12 +5827,13 @@ fn the_suites_not_applicable(has: [bool; 4]) -> Vec<String> {
 /// short. Its own function so a test can hand it each answer: each suite
 /// writes its sentence here, beside the answer that chooses it, and
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] writes it again for the verdict.
-fn the_suites_the_system_stands_aside(has: [bool; 4]) {
+fn the_suites_the_system_stands_aside(has: [bool; 5]) {
     let [
         listed_as_made,
         a_posix_shell,
         posix_sessions,
         daemon_sessions,
+        names_reach_by_links,
     ] = has;
     if !listed_as_made {
         ui::not_applicable(
@@ -5842,6 +5853,11 @@ fn the_suites_the_system_stands_aside(has: [bool; 4]) {
     if !daemon_sessions {
         ui::not_applicable(
             "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
+        );
+    }
+    if !names_reach_by_links {
+        ui::not_applicable(
+            "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
         );
     }
 }
@@ -5872,7 +5888,7 @@ fn the_suites_the_system_stands_aside(has: [bool; 4]) {
 /// The names are written down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read
 /// out of the sources, as the database half of this same clause has its census
 /// and its reader.
-fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 4]) -> Vec<String> {
+fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 5]) -> Vec<String> {
     let mut caveats = Vec::new();
     if !stack.asked() {
         caveats.push("the ones that need a database".to_owned());
@@ -7990,7 +8006,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1075] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1076] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8216,6 +8232,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1075] = [
     "running the checkout script's guards, which need a POSIX shell of the system's own",
     "running the suite about leaving a session, which needs sessions of the POSIX kind",
     "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
+    "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
     "the container stack, which this verb brings up and takes down",
     "not applicable here: {part}",
     "not run: {skip}",
@@ -16264,12 +16281,13 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "the suites this system stands aside are not the ones written down for it"
         );
         for (has, aside) in [
-            ([true, true, true, true], &[][..]),
-            ([false, true, true, true], &ASIDE[..1]),
-            ([true, false, true, true], &ASIDE[1..2]),
-            ([true, true, false, true], &ASIDE[2..3]),
-            ([true, true, true, false], &ASIDE[3..]),
-            ([false, false, false, false], &ASIDE[..]),
+            ([true, true, true, true, true], &[][..]),
+            ([false, true, true, true, true], &ASIDE[..1]),
+            ([true, false, true, true, true], &ASIDE[1..2]),
+            ([true, true, false, true, true], &ASIDE[2..3]),
+            ([true, true, true, false, true], &ASIDE[3..4]),
+            ([true, true, true, true, false], &ASIDE[4..]),
+            ([false, false, false, false, false], &ASIDE[..]),
         ] {
             assert_eq!(
                 the_suites_not_applicable(has),
@@ -16302,13 +16320,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         };
         let _printing = crate::ui::printing();
         for has in [
-            [true, true, true, true],
-            [false, true, true, true],
-            [true, false, true, true],
-            [true, true, false, true],
-            [true, true, true, false],
-            [false, true, false, false],
-            [false, false, false, false],
+            [true, true, true, true, true],
+            [false, true, true, true, true],
+            [true, false, true, true, true],
+            [true, true, false, true, true],
+            [true, true, true, false, true],
+            [true, true, true, true, false],
+            [false, true, false, false, false],
+            [false, false, false, false, false],
         ] {
             let aside = the_suites_not_applicable(has);
             ui::forget_counts();
@@ -16365,23 +16384,24 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn the_count_line_names_what_it_leaves_out() {
         use super::{Stack, in_one_clause, what_the_count_leaves_out};
         assert!(
-            what_the_count_leaves_out(Stack::Asked, true, [true; 4]).is_empty(),
+            what_the_count_leaves_out(Stack::Asked, true, [true; 5]).is_empty(),
             "a run that left nothing out says it did"
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Offline, true, [true; 4]),
+            what_the_count_leaves_out(Stack::Offline, true, [true; 5]),
             ["the ones that need a database"]
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Asked, false, [true; 4]),
+            what_the_count_leaves_out(Stack::Asked, false, [true; 5]),
             ["the ones that need the workspace above this repository"]
         );
         for has in [
-            [false, true, true, true],
-            [true, false, true, true],
-            [true, true, false, true],
-            [true, true, true, false],
-            [false, false, false, false],
+            [false, true, true, true, true],
+            [true, false, true, true, true],
+            [true, true, false, true, true],
+            [true, true, true, false, true],
+            [true, true, true, true, false],
+            [false, false, false, false, false],
         ] {
             assert_eq!(
                 what_the_count_leaves_out(Stack::Asked, true, has),
@@ -16390,7 +16410,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                  does not say so"
             );
         }
-        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 4]);
+        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 5]);
         assert_eq!(
             in_one_clause(&every),
             "the ones that need a database, the ones that need the workspace above this \
@@ -19709,7 +19729,7 @@ mod the_frozen_path_rule {
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 110, 23),
+        ("nc-platform/lib.rs", 111, 23),
         ("nc-platform/process.rs", 46, 15),
         ("nc-platform/service.rs", 181, 21),
         ("nc-platform/testing.rs", 35, 4),
@@ -25704,7 +25724,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20558;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20560;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25774,7 +25794,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27320;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27325;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25828,7 +25848,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,320 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,325 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -27535,7 +27555,12 @@ mod the_frozen_path_rule {
         let doors = the_doors_a_suite_stands_aside_by();
         assert_eq!(
             doors,
-            ["A_POSIX_SHELL", "LISTED_AS_MADE", "POSIX_SESSIONS"],
+            [
+                "A_POSIX_SHELL",
+                "LISTED_AS_MADE",
+                "NAMES_REACH_BY_LINKS",
+                "POSIX_SESSIONS"
+            ],
             "the census asks other doors than these fixtures do, so they hold nothing"
         );
         for (how, text) in [
@@ -28520,7 +28545,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 510] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 511] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29301,6 +29326,10 @@ mod the_frozen_path_rule {
         (
             "if !daemon_sessions",
             "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
+        ),
+        (
+            "if !names_reach_by_links",
+            "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
         ),
         (
             "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
@@ -37823,7 +37852,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2558] = [
+    static OPERATORS: [(&str, &str, &str); 2559] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43190,6 +43219,11 @@ Options:
             "check",
             "the_suites_the_system_stands_aside",
             "the suite about the daemon leaving its session need not say so",
+        ),
+        (
+            "check",
+            "the_suites_the_system_stands_aside",
+            "the suite about the link a name reaches its program by need not say so",
         ),
         (
             "check",
