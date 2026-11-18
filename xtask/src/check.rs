@@ -19588,7 +19588,7 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
-        ("nc-authz/agents.rs", 69, 45),
+        ("nc-authz/agents.rs", 69, 47),
         ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 31, 20),
@@ -37884,7 +37884,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2614] = [
+    static OPERATORS: [(&str, &str, &str); 2623] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42037,6 +42037,11 @@ Options:
         (
             "authz_agents",
             "refused",
+            "only a person of the realm makes an agent",
+        ),
+        (
+            "authz_agents",
+            "refused",
             "an agent is made once under its identifier",
         ),
         (
@@ -42119,6 +42124,11 @@ Options:
         ),
         (
             "authz_agents",
+            "delegation",
+            "an agent is delegated only while the world holds its operator",
+        ),
+        (
+            "authz_agents",
             "agent_entity",
             "an agent's budget is the one it was made with",
         ),
@@ -42143,6 +42153,33 @@ Options:
             "two live grants kept on one scope are refused",
         ),
         ("authz_agents", "open", "a kept grant is on a feature"),
+        (
+            "authz_agents",
+            "open",
+            "what was kept counts every grant it holds live",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept agent's label is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept agent's budget is one it can spend",
+        ),
+        ("authz_agents", "open", "an agent kept twice is refused"),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant is its agent's operator's to give",
+        ),
+        ("authz_agents", "open", "a kept grant has time to run"),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant's reason is one it can hold",
+        ),
         (
             "authz_agents",
             "code",

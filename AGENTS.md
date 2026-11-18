@@ -938,7 +938,7 @@ entry owns.
 | User data in the central log | typed events only, and a plugin's text kept in its own ring | "A plugin's own log stays in its own ring" |
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
-| An agent named by text it was not made under, given or ended by anyone but its person, or granted past the feature it names | an agent routed by membership of the identifier the machine minted, never parsed; only a person makes one and only its person grants or ends; a grant's scope compared whole; a change kept before it is held, an ending held first; both tables bounded | "An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature" |
+| An agent named by text it was not made under, given or ended by anyone but its person, or granted past the feature it names | an agent routed by membership of the identifier the machine minted, never parsed; only a person of the realm makes one and only its person grants or ends; a grant's scope compared whole; a change kept before it is held, an ending held first; both tables bounded | "An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
@@ -1194,17 +1194,19 @@ the `Snowflake` the kernel minted for it, turned into an identifier in `nc-authz
 a question reaches it only by that text, compared whole: a label, a lower-case spelling, the
 text of a value no change made, a principal of another kind and a question about another
 realm are the world's to answer and never reach the agent held, and nothing is parsed out
-of an identifier (`NOCTUA.md §5.1`). Only a person is made an operator, and only an agent's
-operator grants it a feature or ends its grants (`[NC-AI-0002]`); a name no agent is held
-under is `[NC-AI-0001]`. A grant runs for a window it must have — it ends after it begins
-— on a feature the world holds in the realm, with a reason of one to 256 characters a reader
-can see all of, and a label is held to one to 64; anything else is refused as the data the
-directory must never hold (`[NC-VAL-0002]`). A grant answers only a question about the
-feature it names, compared whole, never through an entity the resource is in, so an agent
-granted every feature holds no grant for the realm's content; a person's grant stays the
-world's, realm-wide. A new grant on a feature ends the live one there. Neither an agent nor
-a grant is ever deleted, and each table is refused past its bound (`[NC-AI-0003]`), an ended
-grant still counted. A new agent or grant is held only once its keeper kept it; an ending is
+of an identifier (`NOCTUA.md §5.1`). Only a person the world holds in the realm is made an
+operator, and only an agent's operator grants it a feature or ends its grants
+(`[NC-AI-0002]`); a name no agent is held under is `[NC-AI-0001]`. An agent is delegated
+only while the world holds its operator in the realm, whatever was kept. A grant runs for a
+window it must have — it ends after it begins — on a feature the world holds in the realm,
+with a reason of one to 256 characters a reader can see all of, and a label is held to one
+to 64; anything else is refused as the data the directory must never hold (`[NC-VAL-0002]`).
+A grant answers only a question about the feature it names, compared whole, never through an
+entity the resource is in, so an agent granted every feature holds no grant for the realm's
+content; a grant the world holds, a person's or one of the world's own agents', stays
+realm-wide. A new grant on a feature ends the live one there. Neither an agent nor a grant
+is ever deleted, and each table is refused past its bound (`[NC-AI-0003]`), an ended grant
+still counted. A new agent or grant is held only once its keeper kept it; an ending is
 held first, so the next question is answered without it even when the keeper then refuses
 it (the keeper's code). An agent's slice holds its operator beside it — so a rule reading
 `principal.operator` decides in the kernel as over the whole world — its budget as

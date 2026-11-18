@@ -194,10 +194,11 @@ pub trait Directory: Send + Sync + 'static {
 
     /// The grant `principal` holds in `realm` for a question about `resource`, if any.
     ///
-    /// A person's grant is realm-wide, whatever the resource. An agent's is
-    /// the live one whose scope is `resource` itself, compared whole: never
-    /// one on an entity `resource` is in, so an agent granted a feature holds
-    /// nothing for the content of the realm.
+    /// A grant the world holds — a person's, or one of the world's own
+    /// agents' — is realm-wide, whatever the resource. The grant of an agent a
+    /// person made is the live one whose scope is `resource` itself, compared
+    /// whole: never one on an entity `resource` is in, so such an agent
+    /// granted a feature holds nothing for the content of the realm.
     ///
     /// # Errors
     ///

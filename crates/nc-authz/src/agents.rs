@@ -23,10 +23,11 @@
 //! grant for the realm's content, which `core.provenance` then refuses.
 //!
 //! **What the data must never hold is refused when it is written**: an agent
-//! whose operator is not a person; a grant given or ended by anyone but the
-//! agent's operator; a grant with no time to run, on no feature of the realm,
-//! or with a reason or a label it cannot hold; and an agent or a grant past its
-//! table's bound, since neither is ever deleted.
+//! whose operator is not a person of the realm; a grant given or ended by
+//! anyone but the agent's operator; a grant with no time to run, on no feature
+//! of the realm, or with a reason or a label it cannot hold; and an agent or a
+//! grant past its table's bound, since neither is ever deleted. An agent whose
+//! operator the world no longer holds in the realm is delegated for no one.
 //!
 //! **Kept before it is held, and an ending held before it is kept.** A new
 //! agent or grant is answered only once the keeper took it, so what a start
@@ -679,6 +680,9 @@ impl<K: Keeper> LocalDirectory<K> {
                 if operator.kind() != PrincipalKind::User {
                     return Err(ChangeRefused::NotTheOperator);
                 }
+                if !self.world.holds(realm, &operator.entity()) {
+                    return Err(ChangeRefused::NotTheOperator);
+                }
                 if held.agents.contains_key(&agent.to_crockford()) {
                     return Err(malformed("an agent is already held under its identifier"));
                 }
@@ -925,14 +929,19 @@ impl<K: Keeper> Directory for LocalDirectory<K> {
     ) -> Result<Option<Delegation>, DirectoryError> {
         let held = {
             let held = self.read()?;
-            self.runtime(&held, realm, agent)
-                .map(|delegate| Delegation {
-                    agent: delegate.agent.clone(),
-                    operator: delegate.operator.clone(),
-                })
+            self.runtime(&held, realm, agent).map(|delegate| {
+                // A person the world no longer holds in the realm acts
+                // through no agent, whatever was kept.
+                self.world
+                    .holds(realm, &delegate.operator.entity())
+                    .then(|| Delegation {
+                        agent: delegate.agent.clone(),
+                        operator: delegate.operator.clone(),
+                    })
+            })
         };
         match held {
-            Some(delegation) => Ok(Some(delegation)),
+            Some(delegation) => Ok(delegation),
             None => self.world.delegation(realm, agent).await,
         }
     }
@@ -1420,6 +1429,64 @@ mod tests {
             );
         }
         assert_eq!(keeper.kept(), Vec::new(), "nothing was kept");
+    }
+
+    #[tokio::test]
+    async fn an_agent_is_made_only_for_a_person_of_its_realm() {
+        let pdp = family();
+        let keeper = Recording::default();
+        let directory = local(&pdp, keeper.clone(), ROOMY);
+        // `mallory` is a person, and the world holds them in `office` alone.
+        let mallory = principal(&pdp, PrincipalKind::User, "mallory");
+        let [made, for_mallory, for_none, for_ana] = mint(4)[..] else {
+            unreachable!("four were minted")
+        };
+        assert_eq!(
+            make(&directory, made, &mallory).await,
+            Err(ChangeRefused::NotTheOperator)
+        );
+        assert_eq!(directory.delegation("home", &agent(made)).await, Ok(None));
+        assert_eq!(
+            directory.agents("home", &mallory.entity()).await,
+            Ok(Vec::new())
+        );
+        assert_eq!(keeper.kept(), Vec::new(), "nothing was kept");
+        // What was kept for a person the world does not hold in the realm is
+        // delegated for no one; what was kept for a person of it is theirs.
+        let home = world(&pdp).realm_id("home").expect("home");
+        let record = |agent, operator: &str| AgentRecord {
+            agent,
+            realm: home.clone(),
+            operator: OpaqueId::new(operator).expect("an identifier"),
+            label: "assistant".to_owned(),
+            budget: 10,
+        };
+        let kept = Records {
+            agents: vec![
+                record(for_mallory, "mallory"),
+                record(for_none, "nobody-the-world-holds"),
+                record(for_ana, "ana"),
+            ],
+            live: Vec::new(),
+            grants_kept: 0,
+        };
+        let reopened =
+            LocalDirectory::open(home.clone(), world(&pdp), kept, Recording::default(), ROOMY)
+                .expect("what was kept opens");
+        for unheld in [for_mallory, for_none] {
+            assert_eq!(
+                reopened.delegation("home", &agent(unheld)).await,
+                Ok(None),
+                "{}",
+                unheld.to_crockford()
+            );
+        }
+        let held = reopened
+            .delegation("home", &agent(for_ana))
+            .await
+            .expect("answered")
+            .expect("delegated for ana");
+        assert_eq!(held.operator, principal(&pdp, PrincipalKind::User, "ana"));
     }
 
     #[tokio::test]
@@ -2160,9 +2227,30 @@ mod tests {
                 "{realm}"
             );
         }
-        // What this directory would never have written is refused.
+    }
+
+    #[tokio::test]
+    async fn a_directory_opened_from_what_was_kept_refuses_what_no_change_writes() {
+        let pdp = family();
+        let (_, kept, _) = kept_by_two(&pdp).await;
+        let home = world(&pdp).realm_id("home").expect("home");
         let live = kept.live[0].clone();
-        let shapes: [(&str, Shape); 3] = [
+        // The shapes change the one live grant and the agent it was given
+        // to, both ana's, and what was kept unchanged opens.
+        assert_eq!(kept.live.len(), 1, "one grant is live");
+        assert_eq!(kept.agents[0].agent, live.agent);
+        assert_eq!(live.granted_by.as_str(), "ana");
+        assert!(
+            LocalDirectory::open(
+                home.clone(),
+                world(&pdp),
+                kept.clone(),
+                Recording::default(),
+                ROOMY
+            )
+            .is_ok()
+        );
+        let shapes: [(&str, Shape); 14] = [
             ("a grant of an agent it does not hold", |records, live| {
                 let mut orphan = live.clone();
                 orphan.agent = orphan.grant;
@@ -2180,6 +2268,40 @@ mod tests {
                     type_name: "Content".to_owned(),
                     id: live.scope.id.clone(),
                 };
+            }),
+            ("a grant another person gave", |records, _| {
+                records.live[0].granted_by = OpaqueId::new("carla").expect("an identifier");
+            }),
+            ("a grant that ends as it begins", |records, live| {
+                records.live[0].valid_until_ms = live.valid_from_ms;
+            }),
+            ("a grant with no reason", |records, _| {
+                records.live[0].reason = String::new();
+            }),
+            ("a grant with a reason past its bound", |records, _| {
+                records.live[0].reason = "r".repeat(257);
+            }),
+            ("a grant with a reason a reader cannot see", |records, _| {
+                records.live[0].reason = "\u{200b}".to_owned();
+            }),
+            ("an agent with no label", |records, _| {
+                records.agents[0].label = String::new();
+            }),
+            ("an agent with a label past its bound", |records, _| {
+                records.agents[0].label = "l".repeat(65);
+            }),
+            ("an agent with a label a reader cannot see", |records, _| {
+                records.agents[0].label = "\u{200b}".to_owned();
+            }),
+            ("an agent with no budget", |records, _| {
+                records.agents[0].budget = 0;
+            }),
+            ("an agent kept twice", |records, _| {
+                let twice = records.agents[0].clone();
+                records.agents.push(twice);
+            }),
+            ("fewer grants counted than are live", |records, _| {
+                records.grants_kept = 0;
             }),
         ];
         for (what, shape) in shapes {

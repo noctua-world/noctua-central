@@ -6230,7 +6230,7 @@ async fn a_write_in_one_realm_does_not_change_what_another_keeps() {
 }
 
 /// A confirmation is not spent on a dispatch the directory could not decide,
-/// whichever of its three questions it failed at.
+/// whichever of the three questions a decision asks it failed at.
 ///
 /// Each time ana dispatches a command that cannot be undone with a fresh
 /// confirmation, the directory fails, and she dispatches again with the same
