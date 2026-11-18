@@ -66,8 +66,21 @@ unused-ignored-advisory = "warn"
 # "The local database stops other accounts, not the account it belongs to").
 # The entry leaves when `sqlx`'s SQLite driver accepts `libsqlite3-sys` 0.39,
 # and the warning above says when.
+#
+# **RUSTSEC-2026-0543 says `chrono` is unmaintained, and names no defect.** It
+# is an informational notice, published to the database on 2026-11-17, with no
+# patched version: every release is affected. `chrono` reaches this tree through
+# `cedar-policy-core` alone, for Cedar's `datetime` extension, which the packs
+# use — a grant's `valid_from` and `valid_until`, and the request's `now` — so
+# turning the extension off would refuse the packs, and the lock cannot get past
+# it. What it parses are the datetimes in the policies and the world this tree
+# compiles and the time the kernel's clock gives, never a plugin's or a person's
+# text. A defect found in `chrono` is an advisory of its own id, which this entry
+# does not hide, so the audit still fails on one. The entry leaves when
+# `cedar-policy-core` moves off `chrono`, and the warning above says when.
 ignore = [
     { id = "RUSTSEC-2026-0459", reason = "Every database the shipped code and the gate open is judged or made this user's own, its -wal included, before SQLite reads it, so no less trusted party writes the pair this needs; removed when sqlx's SQLite driver accepts libsqlite3-sys 0.39" },
+    { id = "RUSTSEC-2026-0543", reason = "An unmaintained notice names no defect, chrono parses only the datetimes this tree's packs and clock give Cedar, and a defect found in it is an advisory of its own id this entry does not hide; removed when cedar-policy-core moves off chrono" },
 ]
 
 [licenses]
