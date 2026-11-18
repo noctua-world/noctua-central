@@ -3897,6 +3897,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   written only by the account the process runs as, the one this bullet does not answer:
   every database the shipped code opens goes through `nc_local`, which holds the directory,
   the file and each companion to this user's alone before SQLite reads them, and the gate's
+- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
+  extension, which the packs use for a grant's validity and the request's `now`.
+  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
+  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
+  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
+  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
   own scratch is a directory `xtask/src/local.rs` makes private and refuses to find.
   `deny.toml` leaves RUSTSEC-2026-0459 out of the audit on that ground until the lock can
   reach `libsqlite3-sys` 0.39. A test suite's scratch directory is one it made itself, with
