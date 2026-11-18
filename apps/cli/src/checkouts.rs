@@ -43,12 +43,19 @@ pub const UNRECORDED: &str = "records no directory: it was installed before chec
 /// the checkout `digest` names chosen.
 #[must_use]
 pub fn answered(found: &Found, json: bool, env: &Env, digest: Option<&str>) -> Outcome {
-    answer(found, json, env, digest)
+    answer(found, json, env, digest, crate::terminal::Crossterm::new)
         .unwrap_or_else(|failure| render::failed(json, env.locale(), &failure))
 }
 
-/// What [`answered`] answers, or the failure it ends in.
-fn answer(found: &Found, json: bool, env: &Env, digest: Option<&str>) -> Result<Outcome, Failure> {
+/// What [`answered`] answers, or the failure it ends in, with the picker
+/// opened in the terminal `terminal` makes.
+fn answer<T: crate::terminal::Terminal>(
+    found: &Found,
+    json: bool,
+    env: &Env,
+    digest: Option<&str>,
+    terminal: impl FnOnce() -> T,
+) -> Result<Outcome, Failure> {
     let cli = found.layout.cli.as_str();
     let listed =
         nc_channel::checkouts::listed(&found.install, &found.user).map_err(|unlisted| Failure {
@@ -79,7 +86,7 @@ fn answer(found: &Found, json: bool, env: &Env, digest: Option<&str>) -> Result<
     }
     let ordered = newest_first(&listed);
     let mut picker = Picker::new(entries(&ordered, now));
-    match crate::terminal::picked(&mut crate::terminal::Crossterm::new(), &mut picker) {
+    match crate::terminal::picked(&mut terminal(), &mut picker) {
         Ok(Some(index)) => chosen(found, json, env, ordered[index], link.as_deref()),
         Ok(None) => Ok(Outcome {
             exit: Exit::Left,
@@ -305,7 +312,7 @@ mod tests {
 
     use crate::exit::Exit;
     use crate::install::{Chosen, Installed, Plan};
-    use crate::picker::Entry;
+    use crate::picker::{Entry, Key};
     use crate::render::Env;
 
     /// A scratch home for one test, removed however the test leaves.
@@ -578,6 +585,81 @@ mod tests {
         assert_eq!(
             crate::chosen::pointed(&link, nc_platform::REACH, &one.found.user),
             Ok(Some(one.cli.clone()))
+        );
+    }
+
+    /// A terminal that hands out the keys it holds in order, draws nowhere,
+    /// and goes away past the last.
+    struct Pressed(std::vec::IntoIter<Key>);
+
+    impl crate::terminal::Terminal for Pressed {
+        fn enter(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn leave(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn size(&mut self) -> std::io::Result<(usize, usize)> {
+            Ok((80, 24))
+        }
+
+        fn key(&mut self) -> std::io::Result<Key> {
+            self.0
+                .next()
+                .ok_or_else(|| std::io::Error::other("the terminal went away"))
+        }
+
+        fn draw(&mut self, _: &[String]) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// At a terminal the picker's ending is the verb's: Esc and Ctrl-C leave
+    /// in an exit code of their own, with `noctua-dev` where it was.
+    ///
+    /// Down then Enter chooses the checkout installed before the last, prints
+    /// its CLI's path and points `noctua-dev` at it; a terminal that goes away
+    /// chooses nothing, and says so in its own code.
+    #[test]
+    fn at_a_terminal_the_picker_leaves_in_its_own_code_or_chooses_the_checkout_selected() {
+        let scratch = Scratch::new("picked");
+        let older = scratch.installed("0000000a", "tl6", 1_000);
+        let newest = scratch.installed("0000000b", "tl6", 2_000);
+        let link = newest.link.clone().expect("pointed");
+        let user = &newest.found.user;
+        let reached = || crate::chosen::pointed(&link, nc_platform::REACH, user);
+        let at_a_terminal = quiet().at_a_terminal(true);
+        let pressed = |keys: &[Key]| {
+            let keys = keys.to_vec();
+            move || Pressed(keys.into_iter())
+        };
+        let picked =
+            |keys: &[Key]| super::answer(&newest.found, false, &at_a_terminal, None, pressed(keys));
+        for leave in [Key::Escape, Key::Interrupt] {
+            let left = picked(&[Key::Down, leave]).expect("left");
+            assert_eq!((left.exit, left.code()), (Exit::Left, 13), "{left:?}");
+            assert_eq!(left.stdout, "", "{left:?}");
+            assert_eq!(
+                reached(),
+                Ok(Some(newest.cli.clone())),
+                "leaving the picker changed `noctua-dev`"
+            );
+        }
+        let chose = picked(&[Key::Down, Key::Enter]).expect("chosen");
+        assert_eq!(chose.exit, Exit::Success, "{chose:?}");
+        assert_eq!(chose.stdout, format!("{}\n", older.cli.display()));
+        assert_eq!(reached(), Ok(Some(older.cli.clone())));
+        let gone = picked(&[]).expect_err("a terminal that went away");
+        assert_eq!(
+            (gone.code, gone.exit),
+            (ErrorCode::CliTerminalUnanswered, Exit::Failed)
+        );
+        assert_eq!(
+            reached(),
+            Ok(Some(older.cli.clone())),
+            "a terminal that went away changed `noctua-dev`"
         );
     }
 }

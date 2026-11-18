@@ -2722,7 +2722,9 @@ daemon — a configuration refused for each of its parts shown with its codes an
 defaults in force — every text a set
 is headed with and a category is listed with escaped, every text an external identifier is
 headed with and every value it is identified by escaped, help on everything showing the
-grammar and the verbs with none,
+grammar and the verbs with none, the checkouts listed and one chosen by its digest with
+none, the picker's Esc and Ctrl-C ending the verb in exit 13 with `noctua-dev` where it
+was and its Enter choosing the checkout it selects,
 and a command line, a command and arguments refused with nothing dispatched — by
 `apps/cli/tests/arguments_from_schemas.rs`, by `apps/daemon/tests/exit_codes.rs` — one
 test for each way a run ends against a real daemon, `reference.irreversible.do` refused with

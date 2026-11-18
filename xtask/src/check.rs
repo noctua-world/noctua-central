@@ -19551,7 +19551,7 @@ mod the_frozen_path_rule {
     const DOCUMENTED: [(&str, usize, usize); 226] = [
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
-        ("cli/checkouts.rs", 20, 8),
+        ("cli/checkouts.rs", 22, 14),
         ("cli/chosen.rs", 26, 10),
         ("cli/client.rs", 39, 13),
         ("cli/control.rs", 73, 13),
@@ -19563,7 +19563,7 @@ mod the_frozen_path_rule {
         ("cli/main.rs", 7, 5),
         ("cli/picker.rs", 33, 5),
         ("cli/render.rs", 25, 4),
-        ("cli/run.rs", 28, 5),
+        ("cli/run.rs", 30, 5),
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
@@ -22565,8 +22565,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 874 scratches this tree
-    /// builds, 786 of the 874 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 876 scratches this tree
+    /// builds, 788 of the 876 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22633,13 +22633,13 @@ mod the_frozen_path_rule {
     /// its place moves the second while the first does not.
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 63] = [
-        ("cli/checkouts.rs", 5, 5),
+        ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 7, 7),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 18, 18),
         ("cli/launcher.rs", 3, 3),
-        ("cli/run.rs", 9, 9),
+        ("cli/run.rs", 10, 10),
         ("cli/the_launcher_passes_everything_through.rs", 4, 4),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -25724,7 +25724,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20583;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20589;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25743,7 +25743,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5475;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5484;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25760,7 +25760,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1850;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1853;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25794,7 +25794,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27370;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27383;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25848,7 +25848,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,370 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,383 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25881,7 +25881,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1850 of
+    /// this tree offers, **1853 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37852,7 +37852,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2568] = [
+    static OPERATORS: [(&str, &str, &str); 2571] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48250,6 +48250,7 @@ Options:
             "asks_for_json",
             "only the options before the command ask for `--json`",
         ),
+        ("cli_run", "run", "the checkouts verb needs no daemon"),
         (
             "platform_process",
             "judged",
@@ -48922,6 +48923,16 @@ Options:
             "cli_checkouts",
             "entries",
             "the picker marks the checkout noctua-dev reaches",
+        ),
+        (
+            "cli_checkouts",
+            "answer",
+            "leaving the picker ends in an exit code of its own",
+        ),
+        (
+            "cli_checkouts",
+            "answer",
+            "Enter chooses the checkout the picker selects",
         ),
         (
             "cli_picker",
