@@ -57,3 +57,23 @@ permit (
   action == Action::"Read",
   resource == Feature::"registry"
 );
+
+// Every person of the household switches MCP for their own channel.
+//
+// `settings.mcp.read` and `settings.mcp.set` are the channel's setting of
+// whether its daemon lets an MCP client in (`NOCTUA.md §12.15`, §20.3): MCP is
+// off until a person turns it on. **A person, and only a person: `principal is
+// User` is this permit's own constraint.** An agent that could write this
+// feature could let itself or another agent in, so it is refused here, and a
+// device is no person. A child of the house as much as an adult. A frozen
+// account is refused by `family.a_frozen_account_acts_on_nothing`, as for every
+// permit. A daemon decides only as its profile's person, so the channel
+// switched is always the asker's own; and the set runs only at the top of a
+// call tree, so no plugin, timer or event switches it in their name
+// (`crates/nc-kernel/src/registry.rs`).
+@id("family.a_member_switches_mcp")
+permit (
+  principal is User,
+  action in [Action::"Read", Action::"Write"],
+  resource == Feature::"mcp"
+);

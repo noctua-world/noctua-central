@@ -11,7 +11,9 @@
 //!
 //! **The plugin is named on every read and every write**, and it is the
 //! kernel's to name: a plugin supplies keys and values, never the plugin they
-//! belong to, and never SQL.
+//! belong to, and never SQL. The kernel keeps its own entries here too — a
+//! setting of the channel, staged in the unit of the command that switches it
+//! — under `kernel`, which no plugin's identity can be.
 //!
 //! These types are the kernel's too: its `StoreBackend` wraps this store, and
 //! a unit record is what its overlay becomes when the unit commits.

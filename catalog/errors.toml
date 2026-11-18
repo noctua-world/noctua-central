@@ -797,6 +797,19 @@ message = "error.kernel.compensation-ungranted"
 severity = "warning"
 retryable = false
 
+[[error]]
+# **A person's own call, and not a plugin's in their name.** Switching a
+# setting decides what may act for the person — MCP's lets agents in — so its
+# command runs only at the top of a call tree: a plugin run as the person, or a
+# timer's or an event's callback, dispatches it nested and is refused, and the
+# entry records `kernel.top_level_only`. Not NC-KERN-0017, whose description
+# names undo and redo, and which the ledger keeps meaning that.
+code = "NC-KERN-0025"
+description = "A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
+message = "error.kernel.only-at-the-top"
+severity = "warning"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer

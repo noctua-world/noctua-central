@@ -966,7 +966,7 @@ fn sized(bytes: &[u8]) -> Vec<u8> {
 #[tokio::test]
 async fn a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled() {
     let kernel = kernel::<InMemory>(MemoryBackend::default()).await;
-    for namespace in ["journal", "kernel", "limits", "naming"] {
+    for namespace in ["journal", "kernel", "limits", "naming", "settings"] {
         let refused = kernel
             .load(
                 manifest("noctua:reference", namespace),
