@@ -15,15 +15,37 @@ use std::process::ExitCode;
 
 use nc_cli::{Env, Outcome};
 
-/// Reads the invocation, runs it, and exits with its outcome's code.
+/// Reads the invocation, runs it, and exits with its outcome's code — or,
+/// as a launcher, with the code of the CLI it ran.
 fn main() -> ExitCode {
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
-    let env = Env::of(|name| std::env::var(name).ok());
+    let env = Env::of(|name| std::env::var(name).ok())
+        .at_a_terminal(at_a_terminal())
+        .with_the_clipboard(nc_platform::clipboard::tools(
+            nc_platform::clipboard::SYSTEM,
+            &|name| std::env::var_os(name),
+        ));
     let outcome = match nc_channel::found::of_this_process() {
         Ok(found) => nc_cli::run(&arguments, &found, &env),
-        Err(refused) => nc_cli::unfound(&arguments, &refused, &env),
+        Err(refused) => match nc_cli::launcher::through(&refused, &arguments, &env) {
+            // **The launched CLI printed its own run**, so nothing is said
+            // here, and its code is this one's whole.
+            nc_cli::launcher::Through::Ran(code) => std::process::exit(code),
+            nc_cli::launcher::Through::Said(outcome) => outcome,
+        },
     };
     ExitCode::from(say(&outcome))
+}
+
+/// Whether standard input and standard output are both a terminal, which a
+/// picker reads keys from and draws on.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "asked whether standard output is a terminal, and nothing is written through it"
+)]
+fn at_a_terminal() -> bool {
+    use std::io::IsTerminal as _;
+    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
 }
 
 /// The one place this binary prints: the outcome, to the process's own

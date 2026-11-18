@@ -46,6 +46,8 @@
 //! | the desktop entry, the tray, the credential store | `A.desktop`, `A.tray`, `A.credentials` |
 //! | the update feed and its signing key | `L-updates` and `L-release`, production and staging only |
 //! | the stack's compose project and ports | the checkout's, a development install only |
+//! | what a checkout records of itself | `<state base>/L/bin/checkout.json`, a development install only |
+//! | the name in the user's bin directory | `noctua-dev`, `-<namespace>` after it, a development install only |
 //!
 //! **`A` is the organization's GitHub home read as a domain** — the project owns
 //! no domain, and `io.github.<owner>` is the form freedesktop gives a project
@@ -66,6 +68,13 @@
 //! holds, and written with ASCII letters, digits and `-` alone, every other
 //! character spelled out (`_` and its code point in hex, then `_`), so no user
 //! can be read as another's name or end one.
+//!
+//! **`noctua-dev` is the development channel's, never a checkout's**: every
+//! checkout of one install's bases and namespace shares it, since it names the
+//! one installed or chosen last ([`checkouts`]). It has one part fewer than a
+//! checkout's leaf, and its relocated form, `noctua-dev-<namespace>`, as many
+//! parts as one — so a namespace is never eight hexadecimal digits, which is
+//! how a checkout is written, and no name of a test meets a real checkout's.
 //! `crates/nc-channel/tests/the_names_are_disjoint.rs` derives every channel's
 //! names for two users, as a real install and relocated under two namespaces,
 //! all under one root so that the namespace alone keeps a relocated install's
@@ -85,9 +94,10 @@
 //! It reads no environment, and writes nothing. Its ways to the disk are
 //! [`Checkout::of`], which canonicalizes the checkout's path, [`found`], which
 //! reads the manifest beside an executable, [`record`], which reads the
-//! daemon's PID record, and [`keys`], which reads a person's keybinding
-//! configuration and the other channels' beside it, writing none of them;
-//! [`layout`] touches none.
+//! daemon's PID record, [`keys`], which reads a person's keybinding
+//! configuration and the other channels' beside it, and [`checkouts`], which
+//! lists the development checkouts installed beside an install with what each
+//! records of itself, writing none of them; [`layout`] touches none.
 //! Which base directories a system has is `nc-platform`'s, asked by an
 //! installer; this crate is handed them.
 
@@ -96,6 +106,7 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod checkouts;
 pub mod found;
 pub mod keys;
 pub mod record;
@@ -300,10 +311,19 @@ impl Checkout {
     /// that is not there names the same stack every time it is asked about.
     #[must_use]
     pub fn of(root: &Path) -> Self {
-        let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf()); // allow-nondeterminism: `canonicalize` gives where this checkout is, whose digest names its stack; the default Leader a page shows is one for every checkout, so no page reads it
         Self {
-            digest: digest_of(&path.to_string_lossy()),
+            digest: digest_of(&Self::root_of(root).to_string_lossy()),
         }
+    }
+
+    /// The path [`Checkout::of`] digests for the checkout rooted at `root`:
+    /// canonicalized, or as given when it cannot be.
+    ///
+    /// **What an install records as the checkout's directory**, so the
+    /// directory a listing shows is the one its digest is of.
+    #[must_use]
+    pub fn root_of(root: &Path) -> PathBuf {
+        std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf()) // allow-nondeterminism: `canonicalize` gives where this checkout is, whose digest names its stack; the default Leader a page shows is one for every checkout, so no page reads it
     }
 
     /// A checkout as a manifest writes it.
@@ -391,10 +411,12 @@ fn pair_of(digest: u32) -> u16 {
 /// real one.
 ///
 /// **One to [`NAMESPACE_MAX`] lower-case ASCII letters and digits, at least
-/// one of them a digit.** No separator of any kind, so it cannot reach into the
-/// next part of a name or out of a directory; lower case, because a pipe and a
-/// case-insensitive file system read `T1` as `t1`; and a digit, because no word
-/// a leaf is made of holds one — the crate's header says what that keeps apart.
+/// one of them a digit, and never eight hexadecimal digits.** No separator of
+/// any kind, so it cannot reach into the next part of a name or out of a
+/// directory; lower case, because a pipe and a case-insensitive file system
+/// read `T1` as `t1`; a digit, because no word a leaf is made of holds one;
+/// and not a checkout's spelling, because `noctua-dev-<namespace>` would then
+/// be that checkout's CLI — the crate's header says what each keeps apart.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Namespace(String);
 
@@ -404,7 +426,7 @@ impl Namespace {
     /// # Errors
     ///
     /// [`ChannelError::Namespace`] for text outside the alphabet or the length
-    /// above, and for text holding no digit.
+    /// above, for text holding no digit, and for eight hexadecimal digits.
     pub fn parse(text: &str) -> Result<Self, ChannelError> {
         let alphabet = !text.is_empty()
             && text.len() <= NAMESPACE_MAX
@@ -421,6 +443,12 @@ impl Namespace {
             return Err(ChannelError::Namespace(format!(
                 "`{text}` holds no digit, so it could spell a word a name is already \
                  made of"
+            )));
+        }
+        if Checkout::parse(text).is_ok() {
+            return Err(ChannelError::Namespace(format!(
+                "`{text}` is eight hexadecimal digits, which is how a checkout is written, \
+                 so `noctua-dev-{text}` would be that checkout's CLI"
             )));
         }
         Ok(Self(text.to_owned()))
@@ -917,6 +945,16 @@ pub struct Layout {
     pub update: Option<Update>,
     /// The checkout's stack: a development install only.
     pub stack: Option<Stack>,
+    /// `<install>/checkout.json` ([`checkouts::RECORD`]), what a development
+    /// checkout records of itself beside its manifest: a development install's
+    /// only.
+    pub checkout_record: Option<PathBuf>,
+    /// The name the development checkout installed or chosen last is reached
+    /// by in the user's bin directory, with no system's executable suffix.
+    ///
+    /// `noctua-dev`: the development channel's rather than a checkout's, and a
+    /// development install's only.
+    pub chosen_cli: Option<String>,
 }
 
 /// Every name `install` gives the system, for `user` — **the one function**
@@ -979,6 +1017,14 @@ pub fn layout(install: &Install, user: &str) -> Layout {
             Channel::Development(checkout) if !relocated => Some(checkout.stack()),
             _ => None,
         },
+        checkout_record: match install.channel {
+            Channel::Development(_) => Some(install_directory.join(checkouts::RECORD)),
+            Channel::Production | Channel::Staging => None,
+        },
+        chosen_cli: match install.channel {
+            Channel::Development(_) => Some(chosen(install.namespace.as_ref())),
+            Channel::Production | Channel::Staging => None,
+        },
         install: install_directory,
         data,
         config,
@@ -1001,6 +1047,17 @@ fn leaf(channel: Channel, namespace: Option<&Namespace>) -> String {
         leaf.push_str(namespace.as_str());
     }
     leaf
+}
+
+/// The name the development checkout installed or chosen last is reached by,
+/// for `namespace`: `noctua-dev`, and `-<namespace>` after it.
+fn chosen(namespace: Option<&Namespace>) -> String {
+    let mut name = "noctua-dev".to_owned();
+    if let Some(namespace) = namespace {
+        name.push('-');
+        name.push_str(namespace.as_str());
+    }
+    name
 }
 
 /// A user as a name carries one: ASCII letters, digits and `-` as they are,

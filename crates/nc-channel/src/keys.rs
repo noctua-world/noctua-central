@@ -35,13 +35,15 @@
 //!
 //! A configured Leader is judged against the other channels' (`§17.1`),
 //! found from this install's own bases and namespace alone: production and
-//! staging by the names [`layout`] gives them, and each development checkout
-//! by a directory of the state base whose name is a checkout's leaf under
-//! this namespace and no other, so a test's install never reads a real one's,
-//! nor the other way round. A channel counts only while its install manifest
-//! is there, so an uninstalled checkout binds nothing; the state base is the
-//! one listed because the manifest is kept there, so no installed checkout is
-//! missed for a configuration directory it does not have.
+//! staging by the names [`layout`] gives them, and the development checkouts
+//! by the one listing [`crate::checkouts`] holds, which the CLI's `checkouts`
+//! verb reads too — a directory of the state base whose name is a checkout's
+//! leaf under this namespace and no other, so a test's install never reads a
+//! real one's, nor the other way round. A channel counts only while its
+//! install manifest is there, so an uninstalled checkout binds nothing; the
+//! state base is the one listed because the manifest is kept there, so no
+//! installed checkout is missed for a configuration directory it does not
+//! have.
 //!
 //! The channels are settled in one order — production, staging, then the
 //! checkouts by digest — by [`nc_schema::keys::settle`]: a configured Leader
@@ -52,8 +54,10 @@
 //! channel's defaults, as that reader takes it; one this build cannot judge —
 //! of a later format, not read because the disk did not answer, of a channel
 //! whose manifest the disk did not answer for, beside more than
-//! [`CHANNELS_MAX`] installed checkouts, or under a state base holding more
-//! than [`PROFILES_MAX`] development profiles — refuses this channel's
+//! [`CHANNELS_MAX`](crate::checkouts::CHANNELS_MAX) installed checkouts, or
+//! under a state base holding more than
+//! [`PROFILES_MAX`](crate::checkouts::PROFILES_MAX) development profiles —
+//! refuses this channel's
 //! configured Leader rather than guess. **Nothing of another channel is written, locked or
 //! removed**: its directory is listed, its manifest asked whether it is there,
 //! and its file judged and read.
@@ -93,8 +97,9 @@ use nc_schema::keys::{
     Tables, Verdict, Warning,
 };
 
+use crate::checkouts::{Unlisted, installed_checkouts, named};
 use crate::found::Found;
-use crate::{Channel, Checkout, Install, Layout, Namespace, layout, quoted};
+use crate::{Channel, Install, Layout, layout, quoted};
 
 /// The file a person's keybinding configuration is, in the profile's
 /// configuration directory.
@@ -113,22 +118,6 @@ pub const FORMAT: i64 = 1;
 /// choice — a binding is about twenty bytes — and a bound on what one read
 /// costs, whoever wrote the file.
 pub const BYTES_MAX: u64 = 16_384;
-
-/// The most installed development checkouts a configured Leader is judged beside.
-///
-/// More is a state base nobody keeps by hand, and judging past it would read
-/// without bound; it refuses this channel's configured Leader. **Installed
-/// ones alone are counted**: a profile an uninstall left behind binds nothing,
-/// and every checkout ever installed leaves one.
-pub const CHANNELS_MAX: usize = 64;
-
-/// The most development profiles the state base is listed for.
-///
-/// Each profile is asked whether its checkout's manifest is there, so this
-/// bounds what a listing asks, profiles left by an uninstall among them; it is
-/// far past [`CHANNELS_MAX`] because only an installed checkout is judged
-/// beside. Past it, this channel's configured Leader is refused.
-pub const PROFILES_MAX: usize = 1_024;
 
 /// The keys the file holds besides `format`, in the order canonical form
 /// writes them.
@@ -691,15 +680,6 @@ const fn default_of(channel: Channel) -> LeaderPart {
     }
 }
 
-/// How `channel` is named in what a refusal says.
-fn named(channel: Channel) -> String {
-    match channel {
-        Channel::Production => "production".to_owned(),
-        Channel::Staging => "staging".to_owned(),
-        Channel::Development(checkout) => format!("the development checkout {checkout}"),
-    }
-}
-
 /// The Leader part `leader` and `chord` make, once it keeps every rule
 /// against the other channels of `found`'s install.
 fn settled(found: &Found, leader: Chord, chord: Modifier) -> Result<LeaderPart, KeysRefused> {
@@ -751,15 +731,13 @@ fn settled(found: &Found, leader: Chord, chord: Modifier) -> Result<LeaderPart, 
 
 /// Every channel installed beside `install`, under its bases and its
 /// namespace, with the names each derives, in the order they are settled.
+///
+/// **Production and staging by the names [`layout`] gives them, then the
+/// development checkouts by the one listing** both readers of it share.
 fn siblings(install: &Install, user: &User) -> Result<Vec<(Channel, Layout)>, KeysRefused> {
-    let base = install.bases.state();
-    let checkouts = checkouts_under(base, install.namespace.as_ref())?;
+    let unjudged = |Unlisted(what)| KeysRefused::Unjudged(what);
     let mut counted = Vec::new();
-    let mut developments = 0;
-    for channel in [Channel::Production, Channel::Staging]
-        .into_iter()
-        .chain(checkouts.into_iter().map(Channel::Development))
-    {
+    for channel in [Channel::Production, Channel::Staging] {
         let names = layout(
             &Install {
                 channel,
@@ -774,96 +752,29 @@ fn siblings(install: &Install, user: &User) -> Result<Vec<(Channel, Layout)>, Ke
         let asked = std::fs::symlink_metadata(&names.manifest).map(drop);
         if installed(asked, channel, &names.manifest)? {
             counted.push((channel, names));
-            // **Counted once its manifest answered**: a profile an uninstall
-            // left is listed above and binds nothing, so it is not counted.
-            if matches!(channel, Channel::Development(_)) {
-                developments += 1;
-                if developments > CHANNELS_MAX {
-                    return Err(KeysRefused::Unjudged(format!(
-                        "more than {CHANNELS_MAX} development checkouts are installed under `{}`",
-                        base.display()
-                    )));
-                }
-            }
         }
     }
+    counted.extend(
+        installed_checkouts(install, user)
+            .map_err(unjudged)?
+            .into_iter()
+            .map(|(checkout, names, _)| (Channel::Development(checkout), names)),
+    );
     Ok(counted)
 }
 
 /// Whether `channel` is installed, by what asking for its manifest answered.
 ///
-/// An install whose manifest is gone binds nothing. **Any other answer
-/// refuses the configured Leader**, naming where the manifest was asked for,
-/// rather than guess whether that channel binds a Leader of its own.
+/// **The listing's own rule** ([`crate::checkouts`]), whose refusal refuses
+/// this channel's configured Leader rather than guess whether that channel
+/// binds one of its own.
 fn installed(
     asked: std::io::Result<()>,
     channel: Channel,
     manifest: &Path,
 ) -> Result<bool, KeysRefused> {
-    let Err(error) = asked else {
-        return Ok(true);
-    };
-    match error.kind() {
-        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => Ok(false),
-        _ => Err(KeysRefused::Unjudged(format!(
-            "whether {} is installed could not be read at `{}`: {error}",
-            named(channel),
-            manifest.display()
-        ))),
-    }
-}
-
-/// Every checkout whose profile directory sits under the state base `base`
-/// for `namespace`, by digest.
-fn checkouts_under(
-    base: &Path,
-    namespace: Option<&Namespace>,
-) -> Result<Vec<Checkout>, KeysRefused> {
-    let unlisted = |error: &std::io::Error| {
-        KeysRefused::Unjudged(format!(
-            "the profiles under `{}` could not be listed: {error}",
-            base.display()
-        ))
-    };
-    let listing = std::fs::read_dir(base); // allow-nondeterminism: this `read_dir` is sorted by digest below, which is the order the checkouts are settled in
-    let listing = match listing {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(unlisted(&error)),
-    };
-    let mut found = Vec::new();
-    for entry in listing {
-        let entry = entry.map_err(|error| unlisted(&error))?;
-        let name = entry.file_name();
-        let Some(checkout) = name
-            .to_str()
-            .and_then(|name| checkout_named(name, namespace))
-        else {
-            continue;
-        };
-        found.push(checkout);
-        if found.len() > PROFILES_MAX {
-            return Err(KeysRefused::Unjudged(format!(
-                "more than {PROFILES_MAX} development profiles sit under `{}`",
-                base.display()
-            )));
-        }
-    }
-    found.sort();
-    Ok(found)
-}
-
-/// The checkout whose profile directory under `namespace` is named `name`.
-///
-/// The inverse of the leaf [`layout`] writes for a development install, and
-/// nothing for any other name.
-fn checkout_named(name: &str, namespace: Option<&Namespace>) -> Option<Checkout> {
-    let rest = name.strip_prefix("noctua-dev-")?;
-    let digits = match namespace {
-        None => rest,
-        Some(namespace) => rest.strip_suffix(namespace.as_str())?.strip_suffix('-')?,
-    };
-    Checkout::parse(digits).ok()
+    crate::checkouts::installed(asked, &named(channel), manifest)
+        .map_err(|Unlisted(what)| KeysRefused::Unjudged(what))
 }
 
 /// The Leader part `channel`, settled before this one, configures: as its own
@@ -976,64 +887,8 @@ mod tests {
     use nc_catalog::ErrorCode;
     use nc_schema::keys::{Chord, Leader, LeaderPart, Modifier};
 
-    use super::{
-        BYTES_MAX, Configuration, KeysRefused, Part, Unread, checkout_named, installed, predecessor,
-    };
-    use crate::{Channel, Checkout, Namespace, leaf};
-
-    fn namespace(text: &str) -> Namespace {
-        Namespace::parse(text).expect("a namespace")
-    }
-
-    /// A checkout's profile directory is read back as the checkout that
-    /// names it, under its namespace and under none.
-    #[test]
-    fn a_profile_directory_is_read_back_as_the_channel_that_names_it() {
-        for digits in ["0123abcd", "00000000", "ffffffff"] {
-            let checkout = Checkout::parse(digits).expect("eight digits");
-            for space in [None, Some(namespace("t1")), Some(namespace("a2b3"))] {
-                let name = leaf(Channel::Development(checkout), space.as_ref());
-                assert_eq!(
-                    checkout_named(&name, space.as_ref()),
-                    Some(checkout),
-                    "{name}"
-                );
-            }
-        }
-    }
-
-    /// No name a checkout's leaf is not, under this namespace, is a sibling.
-    ///
-    /// Production's and staging's leaves, another namespace's, none's, and
-    /// anything spelled near one.
-    #[test]
-    fn a_name_no_channel_writes_is_no_sibling() {
-        let checkout = Checkout::parse("0123abcd").expect("eight digits");
-        let t1 = namespace("t1");
-        let t2 = namespace("t2");
-        for (name, space) in [
-            (leaf(Channel::Production, None), None),
-            (leaf(Channel::Staging, None), None),
-            (leaf(Channel::Production, Some(&t1)), Some(&t1)),
-            (leaf(Channel::Staging, Some(&t1)), Some(&t1)),
-            // **Another namespace's, and a real one's**, each way round.
-            (leaf(Channel::Development(checkout), Some(&t2)), Some(&t1)),
-            (leaf(Channel::Development(checkout), Some(&t1)), None),
-            (leaf(Channel::Development(checkout), None), Some(&t1)),
-            ("noctua-devx".to_owned(), None),
-            ("noctua-dev-".to_owned(), None),
-            ("noctua-dev-ZZ".to_owned(), None),
-            ("noctua-dev-0123ABCD".to_owned(), None),
-            ("noctua-dev-0123abcd0".to_owned(), None),
-            ("noctua-dev-0123abcd-".to_owned(), None),
-            ("noctua-dev-0123abcd--t1".to_owned(), Some(&t1)),
-            ("noctua-dev-0123abcdt1".to_owned(), Some(&t1)),
-            ("noctua-dev-0123abcd-t1x".to_owned(), Some(&t1)),
-            ("Noctua-dev-0123abcd".to_owned(), None),
-        ] {
-            assert_eq!(checkout_named(&name, space), None, "{name}");
-        }
-    }
+    use super::{BYTES_MAX, Configuration, KeysRefused, Part, Unread, installed, predecessor};
+    use crate::{Channel, Checkout};
 
     /// A configuration reads back as the text it writes, and canonical text
     /// as itself.

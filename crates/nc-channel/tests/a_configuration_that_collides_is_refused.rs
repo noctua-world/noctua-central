@@ -13,10 +13,9 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use nc_catalog::ErrorCode;
+use nc_channel::checkouts::{CHANNELS_MAX, PROFILES_MAX};
 use nc_channel::found::{self, Found};
-use nc_channel::keys::{
-    self, CHANNELS_MAX, Configuration, Effective, KeysRefused, PROFILES_MAX, Part,
-};
+use nc_channel::keys::{self, Configuration, Effective, KeysRefused, Part};
 use nc_channel::{Bases, Channel, Checkout, Install, Namespace, layout};
 use nc_schema::keys::{Binding, Chord, Leader, LeaderPart, LeaderRule, Modifier, Warning};
 

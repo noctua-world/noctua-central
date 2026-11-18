@@ -591,19 +591,22 @@ which builds that plugin into what the kernel loads, the local database's
 `lib.rs`, `open.rs`, `schema.rs` and `store.rs` and the journal it keeps,
 `journal.rs`, what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
-and the test doors `testing.rs` — the program a service manager is told to
+and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, a
 person's keybinding configuration and the other channels' read beside it,
-its `keys.rs`, and the PID record's format, `record.rs`, the
+its `keys.rs`, the development checkouts installed beside an install, its
+`checkouts.rs`, and the PID record's format, `record.rs`, the
 daemon's `lib.rs`, `main.rs`, `profile.rs`, `device.rs` and
 `mark.rs`, what it serves, its `run.rs`, `server.rs`, `environment.rs`,
 `plugins.rs`, `schedule.rs` and `pidfile.rs`, the install its suites start it in,
 `testing.rs`, which process it is, `nc-platform`'s `process.rs`, the CLI's
 `lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`, `exit.rs`, `client.rs`
-and `run.rs`, its process control, `control.rs`, and its installer, `install.rs`,
+and `run.rs`, its process control, `control.rs`, its installer, `install.rs`,
+`noctua-dev`, `chosen.rs`, its launcher, `launcher.rs`, and the `checkouts` verb,
+`checkouts.rs`, with its picker, `picker.rs`, and that picker's terminal, `terminal.rs`,
 `nc-prune`'s `sqlite.rs`,
 `local.rs`, which builds that database's schema from its migrations, and the fuzzy
 core's `lib.rs`, `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, and restores **all of them** before each mutation: its first multi-file version

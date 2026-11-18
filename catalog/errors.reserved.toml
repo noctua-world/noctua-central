@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "6c8415ec9a35902121cd002a36071a72ace40e640422fee66024d3a5d83edc95"
-count = 157
+checksum = "d72b63a95c61da897c44edf7fb9c825c4cf01df6e593c8a8131736796dbfe2ee"
+count = 162
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -59,6 +59,11 @@ count = 157
 "NC-CLI-0007" = "error.cli.daemon-did-not-start — error — retryable:true — params:[] — The daemon was started and did not answer: it ended, or did not answer within its bound"
 "NC-CLI-0008" = "error.cli.daemon-did-not-stop — error — retryable:true — params:[] — The daemon was asked to stop, or signalled, and did not end within its bound, so it may still be running"
 "NC-CLI-0009" = "error.cli.process-unverified — error — retryable:false — params:[] — The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled"
+"NC-CLI-0010" = "error.cli.checkout-unknown — warning — retryable:false — params:[] — No development checkout of that digest is installed beside this install, so nothing was chosen"
+"NC-CLI-0011" = "error.cli.checkouts-unlisted — error — retryable:true — params:[] — The development checkouts installed beside this install could not be listed"
+"NC-CLI-0012" = "error.cli.chosen-not-pointed — error — retryable:false — params:[] — `noctua-dev` was not pointed at the chosen checkout: the bin directory or what stands at the name is not this install's to change, or it could not be written"
+"NC-CLI-0013" = "error.cli.terminal-unanswered — error — retryable:true — params:[] — The terminal the picker runs in did not answer, so nothing was chosen"
+"NC-CLI-0014" = "error.cli.launcher-refused — critical — retryable:false — params:[] — The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run"
 "NC-DB-0001" = "error.db.unreachable — critical — retryable:true — params:[] — The database did not answer"
 "NC-DB-0002" = "error.db.migration-failed — critical — retryable:false — params:[] — A migration failed to apply"
 "NC-DB-0003" = "error.db.prune-failed — error — retryable:true — params:[] — Pruning a table did not finish, and a later run may"

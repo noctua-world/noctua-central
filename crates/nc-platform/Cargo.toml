@@ -47,8 +47,9 @@ windows-sys = { version = "0.61", features = [
 # (`NOCTUA.md §17.1`, decided 2026-11-08): `setsid` and `getsid`, the safe
 # wrappers `process` holds, with `std` so an error is a `std::io::Error`; and a
 # process held to its PID record and signalled through it — `pidfd_open` and
-# `pidfd_send_signal` on Linux, signal 0 and `kill` on macOS — with `getuid`
-# and the group a test reads back, `getpgid`. No FFI
+# `pidfd_send_signal` on Linux, signal 0 and `kill` on macOS — with `getuid`,
+# `geteuid` for a launcher with no private directory at hand, and the group a
+# test reads back, `getpgid`. No FFI
 # is written on Unix, so a call the standard library does not make is made
 # through this, never through `libc` by hand. Already in the graph at this
 # version, under `wasmtime` and `tempfile`, so it adds no package; compiled only

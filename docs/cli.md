@@ -12,6 +12,7 @@ What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its v
 ```text
 Usage:
   noctua [--json] <command> [arguments]
+  noctua [--json] checkouts [<checkout>]
   noctua [--json] help [<command> | <verb> | exit-codes | categories | external-identifiers | keybindings]
 
 Options, before the command:
@@ -30,6 +31,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | `stop` | stop this channel's daemon, and keep anything that restores it from starting it again until `start` |
 | `restart` | stop this channel's daemon, then start it |
 | `status` | say how this channel's daemon is, or why it does not answer |
+| `checkouts` | list the development checkouts installed beside this one, and choose the one `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no `--json`, in a picker filtered by typing; or by its digest |
 
 ## Exit codes
 
@@ -48,6 +50,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | 10 | the connection was refused: the endpoint, the token or the handshake did not show both ends to be this install's |
 | 11 | starting or stopping the daemon did not finish |
 | 12 | no install was found beside this executable, or its manifest was refused |
+| 13 | the picker was left without a choice, so nothing was changed |
 
 ## `journal.verify`
 

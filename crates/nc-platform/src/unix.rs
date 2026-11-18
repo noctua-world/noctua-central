@@ -118,6 +118,15 @@ pub(crate) fn user_in(directory: &Path) -> Result<User, Judged> {
     Ok(user)
 }
 
+/// The effective user of this process, whom what it creates belongs to.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one asks a token that can fail"
+)]
+pub(crate) fn this_user() -> io::Result<User> {
+    Ok(User(rustix::process::geteuid().as_raw()))
+}
+
 /// Whether `path` is what it should be and nobody else's.
 pub(crate) fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
     judged(path, &metadata_of(path)?, user, kind)
@@ -128,6 +137,45 @@ pub(crate) fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> 
 /// is the user this process runs as.
 pub(crate) fn judge_made_by_default(path: &Path, user: &User) -> Result<(), Judged> {
     judge(path, Kind::File, user)
+}
+
+/// The mode bits by which somebody other than the owner may write in a
+/// directory: the group's and others' write bits.
+const OTHERS_WRITE: u32 = 0o022;
+
+/// Whether the directory `path` is the user's, and no group or other write
+/// bit lets anybody else change what is in it.
+pub(crate) fn judge_written_by_user_alone(path: &Path, user: &User) -> Result<(), Judged> {
+    let found = metadata_of(path)?;
+    let refused = |what: String| Err(Judged::Refused(Refusal::of(path, what)));
+    let file_type = found.file_type();
+    if file_type.is_symlink() {
+        return refused("is a symbolic link".to_owned());
+    }
+    if !file_type.is_dir() {
+        return refused("is not a directory".to_owned());
+    }
+    if found.uid() != user.0 {
+        return refused(format!(
+            "belongs to user {} and this process runs as user {user}",
+            found.uid()
+        ));
+    }
+    let mode = found.mode() & 0o777;
+    if mode & OTHERS_WRITE != 0 {
+        return refused(format!(
+            "has mode {mode:03o}, which lets another user write in it"
+        ));
+    }
+    Ok(())
+}
+
+/// A name in the bin directory reaches its executable through a link here.
+pub(crate) const REACH: crate::Reach = crate::Reach::Link;
+
+/// A symbolic link at `at` to `target`.
+pub(crate) fn link(target: &Path, at: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, at)
 }
 
 /// Whether one path, read as `found`, is what it should be and nobody else's.
@@ -995,6 +1043,14 @@ pub(crate) fn open_to_another_user(path: &Path) -> io::Result<String> {
     };
     chmod(path, mode)?;
     Ok(format!("mode {mode:03o}"))
+}
+
+/// The group's write bit on the directory `path`, with its read and enter
+/// bits, and what a refusal of a directory others may write says.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn let_another_user_write(path: &Path) -> io::Result<String> {
+    chmod(path, 0o770)?;
+    Ok("has mode 770, which lets another user write in it".to_owned())
 }
 
 /// The owner's write bit off `path`, and what its refusal says.

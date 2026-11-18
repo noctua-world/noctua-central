@@ -185,6 +185,7 @@ fn installed(
             world: &world,
             plugins: Vec::new(),
             restorer: false,
+            chosen: None,
         };
         let installed = nc_cli::install::install(&plan).expect("installed");
         running.0.push(installed.found);

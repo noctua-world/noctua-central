@@ -3,6 +3,7 @@
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
 //! noctua [--json] start | stop | restart | status
+//! noctua [--json] checkouts [<checkout>]
 //! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers | keybindings]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
@@ -12,7 +13,8 @@
 //!    renders the answer as one canonical document, `--help` asks for help,
 //!    and the first other word is a verb — one word, [`VERBS`] — or a
 //!    command's registered name, which is always dotted, so the two never
-//!    meet. Nothing here asks the daemon anything.
+//!    meet. `checkouts` takes at most one word after it, a checkout's digest.
+//!    Nothing here asks the daemon anything.
 //! 2. [`arguments`] reads what follows a command's name against that
 //!    command's schema, as the daemon's registry hands it: **a flag's name is
 //!    the property's, verbatim**, a value is read as the property's type —
@@ -36,13 +38,18 @@ use nc_canon::Value;
 use nc_catalog::ErrorCode;
 use nc_schema::{Argument, Schema, Shape};
 
-/// The verbs the CLI answers itself, each one word: `help`, and the verbs
-/// that control the daemon's process ([`Control`]).
+/// The verbs the CLI answers itself, each one word: `help`, the verbs that
+/// control the daemon's process ([`Control`]), and [`CHECKOUTS`].
 ///
 /// **Undotted, and a registered command's name is always dotted**
 /// (`nc_schema::command_name_is_well_formed`), so a verb never shadows a
 /// command and a command never takes a verb's place.
-pub const VERBS: [&str; 5] = ["help", "start", "stop", "restart", "status"];
+pub const VERBS: [&str; 6] = ["help", "start", "stop", "restart", "status", CHECKOUTS];
+
+/// The verb that lists the development checkouts installed beside this one,
+/// and chooses the one `noctua-dev` reaches: what only the CLI can do, since
+/// it needs no daemon and changes a name outside every profile.
+pub const CHECKOUTS: &str = "checkouts";
 
 /// A verb that controls the daemon's process (`NOCTUA.md §17.1`), which no
 /// registered command can be: a daemon that is down dispatches nothing.
@@ -112,6 +119,9 @@ pub enum Asked {
     Help(Topic),
     /// A verb that controls the daemon's process.
     Control(Control),
+    /// The development checkouts installed beside this one: listed, or one
+    /// chosen by its digest when one is given.
+    Checkouts(Option<String>),
     /// A registered command, and the words after its name, which are read
     /// against its schema once the registry has handed it.
     Command {
@@ -230,6 +240,17 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
         match rest.split_first() {
             None => Asked::Help(Topic::Everything),
             Some((word, after)) if word == "help" => Asked::Help(topic(after)?),
+            Some((word, after)) if word == CHECKOUTS => match after {
+                [] => Asked::Checkouts(None),
+                [digest] => Asked::Checkouts(Some(digest.clone())),
+                [_, extra, ..] => {
+                    return Err(unread(format!(
+                        "`{CHECKOUTS}` takes one checkout's digest after it at most, and `{}` is \
+                         a second word",
+                        shown(extra)
+                    )));
+                }
+            },
             Some((word, after)) if let Some(verb) = Control::of(word) => match after.first() {
                 None => Asked::Control(verb),
                 Some(extra) => {
@@ -655,7 +676,10 @@ mod tests {
             assert!(!verb.contains('.'), "{verb}");
             assert!(!nc_schema::command_name_is_well_formed(verb), "{verb}");
             assert!(
-                matches!(line(&[verb]).asked, Asked::Help(_) | Asked::Control(_)),
+                matches!(
+                    line(&[verb]).asked,
+                    Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(None)
+                ),
                 "{verb}"
             );
         }
@@ -727,14 +751,43 @@ mod tests {
         }
     }
 
-    /// The verbs are `help` and the four that control the daemon, each read
-    /// as itself — under `--json` too — and refused with a word after it.
+    /// `checkouts` is read alone, or with the one digest that chooses a
+    /// checkout, under `--json` too, and refused with a second word.
+    #[test]
+    fn checkouts_is_read_alone_or_with_one_digest() {
+        assert_eq!(VERBS.last(), Some(&super::CHECKOUTS));
+        assert_eq!(line(&["checkouts"]).asked, Asked::Checkouts(None));
+        assert_eq!(
+            line(&["checkouts", "0123abcd"]).asked,
+            Asked::Checkouts(Some("0123abcd".to_owned()))
+        );
+        let json = line(&["--json", "checkouts"]);
+        assert!(json.json && json.asked == Asked::Checkouts(None));
+        let refusal = refused(&["checkouts", "0123abcd", "\u{1b}x"]);
+        assert_eq!(refusal.code(), ErrorCode::CliCommandLineUnreadable);
+        assert!(
+            refusal.detail().contains("one checkout's digest")
+                && refusal.detail().contains("\\u{1b}x"),
+            "{refusal:?}"
+        );
+        assert_eq!(
+            line(&["help", "checkouts"]).asked,
+            Asked::Help(Topic::Verbs),
+            "help on the verb is the verbs'"
+        );
+    }
+
+    /// The verbs are `help`, the four that control the daemon and the one
+    /// that lists the checkouts.
+    ///
+    /// Each is read as itself, under `--json` too, and a verb that controls
+    /// the daemon is refused with a word after it.
     #[test]
     fn a_verb_that_controls_the_daemon_is_read_alone() {
         assert_eq!(
-            VERBS[1..],
+            VERBS[1..=4],
             Control::ALL.map(Control::word),
-            "the verbs are not help and the four that control the daemon"
+            "the verbs are not help, the four that control the daemon and checkouts"
         );
         assert_eq!(VERBS[0], "help");
         for verb in Control::ALL {

@@ -411,6 +411,7 @@ impl Scratch {
             Path::new(BINARY),
             &world,
             Vec::new(),
+            None,
         );
         let installed = nc_cli::install::install(&plan);
         // **Held before the outcome is read**, so an install that registered

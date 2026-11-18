@@ -62,6 +62,14 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
             on_a_runtime(found, line.json, env, Asked::Help(Topic::Everything))
                 .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))
         }
+        // **Answered with no daemon**: the checkouts are found on disk, and
+        // choosing one changes a name outside every profile.
+        Asked::Checkouts(digest) => Ok(crate::checkouts::answered(
+            found,
+            line.json,
+            env,
+            digest.as_deref(),
+        )),
         asked => on_a_runtime(found, line.json, env, asked),
     };
     ended.unwrap_or_else(|failure| render::failed(line.json, locale, &failure))
@@ -168,8 +176,8 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             }
         }
         // Help on everything; a verb that controls the daemon was answered
-        // above, before the connection.
-        Asked::Help(_) | Asked::Control(_) => {
+        // above, before the connection, and the checkouts before any.
+        Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(_) => {
             Ok(render::shown(json, help::everything(cli, &registry)))
         }
     }
@@ -466,6 +474,82 @@ mod tests {
                 assert!(shown.contains(said), "{said}: {shown}");
             }
         }
+    }
+
+    /// The development checkout `digest` installed at `at` beside `installed`,
+    /// under its bases and namespace, with `noctua-dev` pointed at its CLI.
+    fn checkout_beside(installed: &Scratch, digest: &str, at: i64) -> crate::install::Installed {
+        let stand_in = installed.path("noctua");
+        let plan = crate::install::Plan {
+            install: nc_channel::Install {
+                channel: nc_channel::Channel::Development(
+                    nc_channel::Checkout::parse(digest).expect("a digest"),
+                ),
+                ..installed.found.install.clone()
+            },
+            cli: &stand_in,
+            daemon: &stand_in,
+            world: "{}",
+            plugins: Vec::new(),
+            restorer: false,
+            chosen: Some(crate::install::Chosen {
+                bin: installed.path("bin"),
+                directory: installed.path(&format!("checkout-{digest}")),
+                installed: at,
+            }),
+        };
+        crate::install::install_with(&plan, |_: &std::path::Path, _: &std::path::Path| Ok(()))
+            .expect("installed")
+    }
+
+    /// The checkouts are listed, and one chosen, with no daemon to ask.
+    ///
+    /// No token, no listener: the development checkouts installed beside the
+    /// install are one document with `--json` and with no terminal, the one
+    /// installed last the one `noctua-dev` reaches, and one chosen by its digest
+    /// is what `noctua-dev` reaches next, its CLI's path printed.
+    #[test]
+    fn the_checkouts_are_listed_and_chosen_with_no_daemon() {
+        let installed = Scratch::new("cko");
+        let older = checkout_beside(&installed, "0000000a", 1_000);
+        let newest = checkout_beside(&installed, "0000000b", 2_000);
+        let link = newest.link.clone().expect("pointed");
+        let found = &installed.found;
+        let listed = nc_channel::checkouts::listed(&found.install, &found.user).expect("listed");
+        assert_eq!(
+            listed
+                .iter()
+                .map(|one| one.checkout.to_string())
+                .collect::<Vec<_>>(),
+            ["0000000a", "0000000b"]
+        );
+        let listing = crate::checkouts::listing(
+            &listed,
+            Some(&link),
+            nc_channel::Checkout::parse("0000000b").ok(),
+        );
+        for (line, document) in [
+            (
+                &["--json", "checkouts"][..],
+                Value::object([("ok", listing.clone())]),
+            ),
+            (&["checkouts"], listing),
+        ] {
+            let outcome = super::run(&argv(line), found, &english());
+            assert_eq!(outcome.exit, Exit::Success, "{line:?}: {outcome:?}");
+            assert_eq!(
+                nc_canon::parse(outcome.stdout.trim_end()).ok(),
+                Some(document),
+                "{line:?}: {outcome:?}"
+            );
+        }
+        let chose = super::run(&argv(&["checkouts", "0000000a"]), found, &english());
+        assert_eq!(chose.exit, Exit::Success, "{chose:?}");
+        assert_eq!(chose.stdout, format!("{}\n", older.cli.display()));
+        assert_eq!(
+            crate::chosen::pointed(&link, nc_platform::REACH, &found.user),
+            Ok(Some(older.cli.clone()))
+        );
     }
 
     /// Help on everything with no registry to read still shows the grammar

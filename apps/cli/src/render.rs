@@ -37,12 +37,21 @@ use crate::exit::Exit;
 /// The variables a language is read from, in the order they are asked.
 pub const LOCALE_VARIABLES: [&str; 3] = ["LC_ALL", "LC_MESSAGES", "LANG"];
 
-/// What the CLI reads of its environment: the language it answers in, and
-/// nothing else — never a location, which is the install's (`§17.1`).
+/// What the CLI reads of its environment: the language it answers in, whether
+/// it runs at a terminal, and the tools the clipboard is reached through —
+/// never a location, which is the install's (`§17.1`).
+///
+/// **At no terminal, and with no clipboard, unless the binary says so**: what
+/// [`Env::of`] makes, as a suite does, opens no picker and copies nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Env {
     /// The value of each of [`LOCALE_VARIABLES`], in that order.
     locale: [Option<String>; 3],
+    /// Whether standard input and standard output are both a terminal.
+    terminal: bool,
+    /// The tools a text is put on the clipboard with, in the order they are
+    /// tried.
+    clipboard: Vec<nc_platform::clipboard::Tool>,
 }
 
 impl Env {
@@ -52,7 +61,36 @@ impl Env {
     pub fn of(variable: impl Fn(&str) -> Option<String>) -> Self {
         Self {
             locale: LOCALE_VARIABLES.map(&variable),
+            terminal: false,
+            clipboard: Vec::new(),
         }
+    }
+
+    /// This environment, at a terminal when `terminal` says so.
+    #[must_use]
+    pub fn at_a_terminal(self, terminal: bool) -> Self {
+        Self { terminal, ..self }
+    }
+
+    /// This environment, with the clipboard reached through `tools`.
+    #[must_use]
+    pub fn with_the_clipboard(self, tools: Vec<nc_platform::clipboard::Tool>) -> Self {
+        Self {
+            clipboard: tools,
+            ..self
+        }
+    }
+
+    /// Whether standard input and standard output are both a terminal.
+    #[must_use]
+    pub const fn terminal(&self) -> bool {
+        self.terminal
+    }
+
+    /// The tools a text is put on the clipboard with.
+    #[must_use]
+    pub fn clipboard(&self) -> &[nc_platform::clipboard::Tool] {
+        &self.clipboard
     }
 
     /// The language the CLI answers in: Brazilian Portuguese for the first
@@ -250,6 +288,24 @@ mod tests {
         ] {
             assert_eq!(environment_of(pairs).locale(), locale, "{pairs:?}");
         }
+    }
+
+    /// An environment is at no terminal and has no clipboard until the binary
+    /// says so.
+    ///
+    /// So a suite's run opens no picker and copies nothing, and the binary's
+    /// own sees each it was handed.
+    #[test]
+    fn an_environment_has_a_terminal_and_a_clipboard_only_when_handed_them() {
+        let quiet = Env::of(|_| None);
+        assert!(!quiet.terminal());
+        assert_eq!(quiet.clipboard(), []);
+        let tools = nc_platform::clipboard::tools(nc_platform::clipboard::System::MacOs, &|_| None);
+        let handed = quiet.at_a_terminal(true).with_the_clipboard(tools.clone());
+        assert!(handed.terminal());
+        assert_eq!(handed.clipboard(), tools.as_slice());
+        assert_eq!(handed.locale(), Locale::En);
+        assert!(!handed.at_a_terminal(false).terminal());
     }
 
     /// Every character a reader sees nothing of is escaped.

@@ -129,6 +129,16 @@ pub enum ErrorCode {
     CliDaemonDidNotStop,
     /// NC-CLI-0009 — The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled
     CliProcessUnverified,
+    /// NC-CLI-0010 — No development checkout of that digest is installed beside this install, so nothing was chosen
+    CliCheckoutUnknown,
+    /// NC-CLI-0011 — The development checkouts installed beside this install could not be listed
+    CliCheckoutsUnlisted,
+    /// NC-CLI-0012 — `noctua-dev` was not pointed at the chosen checkout: the bin directory or what stands at the name is not this install's to change, or it could not be written
+    CliChosenNotPointed,
+    /// NC-CLI-0013 — The terminal the picker runs in did not answer, so nothing was chosen
+    CliTerminalUnanswered,
+    /// NC-CLI-0014 — The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run
+    CliLauncherRefused,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -412,6 +422,11 @@ impl ErrorCode {
         Self::CliDaemonDidNotStart,
         Self::CliDaemonDidNotStop,
         Self::CliProcessUnverified,
+        Self::CliCheckoutUnknown,
+        Self::CliCheckoutsUnlisted,
+        Self::CliChosenNotPointed,
+        Self::CliTerminalUnanswered,
+        Self::CliLauncherRefused,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -575,6 +590,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => "NC-CLI-0007",
             Self::CliDaemonDidNotStop => "NC-CLI-0008",
             Self::CliProcessUnverified => "NC-CLI-0009",
+            Self::CliCheckoutUnknown => "NC-CLI-0010",
+            Self::CliCheckoutsUnlisted => "NC-CLI-0011",
+            Self::CliChosenNotPointed => "NC-CLI-0012",
+            Self::CliTerminalUnanswered => "NC-CLI-0013",
+            Self::CliLauncherRefused => "NC-CLI-0014",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -739,6 +759,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => "CLI",
             Self::CliDaemonDidNotStop => "CLI",
             Self::CliProcessUnverified => "CLI",
+            Self::CliCheckoutUnknown => "CLI",
+            Self::CliCheckoutsUnlisted => "CLI",
+            Self::CliChosenNotPointed => "CLI",
+            Self::CliTerminalUnanswered => "CLI",
+            Self::CliLauncherRefused => "CLI",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -958,6 +983,21 @@ impl ErrorCode {
             }
             Self::CliProcessUnverified => {
                 "The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled"
+            }
+            Self::CliCheckoutUnknown => {
+                "No development checkout of that digest is installed beside this install, so nothing was chosen"
+            }
+            Self::CliCheckoutsUnlisted => {
+                "The development checkouts installed beside this install could not be listed"
+            }
+            Self::CliChosenNotPointed => {
+                "`noctua-dev` was not pointed at the chosen checkout: the bin directory or what stands at the name is not this install's to change, or it could not be written"
+            }
+            Self::CliTerminalUnanswered => {
+                "The terminal the picker runs in did not answer, so nothing was chosen"
+            }
+            Self::CliLauncherRefused => {
+                "The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run"
             }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
@@ -1313,6 +1353,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => "error.cli.daemon-did-not-start",
             Self::CliDaemonDidNotStop => "error.cli.daemon-did-not-stop",
             Self::CliProcessUnverified => "error.cli.process-unverified",
+            Self::CliCheckoutUnknown => "error.cli.checkout-unknown",
+            Self::CliCheckoutsUnlisted => "error.cli.checkouts-unlisted",
+            Self::CliChosenNotPointed => "error.cli.chosen-not-pointed",
+            Self::CliTerminalUnanswered => "error.cli.terminal-unanswered",
+            Self::CliLauncherRefused => "error.cli.launcher-refused",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -1477,6 +1522,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => Severity::Error,
             Self::CliDaemonDidNotStop => Severity::Error,
             Self::CliProcessUnverified => Severity::Error,
+            Self::CliCheckoutUnknown => Severity::Warning,
+            Self::CliCheckoutsUnlisted => Severity::Error,
+            Self::CliChosenNotPointed => Severity::Error,
+            Self::CliTerminalUnanswered => Severity::Error,
+            Self::CliLauncherRefused => Severity::Critical,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -1641,6 +1691,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => true,
             Self::CliDaemonDidNotStop => true,
             Self::CliProcessUnverified => false,
+            Self::CliCheckoutUnknown => false,
+            Self::CliCheckoutsUnlisted => true,
+            Self::CliChosenNotPointed => false,
+            Self::CliTerminalUnanswered => true,
+            Self::CliLauncherRefused => false,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1805,6 +1860,11 @@ impl ErrorCode {
             Self::CliDaemonDidNotStart => &[],
             Self::CliDaemonDidNotStop => &[],
             Self::CliProcessUnverified => &[],
+            Self::CliCheckoutUnknown => &[],
+            Self::CliCheckoutsUnlisted => &[],
+            Self::CliChosenNotPointed => &[],
+            Self::CliTerminalUnanswered => &[],
+            Self::CliLauncherRefused => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],

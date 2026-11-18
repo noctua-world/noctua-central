@@ -1634,3 +1634,52 @@ description = "The PID record names a process the CLI could not hold to this cha
 message = "error.cli.process-unverified"
 severity = "error"
 retryable = false
+
+[[error]]
+# `checkouts <digest>` chooses among the development checkouts installed
+# beside this install, under its bases and its namespace (§17.1), and a digest
+# none of them has is refused, naming it, before anything is changed.
+code = "NC-CLI-0010"
+description = "No development checkout of that digest is installed beside this install, so nothing was chosen"
+message = "error.cli.checkout-unknown"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The listing `nc_channel::checkouts` holds, which the Leader settlement reads
+# too: a state base that will not list, a manifest whose presence the disk did
+# not answer for, or more installs than its bounds.
+code = "NC-CLI-0011"
+description = "The development checkouts installed beside this install could not be listed"
+message = "error.cli.checkouts-unlisted"
+severity = "error"
+retryable = true
+
+[[error]]
+# `noctua-dev` is the one name an install writes outside Noctua's own
+# directories, and it is never written over what this install did not make,
+# nor in a bin directory another account may write in (§17.1).
+code = "NC-CLI-0012"
+description = "`noctua-dev` was not pointed at the chosen checkout: the bin directory or what stands at the name is not this install's to change, or it could not be written"
+message = "error.cli.chosen-not-pointed"
+severity = "error"
+retryable = false
+
+[[error]]
+# The picker's terminal: raw mode entered and left, keys read, lines drawn.
+# Whatever fails, the terminal is left as it was found before this is said.
+code = "NC-CLI-0013"
+description = "The terminal the picker runs in did not answer, so nothing was chosen"
+message = "error.cli.terminal-unanswered"
+severity = "error"
+retryable = true
+
+[[error]]
+# A launcher — `noctua-dev` where a symbolic link needs a privilege — runs
+# the CLI its pointer names only once the pointer is judged this user's alone
+# and its directory written by this user alone (§17.1).
+code = "NC-CLI-0014"
+description = "The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run"
+message = "error.cli.launcher-refused"
+severity = "critical"
+retryable = false
