@@ -570,7 +570,8 @@ by, and the
 kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
 `entry.rs` — and the Leader's grammar every binding is read by, its `keys.rs`,
 and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
-`directory.rs` and `embedded.rs`, and the kernel's own `lib.rs`, `world.rs`,
+`directory.rs`, `embedded.rs` and `agents.rs`, the directory of the agents a
+person makes, and the kernel's own `lib.rs`, `world.rs`,
 `bindings.rs`, `engine.rs` and `built.rs`, the grants and bounds a plugin's
 manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 `host.rs` with every interface of the world under it, `log.rs`, `context.rs`,

@@ -9,6 +9,9 @@ Every error this platform declares. A code is **append-only**: it identifies one
 
 | Code | Severity | Retryable | Raised | Parameters | Developer description | en | pt-BR |
 |---|---|---|---|---|---|---|---|
+| `NC-AI-0001` | warning | no | yes | none | An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person | None of your agents has that identifier, so nothing was done. | Nenhum dos seus agentes tem esse identificador, então nada foi feito. |
+| `NC-AI-0002` | warning | no | yes | none | An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for | Only a person can have an agent, and only the person an agent acts for can give it access or take it away. Nothing was changed. | Só uma pessoa pode ter um agente, e só a pessoa por quem um agente age pode dar ou tirar o acesso dele. Nada foi alterado. |
+| `NC-AI-0003` | warning | no | yes | none | A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows | This profile already holds as many agents, or has given its agents as many grants, as it can keep. Nothing was changed. | Este perfil já tem tantos agentes, ou já deu aos seus agentes tantas permissões, quanto consegue guardar. Nada foi alterado. |
 | `NC-BLOB-0001` | warning | no | yes | none | A blob was named by text that is not a BLAKE3 hash | That is not the name of a file Noctua can look for. | Esse não é o nome de um arquivo que o Noctua consiga procurar. |
 | `NC-BLOB-0002` | info | yes | yes | none | A blob is not on this machine | That file is not on this computer right now. | Esse arquivo não está neste computador agora. |
 | `NC-BLOB-0003` | warning | no | yes | none | A blob grew past the size the kernel accepts | That file is larger than Noctua accepts, so it was not saved. | Esse arquivo é maior do que o Noctua aceita, então não foi salvo. |
@@ -179,7 +182,7 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | Area | Codes | What it covers |
 |---|---|---|
 | `ACCT` | none yet | Accounts, their fields, and activation |
-| `AI` | none yet | Model traffic, agent identity and budget |
+| `AI` | 3 | Model traffic, agent identity and budget |
 | `APPR` | none yet | The approval system |
 | `AUTH` | none yet | Authentication. The IdP's own failures; never authorization |
 | `BLOB` | 6 | Content-addressed blobs |

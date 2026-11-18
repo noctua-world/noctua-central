@@ -1,19 +1,24 @@
-//! What the decision point asks about the world: realms, grants and entities.
+//! What the decision point asks about the world: realms, grants, entities and agents.
 //!
-//! A [`Directory`] answers three questions for the enforcement point — what a
-//! realm selects and pins, which grant a principal holds there, and which
-//! entities a question needs — and it answers them for one realm at a time.
+//! A [`Directory`] answers seven questions for the enforcement point, four of
+//! them about agents. The three every decision asks are what a realm selects
+//! and pins, which grant a principal holds there for the resource a question
+//! names, and which entities a question needs. The four about agents are which
+//! person an agent acts for, which agents a person made, and whether a change to
+//! them would be made, and making it. It answers them for one realm at a time.
 //! That is how realm isolation is structural (`NOCTUA.md §10.3`, `§14.3`): a
 //! kernel serves one realm, the directory hands out only that realm's entities
 //! and grants, and a principal from another realm arrives with no grant and no
 //! entity, which the core refuses and [`crate::Pdp::decide`] denies.
 //!
-//! [`MemoryDirectory`] is the one this stage runs: the world of
-//! `policy/world.json`, the grants and epochs a test gives it, and nothing
-//! else. The directory over the grants table is Stage 22's. A profile's
-//! `world.json` is read by [`LocalWorld::parse`] into the realm and the person
-//! a daemon decides as, the grant that person holds and the realm's epoch, and
-//! that directory over the rest.
+//! [`MemoryDirectory`] is the world of `policy/world.json`, the grants and
+//! epochs a test gives it, and nothing else: a grant it holds is realm-wide,
+//! the agents it answers for are the world's own, and it changes nothing. The
+//! directory over the grants table is Stage 22's. A profile's `world.json` is read by
+//! [`LocalWorld::parse`] into the realm and the person a daemon decides as, the
+//! grant that person holds and the realm's epoch, and that directory over the
+//! rest. [`crate::LocalDirectory`] layers the agents a profile's person makes
+//! over it (`NOCTUA.md §14.6`).
 //!
 //! # What it answers (`§2.4`)
 //!
@@ -26,15 +31,21 @@
 //! receives principals typed and never mints one — it reaches the central log,
 //! and the log's wall refuses minting there.
 //!
+//! **An agent's operator is in every slice beside it**, so a policy reading
+//! `principal.operator` decides in the kernel as the gate decides it over the
+//! whole world, where a slice holding the agent alone would make it err.
+//!
 //! **What it does not answer** is whether a grant or an epoch is current:
 //! this one holds what it was given, and a directory that falls behind the
-//! grants table is what `§14.8`'s epoch is for.
+//! grants table is what `§14.8`'s epoch is for. Nor whether an agent's rights
+//! are its operator's: the enforcement point asks for each of them apart.
 
 use std::collections::{BTreeMap, HashSet};
 
 use cedar_policy::{Entities, Entity, EntityUid, EvalResult, Schema};
 use nc_ids::OpaqueId;
 
+use crate::agents::{Change, ChangeRefused, HeldAgent};
 use crate::{EntityRef, Pdp, uid};
 
 /// The entity type a realm is.
@@ -96,6 +107,11 @@ pub struct Principal {
 }
 
 impl Principal {
+    /// The principal of `kind` under `id`, minted in this crate and nowhere else.
+    pub(crate) const fn minted(kind: PrincipalKind, id: OpaqueId) -> Self {
+        Self { kind, id }
+    }
+
     /// What kind of principal it is.
     #[must_use]
     pub const fn kind(&self) -> PrincipalKind {
@@ -116,6 +132,15 @@ impl Principal {
             id: self.id.as_str().to_owned(),
         }
     }
+}
+
+/// An agent the directory holds and the person it acts for, both minted here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Delegation {
+    /// The agent, as a question names it.
+    pub agent: Principal,
+    /// Its operator: a `User` of the realm.
+    pub operator: Principal,
 }
 
 /// Why a directory did not answer.
@@ -147,14 +172,16 @@ impl core::fmt::Display for DirectoryError {
 
 impl std::error::Error for DirectoryError {}
 
-/// Where the decision point learns about realms, grants and entities.
+/// Where the decision point learns about realms, grants, entities and agents.
 ///
 /// Asynchronous because the directory behind a running kernel reads a
 /// database, and not `dyn`-compatible for the reason `nc_journal::Store` gives:
 /// `impl Future` buys no boxed allocation per call, and a kernel is generic
 /// over the directory it runs with. Every answer is about one realm, and an
 /// `Err` is a refusal to decide: the enforcement point denies on one, and
-/// never reads it as "no".
+/// never reads it as "no". **No question has a default answer**, so a
+/// directory wrapping another that forgot one does not compile, where a
+/// default would answer for its agents silently.
 pub trait Directory: Send + Sync + 'static {
     /// What `realm` selects and pins, and its epoch.
     ///
@@ -165,7 +192,12 @@ pub trait Directory: Send + Sync + 'static {
     fn realm(&self, realm: &str)
     -> impl Future<Output = Result<RealmFacts, DirectoryError>> + Send;
 
-    /// The grant `principal` holds in `realm`, if any.
+    /// The grant `principal` holds in `realm` for a question about `resource`, if any.
+    ///
+    /// A person's grant is realm-wide, whatever the resource. An agent's is
+    /// the live one whose scope is `resource` itself, compared whole: never
+    /// one on an entity `resource` is in, so an agent granted a feature holds
+    /// nothing for the content of the realm.
     ///
     /// # Errors
     ///
@@ -175,12 +207,14 @@ pub trait Directory: Send + Sync + 'static {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<GrantFacts>, DirectoryError>> + Send;
 
     /// The entities a question about `principal`, `resource` and `grant` needs.
     ///
     /// Only what `realm` holds: an entity of another realm, or of none, is
-    /// left out, and [`crate::Pdp::decide`] denies a question naming it.
+    /// left out, and [`crate::Pdp::decide`] denies a question naming it. An
+    /// agent's slice holds its operator beside it.
     ///
     /// # Errors
     ///
@@ -194,10 +228,64 @@ pub trait Directory: Send + Sync + 'static {
         resource: &EntityRef,
         grant: Option<&EntityRef>,
     ) -> impl Future<Output = Result<Slice, DirectoryError>> + Send;
+
+    /// The agent `agent` names and the person it acts for, when the realm holds both.
+    ///
+    /// None for an entity that is not an agent of `realm`, and for one whose
+    /// operator is not a person of it. Both are minted here, from what the
+    /// directory holds, and never from the text `agent` carries.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DirectoryError::Unavailable`] when the directory cannot
+    /// answer.
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<Delegation>, DirectoryError>> + Send;
+
+    /// The agents `operator` made in `realm`, with their live grants, in the order they were made.
+    ///
+    /// A world's agents are never listed: they were not made by a person.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DirectoryError::Unavailable`] when the directory cannot
+    /// answer.
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<HeldAgent>, DirectoryError>> + Send;
+
+    /// Whether `change` would be made now, changing nothing.
+    ///
+    /// # Errors
+    ///
+    /// The [`ChangeRefused`] the change itself would be refused with, when
+    /// it is asked for now.
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &Change,
+    ) -> impl Future<Output = Result<(), ChangeRefused>> + Send;
+
+    /// Makes `change`: kept before it is held, except an ending, which is held first.
+    ///
+    /// # Errors
+    ///
+    /// Each [`ChangeRefused`]: a change this directory does not make, one
+    /// the data it holds must never hold, and one its keeper did not keep.
+    fn change(
+        &self,
+        realm: &str,
+        change: &Change,
+    ) -> impl Future<Output = Result<(), ChangeRefused>> + Send;
 }
 
 /// The entities one question is decided over, built with the schema.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Slice(Entities);
 
 impl Slice {
@@ -210,6 +298,18 @@ impl Slice {
     /// The entities, for Cedar's authorizer.
     pub(crate) const fn entities(&self) -> &Entities {
         &self.0
+    }
+
+    /// The same slice with `entity` in place of the one it held under its uid, loaded with `schema`.
+    ///
+    /// Nothing when the schema refuses the entity, which the decision point
+    /// then denies.
+    pub(crate) fn replacing(&self, entity: Entity, schema: &Schema) -> Option<Self> {
+        self.0
+            .clone()
+            .upsert_entities([entity], Some(schema))
+            .ok()
+            .map(Self)
     }
 }
 
@@ -325,8 +425,77 @@ impl MemoryDirectory {
         facts.ok_or_else(|| DirectoryError::UnknownRealm(realm.to_owned()))
     }
 
+    /// Whether the world holds `entity` inside `realm`, as a question names both.
+    pub(crate) fn holds(&self, realm: &str, entity: &EntityRef) -> bool {
+        uid(&entity.type_name, &entity.id)
+            .zip(uid(REALM, realm))
+            .is_some_and(|(entity, realm)| self.holds_in(&entity, &realm))
+    }
+
+    /// The entity a world agent's `operator` names, read from the world and never from `agent`'s text.
+    ///
+    /// None for an entity that is not an agent the world holds, and for one
+    /// whose operator is not an entity.
+    fn operator_named(&self, agent: &EntityRef) -> Option<EntityRef> {
+        if agent.type_name != PrincipalKind::Agent.type_name() {
+            return None;
+        }
+        let held = self.world.get(&uid(&agent.type_name, &agent.id)?)?;
+        let Some(Ok(EvalResult::EntityUid(operator))) = held.attr("operator") else {
+            return None;
+        };
+        Some(EntityRef {
+            type_name: operator.type_name().to_string(),
+            id: operator.id().unescaped().to_owned(),
+        })
+    }
+
+    /// The agent the world holds in `realm` under `agent`, and the person of the realm its entity names.
+    fn delegation_now(&self, realm: &str, agent: &EntityRef) -> Option<Delegation> {
+        let operator = self.operator_named(agent)?;
+        if operator.type_name != PrincipalKind::User.type_name()
+            || !self.holds(realm, agent)
+            || !self.holds(realm, &operator)
+        {
+            return None;
+        }
+        Some(Delegation {
+            agent: self.principal(PrincipalKind::Agent, &agent.id)?,
+            operator: self.principal(PrincipalKind::User, &operator.id)?,
+        })
+    }
+
+    /// The entities named and their ancestors that `realm` holds, and `beside` as well.
+    ///
+    /// `beside` is Cedar's JSON for entities the world does not hold — an
+    /// agent a person made, and its grant — loaded with the same schema, so one
+    /// the schema refuses is refused here as the world's would be, and one
+    /// already in the slice is refused rather than either of the two chosen.
+    pub(crate) fn slice_beside(
+        &self,
+        realm: &str,
+        named: &[&EntityRef],
+        beside: Vec<serde_json::Value>,
+    ) -> Result<Slice, DirectoryError> {
+        let malformed = |error: cedar_policy::entities_errors::EntitiesError| {
+            DirectoryError::Malformed(error.to_string())
+        };
+        let entities = beside
+            .into_iter()
+            .map(|entity| Entity::from_json_value(entity, Some(&self.schema)).map_err(malformed))
+            .collect::<Result<Vec<Entity>, DirectoryError>>()?;
+        let Slice(held) = self.slice_now(realm, named)?;
+        held.add_entities(entities, Some(&self.schema))
+            .map(Slice)
+            .map_err(malformed)
+    }
+
     /// The entities named, and each one's ancestors, that `realm` holds.
-    fn slice_now(&self, realm: &str, named: &[&EntityRef]) -> Result<Slice, DirectoryError> {
+    pub(crate) fn slice_now(
+        &self,
+        realm: &str,
+        named: &[&EntityRef],
+    ) -> Result<Slice, DirectoryError> {
         let mut taken: HashSet<EntityUid> = HashSet::new();
         let mut entities: Vec<Entity> = Vec::new();
         let realm = uid(REALM, realm);
@@ -506,10 +675,12 @@ impl Directory for MemoryDirectory {
         std::future::ready(self.realm_now(realm))
     }
 
+    // A world's grant is its principal's in the realm, whatever the resource.
     fn grant(
         &self,
         realm: &str,
         principal: &EntityRef,
+        _resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<GrantFacts>, DirectoryError>> + Send {
         std::future::ready(Ok(self
             .grants
@@ -517,6 +688,8 @@ impl Directory for MemoryDirectory {
             .cloned()))
     }
 
+    // A world agent's operator joins the slice here and not in `slice_now`,
+    // which every slice is built by.
     fn slice(
         &self,
         realm: &str,
@@ -524,19 +697,60 @@ impl Directory for MemoryDirectory {
         resource: &EntityRef,
         grant: Option<&EntityRef>,
     ) -> impl Future<Output = Result<Slice, DirectoryError>> + Send {
-        let named: Vec<&EntityRef> = [Some(principal), Some(resource), grant]
+        let operator = self.operator_named(principal);
+        let named: Vec<&EntityRef> = [Some(principal), Some(resource), grant, operator.as_ref()]
             .into_iter()
             .flatten()
             .collect();
         std::future::ready(self.slice_now(realm, &named))
     }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<Delegation>, DirectoryError>> + Send {
+        std::future::ready(Ok(self.delegation_now(realm, agent)))
+    }
+
+    // A world's agents were written into it, and no person made them.
+    fn agents(
+        &self,
+        _realm: &str,
+        _operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<HeldAgent>, DirectoryError>> + Send {
+        std::future::ready(Ok(Vec::new()))
+    }
+
+    fn rehearse(
+        &self,
+        _realm: &str,
+        _change: &Change,
+    ) -> impl Future<Output = Result<(), ChangeRefused>> + Send {
+        std::future::ready(Err(holds_what_it_was_given()))
+    }
+
+    fn change(
+        &self,
+        _realm: &str,
+        _change: &Change,
+    ) -> impl Future<Output = Result<(), ChangeRefused>> + Send {
+        std::future::ready(Err(holds_what_it_was_given()))
+    }
+}
+
+/// The refusal of every change asked of a world: it holds what it was given.
+fn holds_what_it_was_given() -> ChangeRefused {
+    ChangeRefused::Directory(DirectoryError::Unavailable(
+        "a directory built from a world holds what it was given".to_owned(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{Directory as _, DirectoryError, LocalWorld, PrincipalKind};
+    use super::{Directory as _, DirectoryError, LocalWorld, MemoryDirectory, PrincipalKind};
 
     /// The entities every policy case is about, which a development profile's
     /// world is written from.
@@ -602,8 +816,12 @@ mod tests {
         let directory = world.into_directory();
         let realm = directory.realm("home").await.expect("the realm is held");
         assert_eq!(realm.epoch, 7);
+        let home = crate::EntityRef {
+            type_name: "Realm".to_owned(),
+            id: "home".to_owned(),
+        };
         let grant = directory
-            .grant("home", &ana)
+            .grant("home", &ana, &home)
             .await
             .expect("answered")
             .expect("ana holds the grant the world names");
@@ -614,14 +832,23 @@ mod tests {
             id: "bruno".to_owned(),
         };
         assert_eq!(
-            directory.grant("home", &bruno).await.expect("answered"),
+            directory
+                .grant("home", &bruno, &home)
+                .await
+                .expect("answered"),
             None,
             "a grant the world names is its person's alone"
         );
         let ungranted = LocalWorld::parse(&written("home", "ana"), &pdp)
             .expect("the world reads")
             .into_directory();
-        assert_eq!(ungranted.grant("home", &ana).await.expect("answered"), None);
+        assert_eq!(
+            ungranted
+                .grant("home", &ana, &home)
+                .await
+                .expect("answered"),
+            None
+        );
         assert_eq!(
             ungranted
                 .realm("home")
@@ -690,6 +917,58 @@ mod tests {
                 refused(&granted("home", "ana", Some(grant)))
                     .contains(&format!("holds no grant \"{grant}\"")),
                 "{grant}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_world_agents_operator_is_the_person_its_entity_names_and_none_else() {
+        // Two agents the policy world does not hold: one of `home` acting for
+        // a person of `office`, and one of `office` acting for a person of
+        // `home`. Neither has an operator of its own realm.
+        let mut world: serde_json::Value = serde_json::from_str(WORLD).expect("the world is JSON");
+        let entities = world.as_array_mut().expect("a list of entities");
+        for (agent, realm, operator) in [("stray", "home", "mallory"), ("offsite", "office", "ana")]
+        {
+            entities.push(serde_json::json!({
+                "uid": { "type": "Agent", "id": agent },
+                "attrs": {
+                    "operator": { "__entity": { "type": "User", "id": operator } },
+                    "autonomy": "supervised",
+                    "budget_remaining": 10,
+                },
+                "parents": [{ "type": "Realm", "id": realm }],
+            }));
+        }
+        let pdp = crate::Pdp::embedded("family").expect("the family pack is carried");
+        let directory =
+            MemoryDirectory::from_world(&world.to_string(), &pdp).expect("the world loads");
+        let named = |type_name: &str, id: &str| crate::EntityRef {
+            type_name: type_name.to_owned(),
+            id: id.to_owned(),
+        };
+        let delegation = directory
+            .delegation("home", &named("Agent", "ana-assistant"))
+            .await
+            .expect("answered")
+            .expect("the world's agent in its realm");
+        assert_eq!(delegation.agent.kind(), PrincipalKind::Agent);
+        assert_eq!(delegation.agent.id().as_str(), "ana-assistant");
+        assert_eq!(delegation.operator.kind(), PrincipalKind::User);
+        assert_eq!(delegation.operator.id().as_str(), "ana");
+        for (realm, unanswered) in [
+            ("office", named("Agent", "ana-assistant")),
+            ("home", named("User", "ana")),
+            ("home", named("Device", "ana-laptop")),
+            ("home", named("Agent", "ghost")),
+            ("home", named("Agent", "stray")),
+            ("office", named("Agent", "offsite")),
+            ("home", named("Agent", "offsite")),
+        ] {
+            assert_eq!(
+                directory.delegation(realm, &unanswered).await,
+                Ok(None),
+                "{realm} {unanswered:?}"
             );
         }
     }

@@ -19,10 +19,13 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "d72b63a95c61da897c44edf7fb9c825c4cf01df6e593c8a8131736796dbfe2ee"
-count = 162
+checksum = "bf17e66d9d6904ca9e073064652b30d26ac607bf4d0d2e294b3505a47c1945c0"
+count = 165
 
 [reserved]
+"NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
+"NC-AI-0002" = "error.ai.not-the-operator — warning — retryable:false — params:[] — An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for"
+"NC-AI-0003" = "error.ai.agents-full — warning — retryable:false — params:[] — A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows"
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
 "NC-BLOB-0002" = "error.blob.not-local — info — retryable:true — params:[] — A blob is not on this machine"
 "NC-BLOB-0003" = "error.blob.too-large — warning — retryable:false — params:[] — A blob grew past the size the kernel accepts"

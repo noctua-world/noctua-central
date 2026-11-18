@@ -99,6 +99,11 @@ dir   = "ltr"
 "error.policy.directory-unavailable" = "Noctua could not check who may do that right now, so it did not do it. Try again in a moment."
 "error.policy.rule-broken" = "Noctua's permission rules were written in a way it does not accept, so it is allowing nothing until they are fixed."
 
+# --- Agent identity ---
+"error.ai.no-such-agent" = "None of your agents has that identifier, so nothing was done."
+"error.ai.not-the-operator" = "Only a person can have an agent, and only the person an agent acts for can give it access or take it away. Nothing was changed."
+"error.ai.agents-full" = "This profile already holds as many agents, or has given its agents as many grants, as it can keep. Nothing was changed."
+
 # --- Validation ---
 "error.validation.out-of-range" = "{field} must be between {min} and {max}."
 "error.validation.arguments-invalid" = "That request is not in the form the command expects. Nothing was done."

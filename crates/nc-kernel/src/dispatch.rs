@@ -1692,7 +1692,7 @@ async fn decision<E: Environment>(
         });
     }
     let entity = principal.entity();
-    let grant = within(began, shared.directory.grant(realm, &entity))
+    let grant = within(began, shared.directory.grant(realm, &entity, resource))
         .await
         .map_err(unavailable)?;
     let holding = grant.as_ref().map(|grant| &grant.entity);
@@ -1711,6 +1711,7 @@ async fn decision<E: Environment>(
         policy_epoch: facts_of_the_realm.epoch,
         quorum_met: held.quorum_met,
         grant: grant.as_ref().map(|grant| grant.entity.clone()),
+        budget_spent: 0,
     };
     let decision = pdp.decide(
         &Question {

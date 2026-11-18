@@ -296,8 +296,8 @@ enum Mode {
     Epoch(u64),
 }
 
-/// Which of a directory's three questions a [`Flaky`] directory answers as
-/// its mode says.
+/// Which of the three questions every decision asks a [`Flaky`] directory
+/// answers as its mode says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Call {
     /// The realm's facts: its profile, its pin and its epoch.
@@ -309,7 +309,7 @@ enum Call {
 }
 
 /// A directory over the world that answers one of its questions as a test
-/// says, and the other two as the world does.
+/// says, and every other as the world does.
 #[derive(Debug)]
 struct Flaky {
     inner: MemoryDirectory,
@@ -367,10 +367,11 @@ impl Directory for Flaky {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::GrantFacts>, DirectoryError>> + Send {
         as_told(
             self.mode_of(Call::Grant),
-            self.inner.grant(realm, principal),
+            self.inner.grant(realm, principal, resource),
         )
     }
 
@@ -385,6 +386,38 @@ impl Directory for Flaky {
             self.mode_of(Call::Slice),
             self.inner.slice(realm, principal, resource, grant),
         )
+    }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
+        self.inner.delegation(realm, agent)
+    }
+
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<nc_authz::HeldAgent>, DirectoryError>> + Send {
+        self.inner.agents(realm, operator)
+    }
+
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.rehearse(realm, change)
+    }
+
+    fn change(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.change(realm, change)
     }
 }
 

@@ -19549,7 +19549,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 226] = [
+    const DOCUMENTED: [(&str, usize, usize); 227] = [
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19588,10 +19588,11 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
-        ("nc-authz/directory.rs", 41, 15),
+        ("nc-authz/agents.rs", 69, 45),
+        ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
-        ("nc-authz/lib.rs", 30, 19),
-        ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
+        ("nc-authz/lib.rs", 31, 20),
+        ("nc-authz/the_embedded_pack_decides.rs", 26, 34),
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
@@ -19706,13 +19707,13 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 63, 25),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 193, 80),
+        ("nc-kernel/the_decision_point.rs", 193, 84),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
+        ("nc-kernel/the_rest_of_the_world.rs", 51, 64),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
         ("nc-kernel/units.rs", 113, 18),
-        ("nc-kernel/units_and_history.rs", 144, 44),
+        ("nc-kernel/units_and_history.rs", 144, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
@@ -25725,7 +25726,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20589;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20812;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25744,7 +25745,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5484;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5486;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25795,7 +25796,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27383;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27456;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25849,7 +25850,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **518 of 27,383 are accepted by the first-line
+    /// rules the gates apply: **518 of 27,456 are accepted by the first-line
     /// rule alone, and 278 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37843,7 +37844,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 240,
+            walked, 241,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37883,7 +37884,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2571] = [
+    static OPERATORS: [(&str, &str, &str); 2614] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41890,6 +41891,36 @@ Options:
             "an agent acting reaches the rules that read it",
         ),
         (
+            "authz",
+            "decide",
+            "a budget spent is taken off what the agent holds",
+        ),
+        (
+            "authz",
+            "decide",
+            "nothing spent decides over the slice as the directory built it",
+        ),
+        (
+            "authz",
+            "decide",
+            "an agent whose spent budget does not read back is refused",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a spend is taken off without wrapping",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a spend past what a long holds is the most a long holds",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a principal holding no budget is decided as it was",
+        ),
+        (
             "authz_directory",
             "fmt",
             "an unavailable directory's reason is printed escaped",
@@ -41963,9 +41994,174 @@ Options:
             "the grant a world names is its person's",
         ),
         (
+            "authz_directory",
+            "delegation_now",
+            "a world agent's operator is a person of its realm",
+        ),
+        (
+            "authz_directory",
+            "delegation_now",
+            "a world agent is answered in its own realm alone",
+        ),
+        (
+            "authz_directory",
+            "Directory for MemoryDirectory",
+            "a world agent's slice holds its operator",
+        ),
+        (
             "authz_embedded",
             "carried",
             "a profile selects only its own pack",
+        ),
+        (
+            "authz_agents",
+            "runtime",
+            "a held agent is answered in its own realm alone",
+        ),
+        (
+            "authz_agents",
+            "runtime",
+            "only an agent is routed to the held agents",
+        ),
+        (
+            "authz_agents",
+            "grant",
+            "an agent's grant answers for the one resource it names",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a change asked of another realm is refused",
+        ),
+        ("authz_agents", "refused", "only a person makes an agent"),
+        (
+            "authz_agents",
+            "refused",
+            "an agent is made once under its identifier",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent's budget is one it can spend",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent's label is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent past its table's bound is refused",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "only an agent's operator gives it a grant",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "only an agent's operator ends its grants",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant with no time to run is refused",
+        ),
+        ("authz_agents", "refused", "a grant is on a feature"),
+        (
+            "authz_agents",
+            "refused",
+            "a grant is on a feature of the realm",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant's reason is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant past its table's bound is refused",
+        ),
+        (
+            "authz_agents",
+            "holdable",
+            "a text a reader cannot see is not held",
+        ),
+        ("authz_agents", "holdable", "a text at its bound is held"),
+        (
+            "authz_agents",
+            "planned",
+            "a new grant ends the live one on its scope",
+        ),
+        (
+            "authz_agents",
+            "planned",
+            "an ending ends the grant on the scope it names alone",
+        ),
+        ("authz_agents", "change", "an ending is held in memory"),
+        (
+            "authz_agents",
+            "change",
+            "a change the keeper refused is not held",
+        ),
+        (
+            "authz_agents",
+            "slice",
+            "an agent's slice holds its operator",
+        ),
+        (
+            "authz_agents",
+            "slice",
+            "a grant the agent does not hold is the world's to answer for",
+        ),
+        (
+            "authz_agents",
+            "agent_entity",
+            "an agent's budget is the one it was made with",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a directory opened holds its own realm's agents alone",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "what was kept past its bounds is refused",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant of an agent it does not hold is refused",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "two live grants kept on one scope are refused",
+        ),
+        ("authz_agents", "open", "a kept grant is on a feature"),
+        (
+            "authz_agents",
+            "code",
+            "an agent past its bound carries its own code",
+        ),
+        (
+            "authz_agents",
+            "kind",
+            "a change not the operator's is denied",
+        ),
+        (
+            "authz_agents",
+            "word",
+            "a change not kept is recorded as not kept",
+        ),
+        (
+            "authz_agents",
+            "fmt",
+            "a keeper's reason is printed escaped",
         ),
         (
             "kernel",
