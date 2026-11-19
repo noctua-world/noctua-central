@@ -9,14 +9,22 @@
 -- minter gave it, and its Crockford spelling is made from this number when it
 -- is read. A person is an opaque identifier, as every principal is.
 --
--- **What a person granted is never rewritten, and never forgotten.** An agent
--- is never edited and never deleted, so whatever names it still finds it. A
--- grant is ended once, by writing when and by whom, and nothing else of it ever
--- changes; an ended grant stays, so whatever names it still resolves. Each rule
--- is a trigger, which holds under `trusted_schema = OFF`, and which
--- `PRAGMA ignore_check_constraints` does not switch off as it does a `CHECK`.
--- What no trigger answers is a process running as the same user, which can
--- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header).
+-- **No `UPDATE` and no `DELETE` undoes what a person granted.** An agent is
+-- never edited and never deleted by one, so whatever names it still finds it.
+-- A grant takes one `UPDATE`, its end, written once with when and by whom, and
+-- nothing else of it ever changes; an ended grant stays, so whatever names it
+-- still resolves. Each rule is a trigger, which holds under
+-- `trusted_schema = OFF`, and which `PRAGMA ignore_check_constraints` does not
+-- switch off as it does a `CHECK`. A plain `INSERT` of an identifier the file
+-- holds is the primary key's to refuse.
+--
+-- **What no trigger answers is a process running as the same user.** It can
+-- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header). Nor does
+-- it need to: an `INSERT OR REPLACE`, or a `REPLACE`, deletes the row it
+-- conflicts with and fires no delete trigger, since SQLite fires one on a
+-- replace only under `recursive_triggers`. So it rewrites an agent, brings an
+-- ended grant back, or removes the live grant on a scope, and changes no
+-- object the open-time check compares.
 --
 -- `catalog/limits.toml` says `refuse-at-limit` for both tables: they are user
 -- state, which nothing prunes, and their writer refuses a new row at the bound
@@ -63,8 +71,9 @@ CREATE TABLE agent_grants (
 ) STRICT;
 
 -- **One live grant per agent and scope, held by the file**: a new grant on a
--- scope ends the live one in the transaction that writes it, and a second live
--- row on the same scope is refused whoever writes it.
+-- scope ends the live one in the transaction that writes it, and a plain
+-- `INSERT` of a second live row on the same scope is refused whoever writes it
+-- (a `REPLACE` deletes the live one instead, as the header says).
 CREATE UNIQUE INDEX agent_grants_one_live_per_scope
     ON agent_grants (agent, scope_type, scope_id) WHERE ended_at IS NULL;
 

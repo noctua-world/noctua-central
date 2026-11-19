@@ -2509,7 +2509,7 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 5] = [
     ),
     (
         "0005_agents.sql",
-        "2b00e92dff9ae8b442fcdeadc4d449027541a3af7fceca3b42c7f608e3de39e96f5716c0992c1472750d706f2e477b71",
+        "dbd8daa3a49148ba88dc20a68f7edacf22aad1018e23edff1b9135dcda506593ccf9d9f919d79ac5576acf5ed624dc05",
     ),
 ];
 
@@ -25749,7 +25749,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5539;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5538;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25800,7 +25800,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27455;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27456;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25854,7 +25854,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,455 are accepted by the first-line
+    /// rules the gates apply: **516 of 27,456 are accepted by the first-line
     /// rule alone, and 276 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37889,7 +37889,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2588] = [
+    static OPERATORS: [(&str, &str, &str); 2589] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46171,6 +46171,11 @@ Options:
             "local_agents",
             "keep_grant",
             "a new grant ends only the live grant on its own scope",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a new grant ends only the live grant of its own agent and realm",
         ),
         (
             "local_agents",

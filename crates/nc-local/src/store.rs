@@ -1886,12 +1886,13 @@ fn unit_row(row: &SqliteRow) -> Result<UnitRow, LocalError> {
     })
 }
 
-/// A unit read back from its column.
+/// An identifier read back from its column: a unit's, an agent's or a grant's.
 ///
 /// **Through `from_crockford`, which is allowed here and nowhere the log is.**
 /// `Snowflake` has no constructor from a number, deliberately; the value is one
-/// this store wrote from a unit the kernel minted, and a value that does not
-/// fit the layout is refused rather than truncated.
+/// this crate wrote from an identifier the machine's minter gave, and a value
+/// that does not fit the layout is refused rather than truncated. Its refusal
+/// says "not a unit", and the agents' reader words its own.
 pub(crate) fn snowflake(value: i64) -> Result<Snowflake, LocalError> {
     let value = u64::try_from(value)
         .map_err(|_| LocalError::Unexpected(format!("{value} is not a unit")))?;

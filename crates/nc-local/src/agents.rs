@@ -15,11 +15,12 @@
 //!   grant's giver are opaque identifiers, a grant's scope is a type and an
 //!   identifier as text, and whoever opens a kernel over these rows makes the
 //!   principals and the entities of them.
-//! - **Nothing is edited but a grant's end, and nothing is deleted**, by the
-//!   tables' own triggers, whoever writes. A grant that replaces the live one
-//!   on its scope ends it in the transaction that writes it, and the file's
-//!   unique index refuses a second live grant on one scope written any other
-//!   way.
+//! - **No `UPDATE` edits anything but a grant's end, and no `DELETE` removes
+//!   a row**, by the tables' own triggers, whoever runs it; a plain `INSERT`
+//!   of an identifier the file holds is refused by its primary key. A grant
+//!   that replaces the live one on its scope ends it in the transaction that
+//!   writes it, and the file's unique index refuses a plain `INSERT` of a
+//!   second live grant on one scope.
 //! - **Every write is counted** through the crate's `write_exactly`, inside a
 //!   `BEGIN IMMEDIATE` that first asks that no temporary object sits on its
 //!   connection (invariant 22): a write a trigger silenced is refused, never
@@ -29,18 +30,25 @@
 //!   prunes, and the bound read from there is counted over the whole table,
 //!   every realm's rows and every ended grant included, in the transaction
 //!   that would add the row.
-//! - **A row read back is one this build writes, or it is refused**
-//!   (`NC-DB-0007`): an identifier that is not one the minter gives, a realm or
-//!   a person that is not an opaque identifier, a budget no agent holds, a time
-//!   below zero, or a grant whose window ends where it begins or before.
+//! - **A row read back is judged, or the read is refused** (`NC-DB-0007`):
+//!   an identifier that is not one the minter gives, a realm or a person that
+//!   is not an opaque identifier, a budget no agent holds, a time below zero,
+//!   or a grant whose window ends where it begins or before. A label, a reason
+//!   and a scope are handed on as the file holds them, for whoever opens a
+//!   directory over the rows to judge.
 //!
 //! # What it does not answer (`§2.4`)
 //!
 //! A process running as the same user, which can drop the triggers and then
 //! edit or delete any row, or write a grant nobody gave: SQLite has no roles
-//! (the crate's header), and no row is signed. Who may make an agent, grant it
-//! or end its grants is not this crate's to decide either: it keeps what it is
-//! handed, and refuses only what the file could never hold.
+//! (the crate's header), and no row is signed. It needs no trigger dropped to
+//! undo a row either: an `INSERT OR REPLACE` deletes the row it conflicts with
+//! and fires no delete trigger, since SQLite fires one on a replace only under
+//! `recursive_triggers`, so it rewrites an agent, brings an ended grant back or
+//! removes a live one, with no object changed for the open-time check to see.
+//! Who may make an agent, grant it or end its grants is not this crate's to
+//! decide either: it keeps what it is handed, and refuses only what the file
+//! could never hold.
 
 use nc_ids::{OpaqueId, Snowflake};
 use sqlx::Row as _;
@@ -668,8 +676,8 @@ mod tests {
         store.close().await;
     }
 
-    /// A grant is ended once, with when and by whom, and nothing else of it
-    /// changes; an agent is never edited.
+    /// A grant is ended once, with when and by whom, by an update that changes
+    /// nothing else of it, and no update or plain insert edits an agent.
     #[tokio::test]
     async fn a_grant_is_ended_once_and_nothing_else_of_it_changes() {
         let (store, agents) = agents().await;
@@ -737,6 +745,22 @@ mod tests {
                 .expect_err("the file refuses it");
             assert!(a_trigger_refused(&refused, says), "{statement}: {refused}");
         }
+        // A plain insert of an identifier the file holds is the primary key's
+        // to refuse: the agent is not rewritten, the ended grant not revived.
+        for statement in [
+            "INSERT INTO main.agents VALUES (1, 'home', 'mallory', 'helper', 99999)",
+            "INSERT INTO main.agent_grants (grant_id, agent, realm, scope_type, scope_id, \
+             granted_by, reason, valid_from, valid_until) \
+             VALUES (10, 1, 'home', 'Feature', 'feature10', 'ana', 'again', 1000, 99999999)",
+        ] {
+            let refused = tamper(&store, statement)
+                .await
+                .expect_err("the file refuses it");
+            assert!(
+                refused.to_string().contains("UNIQUE constraint failed"),
+                "{statement}: {refused}"
+            );
+        }
         // **With the checks off, the trigger holds**: an end with no one who
         // ended it is not one.
         tamper(&store, "PRAGMA ignore_check_constraints = ON")
@@ -768,8 +792,8 @@ mod tests {
         store.close().await;
     }
 
-    /// Neither an agent nor a grant, live or ended, is ever deleted, whoever
-    /// asks and however.
+    /// No `DELETE` removes an agent or a grant, live or ended, whoever runs
+    /// it, with a `WHERE` or without one.
     #[tokio::test]
     async fn no_agent_and_no_grant_is_ever_deleted() {
         let (store, agents) = agents().await;
@@ -915,16 +939,32 @@ mod tests {
             "the old one stays live"
         );
 
-        // A grant it does not replace — ended already, of another scope, or
-        // of nothing — is refused, and nothing lands.
-        for (ends, what) in [
-            (minted(10), "ended already"),
-            (minted(9), "another scope's"),
-            (minted(99), "no grant"),
+        // A grant it does not replace — ended already, of another scope, of
+        // another agent on the new grant's scope, of this agent on that scope
+        // in another realm, or of nothing — is refused, and nothing lands.
+        agents
+            .keep_agent(&agent(2, "home", "ana"))
+            .await
+            .expect("kept");
+        agents
+            .keep_grant(&grant(20, 2, "home", "files", 1_000), None)
+            .await
+            .expect("another agent's");
+        agents
+            .keep_grant(&grant(21, 1, "work", "search", 1_000), None)
+            .await
+            .expect("another realm's");
+        let before = everything_in(&store).await;
+        for (scope, ends, what) in [
+            ("naming", minted(10), "ended already"),
+            ("naming", minted(9), "another scope's"),
+            ("files", minted(20), "another agent's"),
+            ("search", minted(21), "another realm's"),
+            ("naming", minted(99), "no grant"),
         ] {
             let refused = agents
                 .keep_grant(
-                    &grant(13, 1, "home", "naming", 3_000),
+                    &grant(13, 1, "home", scope, 3_000),
                     Some((ends, 3_000, &id("ana"))),
                 )
                 .await
@@ -1200,12 +1240,14 @@ mod tests {
         assert_eq!(max_rows("no_such_table"), 0);
     }
 
-    /// A row this build does not write is refused when it is read.
+    /// A row whose identifiers, budget or times this build never writes is
+    /// refused when it is read.
     ///
     /// Each is written here with the file's checks off, as anybody with write
     /// access to it can, and the refusal names what is wrong with it.
     #[tokio::test]
-    async fn a_row_this_build_does_not_write_is_refused_when_read() {
+    async fn a_row_whose_identifiers_budget_or_times_this_build_never_writes_is_refused_when_read()
+    {
         for (planted, says) in [
             (
                 "INSERT INTO main.agents VALUES (-5, 'home', 'ana', 'a', 1)",

@@ -117,8 +117,9 @@
 //! their units numbered by the one minter their journals share
 //! (`nc_journal::Journal::sharing`). An image or a journal entry rewritten after
 //! the fact: the append-only triggers, which hold under `trusted_schema = OFF`;
-//! and an agent edited or deleted, or a grant ended twice, edited or deleted, by
-//! the agents' own triggers under the same pragma.
+//! and an `UPDATE` or a `DELETE` that would edit or delete an agent, or end a
+//! grant twice, edit or delete it, by the agents' own triggers under the same
+//! pragma.
 //! A half-written unit: one `BEGIN IMMEDIATE` transaction per commit, proved by
 //! a child process that aborts between two of its statements.
 //!
@@ -126,7 +127,10 @@
 //!
 //! **A process running as the same user.** SQLite has no roles: whoever can
 //! open the file can `DROP TRIGGER` and then `DELETE`, and can race the checks
-//! above between the check and the open. Nor an administrator, nor a disk read
+//! above between the check and the open. It can undo an agent or a grant with
+//! no trigger dropped: an `INSERT OR REPLACE` deletes the row it conflicts with
+//! and fires no delete trigger, which SQLite fires on a replace only under
+//! `recursive_triggers`. Nor an administrator, nor a disk read
 //! offline without full-disk encryption — the file is not encrypted. An
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`

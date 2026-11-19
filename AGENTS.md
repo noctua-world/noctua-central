@@ -1768,7 +1768,7 @@ the file by hand — refused rather than skipped, because skipped it might be th
 stopped process left; and retention, which is the realm's pack's to state and nothing
 applies yet (`catalog/limits.toml`, `policy-pack`).
 
-### The agents a person made are kept as written, an agent never changed and a grant ended once
+### The agents a person made: no update edits an agent, no delete removes a row, and a grant is ended once
 
 `nc_local::LocalAgents` (`crates/nc-local/src/agents.rs`, whose header has the rules) keeps
 the agents a profile's person made, and every grant they gave one, in the local file beside
@@ -1779,34 +1779,44 @@ opaque identifiers, and a grant's scope is a type and an identifier as text.
 
 **Guaranteed:**
 
-- **An agent is never edited or deleted, and a grant is ended once and never deleted**, by
-  `BEFORE UPDATE` and `BEFORE DELETE` triggers that refuse the statement whoever runs it,
-  under `trusted_schema = OFF`. The end's trigger holds every other column of a grant as it
-  was and an end to both when and by whom, so a connection that switches the `CHECK`s off
-  with `PRAGMA ignore_check_constraints` still ends no grant without saying who ended it.
-- **One live grant per agent and scope**, by the file's partial unique index, whoever
-  writes. A grant that replaces the live one on its scope ends it in the transaction that
-  writes it, and only that one: a replacement naming a grant of another scope, agent or
-  realm, or one ended already, is refused with the new grant, and the old one stays live.
+- **No `UPDATE` edits an agent, no `DELETE` removes an agent or a grant, and a grant is
+  ended once**, by `BEFORE UPDATE` and `BEFORE DELETE` triggers that refuse such a statement
+  whoever runs it, under `trusted_schema = OFF`; a plain `INSERT` of an identifier the file
+  holds is refused by its primary key. The end's trigger holds every other column of a
+  grant as it was and an end to both when and by whom, so a connection that switches the
+  `CHECK`s off with `PRAGMA ignore_check_constraints` still ends no grant without saying who
+  ended it.
+- **One live grant per agent and scope**, by the file's partial unique index, which refuses
+  a plain `INSERT` of a second one whoever writes it. A grant that replaces the live one on
+  its scope ends it in the transaction that writes it, and only that one: a replacement
+  naming a grant of another scope, agent or realm, or one ended already, is refused with the
+  new grant, and the old one stays live.
 - **Every write is counted** through `write_exactly`, in a `BEGIN IMMEDIATE` that first
   checks no temporary object sits on its connection (invariant 22), and **each table
   refuses a new row at its bound**, `catalog/limits.toml`'s `max_rows`, counted over the
   whole table in the transaction that would add the row (`nc_local::KeepError::Full`): every
   realm's rows and every ended grant count, and a bound the catalog does not hold refuses
   every row rather than none.
-- **A row read back is one this build writes, or the read is refused** (`NC-DB-0007`): an
-  identifier no minter gives, a realm or a person that is not an opaque identifier, a budget
-  no agent holds, a time below zero, or a window that ends where it begins or before.
+- **A row read back is judged, or the read is refused** (`NC-DB-0007`): an identifier no
+  minter gives, a realm or a person that is not an opaque identifier, a budget no agent
+  holds, a time below zero, or a window that ends where it begins or before. A label, a
+  reason and a scope are handed on as the file holds them, for whoever opens a directory
+  over the rows to judge.
 
 **Enforced by** the unit tests in `crates/nc-local/src/agents.rs` — the triggers driven
-around the store with the `CHECK`s on and off, a second live grant, a replacement refused
-half way and one naming a grant it does not replace, a trigger silencing each of the four
-writes, a temporary object, a full table, and rows planted with the checks off — by the
-operators over `agents.rs` in `xtask/mutants.py`, and by `nc_local::schema::EXPECTED`, to
-which every open and `cargo xtask check` hold the file's objects.
+around the store with the `CHECK`s on and off, a plain insert of an identifier held, a
+second live grant, a replacement refused half way and one naming a grant of another scope,
+agent or realm, an ended one or none, a trigger silencing each of the four writes, a
+temporary object, a full table, and rows planted with the checks off — by the operators
+over `agents.rs` in `xtask/mutants.py`, and by `nc_local::schema::EXPECTED`, to which every
+open and `cargo xtask check` hold the file's objects.
 
 **Not answered:** a process running as the same user, which can drop the triggers and then
-write, edit or delete any row — SQLite has no roles, and no row is signed; who may make an
+write, edit or delete any row — SQLite has no roles, and no row is signed — and needs no
+trigger dropped to undo one: an `INSERT OR REPLACE`, or a `REPLACE`, deletes the row it
+conflicts with and fires no delete trigger, since SQLite fires one on a replace only under
+`recursive_triggers`, so it rewrites an agent, brings an ended grant back or removes the
+live grant on a scope, and changes no object the open-time check compares; who may make an
 agent, or give or end a grant, which this crate does not decide — it keeps what it is
 handed; and the bounds being the profile's, under **What is deliberately not claimed**.
 
@@ -4020,7 +4030,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The local database stops other accounts, not the account it belongs to.** SQLite has no
   roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
   race the owner and mode checks between check and open, and the next open's refusal of a
-  changed schema is detection, not prevention. An administrator, and a disk read offline
+  changed schema is detection, not prevention. It needs no schema change to undo an agent or
+  a grant, so nothing detects it: an `INSERT OR REPLACE` deletes the row it conflicts with
+  and fires no delete trigger. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
   `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
   runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,
