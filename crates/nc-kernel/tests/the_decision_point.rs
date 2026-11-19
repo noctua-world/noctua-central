@@ -8618,9 +8618,14 @@ async fn an_approval_issued_to_the_operator_is_never_redeemed_by_their_agent() {
 
 /// An agent named without a session redeems nothing it presents.
 ///
-/// **Tokens issued to the agent itself**, a confirmation and an approval of
-/// the very dispatch, presented by the agent named as a caller: each is
-/// decided as the agent acting alone and refused by the core.
+/// **The core's refusal stands whatever it presents**: a confirmation and an
+/// approval of the very dispatch, issued to the agent itself and presented by
+/// the agent named as a caller, are each decided as the agent acting alone
+/// and refused by the core, and nothing runs. That the core refuses an agent
+/// acting alone whatever it holds is why this suite cannot tell a token
+/// redeemed from one refused; that neither is redeemed is shown where the
+/// kernel binds them, by `an_agent_acting_alone_redeems_nothing_even_what_was_issued_to_it`
+/// and `a_confirmation_issued_to_an_agent_is_never_bound` in `dispatch.rs`.
 #[tokio::test]
 async fn an_agent_named_without_a_session_redeems_nothing_it_presents() {
     let fixture = reference_an_agent_writes_in().await;

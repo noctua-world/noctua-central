@@ -1277,27 +1277,29 @@ ended refuses its next call. The family pack gives an agent two permits of its o
 feature no agent permit names allows nothing. What decided is one segment per link reached,
 joined by `;`, and the caller is told one sentence and the code, never which link refused;
 every entry of the tree, its refusals before any decision included, names the agent as its
-principal and the chain as its actor chain, with the agent's grant. An agent named as a
-caller with no session decides as itself, unmarked, which `core.an_agent_never_impersonates`
-refuses. **No agent is confirmed**: a session holds no token and has nowhere to hold one,
-a tree acting for an agent or as an agent alone redeems and spends none it is handed, and
-the kernel never binds a token to an agent principal, whoever issued it; so an agent's
-command that cannot be undone is refused with `[NC-KERN-0006]`, and its delete by the
-core's two floors. A chain past the policy's two links is refused by
-`core.chain_depth_is_bounded` and recorded whole; the type holds at most four, and nothing
-but a test door builds one past a single link.
+principal and the chain as its actor chain; the grant it records, when a decision reached
+one, is the agent's and never its person's. An agent named as a caller with no session
+decides as itself, unmarked, which `core.an_agent_never_impersonates` refuses. **No agent
+is confirmed**: a session holds no token and has nowhere to hold one, a tree acting for an
+agent or as an agent alone redeems and spends none it is handed, and the kernel never binds
+a token to an agent principal, whoever issued it; so an agent's command that cannot be
+undone is refused with `[NC-KERN-0006]`, and its delete by the core's two floors. A chain
+past the policy's two links is refused by `core.chain_depth_is_bounded` and recorded whole;
+the type holds at most four, and nothing but a test door builds one past a single link.
 
 **Enforced by** `crates/nc-kernel/src/session.rs` and its unit tests — what a chain holds,
 how deep it is, and that only a principal acting as itself holds what the kernel issues;
 `crates/nc-kernel/src/dispatch.rs`, whose unit tests hold that no token issued to an agent
-is bound and that an agent's tree hands on nothing redeemed even when the binding alone
-would redeem it; `crates/nc-kernel/tests/the_decision_point.rs`, over runtime agents a
+is bound, that an agent acting alone redeems none even of its own, and that an agent's tree
+hands on nothing redeemed even when the binding alone would redeem it;
+`crates/nc-kernel/tests/the_decision_point.rs`, over runtime agents a
 `nc_authz::LocalDirectory` holds and the world's own, through the real pack: both halves
 allowing and each refusing, a grant ended, withheld or run out on the kernel's clock between
 two calls, a nested dispatch, the session refused for every agent that is not the asker's,
 a chain of two and one of three, and every token path — the operator's confirmation and
-approval, the agent's own, an argument named as one, a serial carried in an argument the
-schema takes, a nested irreversible command, a delete;
+approval, the agent's own presented without a session, which the core refuses whatever it
+holds, an argument named as one, a serial carried in an argument the schema takes, a nested
+irreversible command, a delete;
 `crates/nc-kernel/tests/units_and_history.rs`, where the person is frozen mid-session;
 `crates/nc-kernel/tests/the_rest_of_the_world.rs`, where an agent's timer is refused when
 it comes due; `crates/nc-authz/tests/the_embedded_pack_decides.rs`, which holds the commands
@@ -4614,8 +4616,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   else.** A caller naming a person is decided as that person, and a process running as the
   person can be one; naming an agent without a session decides it as itself, which the core
   refuses.
-- **The operator's grant is decided and not named in the entry**: `grant_used` holds the
-  agent's grant alone, so the entry says which half refused and not which of the person's
+- **The operator's grant is decided and not named in the entry**: `grant_used` holds no
+  grant but the agent's, so the entry says which half refused and not which of the person's
   grants decided theirs.
 - **The deciding text tells an auditor which half refused, and the caller never**: the
   caller is told one sentence and the code.

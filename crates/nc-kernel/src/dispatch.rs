@@ -2703,6 +2703,7 @@ mod tests {
         redeemed, resource_of,
     };
     use crate::session::{Acting, Session};
+    use crate::{InMemory, Shared};
 
     /// The user `ana`, the user `bruno` and the device `ana`: of the world the
     /// policy cases are about, with a device of ana's own identifier added.
@@ -2925,6 +2926,39 @@ mod tests {
         }
     }
 
+    /// A name proposed at the top of a tree acting as `acting`, and what that
+    /// tree asks with.
+    ///
+    /// The asking presents a confirmation and an approval of this very
+    /// dispatch, both issued to `to` now. The command is the kernel's own, so
+    /// no plugin holds it.
+    fn presented(shared: &Shared<InMemory>, acting: &Acting, to: &Principal) -> (Asked, Asking) {
+        let (name, args) = ("naming.propose", r#"{"title":"t"}"#);
+        let now_ms = nc_ids::Clock::now_ms(&shared.clock);
+        let mut issued = lock(&shared.issued);
+        let asking = Asking {
+            acting: acting.clone(),
+            confirmation: Some(issued.issue(Token::Confirmation, to, (name, None), args, now_ms)),
+            approval: Some(issued.issue(Token::Approval, to, (name, None), args, now_ms)),
+        };
+        drop(issued);
+        let asked = Asked {
+            name: name.to_owned(),
+            command: shared.command(name).expect("a command of the kernel's own"),
+            canonical: args.to_owned(),
+            json: serde_json::from_str(args).expect("the arguments are JSON"),
+            resource: nc_authz::EntityRef {
+                type_name: "Feature".to_owned(),
+                id: "naming".to_owned(),
+            },
+            depth: 0,
+            acting: acting.clone(),
+            spent: 0,
+            waits: Waits::TOP,
+        };
+        (asked, asking)
+    }
+
     /// What an agent's tree hands on — to an undo, to its frame, to a
     /// callback — holds nothing redeemed, whatever its asking holds.
     ///
@@ -2936,47 +2970,53 @@ mod tests {
     async fn the_held_an_agents_tree_hands_on_is_empty() {
         let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
         let shared = &kernel.shared;
-        let (name, args) = ("naming.propose", r#"{"title":"t"}"#);
-        let command = shared.command(name).expect("a command of the kernel's own");
-        let asked = |acting: Acting| Asked {
-            name: name.to_owned(),
-            command: command.clone(),
-            canonical: args.to_owned(),
-            json: serde_json::from_str(args).expect("the arguments are JSON"),
-            resource: nc_authz::EntityRef {
-                type_name: "Feature".to_owned(),
-                id: "naming".to_owned(),
-            },
-            depth: 0,
-            acting,
-            spent: 0,
-            waits: Waits::TOP,
-        };
-        let asking = |acting: Acting| {
-            let now_ms = nc_ids::Clock::now_ms(&shared.clock);
-            let mut issued = lock(&shared.issued);
-            Asking {
-                acting,
-                confirmation: Some(issued.issue(
-                    Token::Confirmation,
-                    &ana,
-                    (name, None),
-                    args,
-                    now_ms,
-                )),
-                approval: Some(issued.issue(Token::Approval, &ana, (name, None), args, now_ms)),
-            }
-        };
         let session = Acting::Agent(Session::opened_for(ana.clone(), ana.clone()));
-        let (held, spent) = redeemed(shared, Some(&asking(session.clone())), &asked(session));
+        let (asked, asking) = presented(shared, &session, &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
         assert_eq!(held, crate::history::Held::default());
         assert_eq!(spent, Vec::<u64>::new(), "an agent's tree spent a token");
-        let itself = Acting::Itself(ana.clone());
-        let (held, spent) = redeemed(shared, Some(&asking(itself.clone())), &asked(itself));
+        let (asked, asking) = presented(shared, &Acting::Itself(ana.clone()), &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
         assert_eq!(
             (held.confirmed, held.quorum_met, spent.len()),
             (true, true, 2),
             "the control: the same tokens, presented by the person acting as themselves"
+        );
+    }
+
+    /// An agent acting alone redeems nothing, not even what was issued to it.
+    ///
+    /// **Two refusals stand in the way, and this fails only once both are
+    /// gone**: the tree acts as the very agent a confirmation and an approval
+    /// of this dispatch were issued to, the asking's guard refuses an agent
+    /// acting alone, and the binding refuses any token for an agent. Each alone
+    /// is another test's to show: the binding's is
+    /// `a_confirmation_issued_to_an_agent_is_never_bound`, and the guard's is
+    /// `only_a_principal_acting_as_itself_and_no_agent_holds_what_the_kernel_issues`
+    /// in `session.rs`. The control is the same tokens issued to a person and
+    /// presented by them, which are redeemed.
+    #[tokio::test]
+    async fn an_agent_acting_alone_redeems_nothing_even_what_was_issued_to_it() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let shared = &kernel.shared;
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        let assistant =
+            nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
+                .expect("the world loads")
+                .principal(PrincipalKind::Agent, "ana-assistant")
+                .expect("ana's assistant is an agent of the world");
+        let (asked, asking) = presented(shared, &Acting::Itself(assistant.clone()), &assistant);
+        assert_eq!(
+            redeemed(shared, Some(&asking), &asked),
+            (crate::history::Held::default(), Vec::new()),
+            "an agent acting alone redeemed what was issued to it"
+        );
+        let (asked, asking) = presented(shared, &Acting::Itself(ana.clone()), &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
+        assert_eq!(
+            (held.confirmed, held.quorum_met, spent.len()),
+            (true, true, 2),
+            "the control: the same tokens, issued to a person and presented by them"
         );
     }
 

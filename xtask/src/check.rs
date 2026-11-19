@@ -19701,7 +19701,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 72, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 129, 31),
+        ("nc-kernel/dispatch.rs", 131, 31),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -25749,7 +25749,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21043;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21047;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25819,7 +25819,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27819;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27829;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25873,7 +25873,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,819 are accepted by the first-line
+    /// rules the gates apply: **516 of 27,829 are accepted by the first-line
     /// rule alone, and 276 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
