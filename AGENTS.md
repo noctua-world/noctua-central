@@ -1788,12 +1788,14 @@ opaque identifiers, and a grant's scope is a type and an identifier as text.
   every other column of a grant as it was and an end to both when and by whom, so a
   connection that switches the `CHECK`s off with `PRAGMA ignore_check_constraints` still
   ends no grant without saying who ended it.
-- **One live grant per agent and scope**, whoever writes and however: the file's partial
-  unique index refuses a plain `INSERT` of a second one, and the grants' `BEFORE INSERT`
-  trigger a replace, which would delete the live one to make room. A grant that replaces
-  the live one on its scope ends it in the transaction that writes it, and only that one: a
-  replacement naming a grant of another scope, agent or realm, or one ended already, is
-  refused with the new grant, and the old one stays live.
+- **One live grant per agent and scope**, whatever statement writes it and whoever runs
+  it: the grants' `BEFORE INSERT` trigger refuses a second live one before SQLite
+  resolves a conflict, a plain `INSERT` and a replace alike (a replace would otherwise
+  delete the live one to make room), and the file's partial unique index states the same
+  rule beneath it. A grant that replaces the live one on its scope ends it in the
+  transaction that writes it, and only that one: a replacement naming a grant of another
+  scope, agent or realm, or one ended already, is refused with the new grant, and the old
+  one stays live.
 - **Every write is counted** through `write_exactly`, in a `BEGIN IMMEDIATE` that first
   checks no temporary object sits on its connection (invariant 22), and **each table
   refuses a new row at its bound**, `catalog/limits.toml`'s `max_rows`, counted over the

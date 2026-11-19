@@ -45,12 +45,13 @@
 //! edit or delete any row, or write a grant nobody gave: SQLite has no roles
 //! (the crate's header), and no row is signed. A trigger dropped is a schema
 //! the open-time check refuses for as long as it stands; one put back before
-//! the next open is not seen. Nor is a text column no index holds rewritten in
-//! place, at the same length, through SQLite's incremental BLOB I/O, which
-//! runs no statement and fires no trigger: an agent's operator, or a grant's
-//! realm, so its own realm no longer reads it. Who may make an agent, grant it
-//! or end its grants is not this crate's to decide either: it keeps what it is
-//! handed, and refuses only what the file could never hold.
+//! the next open is not seen. A text column no index holds can also be
+//! rewritten in place, at the same length, through SQLite's incremental BLOB
+//! I/O, which runs no statement, fires no trigger and is not seen: an agent's
+//! operator, or a grant's realm, so its own realm no longer reads it. Who may
+//! make an agent, grant it or end its grants is not this crate's to decide
+//! either: it keeps what it is handed, and refuses only what the file could
+//! never hold.
 
 use nc_ids::{OpaqueId, Snowflake};
 use sqlx::Row as _;
@@ -328,7 +329,7 @@ impl LocalAgents {
         )
         .await?;
         // **The end first**, so the new row never meets the live one it
-        // replaces in the index that holds one live grant per scope.
+        // replaces: the file holds one live grant per scope.
         if let Some((ended, at, by)) = ending {
             let replaced = sqlx::query(
                 "UPDATE main.agent_grants SET ended_at = ?2, ended_by = ?3 \

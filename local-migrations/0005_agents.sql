@@ -91,9 +91,11 @@ CREATE TABLE agent_grants (
 
 -- **One live grant per agent and scope, held by the file**: a new grant on a
 -- scope ends the live one in the transaction that writes it, and a second live
--- row on the same scope is refused whoever writes it and however — a plain
--- `INSERT` by this index, and a replace, which would delete the live one to
--- make room, by `agent_grants_are_written_once` before the index is asked.
+-- row on the same scope is refused, whatever statement writes it and whoever
+-- runs it: `agent_grants_are_written_once` refuses a plain `INSERT` and a
+-- replace alike before this index is asked, and a replace would otherwise
+-- delete the live one to make room. This index states the same rule beneath
+-- that trigger.
 CREATE UNIQUE INDEX agent_grants_one_live_per_scope
     ON agent_grants (agent, scope_type, scope_id) WHERE ended_at IS NULL;
 

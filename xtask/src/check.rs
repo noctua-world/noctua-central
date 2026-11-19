@@ -2509,7 +2509,7 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 5] = [
     ),
     (
         "0005_agents.sql",
-        "bd641905f5bae8acdd358903c55859c10b98ce78ec8f2b4dd7ccda0fa1041d30e67490a757dc7289f19714399e829a3e",
+        "bccfe551fc5c93cdc84556fe56ac4e918dec8d3608b8bc3484cb5a1a790b468e7946dc56ea1708bfab0098f2679962e8",
     ),
 ];
 
