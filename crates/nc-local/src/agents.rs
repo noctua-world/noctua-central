@@ -113,17 +113,18 @@ pub struct GrantRow {
 /// What the file keeps of one realm's agents.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AgentsKept {
-    /// The realm's agents, in the order they were made.
+    /// The realm's agents, in the order of their identifiers, which is the
+    /// order the minter gave them in.
     pub agents: Vec<AgentRow>,
-    /// The realm's grants not ended, in the order they were given — the ones
-    /// past their end among them, which the decision point refuses.
+    /// The realm's grants not ended, in the order of their identifiers — the
+    /// ones past their end among them, which the decision point refuses.
     pub live: Vec<GrantRow>,
     /// How many grants the file holds, of every realm and ended ones included,
     /// which is what its bound counts.
     pub grants_kept: u64,
 }
 
-/// Why an agent or a grant was not kept, nothing the call wrote in the file.
+/// Why an agent or a grant was not kept; nothing the call wrote is in the file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeepError {
     /// The table already holds as many rows as `catalog/limits.toml` bounds
@@ -132,7 +133,8 @@ pub enum KeepError {
         /// Which: `agents` or `agent_grants`.
         table: &'static str,
     },
-    /// The database failed, or holds what this build did not write.
+    /// The file refused the row, holds what this build did not write, or
+    /// could not be asked.
     Store(LocalError),
 }
 
@@ -608,8 +610,8 @@ mod tests {
 
     /// Agents and grants read back as they were kept.
     ///
-    /// The realm's agents in the order they were made, its grants not ended,
-    /// and every grant of the file counted.
+    /// The realm's agents and its grants not ended, each in the order of the
+    /// identifiers the minter gave, and every grant of the file counted.
     #[tokio::test]
     async fn an_agent_and_its_grants_read_back_as_they_were_kept() {
         let (store, agents) = agents().await;
@@ -1153,6 +1155,27 @@ mod tests {
             .await
             .expect("an end adds no row");
         store.close().await;
+    }
+
+    /// A refusal to keep names the full table, or carries the store's own
+    /// failure as its source.
+    #[test]
+    fn a_refusal_to_keep_names_the_full_table_or_carries_the_stores_failure() {
+        use std::error::Error as _;
+        let full = KeepError::Full { table: "agents" };
+        assert!(
+            full.to_string().contains("`agents` already holds"),
+            "{full}"
+        );
+        assert!(full.source().is_none());
+        let failed = LocalError::Unavailable("busy".to_owned());
+        let kept = KeepError::from(failed.clone());
+        assert_eq!(kept, KeepError::Store(failed.clone()));
+        assert!(kept.to_string().ends_with(&failed.to_string()), "{kept}");
+        assert_eq!(
+            kept.source().map(ToString::to_string),
+            Some(failed.to_string())
+        );
     }
 
     /// The bounds are the catalog's `max_rows`, and a table the catalog does

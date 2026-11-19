@@ -19720,7 +19720,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
-        ("nc-local/agents.rs", 36, 11),
+        ("nc-local/agents.rs", 37, 11),
         ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
@@ -25730,7 +25730,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20678;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20679;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25749,7 +25749,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5530;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5539;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25766,7 +25766,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1868;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1871;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25800,7 +25800,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27452;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27455;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25854,7 +25854,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,452 are accepted by the first-line
+    /// rules the gates apply: **516 of 27,455 are accepted by the first-line
     /// rule alone, and 276 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25887,7 +25887,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1868 of
+    /// this tree offers, **1871 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
