@@ -7361,3 +7361,186 @@ async fn a_plugins_command_is_found_by_the_texts_of_its_own_entry() {
     let entries = fixture.entries().await;
     assert_eq!(deciding(only(&entries, FIND)), Some(FINDS_COMMANDS));
 }
+
+/// The command that reads whether MCP is on.
+const MCP_READ: &str = "settings.mcp.read";
+
+/// The command that switches MCP on or off.
+const MCP_SET: &str = "settings.mcp.set";
+
+/// The deciding `@id` of every read and switch of MCP a person is allowed.
+const SWITCHES_MCP: &str = "family.a_member_switches_mcp";
+
+/// The MCP setting is read and switched by a person alone, decided on its
+/// feature.
+///
+/// **A person's permit, a child's included, and the denials beside it**
+/// (`NOCTUA.md §20.6`): a guardian, an adult and a child each switch MCP on,
+/// read it on and switch it off, each decided on `Feature::"mcp"` by the
+/// permit that gives every person of the realm the switch — the set in a unit
+/// of its own, the read in none. A frozen account and a device are each
+/// refused with the code alone, the journal naming what decided it, and
+/// neither switches anything.
+#[tokio::test]
+async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_feature() {
+    let (kernel, world) = naming(None).await;
+    let mcp = || async { kernel.settings().await.expect("the settings are read").mcp };
+    assert!(!mcp().await, "MCP is on before anybody switched it");
+    let persons = ["ana", "bruno", "carla"];
+    for person in persons {
+        let caller = Caller::new(
+            world
+                .principal(PrincipalKind::User, person)
+                .expect("a person"),
+        );
+        for (command, args, answer, on) in [
+            (MCP_SET, r#"{"on":true}"#, r#"{"on":true}"#, true),
+            (MCP_READ, "{}", r#"{"on":true}"#, true),
+            (MCP_SET, r#"{"on":false}"#, r#"{"on":false}"#, false),
+        ] {
+            let answered = kernel
+                .dispatch(&caller, command, args)
+                .await
+                .unwrap_or_else(|refused| panic!("{person}: {command} {args}: {refused}"));
+            assert_eq!(answered, answer, "{person}: {command} {args}");
+            assert_eq!(mcp().await, on, "{person}: {command} {args}");
+        }
+    }
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    let decided = dispatched(&entries);
+    assert_eq!(decided.len(), persons.len() * 3, "{entries:#?}");
+    let feature = Some(r#"{"id":"mcp","type":"Feature"}"#);
+    for entry in &decided {
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(deciding(entry), Some(SWITCHES_MCP), "{entry:?}");
+        assert_eq!(entity_of(entry).as_deref(), feature, "{entry:?}");
+        match command_of(entry).as_deref() {
+            Some(MCP_SET) => {
+                assert_eq!(entry.record.action, "Write", "{entry:?}");
+                assert!(entry.record.work_unit.is_some(), "a switch ran in no unit");
+            }
+            Some(MCP_READ) => {
+                assert_eq!(entry.record.action, "Read", "{entry:?}");
+                assert_eq!(entry.record.work_unit, None, "a read opened a unit");
+            }
+            other => panic!("{other:?} was dispatched: {entry:?}"),
+        }
+    }
+    assert_eq!(
+        brackets(&entries),
+        [
+            (nc_journal::unit::OPENS, Outcome::UnitBegun),
+            (nc_journal::unit::CLOSES, Outcome::UnitCommitted)
+        ]
+        .repeat(persons.len() * 2),
+        "each switch was a unit of its own, kept"
+    );
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        for (command, args) in [(MCP_SET, r#"{"on":true}"#), (MCP_READ, "{}")] {
+            let refused = kernel.dispatch(&caller, command, args).await;
+            assert!(
+                is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                "{id}: {command}: {refused:?}"
+            );
+            let entries = kernel.journal_for_tests().await.expect("the journal reads");
+            let entry = entries.last().expect("the denial was journaled");
+            assert_eq!(
+                (
+                    entry.record.principal.as_str(),
+                    entry.record.result,
+                    command_of(entry).as_deref()
+                ),
+                (id, Outcome::Denied, Some(command))
+            );
+            assert_eq!(deciding(entry), Some(decided), "{id}: {command}");
+            assert_eq!(entity_of(entry).as_deref(), feature, "{id}: {command}");
+        }
+        assert!(!mcp().await, "{id} switched MCP on");
+    }
+}
+
+/// A plugin switches no MCP from inside a command.
+///
+/// **Only a person's own call switches what may act for them**: ana runs a
+/// command of the reference plugin that writes and one that only reads, each
+/// dispatching `settings.mcp.set` as her, and each nested switch is refused
+/// with `[NC-KERN-0025]` — before it is decided, and before whether a read's
+/// frame may change anything is asked — journaled with the kernel's own
+/// sentinel and her as the principal, and logged. MCP stays off. The read of
+/// the setting is no switch, and is answered from inside the read.
+#[tokio::test]
+async fn a_plugin_switches_no_mcp_from_inside_a_command() {
+    let (fixture, _) = reference().await;
+    for relay_command in ["reference.relay.write", "reference.relay.read"] {
+        let answered = fixture
+            .as_(
+                "ana",
+                relay_command,
+                &relay(MCP_SET, r#"{"on":true}"#, None),
+            )
+            .await
+            .unwrap_or_else(|refused| panic!("{relay_command} answers: {refused}"));
+        let refused = field(&answered, "refused")
+            .into_text()
+            .unwrap_or_else(|| panic!("{relay_command}: the switch was not refused: {answered}"));
+        assert!(
+            refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+            "{relay_command}: {refused}"
+        );
+    }
+    assert!(
+        !fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings are read")
+            .mcp,
+        "a plugin switched MCP on"
+    );
+    let entries = fixture.entries().await;
+    let switches: Vec<&Entry> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| command_of(entry).as_deref() == Some(MCP_SET))
+        .collect();
+    assert_eq!(switches.len(), 2, "{switches:#?}");
+    for entry in switches {
+        assert_eq!(
+            (
+                entry.record.principal.as_str(),
+                entry.record.result,
+                deciding(entry)
+            ),
+            ("ana", Outcome::Denied, Some("kernel.top_level_only")),
+            "{entry:?}"
+        );
+    }
+    assert_eq!(
+        fixture.logged("kernel.dispatch_refused", "reason"),
+        ["top_level_only", "top_level_only"]
+    );
+    let read = fixture
+        .as_("ana", "reference.relay.read", &relay(MCP_READ, "{}", None))
+        .await
+        .expect("the relay answers");
+    assert_eq!(field(&read, "answered"), Value::Integer(1), "{read}");
+    assert_eq!(text(&read, "last"), r#"{"on":false}"#, "{read}");
+    let entries = fixture.entries().await;
+    let nested = only(&entries, MCP_READ);
+    assert_eq!(
+        (nested.record.principal.as_str(), nested.record.result),
+        ("ana", Outcome::Allowed)
+    );
+    assert_eq!(deciding(nested), Some(SWITCHES_MCP));
+}

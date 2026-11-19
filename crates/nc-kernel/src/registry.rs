@@ -3,8 +3,12 @@
 //!
 //! **The kernel's own come from the catalog.** Every command of
 //! `catalog/commands.toml` whose namespace is one the kernel keeps —
-//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.` — is a built-in,
-//! registered when the registry is made. A catalog command in any other
+//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.`, `settings.` — is
+//! a built-in, registered when the registry is made. The ones that change a
+//! setting run only at the top of a call tree (`only_at_the_top`): the decision
+//! point refuses them dispatched from inside a command (`[NC-KERN-0025]`), so a
+//! plugin, a timer or an event run as a person never switches what may act for
+//! them. A catalog command in any other
 //! namespace is one the catalog describes for a plugin to implement
 //! (`NOCTUA.md §15.2`): it is registered when a plugin declares it, matching
 //! the catalog in every field a dispatch is decided by, and is not registered
@@ -89,7 +93,13 @@ use crate::manifest::PluginManifest;
 use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands.
-pub const RESERVED: [&str; 4] = ["journal", "kernel", "limits", "naming"];
+pub const RESERVED: [&str; 5] = ["journal", "kernel", "limits", "naming", "settings"];
+
+/// The namespaces whose changes decide what may act for a person.
+///
+/// A command of the kernel's own in one of them that changes state runs only
+/// at the top of a call tree, as the person's own call (`[NC-KERN-0025]`).
+const ONLY_AT_THE_TOP: [&str; 1] = ["settings"];
 
 /// The one action a plugin's command may select the whole realm under.
 const THE_REALM_IS_READ_WITH: &str = "Read";
@@ -776,6 +786,17 @@ fn in_a_reserved_namespace(name: &str) -> bool {
     RESERVED.contains(&first_segment(name))
 }
 
+/// Whether `command` runs only at the top of a call tree.
+///
+/// It does when it is the kernel's own, changes state, and sits in one of
+/// [`ONLY_AT_THE_TOP`]'s namespaces: a read of a setting runs anywhere, and
+/// undo and redo are `crate::history::is_history`'s.
+pub(crate) fn only_at_the_top(command: &RegisteredCommand) -> bool {
+    command.owner == Owner::Kernel
+        && command.mutating
+        && ONLY_AT_THE_TOP.contains(&first_segment(&command.name))
+}
+
 /// A name's first segment: its namespace.
 fn first_segment(name: &str) -> &str {
     name.split('.').next().unwrap_or(name)
@@ -809,7 +830,9 @@ pub(crate) fn quoted_up_to(text: &str, most: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{CommandEntry, Declared, EntryTexts, Owner, RESERVED, Registry, quoted};
+    use super::{
+        CommandEntry, Declared, EntryTexts, Owner, RESERVED, Registry, only_at_the_top, quoted,
+    };
     use crate::PluginSlot;
     use crate::entries::PluginEntries;
     use crate::manifest::PluginManifest;
@@ -1055,6 +1078,44 @@ mod tests {
             "every catalog command is the kernel's today: {:?}",
             registry.described
         );
+    }
+
+    /// Only a setting switched by a command of the kernel's own runs at the top
+    /// of a call tree alone.
+    ///
+    /// **Each clause by a command it alone keeps out**: the setting's read,
+    /// which changes nothing and is answered anywhere; undo and redo and the
+    /// prune, the kernel's changes in namespaces of its own that are not a
+    /// setting's — the history's rule is its own; and a plugin's command,
+    /// however it is named.
+    #[test]
+    fn only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone() {
+        let listed = Registry::from_catalog().listed();
+        let of = |name: &str| {
+            listed
+                .iter()
+                .find(|command| command.name == name)
+                .cloned()
+                .unwrap_or_else(|| panic!("`{name}` is registered"))
+        };
+        assert!(only_at_the_top(&of("settings.mcp.set")));
+        for name in [
+            "settings.mcp.read",
+            "kernel.undo",
+            "kernel.redo",
+            "limits.prune",
+            "journal.verify",
+        ] {
+            assert!(!only_at_the_top(&of(name)), "`{name}`");
+        }
+        let mut plugins = of("settings.mcp.set");
+        plugins.owner = Owner::Plugin(PluginSlot(0));
+        assert!(
+            !only_at_the_top(&plugins),
+            "a plugin's command, named as a setting's"
+        );
+        plugins.name = "reference.note.put".to_owned();
+        assert!(!only_at_the_top(&plugins), "a plugin's command");
     }
 
     #[test]

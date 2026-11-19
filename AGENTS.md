@@ -468,6 +468,7 @@ fails a gate a minute or two later.
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
+| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
 | a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
 | a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher is brought to in Stage 16 (`NOCTUA-PLAN.md`), so a rule changed without a row is one that implementation will not learn. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, its entry's generated `wiki` field names its format, and its registry's page — `docs/commands.md` or `docs/external-identifiers.md` — links it. A text names an entry of the registry it sits under, `commands` or `external-identifiers`, and of no other. Only `md` ships, and only for commands, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry of its own is a row of `REGISTRIES` and of `names_by_registry` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
@@ -949,6 +950,7 @@ entry owns.
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 | Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
 | A stop reaching a process that is not the daemon, or a restorer starting a daemon a person stopped | the daemon asked first, a signal only through the process its PID record is held to, and the `stopped` mark written durably before anything is asked and read by the daemon's own restored start | "The CLI starts and stops its own channel's daemon, and signals nothing it did not hold to its record" |
+| A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
@@ -989,7 +991,7 @@ by a command that reads it, since a permit for a realm-wide change would authori
 plugin's, and never a feature of the platform — not by `feature:`, and not through an
 argument naming `Feature`, which the judge refuses in every declaration (`[NC-PLUG-0009]`)
 — whose permit is a person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
-one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`), declared once, and
+one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`, `settings.`), declared once, and
 matches the catalog where the
 catalog describes it. Each of its own is shown by its entry, a row of the plugin's
 `commands.toml` under the name it has inside the namespace, judged as the next entry says
@@ -1580,6 +1582,48 @@ daemon.
 **Not answered:** see "What is deliberately not claimed": how many commands the registry
 holds, which commands the asker may dispatch, and an agent finding commands only once
 Stage 15 gives it a permit.
+
+### A setting is switched by a person's own call, and MCP is off until one switches it on
+
+**Guaranteed.** A setting of the channel (`NOCTUA.md §12.15`) is two commands of the
+kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
+(`crates/nc-kernel/src/settings.rs`):
+
+- **Decided at the one door and journaled**, as every command is: `Read` and `Write` on
+  `Feature::"mcp"`, which `family.a_member_switches_mcp` gives every person of the realm, a
+  child included. A frozen account is refused by the floor; an agent and a device by the
+  permit's `principal is User`, pinned by cases — the agent's marked as acting for its
+  person, so only the type test refuses it; a person of another realm by the decision
+  point's slice. The set runs in a unit of its own, the read in none.
+- **Only a person's own call switches it.** The set runs at the top of a call tree alone:
+  dispatched from inside a command — a plugin run as the person, a timer's or an event's
+  callback — it is refused with `[NC-KERN-0025]`, journaled under `kernel.top_level_only`
+  before anything is decided, and that is asked before whether a read's frame may change
+  anything. The read runs anywhere.
+- **Off until switched on, per channel.** The value is the kernel's entry in the channel's
+  local store, under a holder no plugin's identity can be, so no plugin reads or writes it,
+  and switching one channel's switches no other. Never written, it is off; an entry
+  holding anything but the two texts the set writes is refused as a row the kernel did not
+  write, never read as on or as off (`Kernel::settings`).
+- **A step like any other.** The set's one effect is that entry, staged in its unit, so it
+  is no step that left the machine: the person's undo puts the value back and reaches the
+  steps before it, and their redo puts it again.
+
+**Enforced by** the tests beside the module in `crates/nc-kernel/src/settings.rs` — the
+declarations held to what it reads, the holder no plugin's identity, the default, and
+every entry holding anything but the two texts it writes refused — and `only_at_the_top`'s in
+`crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_point.rs` over
+the real pack and world — every person answered, a frozen account and a device refused, a
+plugin's nested switch refused from a command that writes and from one that reads —
+`crates/nc-kernel/tests/units_and_history.rs`, which undoes and redoes the switch and an
+earlier step past it, `policy/packs/family/tests/features.toml` and
+`policy/packs/family/tests/accounts.toml`,
+`apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
+daemon, and `apps/daemon/tests/channels_side_by_side.rs`, where MCP switched on in one
+install is on in that one alone.
+
+**Not answered:** see "What is deliberately not claimed": a process running as the person,
+the person's undo of a switch-off, and what being on lets in, which nothing reads yet.
 
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
@@ -3955,6 +3999,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **The kernel and the local database**
 
+- **MCP's setting is read by nothing that lets a client in**: no daemon serves an MCP
+  session yet, so switching it on lets no client in.
+- **The switch resists no process running as the person.** It is the kernel's entry in the
+  profile's local database, which stops other accounts and not the account it belongs to:
+  such a process switches it through the CLI as the person would, or by writing the entry
+  in the file, where `{"on":true}` reads as on; only an entry holding anything but the two
+  texts the set writes is refused at the next read, rather than read as on or as off.
+- **The person's undo of a switch-off that is their newest step switches MCP on again.**
+  The switch is a step like any other. Not taken: a switch-off made a barrier to undo,
+  which would put every step before it out of the person's reach for good; a history that
+  names a step before it is undone is the interface's (Stage 16).
 - **The kernel decides as one person at a time, through test doors for the rest.** No
   agent is handled — `via_agent` false and an empty actor chain on every dispatch until
   agents act (Stage 15) — and the directory is the world held in memory. A confirmation

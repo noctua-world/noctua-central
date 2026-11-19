@@ -344,3 +344,83 @@ Arguments:
   --name <text, from 1 to 255 characters>  required
 ```
 
+## `settings.mcp.read`
+
+In `en`:
+
+```text
+settings.mcp.read — Read whether MCP is on
+Show whether this installation of Noctua lets MCP clients in.
+
+Answers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing.
+
+Categories: noctua.settings
+Tags: mcp, agents, settings, model context protocol, ai tools
+
+Usage:
+  noctua settings.mcp.read [arguments]
+  noctua settings.mcp.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.mcp.read — Ver se o MCP está ligado
+Mostrar se esta instalação do Noctua deixa clientes MCP entrarem.
+
+Responde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada.
+
+Categories: noctua.settings
+Tags: mcp, agentes, configurações, ferramentas de ia, protocolo de contexto
+
+Usage:
+  noctua settings.mcp.read [arguments]
+  noctua settings.mcp.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.mcp.set`
+
+In `en`:
+
+```text
+settings.mcp.set — Switch MCP on or off
+Let MCP clients act here as agents, or stop them.
+
+Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.
+
+Categories: noctua.settings
+Tags: mcp, agents, settings, turn on, turn off, model context protocol, ai tools
+
+Usage:
+  noctua settings.mcp.set [arguments]
+  noctua settings.mcp.set -- '<one JSON object>'
+
+Arguments:
+  --on  (a boolean: true when given alone, `=false` says false)  required
+```
+
+In `pt-BR`:
+
+```text
+settings.mcp.set — Ligar ou desligar o MCP
+Deixar clientes MCP agirem aqui como agentes, ou impedi-los.
+
+Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.
+
+Categories: noctua.settings
+Tags: mcp, agentes, configurações, ligar, desligar, ferramentas de ia, protocolo de contexto
+
+Usage:
+  noctua settings.mcp.set [arguments]
+  noctua settings.mcp.set -- '<one JSON object>'
+
+Arguments:
+  --on  (a boolean: true when given alone, `=false` says false)  required
+```
+

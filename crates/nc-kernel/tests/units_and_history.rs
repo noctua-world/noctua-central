@@ -2687,6 +2687,89 @@ async fn undo_and_redo_are_refused_from_inside_another_command() {
     );
 }
 
+/// A setting switched is a step the person's undo takes back and redo puts
+/// again.
+///
+/// **No step that left the machine**: the switch's one effect is the kernel's
+/// entry in its own unit, so its undo answers nothing beyond reach, and the
+/// person's next undo reaches the step before it. Nested in a command that
+/// only reads, the switch is refused for running below the top of the tree,
+/// which is asked before whether its frame may change anything.
+#[tokio::test]
+async fn a_setting_switched_is_a_step_the_persons_undo_takes_back_and_redo_puts_again() {
+    let fixture = opened(in_memory().await, "", false).await;
+    let mcp = || async {
+        fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings are read")
+            .mcp
+    };
+    fixture
+        .as_ana("reference.note.put", &photo("kept"))
+        .await
+        .expect("written");
+    assert!(!mcp().await, "MCP is on before anybody switched it");
+    assert_eq!(
+        fixture
+            .as_ana("settings.mcp.set", r#"{"on":true}"#)
+            .await
+            .expect("switched on"),
+        r#"{"on":true}"#
+    );
+    assert!(mcp().await);
+    assert_eq!(
+        held(&fixture.store, "kernel", "settings.mcp")
+            .await
+            .as_deref(),
+        Some(r#"{"on":true}"#),
+        "the setting is not the kernel's entry"
+    );
+    let switched = fixture.newest_step().await;
+    assert_eq!(
+        fixture.undo().await.expect("the switch is undone"),
+        reversed_as(switched.unit, 1, 0, 0, 0)
+    );
+    assert!(!mcp().await, "the undo left MCP on");
+    assert_eq!(held(&fixture.store, "kernel", "settings.mcp").await, None);
+    fixture.redo().await.expect("the switch is redone");
+    assert!(mcp().await, "the redo left MCP off");
+    fixture.undo().await.expect("the switch is undone again");
+    assert!(!mcp().await);
+    fixture
+        .undo()
+        .await
+        .expect("the step before the switch is undone past it");
+    assert_eq!(
+        held(&fixture.store, REFERENCE, "note/photo").await,
+        None,
+        "the undo past the switch did not reach the note"
+    );
+    let relayed = Value::object([
+        ("args", Value::text(r#"{"on":true}"#)),
+        ("name", Value::text("settings.mcp.set")),
+        ("note", Value::text("photo")),
+    ])
+    .to_canonical();
+    fixture
+        .as_ana("reference.note.put", &photo("again"))
+        .await
+        .expect("written");
+    let answered = fixture
+        .as_ana("reference.relay.read", &relayed)
+        .await
+        .expect("the relay answers");
+    let refused = field(&answered, "refused")
+        .into_text()
+        .expect("the relay was refused");
+    assert!(
+        refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+        "{refused}"
+    );
+    assert!(!mcp().await, "a nested switch switched MCP");
+}
+
 /// An undo takes the pin off the blob its step made and a redo puts it back,
 /// and once the sweep has taken it, a redo is refused.
 #[tokio::test]

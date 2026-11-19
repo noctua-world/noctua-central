@@ -375,12 +375,16 @@ pub(crate) fn left_by(command: &str) -> String {
 /// It does as a request that changes something elsewhere does when the
 /// command cannot be undone, and when the kernel owns it and it changes
 /// state — `limits.prune` — but for undo and redo, which are the history
-/// itself.
+/// itself, and a setting's switch, whose one effect is its entry in its own
+/// unit (`crate::settings::writes_only_its_entry`): named by the command,
+/// never by its namespace, so the person's undo takes the switch back and
+/// reaches the steps before it.
 pub(crate) fn leaves_the_machine(command: &crate::registry::RegisteredCommand) -> bool {
     command.reversibility == Reversibility::Irreversible
         || (command.owner == crate::registry::Owner::Kernel
             && command.mutating
-            && !is_history(&command.name))
+            && !is_history(&command.name)
+            && !crate::settings::writes_only_its_entry(&command.name))
 }
 
 /// Everything a unit's notes say, read whole.
@@ -1413,7 +1417,8 @@ mod tests {
     /// A command that cannot be undone leaves the machine.
     ///
     /// So does one the kernel owns that changes state — `limits.prune` — but
-    /// not undo and redo, a read, or a plugin's command that can be undone.
+    /// not undo and redo, a setting's switch, a read, or a plugin's command
+    /// that can be undone.
     #[test]
     fn what_leaves_the_machine_is_what_cannot_be_undone_or_the_kernels_own_change() {
         let listed = crate::registry::Registry::from_catalog().listed();
@@ -1425,7 +1430,13 @@ mod tests {
                 .unwrap_or_else(|| panic!("`{name}` is registered"))
         };
         assert!(leaves_the_machine(&of("limits.prune")));
-        for name in ["journal.verify", "kernel.undo", "kernel.redo"] {
+        for name in [
+            "journal.verify",
+            "kernel.undo",
+            "kernel.redo",
+            "settings.mcp.set",
+            "settings.mcp.read",
+        ] {
             assert!(!leaves_the_machine(&of(name)), "`{name}`");
         }
         let mut plugins = of("kernel.undo");

@@ -105,3 +105,31 @@ In `pt-BR`:
 {"name":"naming.read","description":"Ler um nome de arquivo: identificador, assinatura, título e palavras-chave.\n\nLê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada.","inputSchema":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}}
 ```
 
+## `settings.mcp.read`
+
+In `en`:
+
+```json
+{"name":"settings.mcp.read","description":"Show whether this installation of Noctua lets MCP clients in.\n\nAnswers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings.mcp.read","description":"Mostrar se esta instalação do Noctua deixa clientes MCP entrarem.\n\nResponde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}}
+```
+
+## `settings.mcp.set`
+
+In `en`:
+
+```json
+{"name":"settings.mcp.set","description":"Let MCP clients act here as agents, or stop them.\n\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings.mcp.set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}}
+```
+

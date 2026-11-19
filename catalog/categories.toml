@@ -1635,3 +1635,9 @@ name = "noctua.reference"
 set = "noctua"
 title = "category.noctua.reference.title"
 description = "category.noctua.reference.description"
+
+[[category]]
+name = "noctua.settings"
+set = "noctua"
+title = "category.noctua.settings.title"
+description = "category.noctua.settings.description"

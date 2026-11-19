@@ -250,4 +250,5 @@ Every category an entry may be listed under, by set (`NOCTUA.md §20.4`). A set 
 | `noctua.history` | History | Reading, verifying and stepping through the record of what was done | Histórico | Ler, verificar e percorrer o registro do que foi feito |
 | `noctua.maintenance` | Maintenance | Keeping the platform's own stores within their bounds | Manutenção | Manter os armazenamentos da própria plataforma dentro dos limites |
 | `noctua.reference` | Reference | Commands of the reference plugin, which the platform is proven with | Referência | Comandos do plugin de referência, com o qual a plataforma é testada |
+| `noctua.settings` | Settings | Choosing how this installation of Noctua behaves, one setting at a time | Configurações | Escolher como esta instalação do Noctua se comporta, uma configuração por vez |
 

@@ -14,8 +14,9 @@
 //! **Driven through the CLI in-process** (`nc_cli::run`): each is started
 //! with `start`, which spawns its daemon detached, held running by `status`,
 //! and stopped with `stop`. Their profiles and endpoints are held apart on
-//! disk; then each in turn is stopped while the other three are asked again,
-//! and started again; then one is restarted. It spawns processes, so no
+//! disk; MCP switched on in one is on in that one alone; then each in turn is
+//! stopped while the other three are asked again, and started again; then one
+//! is restarted. It spawns processes, so no
 //! mutation command runs it; a guard stops every daemon through the CLI
 //! however the test leaves.
 
@@ -72,14 +73,31 @@ struct Running(Vec<nc_channel::found::Found>);
 impl Drop for Running {
     fn drop(&mut self) {
         for found in &self.0 {
-            let _ = run(found, "stop");
+            let _ = run(found, &["stop"]);
         }
     }
 }
 
-/// The CLI run with `verb` for `found`'s install.
-fn run(found: &nc_channel::found::Found, verb: &str) -> nc_cli::Outcome {
-    nc_cli::run(&[OsString::from(verb)], found, &nc_cli::Env::of(|_| None))
+/// The CLI run with `words` for `found`'s install: a verb, or a command
+/// and its arguments, in English.
+fn run(found: &nc_channel::found::Found, words: &[&str]) -> nc_cli::Outcome {
+    let argv: Vec<OsString> = words.iter().map(OsString::from).collect();
+    nc_cli::run(&argv, found, &nc_cli::Env::of(|_| None))
+}
+
+/// What `--json settings.mcp.read` answers for `found`'s install.
+///
+/// It is the answer under the `ok` it is written in, read once the run
+/// ended well.
+fn mcp_of(found: &nc_channel::found::Found) -> String {
+    let read = run(found, &["--json", "settings.mcp.read"]);
+    assert_eq!(read.exit, Exit::Success, "{read:?}");
+    nc_canon::parse(read.stdout.trim_end())
+        .expect("one canonical document")
+        .into_object()
+        .and_then(|mut fields| fields.remove("ok"))
+        .unwrap_or_else(|| panic!("no `ok` was answered: {read:?}"))
+        .to_canonical()
 }
 
 /// An environment that names `root` as the home and the folders every system
@@ -213,8 +231,25 @@ fn held_apart(running: &Running) {
     }
 }
 
-/// Four channels run at once, their profiles and endpoints apart, each
-/// stopped while the other three answer, and one restarted.
+/// MCP switched on in the first of `running`, by its person through its CLI.
+///
+/// **A setting is its channel's** (`NOCTUA.md §12.15`): it is on in that
+/// install, and off in the other three.
+fn switched_in_the_first_alone(running: &Running) {
+    let switched = run(&running.0[0], &["settings.mcp.set", "--on"]);
+    assert_eq!(switched.exit, Exit::Success, "{switched:?}");
+    for (at, found) in running.0.iter().enumerate() {
+        let expected = if at == 0 {
+            r#"{"on":true}"#
+        } else {
+            r#"{"on":false}"#
+        };
+        assert_eq!(mcp_of(found), expected, "install {at}");
+    }
+}
+
+/// Four channels run at once, their profiles and endpoints apart, MCP on in
+/// one alone, each stopped while the other three answer, and one restarted.
 #[test]
 fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
     let scratch = Scratch::new();
@@ -226,7 +261,7 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
     let running = installed(&scratch.0, &namespace, &environment(&scratch.0, &namespace));
     held_apart(&running);
     for found in &running.0 {
-        let started = run(found, "start");
+        let started = run(found, &["start"]);
         assert_eq!(started.exit, Exit::Success, "{started:?}");
         assert!(started.stdout.contains("is running"), "{started:?}");
     }
@@ -234,7 +269,7 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
         .0
         .iter()
         .map(|found| {
-            let status = run(found, "status");
+            let status = run(found, &["status"]);
             assert_eq!(status.exit, Exit::Success, "{status:?}");
             nc_channel::record::read(&found.layout.pid_file, &found.user)
                 .expect("a running daemon's record")
@@ -248,10 +283,11 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
             "install {one} shares its daemon"
         );
     }
+    switched_in_the_first_alone(&running);
     for stopped in 0..running.0.len() {
-        let outcome = run(&running.0[stopped], "stop");
+        let outcome = run(&running.0[stopped], &["stop"]);
         assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
-        let status = run(&running.0[stopped], "status");
+        let status = run(&running.0[stopped], &["status"]);
         assert_eq!(
             status.exit,
             Exit::Unreachable,
@@ -261,7 +297,7 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
             if other == stopped {
                 continue;
             }
-            let status = run(found, "status");
+            let status = run(found, &["status"]);
             assert_eq!(
                 status.exit,
                 Exit::Success,
@@ -272,7 +308,7 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
                 "stopping {stopped} restarted {other}: {status:?}"
             );
         }
-        let started = run(&running.0[stopped], "start");
+        let started = run(&running.0[stopped], &["start"]);
         assert_eq!(started.exit, Exit::Success, "{started:?}");
         let found = &running.0[stopped];
         pids[stopped] = nc_channel::record::read(&found.layout.pid_file, &found.user)
@@ -287,7 +323,7 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
             .expect("a running daemon's record")
     };
     let before = record();
-    let outcome = run(restarted, "restart");
+    let outcome = run(restarted, &["restart"]);
     assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
     assert!(outcome.stdout.contains("is running"), "{outcome:?}");
     let after = record();
@@ -305,13 +341,13 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
         !restarted.layout.stopped.exists(),
         "a restart left the `stopped` mark"
     );
-    let status = run(restarted, "status");
+    let status = run(restarted, &["status"]);
     assert!(
         status.stdout.contains(&format!("\"pid\":{}", after.pid)),
         "the restarted daemon is not the one its record names: {status:?}"
     );
     for (other, found) in running.0.iter().enumerate().skip(1) {
-        let status = run(found, "status");
+        let status = run(found, &["status"]);
         assert!(
             status.stdout.contains(&format!("\"pid\":{}", pids[other])),
             "restarting the first restarted {other}: {status:?}"

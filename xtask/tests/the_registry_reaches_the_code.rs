@@ -1823,7 +1823,8 @@ fn every_row_of_the_sources_is_a_category_and_no_other() {
             "noctua.files",
             "noctua.history",
             "noctua.maintenance",
-            "noctua.reference"
+            "noctua.reference",
+            "noctua.settings"
         ]
     );
     assert_eq!(

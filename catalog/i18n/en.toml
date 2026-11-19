@@ -43,6 +43,8 @@ dir   = "ltr"
 "command.naming.propose.tags" = ["file name", "name a file", "rename", "save as", "propose"]
 "command.naming.read.tags" = ["file name", "read a name", "identifier", "parse", "details"]
 "command.kernel.find.tags" = ["search", "filter", "look up", "list of commands"]
+"command.settings.mcp.read.tags" = ["mcp", "agents", "settings", "model context protocol", "ai tools"]
+"command.settings.mcp.set.tags" = ["mcp", "agents", "settings", "turn on", "turn off", "model context protocol", "ai tools"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["browser", "web browser", "web", "internet", "google"]
@@ -134,6 +136,7 @@ dir   = "ltr"
 "error.kernel.step-unrecorded" = "That step cannot be undone or redone yet, because Noctua's history does not show it as finished. Nothing was changed."
 "error.kernel.compensation-moved" = "That step cannot be undone, because what it named to set things right now belongs to another part of Noctua, or to none. Nothing was undone."
 "error.kernel.compensation-ungranted" = "That step cannot be undone, because the part of Noctua that named how to set it right may no longer ask another part to do so. Nothing was undone."
+"error.kernel.only-at-the-top" = "Switching a setting and keeping agents can only be asked for directly, not from inside another action."
 
 # --- The plugin host ---
 "error.plugin.capability-denied" = "A part of Noctua asked for something it is not allowed to use, and was refused."
@@ -271,6 +274,12 @@ dir   = "ltr"
 "command.kernel.find.title" = "Find a command"
 "command.kernel.find.description" = "Find commands by any word of their names or tags, in English or Portuguese."
 "command.kernel.find.paragraph" = "Looks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing."
+"command.settings.mcp.read.title" = "Read whether MCP is on"
+"command.settings.mcp.read.description" = "Show whether this installation of Noctua lets MCP clients in."
+"command.settings.mcp.read.paragraph" = "Answers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing."
+"command.settings.mcp.set.title" = "Switch MCP on or off"
+"command.settings.mcp.set.description" = "Let MCP clients act here as agents, or stop them."
+"command.settings.mcp.set.paragraph" = "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was."
 
 # --- Capabilities ---
 "capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."
@@ -690,6 +699,8 @@ dir   = "ltr"
 "category.noctua.files.description" = "Naming, finding and arranging a person's files"
 "category.noctua.reference.title" = "Reference"
 "category.noctua.reference.description" = "Commands of the reference plugin, which the platform is proven with"
+"category.noctua.settings.title" = "Settings"
+"category.noctua.settings.description" = "Choosing how this installation of Noctua behaves, one setting at a time"
 
 # --- External identifiers ---
 "external-identifier.google-chrome.title" = "Google Chrome"
