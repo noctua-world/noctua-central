@@ -6899,6 +6899,21 @@ WEAKENINGS = [
     ("local_agents", "grant_row", "a grant read back whose end is not after its beginning is refused",
      "    if valid_until_ms <= valid_from_ms {",
      "    if false && valid_until_ms <= valid_from_ms {"),
+    # **The triggers that write each row once, whose clauses are SQL.** An
+    # operator over `0005_agents.sql` itself is refused at every open by
+    # `EXPECTED`'s digest, so every test would die of the open and none of the
+    # clause. These weaken each clause after the store opened, as a process
+    # around the store could, in the first write of its kind each test makes,
+    # and only a test that drives the insert that clause alone refuses notices.
+    ("local_agents", "keep_agent", "the file refuses an agent written twice, a replace included",
+     "            .map_err(|error| said(\"beginning to keep an agent\", &error))?;",
+     "            .map_err(|error| said(\"beginning to keep an agent\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agents_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
+    ("local_agents", "keep_grant", "the file refuses a grant written twice, a replace included",
+     "            .map_err(|error| said(\"beginning to keep a grant\", &error))?;",
+     "            .map_err(|error| said(\"beginning to keep a grant\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agent_grants_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;\n        sqlx::query(\"CREATE TRIGGER main.agent_grants_are_written_once BEFORE INSERT ON agent_grants WHEN NEW.ended_at IS NULL AND EXISTS (SELECT 1 FROM agent_grants WHERE agent = NEW.agent AND scope_type = NEW.scope_type AND scope_id = NEW.scope_id AND ended_at IS NULL) BEGIN SELECT RAISE(ABORT, 'agent_grants: a grant is written once, and a scope holds one live grant'); END\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
+    ("local_agents", "end_grants", "the file refuses a second live grant on one scope, a replace included",
+     "            .map_err(|error| said(\"beginning to end grants\", &error))?;",
+     "            .map_err(|error| said(\"beginning to end grants\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agent_grants_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;\n        sqlx::query(\"CREATE TRIGGER main.agent_grants_are_written_once BEFORE INSERT ON agent_grants WHEN EXISTS (SELECT 1 FROM agent_grants WHERE grant_id = NEW.grant_id) BEGIN SELECT RAISE(ABORT, 'agent_grants: a grant is written once, and a scope holds one live grant'); END\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
     # -- what the recovery and a prune owe a unit the journal holds open ------
     ("kernel_units", "close", "a unit whose reversal the store refused is held from the pruner",
      "            crate::dispatch::lock(&shared.left_committed).insert(unit);",

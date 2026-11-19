@@ -114,6 +114,13 @@ pub const EXPECTED: &[Object<'static>] = &[
     },
     Object {
         kind: "trigger",
+        name: "agent_grants_are_written_once",
+        table: "agent_grants",
+        sql: Some("e1ec629bf59ead6ca4a2817d8eedf4f57a0e74ef6d30e0198d4dc6677b261644"),
+        since: 5,
+    },
+    Object {
+        kind: "trigger",
         name: "agent_grants_end_once",
         table: "agent_grants",
         sql: Some("da38c3580c267643b6315a55e51009216ae80de0228540532ec94d72846b91ca"),
@@ -145,6 +152,13 @@ pub const EXPECTED: &[Object<'static>] = &[
         name: "agents_are_never_edited",
         table: "agents",
         sql: Some("bec57da7bed315da87e08fad6d448b72ba42424c8b87413fe348a8cdd7a59358"),
+        since: 5,
+    },
+    Object {
+        kind: "trigger",
+        name: "agents_are_written_once",
+        table: "agents",
+        sql: Some("f25572f6c3e1e4032b6396233eb87a8fbef6be826039c09b7240ca8e5a4e5882"),
         since: 5,
     },
     Object {

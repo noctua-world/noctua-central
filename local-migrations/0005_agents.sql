@@ -9,22 +9,24 @@
 -- minter gave it, and its Crockford spelling is made from this number when it
 -- is read. A person is an opaque identifier, as every principal is.
 --
--- **No `UPDATE` and no `DELETE` undoes what a person granted.** An agent is
--- never edited and never deleted by one, so whatever names it still finds it.
--- A grant takes one `UPDATE`, its end, written once with when and by whom, and
--- nothing else of it ever changes; an ended grant stays, so whatever names it
--- still resolves. Each rule is a trigger, which holds under
+-- **What a person granted is never rewritten, and never forgotten.** An agent
+-- is written once and never edited or deleted, so whatever names it still
+-- finds it. A grant is written once and ended once, by writing when and by
+-- whom, and nothing else of it ever changes; an ended grant stays, so whatever
+-- names it still resolves. Each rule is a trigger, which holds under
 -- `trusted_schema = OFF`, and which `PRAGMA ignore_check_constraints` does not
--- switch off as it does a `CHECK`. A plain `INSERT` of an identifier the file
--- holds is the primary key's to refuse.
+-- switch off as it does a `CHECK`. **The two that refuse an insert run before
+-- SQLite resolves its conflict**, so an `INSERT OR REPLACE`, or a `REPLACE`,
+-- is refused as a plain `INSERT` is, rather than deleting the row it meets: a
+-- delete no delete trigger would see, since SQLite fires one on a replace only
+-- under `recursive_triggers`.
 --
 -- **What no trigger answers is a process running as the same user.** It can
--- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header). Nor does
--- it need to: an `INSERT OR REPLACE`, or a `REPLACE`, deletes the row it
--- conflicts with and fires no delete trigger, since SQLite fires one on a
--- replace only under `recursive_triggers`. So it rewrites an agent, brings an
--- ended grant back, or removes the live grant on a scope, and changes no
--- object the open-time check compares.
+-- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header). Through
+-- SQLite, undoing what a person granted takes that schema change first, which
+-- the open-time check refuses for as long as it stands; a trigger put back
+-- before the next open is not seen, and the file's bytes written directly need
+-- no schema change at all — no row is signed.
 --
 -- `catalog/limits.toml` says `refuse-at-limit` for both tables: they are user
 -- state, which nothing prunes, and their writer refuses a new row at the bound
@@ -39,6 +41,16 @@ CREATE TABLE agents (
     label    TEXT    NOT NULL CHECK (length(label) BETWEEN 1 AND 64),
     budget   INTEGER NOT NULL CHECK (budget > 0)
 ) STRICT;
+
+-- **An agent is written once**, refused before SQLite resolves a conflict: a
+-- plain `INSERT` of an identifier the file holds, and an `INSERT OR REPLACE`
+-- or a `REPLACE` that would delete the agent it meets and write another under
+-- its identifier.
+CREATE TRIGGER agents_are_written_once BEFORE INSERT ON agents
+WHEN EXISTS (SELECT 1 FROM agents WHERE agent = NEW.agent)
+BEGIN
+    SELECT RAISE(ABORT, 'agents: an agent is written once');
+END;
 
 CREATE TRIGGER agents_are_never_edited BEFORE UPDATE ON agents
 BEGIN
@@ -71,11 +83,27 @@ CREATE TABLE agent_grants (
 ) STRICT;
 
 -- **One live grant per agent and scope, held by the file**: a new grant on a
--- scope ends the live one in the transaction that writes it, and a plain
--- `INSERT` of a second live row on the same scope is refused whoever writes it
--- (a `REPLACE` deletes the live one instead, as the header says).
+-- scope ends the live one in the transaction that writes it, and a second live
+-- row on the same scope is refused whoever writes it and however — a plain
+-- `INSERT` by this index, and a replace, which would delete the live one to
+-- make room, by `agent_grants_are_written_once` before the index is asked.
 CREATE UNIQUE INDEX agent_grants_one_live_per_scope
     ON agent_grants (agent, scope_type, scope_id) WHERE ended_at IS NULL;
+
+-- **A grant is written once, and a scope holds one live grant**, refused
+-- before SQLite resolves a conflict: an insert of an identifier the file
+-- holds, which a replace would answer by deleting that grant and writing it
+-- again, live or ended as the insert says; and a live insert on a scope that
+-- holds a live grant, which a replace would answer by deleting the live one.
+-- The second clause names the columns and the `WHERE` of the index above.
+CREATE TRIGGER agent_grants_are_written_once BEFORE INSERT ON agent_grants
+WHEN EXISTS (SELECT 1 FROM agent_grants WHERE grant_id = NEW.grant_id)
+  OR (NEW.ended_at IS NULL AND EXISTS (SELECT 1 FROM agent_grants
+      WHERE agent = NEW.agent AND scope_type = NEW.scope_type
+        AND scope_id = NEW.scope_id AND ended_at IS NULL))
+BEGIN
+    SELECT RAISE(ABORT, 'agent_grants: a grant is written once, and a scope holds one live grant');
+END;
 
 -- Ending is the one change a grant takes: once, with both when and by whom,
 -- and with every other column as it was.

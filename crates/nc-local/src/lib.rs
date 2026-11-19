@@ -117,9 +117,10 @@
 //! their units numbered by the one minter their journals share
 //! (`nc_journal::Journal::sharing`). An image or a journal entry rewritten after
 //! the fact: the append-only triggers, which hold under `trusted_schema = OFF`;
-//! and an `UPDATE` or a `DELETE` that would edit or delete an agent, or end a
-//! grant twice, edit or delete it, by the agents' own triggers under the same
-//! pragma.
+//! and an agent written twice, edited or deleted, or a grant written twice,
+//! ended twice, edited or deleted, by the agents' own triggers under the same
+//! pragma — an `INSERT OR REPLACE` among them, refused before it deletes the
+//! row it meets.
 //! A half-written unit: one `BEGIN IMMEDIATE` transaction per commit, proved by
 //! a child process that aborts between two of its statements.
 //!
@@ -127,10 +128,9 @@
 //!
 //! **A process running as the same user.** SQLite has no roles: whoever can
 //! open the file can `DROP TRIGGER` and then `DELETE`, and can race the checks
-//! above between the check and the open. It can undo an agent or a grant with
-//! no trigger dropped: an `INSERT OR REPLACE` deletes the row it conflicts with
-//! and fires no delete trigger, which SQLite fires on a replace only under
-//! `recursive_triggers`. Nor an administrator, nor a disk read
+//! above between the check and the open. A trigger it dropped is a schema the
+//! next open refuses, and one it put back before then is not seen. Nor an
+//! administrator, nor a disk read
 //! offline without full-disk encryption — the file is not encrypted. An
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`
@@ -261,8 +261,11 @@ pub fn is_a_trigger_refusal(error: &sqlx::Error) -> bool {
 /// `SQLITE_CANTOPEN` (14) are the database not answering. Every other code —
 /// `SQLITE_CORRUPT` (11), `SQLITE_NOTADB` (26), a constraint no statement here
 /// should meet — is a file that is not what this build expects; a trigger's
-/// refusal is too, because no statement here is one a trigger this crate
-/// installed refuses. Anything that is not a database error at all — a pool
+/// refusal is too, because a trigger this crate installed refuses a statement
+/// here only for an identifier the file holds already or a second live grant
+/// on one scope, which the minter and the caller never ask of it, and any
+/// other trigger is not one it installed. Anything that is not a database
+/// error at all — a pool
 /// timeout, a worker that went away — is the database not answering.
 ///
 /// **`SQLITE_READONLY` is a file this process may not write**, which is a
@@ -281,8 +284,9 @@ pub(crate) fn said(doing: &str, error: &sqlx::Error) -> LocalError {
     }
     if is_a_trigger_refusal(error) {
         return LocalError::Unexpected(format!(
-            "{why} — a trigger refused a statement this crate writes, and no trigger the \
-             schema declares refuses one of those"
+            "{why} — a trigger refused a statement this crate writes, which the schema's own \
+             do only for an identifier the file holds already or a second live grant on one \
+             scope"
         ));
     }
     let primary = database

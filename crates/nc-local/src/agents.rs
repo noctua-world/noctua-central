@@ -15,12 +15,13 @@
 //!   grant's giver are opaque identifiers, a grant's scope is a type and an
 //!   identifier as text, and whoever opens a kernel over these rows makes the
 //!   principals and the entities of them.
-//! - **No `UPDATE` edits anything but a grant's end, and no `DELETE` removes
-//!   a row**, by the tables' own triggers, whoever runs it; a plain `INSERT`
-//!   of an identifier the file holds is refused by its primary key. A grant
-//!   that replaces the live one on its scope ends it in the transaction that
-//!   writes it, and the file's unique index refuses a plain `INSERT` of a
-//!   second live grant on one scope.
+//! - **Nothing is written twice, nothing is edited but a grant's end, and
+//!   nothing is deleted**, by the tables' own triggers, whoever writes and
+//!   however: an insert of an identifier the file holds is refused before
+//!   SQLite resolves its conflict, so an `INSERT OR REPLACE` deletes nothing.
+//!   A grant that replaces the live one on its scope ends it in the
+//!   transaction that writes it, and the file refuses a second live grant on
+//!   one scope written any other way.
 //! - **Every write is counted** through the crate's `write_exactly`, inside a
 //!   `BEGIN IMMEDIATE` that first asks that no temporary object sits on its
 //!   connection (invariant 22): a write a trigger silenced is refused, never
@@ -41,14 +42,11 @@
 //!
 //! A process running as the same user, which can drop the triggers and then
 //! edit or delete any row, or write a grant nobody gave: SQLite has no roles
-//! (the crate's header), and no row is signed. It needs no trigger dropped to
-//! undo a row either: an `INSERT OR REPLACE` deletes the row it conflicts with
-//! and fires no delete trigger, since SQLite fires one on a replace only under
-//! `recursive_triggers`, so it rewrites an agent, brings an ended grant back or
-//! removes a live one, with no object changed for the open-time check to see.
-//! Who may make an agent, grant it or end its grants is not this crate's to
-//! decide either: it keeps what it is handed, and refuses only what the file
-//! could never hold.
+//! (the crate's header), and no row is signed. A trigger dropped is a schema
+//! the open-time check refuses for as long as it stands; one put back before
+//! the next open is not seen. Who may make an agent, grant it or end its
+//! grants is not this crate's to decide either: it keeps what it is handed,
+//! and refuses only what the file could never hold.
 
 use nc_ids::{OpaqueId, Snowflake};
 use sqlx::Row as _;
@@ -676,8 +674,8 @@ mod tests {
         store.close().await;
     }
 
-    /// A grant is ended once, with when and by whom, by an update that changes
-    /// nothing else of it, and no update or plain insert edits an agent.
+    /// A grant is ended once, with when and by whom, and nothing else of it
+    /// changes; an agent is never edited, and neither is written again.
     #[tokio::test]
     async fn a_grant_is_ended_once_and_nothing_else_of_it_changes() {
         let (store, agents) = agents().await;
@@ -745,8 +743,9 @@ mod tests {
                 .expect_err("the file refuses it");
             assert!(a_trigger_refused(&refused, says), "{statement}: {refused}");
         }
-        // A plain insert of an identifier the file holds is the primary key's
-        // to refuse: the agent is not rewritten, the ended grant not revived.
+        // A plain insert of an identifier the file holds meets the trigger
+        // that writes each row once, before the primary key is asked: the
+        // agent is not rewritten, the ended grant not revived.
         for statement in [
             "INSERT INTO main.agents VALUES (1, 'home', 'mallory', 'helper', 99999)",
             "INSERT INTO main.agent_grants (grant_id, agent, realm, scope_type, scope_id, \
@@ -757,7 +756,7 @@ mod tests {
                 .await
                 .expect_err("the file refuses it");
             assert!(
-                refused.to_string().contains("UNIQUE constraint failed"),
+                a_trigger_refused(&refused, "is written once"),
                 "{statement}: {refused}"
             );
         }
@@ -860,7 +859,13 @@ mod tests {
             panic!("not the file's refusal: {refused:?}");
         };
         assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
-        assert!(error.to_string().contains("UNIQUE"), "{error}");
+        assert!(
+            error.to_string().contains(
+                "keeping a grant: agent_grants: a grant is written once, and a scope holds one \
+                 live grant"
+            ),
+            "{error}"
+        );
         assert_eq!(everything_in(&store).await, before);
 
         // Another scope, and another agent's same scope, are other grants.
@@ -881,6 +886,128 @@ mod tests {
             .keep_grant(&grant(14, 1, "home", "naming", 4_000), None)
             .await
             .expect("after the end");
+        store.close().await;
+    }
+
+    /// A replace of an agent, of an ended grant or on a live grant's scope is
+    /// refused by the file, and every row stays as it was.
+    ///
+    /// An `INSERT OR REPLACE`, or a `REPLACE`, that met the row it conflicts
+    /// with would delete it and fire no delete trigger, so each of these would
+    /// rewrite the agent, bring the ended grant back, end the live one in
+    /// somebody else's name, or remove it. The triggers that write each row
+    /// once refuse them before SQLite resolves the conflict, and the store's
+    /// own writes still land after: a grant on a scope whose grant ended, and
+    /// one that ends the live grant on its scope in the transaction that
+    /// writes it.
+    #[tokio::test]
+    async fn a_replace_of_an_agent_an_ended_grant_or_a_live_grants_scope_is_refused_by_the_file() {
+        let (store, agents) = agents().await;
+        agents
+            .keep_agent(&agent(1, "home", "ana"))
+            .await
+            .expect("kept");
+        for n in [10, 11] {
+            agents
+                .keep_grant(&grant(n, 1, "home", &format!("feature{n}"), 1_000), None)
+                .await
+                .expect("kept");
+        }
+        agents
+            .end_grants(&[minted(10)], 2_000, &id("ana"))
+            .await
+            .expect("ended");
+        let before = everything_in(&store).await;
+        let (agent_once, grant_once) = (
+            "agents: an agent is written once",
+            "agent_grants: a grant is written once, and a scope holds one live grant",
+        );
+        for (statement, says) in [
+            (
+                "INSERT OR REPLACE INTO main.agents VALUES (1, 'home', 'mallory', 'helper', 99999)",
+                agent_once,
+            ),
+            (
+                "REPLACE INTO main.agents VALUES (1, 'home', 'mallory', 'helper', 99999)",
+                agent_once,
+            ),
+            // The ended grant, live again with a later end: its scope holds
+            // no live grant, so only its identifier refuses it.
+            (
+                "INSERT OR REPLACE INTO main.agent_grants (grant_id, agent, realm, scope_type, \
+                 scope_id, granted_by, reason, valid_from, valid_until) \
+                 VALUES (10, 1, 'home', 'Feature', 'feature10', 'ana', 'again', 1000, 99999999)",
+                grant_once,
+            ),
+            (
+                "REPLACE INTO main.agent_grants (grant_id, agent, realm, scope_type, scope_id, \
+                 granted_by, reason, valid_from, valid_until) \
+                 VALUES (10, 1, 'home', 'Feature', 'feature10', 'ana', 'again', 1000, 99999999)",
+                grant_once,
+            ),
+            // The live grant, written again as ended by somebody who never
+            // ended it: not live, so only its identifier refuses it.
+            (
+                "INSERT OR REPLACE INTO main.agent_grants \
+                 VALUES (11, 1, 'home', 'Feature', 'feature11', 'ana', 'grant 11', 1000, 61000, \
+                 1500, 'mallory')",
+                grant_once,
+            ),
+            (
+                "REPLACE INTO main.agent_grants \
+                 VALUES (11, 1, 'home', 'Feature', 'feature11', 'ana', 'grant 11', 1000, 61000, \
+                 1500, 'mallory')",
+                grant_once,
+            ),
+            // A new identifier on the live grant's scope, which the index
+            // would answer by deleting the live grant: only the scope refuses it.
+            (
+                "INSERT OR REPLACE INTO main.agent_grants (grant_id, agent, realm, scope_type, \
+                 scope_id, granted_by, reason, valid_from, valid_until) \
+                 VALUES (12, 1, 'home', 'Feature', 'feature11', 'mallory', 'mine', 1000, 99999999)",
+                grant_once,
+            ),
+            (
+                "REPLACE INTO main.agent_grants (grant_id, agent, realm, scope_type, scope_id, \
+                 granted_by, reason, valid_from, valid_until) \
+                 VALUES (12, 1, 'home', 'Feature', 'feature11', 'mallory', 'mine', 1000, 99999999)",
+                grant_once,
+            ),
+        ] {
+            let refused = tamper(&store, statement)
+                .await
+                .expect_err("the file refuses it");
+            assert!(a_trigger_refused(&refused, says), "{statement}: {refused}");
+            assert_eq!(everything_in(&store).await, before, "{statement}");
+        }
+
+        // The store's own writes, through the same triggers.
+        agents
+            .keep_agent(&agent(2, "home", "ana"))
+            .await
+            .expect("another agent");
+        agents
+            .keep_grant(&grant(13, 1, "home", "feature10", 3_000), None)
+            .await
+            .expect("a scope whose grant ended takes a live one");
+        agents
+            .keep_grant(
+                &grant(14, 1, "home", "feature11", 3_000),
+                Some((minted(11), 3_000, &id("ana"))),
+            )
+            .await
+            .expect("a grant that ends the live one in its own transaction");
+        assert_eq!(
+            agents
+                .kept(&id("home"))
+                .await
+                .expect("read")
+                .live
+                .iter()
+                .map(|live| live.grant)
+                .collect::<Vec<_>>(),
+            vec![minted(13), minted(14)]
+        );
         store.close().await;
     }
 

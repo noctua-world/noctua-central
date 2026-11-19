@@ -2509,7 +2509,7 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 5] = [
     ),
     (
         "0005_agents.sql",
-        "dbd8daa3a49148ba88dc20a68f7edacf22aad1018e23edff1b9135dcda506593ccf9d9f919d79ac5576acf5ed624dc05",
+        "584b640bf249ecac8803b7725aa0a8860cb7666d3fa972c80f4bab5cf3ab618f17c067a13fa74b73b915f90c093fc2c5",
     ),
 ];
 
@@ -19720,7 +19720,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
-        ("nc-local/agents.rs", 37, 11),
+        ("nc-local/agents.rs", 38, 11),
         ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
@@ -25730,7 +25730,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20679;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20681;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25800,7 +25800,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27456;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27461;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25854,7 +25854,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,456 are accepted by the first-line
+    /// rules the gates apply: **516 of 27,461 are accepted by the first-line
     /// rule alone, and 276 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37889,7 +37889,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2589] = [
+    static OPERATORS: [(&str, &str, &str); 2592] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46206,6 +46206,21 @@ Options:
             "local_agents",
             "grant_row",
             "a grant read back whose end is not after its beginning is refused",
+        ),
+        (
+            "local_agents",
+            "keep_agent",
+            "the file refuses an agent written twice, a replace included",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "the file refuses a grant written twice, a replace included",
+        ),
+        (
+            "local_agents",
+            "end_grants",
+            "the file refuses a second live grant on one scope, a replace included",
         ),
         (
             "kernel_units",
