@@ -841,7 +841,9 @@ mod tests {
     ) -> HostState<InMemory> {
         let now_ms = nc_ids::Clock::now_ms(&nc_ids::SystemClock);
         let tree = std::sync::Arc::new(std::sync::Mutex::new(crate::dispatch::CallTree::new(
-            ana, now_ms,
+            crate::session::Acting::Itself(ana),
+            0,
+            now_ms,
         )));
         let mut state = HostState::in_memory(GrantSet::of([granted]));
         state.enter(

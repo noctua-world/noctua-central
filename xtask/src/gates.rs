@@ -8488,6 +8488,199 @@ mod tests {
         );
     }
 
+    /// Where `manifest` turns a crate's test doors on in a build that ships,
+    /// each said as the table and the line that do.
+    ///
+    /// A dependency taken outside the tests with `features` naming the doors —
+    /// in `[dependencies]`, `[build-dependencies]`, a target's, or the
+    /// workspace's own, which every member inheriting it takes — and any
+    /// feature but the doors' own that turns them on: `default`, or another
+    /// that names them, its own or a dependency's. A crate's own
+    /// `test-support` may turn its dependencies' on, since only a test asks
+    /// for it.
+    fn doors_left_open(manifest: &toml::Value) -> Vec<String> {
+        let door = super::DOORS_ARE_BEHIND;
+        let mut tables: Vec<(String, &toml::Value)> = Vec::new();
+        for kind in ["dependencies", "build-dependencies"] {
+            if let Some(table) = manifest.get(kind) {
+                tables.push((kind.to_owned(), table));
+            }
+            if let Some(table) = manifest.get("workspace").and_then(|it| it.get(kind)) {
+                tables.push((format!("workspace.{kind}"), table));
+            }
+            for (target, holds) in manifest
+                .get("target")
+                .and_then(toml::Value::as_table)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(table) = holds.get(kind) {
+                    tables.push((format!("target.{target}.{kind}"), table));
+                }
+            }
+        }
+        let mut open = Vec::new();
+        for (table, held) in tables {
+            for (name, dependency) in held.as_table().into_iter().flatten() {
+                let features = dependency.get("features").and_then(toml::Value::as_array);
+                if features
+                    .into_iter()
+                    .flatten()
+                    .any(|feature| feature.as_str() == Some(door))
+                {
+                    open.push(format!("[{table}] {name}"));
+                }
+            }
+        }
+        for (feature, enables) in manifest
+            .get("features")
+            .and_then(toml::Value::as_table)
+            .into_iter()
+            .flatten()
+            .filter(|(feature, _)| feature.as_str() != door)
+        {
+            for enabled in enables
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(toml::Value::as_str)
+            {
+                let turned_on = enabled == door
+                    || enabled
+                        .rsplit_once('/')
+                        .is_some_and(|(_, what)| what == door);
+                if turned_on {
+                    open.push(format!("[features] {feature} = {enabled:?}"));
+                }
+            }
+        }
+        open
+    }
+
+    /// The root manifest and every member's, read from every member tree.
+    fn every_manifest(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut manifests = vec![root.join("Cargo.toml")];
+        for tree in crate::members::trees_of_members() {
+            for entry in std::fs::read_dir(root.join(tree))
+                .expect("a member tree")
+                .flatten()
+            {
+                if entry.path().join("Cargo.toml").is_file() {
+                    manifests.push(entry.path().join("Cargo.toml"));
+                }
+            }
+        }
+        for tree in crate::members::trees_that_are_members() {
+            manifests.push(root.join(tree).join("Cargo.toml"));
+        }
+        manifests
+    }
+
+    /// No member turns a crate's test doors on outside its tests.
+    ///
+    /// **A door is shut by a feature only a dev-dependency asks for**, and
+    /// `resolver = "3"` keeps a dev-dependency's features out of what ships;
+    /// nothing else holds the "only". A `[dependencies]` line naming
+    /// `test-support`, a `default` naming it, or another feature pulling it in
+    /// would link every door into the daemon — the confirmations and approvals
+    /// a suite issues, the chain an agent acts through — with every other gate
+    /// green. Read from the root manifest and every member tree, and each
+    /// refusal shown on the daemon's own manifest with one line changed.
+    #[test]
+    fn no_member_turns_a_test_door_on_outside_its_tests() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let parsed = |text: &str| toml::from_str::<toml::Value>(text).expect("a manifest is TOML");
+        let manifests = every_manifest(root);
+        let mut open = Vec::new();
+        for manifest in &manifests {
+            let text = std::fs::read_to_string(manifest).expect("a manifest reads");
+            for place in doors_left_open(&parsed(&text)) {
+                open.push(format!("{}: {place}", crate::relative_to(root, manifest)));
+            }
+        }
+        assert_eq!(
+            open,
+            Vec::<String>::new(),
+            "a test door is turned on outside the tests"
+        );
+        let read: Vec<String> = manifests
+            .iter()
+            .filter_map(|manifest| manifest.parent())
+            .map(|directory| crate::relative_to(root, directory))
+            .collect();
+        let shut = super::the_crates_that_shut_their_doors(root);
+        assert!(!shut.is_empty(), "no crate was read as shutting its doors");
+        for whose in shut {
+            assert!(
+                read.contains(&whose),
+                "`{whose}` shuts its doors and its manifest was not read: {read:?}"
+            );
+        }
+
+        let daemon =
+            std::fs::read_to_string(root.join("apps/daemon/Cargo.toml")).expect("a manifest");
+        assert_eq!(
+            doors_left_open(&parsed(&daemon)),
+            Vec::<String>::new(),
+            "the control: the daemon turns on its dependency's doors only under its own"
+        );
+        let turned = |from: &str, to: &str| {
+            assert_eq!(daemon.matches(from).count(), 1, "{from}");
+            doors_left_open(&parsed(&daemon.replacen(from, to, 1)))
+        };
+        let kernel = "\nnc-kernel.workspace = true\n";
+        for (to, said) in [
+            (
+                "\nnc-kernel = { workspace = true, features = [\"test-support\"] }\n",
+                "[dependencies] nc-kernel",
+            ),
+            (
+                "\nnc-kernel.workspace = true\n\n[build-dependencies]\nnc-kernel = { workspace \
+                 = true, features = [\"test-support\"] }\n",
+                "[build-dependencies] nc-kernel",
+            ),
+            (
+                "\nnc-kernel.workspace = true\n\n[target.'cfg(unix)'.dependencies]\nnc-ids = { \
+                 workspace = true, features = [\"test-support\"] }\n",
+                "[target.cfg(unix).dependencies] nc-ids",
+            ),
+        ] {
+            assert_eq!(turned(kernel, to), [said.to_owned()], "{to}");
+        }
+        let features = "test-support = [\"nc-platform/test-support\"]\n";
+        for (to, said) in [
+            (
+                "test-support = [\"nc-platform/test-support\"]\ndefault = [\"test-support\"]\n",
+                "[features] default = \"test-support\"",
+            ),
+            (
+                "test-support = [\"nc-platform/test-support\"]\ndefault = [\"nc-kernel/test-support\"]\n",
+                "[features] default = \"nc-kernel/test-support\"",
+            ),
+            (
+                "test-support = [\"nc-platform/test-support\"]\nquick = [\"nc-kernel?/test-support\"]\n",
+                "[features] quick = \"nc-kernel?/test-support\"",
+            ),
+        ] {
+            assert_eq!(turned(features, to), [said.to_owned()], "{to}");
+        }
+        let workspace = std::fs::read_to_string(root.join("Cargo.toml")).expect("the root");
+        let named = "nc-kernel = { path = \"crates/nc-kernel\" }";
+        assert_eq!(
+            workspace.matches(named).count(),
+            1,
+            "the root names the kernel"
+        );
+        assert_eq!(
+            doors_left_open(&parsed(&workspace.replacen(
+                named,
+                "nc-kernel = { path = \"crates/nc-kernel\", features = [\"test-support\"] }",
+                1
+            ))),
+            ["[workspace.dependencies] nc-kernel".to_owned()]
+        );
+    }
+
     /// `[workspace.lints]` declares the lints written down here.
     ///
     /// **The contents, pinned.** The gate beside this one checks that every

@@ -177,7 +177,8 @@ mod tests {
         }
         let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
         let tree = Arc::new(Mutex::new(CallTree::new(
-            ana,
+            crate::session::Acting::Itself(ana),
+            0,
             nc_ids::Clock::now_ms(&nc_ids::SystemClock),
         )));
         let mut state = HostState::in_memory(GrantSet::of([Capability::Ui]));

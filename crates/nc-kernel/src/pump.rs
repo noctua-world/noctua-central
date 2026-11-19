@@ -58,6 +58,7 @@ use nc_ids::Clock as _;
 
 use crate::dispatch::{self, Authority, Call, CallTree, Cause, Frame, lock};
 use crate::history::Held;
+use crate::session::Acting;
 use crate::supervisor::{self, Kill};
 use crate::{Environment, PluginSlot, Shared, units};
 
@@ -244,11 +245,12 @@ pub(crate) fn code_of(why: &str) -> ErrorCode {
         .unwrap_or(ErrorCode::DbPruneRefused)
 }
 
-/// A call tree for `principal`, begun now, which a callback runs in and a
-/// refusal to run one is journaled in.
+/// A call tree for `principal` acting as itself, begun now, which a callback
+/// runs in and a refusal to run one is journaled in.
 fn tree_for<E: Environment>(shared: &Shared<E>, principal: &Principal) -> Arc<Mutex<CallTree>> {
     Arc::new(Mutex::new(CallTree::new(
-        principal.clone(),
+        Acting::Itself(principal.clone()),
+        0,
         shared.clock.now_ms(),
     )))
 }

@@ -580,7 +580,8 @@ manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 bytes of its blobs are, `blobs.rs`, the
 registry its commands are judged into, `registry.rs`, what it says of them,
 read from its directory, `entries.rs`, the decision point every
-command goes through, `dispatch.rs`, the units of work its writes are kept in,
+command goes through, `dispatch.rs`, who a call tree acts as, `session.rs`,
+the units of work its writes are kept in,
 `units.rs`, where its events go, `logging.rs`, what becomes of a plugin
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,

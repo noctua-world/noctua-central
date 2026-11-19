@@ -16,8 +16,11 @@
 //! what it declares into the [`registry`], or refuses it naming every problem.
 //!
 //! **[`Kernel::dispatch`] is the one door to every command**, a plugin's or the
-//! kernel's own, and `commands.dispatch` is the same door from inside a
-//! command: the decision point authorizes it with Cedar before anything runs,
+//! kernel's own, asked by a [`Caller`] acting as itself or by an agent's
+//! [`Session`], which [`Kernel::session`] opens for the person who made the
+//! agent — and `commands.dispatch` is the same door from inside a command: the
+//! decision point authorizes it with Cedar before anything runs, an agent's on
+//! every link of its chain,
 //! journals it, and runs a command that changes state inside a unit of work
 //! whose writes are kept whole or not at all. A plugin that traps, spins,
 //! burns its fuel, outgrows its memory or waits on a host call past its
@@ -59,10 +62,12 @@
 //! function runs for a plugin that was not granted its capability, which it
 //! learns as a refusal it can read rather than as a crash; a command a plugin
 //! declares is registered only when it can be authorized, in a namespace that
-//! plugin alone holds; and no command runs before it is authorized and every
-//! one is journaled before its answer is returned, with what it changed never
-//! surviving a journal that did not take it, nor a process stopped before the
-//! journal took its close — but for the cases `crate::units` names as not
+//! plugin alone holds; an agent is allowed only what it and every one it acts
+//! for are allowed, each asked at the moment of the decision, and redeems no
+//! confirmation and no approval; and no command runs before it is authorized
+//! and every one is journaled before its answer is returned, with what it
+//! changed never surviving a journal that did not take it, nor a process
+//! stopped before the journal took its close — but for the cases `crate::units` names as not
 //! answered, a unit opened past an entry of the journal the recovery cannot
 //! read among them; a plugin that crashes, hangs or
 //! exhausts its budget is stopped without harm to any other, each in a store
@@ -99,6 +104,7 @@ pub mod manifest;
 pub mod net;
 mod pump;
 pub mod registry;
+mod session;
 mod settings;
 mod supervisor;
 mod timers;
@@ -106,9 +112,10 @@ mod ui;
 mod units;
 pub mod world;
 
-pub use dispatch::{Approval, Caller, Confirmation, Refusal, RefusalKind};
+pub use dispatch::{Approval, Asker, Caller, Confirmation, Refusal, RefusalKind};
 pub use host::log::{LogLevel, LogLine, PluginLog};
 pub use pump::Pumped;
+pub use session::Session;
 pub use settings::Settings;
 pub use supervisor::{Kill, PluginStatus};
 pub use ui::{Surface, SurfaceKind};
@@ -369,8 +376,13 @@ impl<E: Environment> Kernel<E> {
         settings::read(&*self.shared.store, &self.shared.realm).await
     }
 
-    /// Dispatches the command `name` with `args` for `caller`, as the top of a
+    /// Dispatches the command `name` with `args` for `asker`, as the top of a
     /// call tree, and answers its result.
+    ///
+    /// **A [`Caller`] acts as itself, and a [`Session`] as its agent for
+    /// whom its chain names**: every decision of the tree is asked once for
+    /// each, and its entries name the agent and, in their actor chain, its
+    /// person.
     ///
     /// Through the decision point, every step of it in order (see the module
     /// `dispatch`'s header): nothing runs unless it is authorized, everything
@@ -391,13 +403,35 @@ impl<E: Environment> Kernel<E> {
     /// point refused and why, what the command's plugin answered with when it
     /// refused, trapped or answered what is not a payload, and what the store or
     /// the journal refused when the unit was closed.
-    pub async fn dispatch(
+    pub async fn dispatch<'a>(
         &self,
-        caller: &Caller,
+        asker: impl Into<Asker<'a>>,
         name: &str,
         args: &str,
     ) -> Result<String, Refusal> {
-        dispatch::detached(&self.shared, caller, name, args).await
+        dispatch::detached(&self.shared, asker.into(), name, args).await
+    }
+
+    /// Opens the session of the agent `agent` names, for `person`: one agent
+    /// acting for the person who made it, which [`Kernel::dispatch`] takes.
+    ///
+    /// **The agent and the person it acts for are the directory's answer**,
+    /// asked here once, and never the caller's: the session's chain is written
+    /// from it, and nothing a caller says adds a link. It is not journaled,
+    /// since it dispatches nothing; its first dispatch is.
+    ///
+    /// # Errors
+    ///
+    /// A [`Refusal`]: `unavailable` with `[NC-POL-0006]` when the directory does
+    /// not answer in a host call's time; and `not-found` with `[NC-AI-0001]`,
+    /// in one sentence, when no agent `person` made is held under `agent` —
+    /// none is, it acts for another person, or it acts for no person.
+    pub async fn session(
+        &self,
+        agent: &nc_authz::EntityRef,
+        person: &nc_authz::Principal,
+    ) -> Result<Session, Refusal> {
+        session::opened(&self.shared, agent, person).await
     }
 
     /// Loads the plugin `manifest` describes from `component`'s bytes.

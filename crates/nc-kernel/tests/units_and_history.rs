@@ -4444,3 +4444,110 @@ async fn a_compensation_a_packs_rule_holds_to_a_quorum_is_registered_and_decided
         Some(kept_as("shared back"))
     );
 }
+
+/// The world, with `ana`'s account suspended.
+fn ana_suspended() -> String {
+    let mut world: serde_json::Value = serde_json::from_str(WORLD).expect("the world is JSON");
+    let ana = world
+        .as_array_mut()
+        .expect("a list of entities")
+        .iter_mut()
+        .find(|entity| entity["uid"] == serde_json::json!({"type": "User", "id": "ana"}))
+        .expect("the world holds ana");
+    ana["attrs"]["status"] = serde_json::Value::from("suspended");
+    world.to_string()
+}
+
+/// An operator frozen mid-session freezes their agent at its next call.
+///
+/// **The operator's half is the directory's at every call**: ana's assistant
+/// has a name proposed in its session; the directory then holds ana
+/// suspended, and the session's next call is refused on her half by
+/// `family.a_frozen_account_acts_on_nothing` — the session opened while she
+/// was active held nothing of it.
+#[tokio::test]
+async fn an_operator_frozen_mid_session_freezes_their_agent_at_its_next_call() {
+    let pack = family();
+    let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
+    let assistant = EntityRef {
+        type_name: "Agent".to_owned(),
+        id: "ana-assistant".to_owned(),
+    };
+    let with_the_assistant = |text: &str| {
+        directory_over(text, &pack)
+            .with_grant("home", assistant.clone(), "g.current")
+            .expect("the realm holds the grant")
+    };
+    let shift = Arc::new(AtomicBool::new(false));
+    let clock = Still::new();
+    let kernel: Kernel<Env> = Kernel::open(KernelConfig {
+        store: in_memory().await,
+        blobs: Arc::new(MemoryBlobs::default()),
+        pdp: Ok(family()),
+        journal: nc_journal::Journal::new(
+            nc_journal::InMemory::default(),
+            world.realm_id("home").expect("home is a realm"),
+            the_keeper(),
+            Minter::new(MachineFlake::from_value(5).expect("a flake"), clock.clone()),
+        ),
+        directory: Shifting {
+            written: with_the_assistant(WORLD),
+            shifted: with_the_assistant(&ana_suspended()),
+            shift: Arc::clone(&shift),
+        },
+        clock,
+        log: Arc::new(Captured::default()),
+        transport: nc_kernel::net::Scripted::default(),
+    })
+    .await
+    .expect("the kernel opens");
+    let ana = world
+        .principal(PrincipalKind::User, "ana")
+        .expect("ana is a user");
+    let session = kernel
+        .session(&assistant, &ana)
+        .await
+        .expect("ana's assistant acts for her");
+    let propose = ("naming.propose", r#"{"title":"t"}"#);
+    kernel
+        .dispatch(&session, propose.0, propose.1)
+        .await
+        .expect("while ana is active");
+    shift.store(true, Ordering::SeqCst);
+    let refused = kernel.dispatch(&session, propose.0, propose.1).await;
+    assert!(
+        matches!(&refused, Err(refusal) if refusal.code() == ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    let decided: Vec<(&str, Vec<&str>, Option<&str>)> = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.record.principal.as_str(),
+                entry
+                    .record
+                    .actor_chain
+                    .iter()
+                    .map(OpaqueId::as_str)
+                    .collect(),
+                entry.record.deciding_policy.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            (
+                "ana-assistant",
+                vec!["ana"],
+                Some("family.an_agent_names_files;family.a_member_names_files")
+            ),
+            (
+                "ana-assistant",
+                vec!["ana"],
+                Some("family.an_agent_names_files;family.a_frozen_account_acts_on_nothing")
+            ),
+        ]
+    );
+}
