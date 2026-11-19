@@ -1025,7 +1025,7 @@ mod tests {
     };
     use crate::{
         Directory as _, DirectoryError, EntityRef, Facts, MemoryDirectory, Pdp, Principal,
-        PrincipalKind, Question, sentinel,
+        PrincipalKind, Question,
     };
 
     /// The entities every policy case is about.
@@ -2041,7 +2041,7 @@ mod tests {
             decided(&pdp, &directory, &agent(anas), &naming, 0)
                 .await
                 .deciding,
-            sentinel::NO_PERMIT_MATCHED,
+            "family.an_agent_names_files",
             "and decides without an error where it does not fire"
         );
         // The control: the world's agent, its operator left out of the slice,
@@ -2090,13 +2090,14 @@ mod tests {
             .await
             .expect("granted");
         let naming = entity("Feature", "naming");
-        // No permit names an agent on the feature, so what decides is which
-        // rule refuses first: none while budget remains, the budget's after.
+        // The agent's own permit names the feature, so what decides is
+        // whether budget remains: the permit while it does, the budget's rule
+        // after.
         assert_eq!(
             decided(&pdp, &directory, &agent(made), &naming, 2)
                 .await
                 .deciding,
-            sentinel::NO_PERMIT_MATCHED
+            "family.an_agent_names_files"
         );
         assert_eq!(
             decided(&pdp, &directory, &agent(made), &naming, 3)

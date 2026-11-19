@@ -61,8 +61,8 @@ permit (
 // (`core.an_agent_never_impersonates`), one with nothing left to spend
 // (`core.budget_is_a_permission`), one too far down a chain
 // (`core.chain_depth_is_bounded`) and one its person granted nothing on this
-// feature (`core.provenance`), here as for every request. Nothing reads
-// `autonomy`, which no rule gives a meaning.
+// feature (`core.provenance`), here as for every request. No attribute of the
+// agent is read: what it may do is its permits and its grants.
 @id("family.an_agent_names_files")
 permit (
   principal is Agent,
