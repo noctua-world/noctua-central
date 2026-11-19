@@ -1587,8 +1587,8 @@ mod tests {
         let keeper = Recording::default();
         let directory = local(&pdp, keeper.clone(), ROOMY);
         let ana = principal(&pdp, PrincipalKind::User, "ana");
-        let [made, grant] = mint(2)[..] else {
-            unreachable!("two were minted")
+        let [made, grant, accented] = mint(3)[..] else {
+            unreachable!("three were minted")
         };
         make(&directory, made, &ana).await.expect("made");
         let regranted = |until_ms: u64, scope: EntityRef, reason: String| Change::Grant {
@@ -1631,6 +1631,10 @@ mod tests {
                 regranted(NOW + HOUR, naming.clone(), "a".repeat(257)),
             ),
             (
+                "a reason past its bound in characters of two bytes",
+                regranted(NOW + HOUR, naming.clone(), "ç".repeat(257)),
+            ),
+            (
                 "a reason a reader cannot see",
                 regranted(NOW + HOUR, naming.clone(), "\u{200b}".to_owned()),
             ),
@@ -1656,10 +1660,22 @@ mod tests {
             Ok(None)
         );
         assert_eq!(keeper.kept().len(), 1, "the agent alone was kept");
-        // The control: a minute's grant whose reason is at its bound is held.
+        // The controls: a minute's grant whose reason is at its bound is held,
+        // and so is one whose reason is as many characters of two bytes each.
         let at_the_bound = regranted(NOW + 1, naming.clone(), "a".repeat(256));
         assert_eq!(directory.rehearse("home", &at_the_bound).await, Ok(()));
         assert_eq!(directory.change("home", &at_the_bound).await, Ok(()));
+        let in_characters = Change::Grant {
+            grant: accented,
+            agent: made.to_crockford(),
+            scope: naming,
+            by: ana,
+            reason: "ç".repeat(256),
+            from_ms: NOW,
+            until_ms: NOW + 1,
+        };
+        assert_eq!(directory.rehearse("home", &in_characters).await, Ok(()));
+        assert_eq!(directory.change("home", &in_characters).await, Ok(()));
     }
 
     #[tokio::test]
@@ -1669,8 +1685,8 @@ mod tests {
         let keeper = Recording::default();
         let directory = local(&pdp, keeper.clone(), ROOMY);
         let ana = principal(&pdp, PrincipalKind::User, "ana");
-        let [made, other] = mint(2)[..] else {
-            unreachable!("two were minted")
+        let [made, other, accented] = mint(3)[..] else {
+            unreachable!("three were minted")
         };
         make(&directory, made, &ana).await.expect("made");
         let making = |label: &str, budget: u32| Change::Make {
@@ -1714,6 +1730,17 @@ mod tests {
             directory.change("home", &making(&"a".repeat(64), 1)).await,
             Ok(()),
             "the control: a label at its bound and a budget of one"
+        );
+        let in_characters = Change::Make {
+            agent: accented,
+            operator: ana,
+            label: "ç".repeat(64),
+            budget: 1,
+        };
+        assert_eq!(
+            directory.change("home", &in_characters).await,
+            Ok(()),
+            "the control: a label at its bound in characters of two bytes"
         );
     }
 
@@ -2191,8 +2218,21 @@ mod tests {
     #[tokio::test]
     async fn a_directory_opened_from_what_was_kept_answers_as_the_one_that_kept_it() {
         let pdp = family();
-        let (directory, kept, [anas, carlas, elsewhere]) = kept_by_two(&pdp).await;
+        let (directory, mut kept, [anas, carlas, elsewhere]) = kept_by_two(&pdp).await;
         let home = world(&pdp).realm_id("home").expect("home");
+        // A grant of another realm is that realm's, even one naming an agent
+        // this realm holds: it counts, and is never held here.
+        kept.live.push(GrantRecord {
+            grant: mint(1)[0],
+            agent: anas,
+            realm: OpaqueId::new("office").expect("an identifier"),
+            scope: entity("Feature", "registry"),
+            granted_by: OpaqueId::new("ana").expect("an identifier"),
+            reason: "to keep the office's registry".to_owned(),
+            valid_from_ms: NOW,
+            valid_until_ms: NOW + HOUR,
+        });
+        kept.grants_kept += 1;
         let reopened = LocalDirectory::open(
             home.clone(),
             world(&pdp),
@@ -2220,6 +2260,13 @@ mod tests {
                 directory.delegation("home", &agent(made)).await
             );
         }
+        assert_eq!(
+            reopened
+                .grant("home", &agent(anas), &entity("Feature", "registry"))
+                .await,
+            Ok(None),
+            "another realm's grant is not held"
+        );
         for realm in ["home", "office"] {
             assert_eq!(
                 reopened.delegation(realm, &agent(elsewhere)).await,
