@@ -36,7 +36,10 @@
 //! asking past its tree's count of dispatches is told the count is spent, and
 //! trapped rather than told again when it asks on.
 //! Undo and redo run only at the top of a tree, and are refused nested in
-//! another command (`crate::history`). **A callback the pump calls is a tree
+//! another command (`crate::history`); so does a command of the kernel's own
+//! that switches a setting (`crate::registry::only_at_the_top`), refused with
+//! `[NC-KERN-0025]` and journaled under the same sentinel, so no plugin, timer
+//! or event run as a person switches what may act for them. **A callback the pump calls is a tree
 //! of its own** — a timer fired or an event heard, for the principal it was
 //! set or published for — whose frame is beneath every command it dispatches:
 //! each is nested, never confirmed, and beneath an event's callback, which only
@@ -1337,8 +1340,8 @@ async fn asked<E: Environment>(
 }
 
 /// Steps two to four: a name in the shape of one, a command the registry
-/// holds, and a frame it may run under — undo and redo at the top of a tree
-/// only.
+/// holds, and a frame it may run under — undo, redo and a setting's switch at
+/// the top of a tree only.
 fn registered<E: Environment>(
     shared: &Shared<E>,
     tree: &Arc<Mutex<CallTree>>,
@@ -1376,6 +1379,24 @@ fn registered<E: Environment>(
             format!(
                 "`{name}` runs only at the top of a call tree, and it was dispatched from inside \
                  a command"
+            ),
+        );
+        return Err(Box::new(Turned::of(
+            &command,
+            refusal,
+            Reason::TopLevelOnly,
+            resource_of(name, None, None),
+            Reason::TopLevelOnly.sentinel().to_owned(),
+            None,
+        )));
+    }
+    if depth > 0 && crate::registry::only_at_the_top(command.listed()) {
+        let refusal = Refusal::new(
+            RefusalKind::Denied,
+            ErrorCode::KernelOnlyAtTheTop,
+            format!(
+                "`{name}` switches a setting, which only a person's own call may do, and it was \
+                 dispatched from inside a command"
             ),
         );
         return Err(Box::new(Turned::of(
@@ -2296,8 +2317,9 @@ const QUOTED: usize = 256;
 
 /// Runs a command the kernel itself implements, in the tree's own unit:
 /// verifying the journal, pruning the local tables, the history's undo and
-/// redo, proposing and reading a file's name (`crate::builtin`), and finding
-/// a command (`crate::find`).
+/// redo, proposing and reading a file's name (`crate::builtin`), finding a
+/// command (`crate::find`), and reading and switching a setting
+/// (`crate::settings`).
 ///
 /// **A command the registry gives the kernel has a handler**, which
 /// `crate::builtin`'s test holds both ways; one without would be answered as
@@ -2326,6 +2348,8 @@ async fn builtin<E: Environment>(
             let listed = shared.plugins().registry.listed();
             crate::find::found(&listed, &asked.json)
         }
+        Some(Builtin::McpRead) => crate::settings::mcp_read(shared).await,
+        Some(Builtin::McpSet) => crate::settings::mcp_set(shared, tree, &asked.json).await,
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

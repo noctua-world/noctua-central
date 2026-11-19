@@ -141,7 +141,8 @@ const A_NOTE_AND_TEXT: &[&str] = &["--note", NOTE, "--text", "written"];
 /// Every command the daemon's registry holds, in the order each is run.
 ///
 /// **Held both ways to the registry** (`the_table_is_the_registry`).
-/// **Undo and redo after the write they step through**; and **the abuses
+/// **Undo and redo after the write they step through**, and the setting's
+/// switch after them, so the step they find is the note's; and **the abuses
 /// last**, after the two commands that trap once they have written: a plugin
 /// killed `restart_budget` times inside `restart_window_ms` is quarantined,
 /// so the third kill — `abuse.trap`'s — quarantines the plugin and the three
@@ -168,6 +169,8 @@ const ROWS: &[Row] = &[
     ran("reference.note.put", A_NOTE_AND_TEXT),
     ran("kernel.undo", &[]),
     ran("kernel.redo", &[]),
+    ran("settings.mcp.read", &[]),
+    ran("settings.mcp.set", &["--on"]),
     ran("reference.note.get", A_NOTE),
     ran("reference.probe", A_NOTE),
     ended(

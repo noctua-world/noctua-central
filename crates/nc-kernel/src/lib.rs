@@ -37,8 +37,9 @@
 //! `commands.begin`, flattened into the unit of the command it runs in. The
 //! kernel's own commands — the journal's chain verified, the local tables
 //! pruned, a file's name proposed and read, a command found by the words of
-//! its names and tags (`crate::find`) — run through the same door, each decided
-//! as a plugin's is (`crate::builtin`). A plugin
+//! its names and tags (`crate::find`), a setting of the channel read and
+//! switched (`crate::settings`, [`Kernel::settings`]) — run through the same
+//! door, each decided as a plugin's is (`crate::builtin`). A plugin
 //! announces what happened in its own namespace, and an event published in a
 //! unit is queued only when the unit is kept; it sets timers, and is woken as
 //! the person it set them for; it describes what it shows in surfaces, in a
@@ -98,6 +99,7 @@ pub mod manifest;
 pub mod net;
 mod pump;
 pub mod registry;
+mod settings;
 mod supervisor;
 mod timers;
 mod ui;
@@ -107,6 +109,7 @@ pub mod world;
 pub use dispatch::{Approval, Caller, Confirmation, Refusal, RefusalKind};
 pub use host::log::{LogLevel, LogLine, PluginLog};
 pub use pump::Pumped;
+pub use settings::Settings;
 pub use supervisor::{Kill, PluginStatus};
 pub use ui::{Surface, SurfaceKind};
 
@@ -348,6 +351,22 @@ impl<E: Environment> Kernel<E> {
     #[must_use]
     pub fn registry(&self) -> Vec<registry::RegisteredCommand> {
         self.shared.plugins().registry.listed()
+    }
+
+    /// The channel's settings, as its store holds them committed.
+    ///
+    /// Each one never written is its default, so MCP is off until a person
+    /// switches it on with `settings.mcp.set` — the one writer of what this
+    /// reads (`crate::settings`).
+    ///
+    /// # Errors
+    ///
+    /// A [`Refusal`] with the store's own code when the store could not be
+    /// read; and `internal`, with the code of a row the kernel did not write,
+    /// when the entry holds anything but what `settings.mcp.set` writes —
+    /// never read as on or as off.
+    pub async fn settings(&self) -> Result<Settings, Refusal> {
+        settings::read(&*self.shared.store, &self.shared.realm).await
     }
 
     /// Dispatches the command `name` with `args` for `caller`, as the top of a

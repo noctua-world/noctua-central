@@ -72,11 +72,12 @@
 #
 # The commands below are the kernel's own operations: verifying the journal's
 # chain, pruning a table that has passed its limit, stepping back and forward
-# through a person's own history, proposing and reading a file's name, and
-# finding a command by any word of its names and tags. The
+# through a person's own history, proposing and reading a file's name, finding
+# a command by any word of its names and tags, and reading and switching a
+# setting of the channel. The
 # kernel registers every one as its own — a command in the namespaces it keeps,
-# `kernel.`, `journal.`, `limits.` and `naming.`, is the kernel's — decides
-# each at its decision point as it decides
+# `kernel.`, `journal.`, `limits.`, `naming.` and `settings.`, is the kernel's —
+# decides each at its decision point as it decides
 # a plugin's, and runs each one it allows itself: every command here has a
 # handler in `crates/nc-kernel/src/builtin.rs`, and that file's test holds the
 # two lists to each other both ways. A plugin's commands are not written here:
@@ -231,3 +232,46 @@ reversibility = "read"
 mutating = false
 args_schema = """
 {"type":"object","properties":{"query":{"type":"string","maxLength":64},"limit":{"type":"integer","minimum":1,"maximum":32}},"required":["query"],"additionalProperties":false}"""
+
+# A setting of the channel (`NOCTUA.md §12.15`): whether MCP is on — whether its
+# daemon lets an MCP client in (`§20.3`). A setting is two commands of the
+# kernel's own, `settings.<setting>.read` and `settings.<setting>.set`, each on
+# the platform's feature of the setting's name — `Read` and `Write` on
+# `Feature::"mcp"`, which the family pack gives every person of the realm and
+# no agent or device — and the settings are the commands of category
+# `noctua.settings`. Neither reads the realm's data. The value is the kernel's
+# own entry in the channel's local store, `{"on":false}` until a person writes
+# it, and the set writes it in its unit: a step the person's undo takes back,
+# never one that left the machine, and never irreversible, since nothing could
+# confirm it before the interface (Stage 16). **The set runs only at the top of
+# a call tree** (`[NC-KERN-0025]`), so a plugin, a timer or an event run as the
+# person never switches it; the read is answered anywhere.
+[[command]]
+name = "settings.mcp.read"
+title = "command.settings.mcp.read.title"
+description = "command.settings.mcp.read.description"
+paragraph = "command.settings.mcp.read.paragraph"
+tags = "command.settings.mcp.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F1E6"   # nf-fa-plug
+action = "Read"
+resource_selector = "feature:mcp"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.mcp.set"
+title = "command.settings.mcp.set.title"
+description = "command.settings.mcp.set.description"
+paragraph = "command.settings.mcp.set.paragraph"
+tags = "command.settings.mcp.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F205"   # nf-fa-toggle_on
+action = "Write"
+resource_selector = "feature:mcp"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}"""

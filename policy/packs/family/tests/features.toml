@@ -166,3 +166,76 @@ action = "Read"
 resource = 'Feature::"registry"'
 decision = "allow"
 because = "family.a_member_finds_commands"
+
+[[case]]
+name = "a member of the house reads whether MCP is on in their channel"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+name = "a member of the house switches MCP for their own channel"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+# A child as much as an adult.
+name = "a child of the house switches MCP too"
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+# **The verb.** A `Delete`: the permit gives the two verbs its commands are
+# decided under, and with its action dropped a member would be given every verb
+# over the feature.
+name = "switching MCP deletes nothing of the feature"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Delete"
+resource = 'Feature::"mcp"'
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **Who is asking**: an agent, marked as one acting for its person, so no core
+# `forbid` refuses it and only `principal is User` does — the rule that keeps
+# an agent from letting itself in, and the case that fails the day an agent's
+# permit grows wide enough to reach this feature.
+name = "an agent switches no MCP, not even to let itself in"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Feature::"mcp"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member write every feature the realm holds.
+name = "the switch reaches no other feature"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"naming"'
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the naming permit's is:
+# the permit asks no membership, so over the whole world a person of another
+# realm is allowed it, and only the decision point's slice of `home` denies
+# them.
+name = "an outsider switches MCP, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"

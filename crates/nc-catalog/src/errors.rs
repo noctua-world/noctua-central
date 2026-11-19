@@ -299,6 +299,8 @@ pub enum ErrorCode {
     KernelCompensationMoved,
     /// NC-KERN-0024 — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch
     KernelCompensationUngranted,
+    /// NC-KERN-0025 — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it
+    KernelOnlyAtTheTop,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -507,6 +509,7 @@ impl ErrorCode {
         Self::KernelStepUnrecorded,
         Self::KernelCompensationMoved,
         Self::KernelCompensationUngranted,
+        Self::KernelOnlyAtTheTop,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -675,6 +678,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "NC-KERN-0022",
             Self::KernelCompensationMoved => "NC-KERN-0023",
             Self::KernelCompensationUngranted => "NC-KERN-0024",
+            Self::KernelOnlyAtTheTop => "NC-KERN-0025",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -844,6 +848,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "KERN",
             Self::KernelCompensationMoved => "KERN",
             Self::KernelCompensationUngranted => "KERN",
+            Self::KernelOnlyAtTheTop => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -1203,6 +1208,9 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => {
                 "An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
             }
+            Self::KernelOnlyAtTheTop => {
+                "A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
+            }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
             Self::PluginCapabilityDenied => {
@@ -1438,6 +1446,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "error.kernel.step-unrecorded",
             Self::KernelCompensationMoved => "error.kernel.compensation-moved",
             Self::KernelCompensationUngranted => "error.kernel.compensation-ungranted",
+            Self::KernelOnlyAtTheTop => "error.kernel.only-at-the-top",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1607,6 +1616,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => Severity::Error,
             Self::KernelCompensationMoved => Severity::Warning,
             Self::KernelCompensationUngranted => Severity::Warning,
+            Self::KernelOnlyAtTheTop => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1776,6 +1786,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => false,
             Self::KernelCompensationMoved => false,
             Self::KernelCompensationUngranted => false,
+            Self::KernelOnlyAtTheTop => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -1945,6 +1956,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => &[],
             Self::KernelCompensationMoved => &[],
             Self::KernelCompensationUngranted => &[],
+            Self::KernelOnlyAtTheTop => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

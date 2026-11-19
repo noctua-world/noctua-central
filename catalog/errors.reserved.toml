@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "d72b63a95c61da897c44edf7fb9c825c4cf01df6e593c8a8131736796dbfe2ee"
-count = 162
+checksum = "6b4385d259a74d954687f749aab246de9e00f25876b9c2faaeb7ead0e61764e4"
+count = 163
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -144,6 +144,7 @@ count = 162
 "NC-KERN-0022" = "error.kernel.step-unrecorded — error — retryable:false — params:[] — An undo or a redo was refused because the journal does not record as kept the step it would reverse"
 "NC-KERN-0023" = "error.kernel.compensation-moved — warning — retryable:false — params:[] — An undo was refused because a command its step registered as a compensation is no longer held by the plugin that held it then"
 "NC-KERN-0024" = "error.kernel.compensation-ungranted — warning — retryable:false — params:[] — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
+"NC-KERN-0025" = "error.kernel.only-at-the-top — warning — retryable:false — params:[] — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
 "NC-LOG-0001" = "error.log.unreachable — warning — retryable:true — params:[] — The central log store did not accept a batch"
 "NC-LOG-0002" = "error.log.dropped — warning — retryable:false — params:[] — Log events were dropped because the queue was full"
 "NC-PLUG-0001" = "error.plugin.capability-denied — warning — retryable:false — params:[] — A plugin called a host function of a capability its manifest was not granted"

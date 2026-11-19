@@ -71,7 +71,7 @@ const CORE_POLICIES: [&str; 7] = [
 /// Compared with the pack on disk in both directions, like `CORE_POLICIES`: a
 /// name here that is not in the pack is a rule somebody removed, and one in the
 /// pack that is not here is a rule nobody wrote down.
-const PACK_RULES: [&str; 12] = [
+const PACK_RULES: [&str; 13] = [
     "family.a_frozen_account_acts_on_nothing",
     "family.a_guardian_administers_the_realm",
     "family.a_guardian_prunes_the_realm",
@@ -81,6 +81,7 @@ const PACK_RULES: [&str; 12] = [
     "family.a_member_reads_shared_content",
     "family.a_member_reads_their_own_account",
     "family.a_member_steps_through_their_own_history",
+    "family.a_member_switches_mcp",
     "family.an_owner_governs_their_own_content",
     "family.an_unattested_device_acts_on_nothing",
     "family.giving_out_encrypted_content_needs_quorum",
@@ -944,7 +945,7 @@ fn what_the_case_asserts(case: &nc_policy::Case) -> String {
 
 /// How many cases the pack's own suite runs — see
 /// [`the_cases_are_the_written_number`], which is where the argument for it is.
-const CASES: usize = 89;
+const CASES: usize = 97;
 
 /// Every entity `policy/world.json` declares, and every attribute it carries.
 ///
@@ -965,7 +966,7 @@ const CASES: usize = 89;
 /// as an attribute is. An entity carrying nothing gets one row with two empty
 /// fields, so that deleting it is a row that went rather than nothing at all.
 #[cfg(test)]
-const THE_WORLD: [(&str, &str, &str); 134] = [
+const THE_WORLD: [(&str, &str, &str); 136] = [
     (
         "Agent::\"ana-assistant\"",
         "<parent>",
@@ -1131,6 +1132,12 @@ const THE_WORLD: [(&str, &str, &str); 134] = [
         "{\"type\":\"Realm\",\"id\":\"home\"}",
     ),
     ("Feature::\"gallery\"", "tier", "\"included\""),
+    (
+        "Feature::\"mcp\"",
+        "<parent>",
+        "{\"type\":\"Realm\",\"id\":\"home\"}",
+    ),
+    ("Feature::\"mcp\"", "tier", "\"included\""),
     (
         "Feature::\"naming\"",
         "<parent>",
@@ -1458,7 +1465,7 @@ const THE_WORLD: [(&str, &str, &str); 134] = [
     ("User::\"mallory\"", "status", "\"active\""),
 ];
 
-/// The same 89, by what each one asks.
+/// The same 97, by what each one asks.
 ///
 /// **A total is satisfied by any cases that add up to it, and so is a count per
 /// file.** The one thing `CASES` exists to protect is a case that records
@@ -1507,7 +1514,7 @@ const THE_WORLD: [(&str, &str, &str); 134] = [
 /// The context is the whole Cedar JSON, sorted, because a field left out of
 /// this row is a field a case can be moved along. Changing any of the six is an
 /// edit somebody reads.
-const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
+const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 97] = [
     (
         "policy/core/tests/agent_authority.toml",
         "a person acting unmarked is not impersonating",
@@ -1825,6 +1832,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
     ),
     (
         "policy/packs/family/tests/accounts.toml",
+        "a suspended account switches no MCP",
+        "User::\"dora\"",
+        "Action::\"Write\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/because=family.a_frozen_account_acts_on_nothing",
+    ),
+    (
+        "policy/packs/family/tests/accounts.toml",
         "a suspended account writes nothing, not even what it owns",
         "User::\"dora\"",
         "Action::\"Write\"",
@@ -1876,6 +1892,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
         "Feature::\"registry\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Allow/because=family.a_member_finds_commands",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a child of the house switches MCP too",
+        "User::\"bruno\"",
+        "Action::\"Write\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_switches_mcp",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -1933,6 +1958,33 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
     ),
     (
         "policy/packs/family/tests/features.toml",
+        "a member of the house reads whether MCP is on in their channel",
+        "User::\"carla\"",
+        "Action::\"Read\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_switches_mcp",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a member of the house switches MCP for their own channel",
+        "User::\"carla\"",
+        "Action::\"Write\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_switches_mcp",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "an agent switches no MCP, not even to let itself in",
+        "Agent::\"ana-assistant\"",
+        "Action::\"Write\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":1,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":true}",
+        "Deny/outside=family.a_member_switches_mcp/boundary=principal",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
         "an outsider finds a command, which only the decision point refuses",
         "User::\"mallory\"",
         "Action::\"Read\"",
@@ -1948,6 +2000,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
         "Feature::\"naming\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Allow/because=family.a_member_names_files",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "an outsider switches MCP, which only the decision point refuses",
+        "User::\"mallory\"",
+        "Action::\"Write\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_switches_mcp",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -1978,6 +2039,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
     ),
     (
         "policy/packs/family/tests/features.toml",
+        "switching MCP deletes nothing of the feature",
+        "User::\"carla\"",
+        "Action::\"Delete\"",
+        "Feature::\"mcp\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_switches_mcp/boundary=action",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
         "the finding permit reaches no other feature",
         "User::\"carla\"",
         "Action::\"Read\"",
@@ -1993,6 +2063,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
         "Feature::\"gallery\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Deny/outside=family.a_member_names_files",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "the switch reaches no other feature",
+        "User::\"carla\"",
+        "Action::\"Write\"",
+        "Feature::\"naming\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_switches_mcp",
     ),
     (
         "policy/packs/family/tests/permissions.toml",
@@ -2313,7 +2392,7 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
 
 /// Every clause a case pins, held against the number written down.
 ///
-/// **68, and what the clauses behind it are.** The frozen-account floor names
+/// **71, and what the clauses behind it are.** The frozen-account floor names
 /// the states that may act — `active`, `dormant` and `presumed_inactive`, three
 /// comparisons, and a case for each state notices one deleted. Listing the
 /// states that may not, `suspended` and `deceased`, allows any other value of a
@@ -2325,8 +2404,9 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
 /// agent acting openly as one. The pairing rule cannot pin it — a denial for a
 /// device pairs only with an `allow` for a device, which that permit never
 /// gives — so a case may say `the_principal_is_the_boundary`, and two of them
-/// pin the type test. The naming and finding permits' `principal is User` is
-/// pinned the same way, each beside its verb and the one feature it names.
+/// pin the type test. The naming, finding and switch permits' `principal is
+/// User` is pinned the same way, each beside its verb and the one feature it
+/// names.
 ///
 /// **The family pack's rules for the decision point.** Their clauses are one
 /// row each in [`PINNED_BY_POLICY`]: the realm's permits pin their verb, their
@@ -2365,9 +2445,9 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 89] = [
 /// *why* the number is what it is.
 /// `the_written_number_is_the_number` reads this comment and requires the two to
 /// agree, in the shape `xtask/canaries/README.md` calls one rule written twice.
-const PINNED: usize = 68;
+const PINNED: usize = 71;
 
-/// The same 68, by the policy each clause belongs to.
+/// The same 71, by the policy each clause belongs to.
 ///
 /// **A count is not a set, and every policy here shares one number.** `PINNED`
 /// is a total: a policy gaining a pinned conjunct pays for another losing one,
@@ -2382,7 +2462,7 @@ const PINNED: usize = 68;
 /// that reason — its conjuncts are all guards, which
 /// `guards_a_dereference` excuses by name — and a zero row says so where an
 /// absent row would say nothing.
-const PINNED_BY_POLICY: [(&str, usize); 23] = [
+const PINNED_BY_POLICY: [(&str, usize); 24] = [
     ("core.an_agent_never_impersonates", 2),
     ("core.budget_is_a_permission", 2),
     ("core.chain_depth_is_bounded", 2),
@@ -2403,6 +2483,7 @@ const PINNED_BY_POLICY: [(&str, usize); 23] = [
     ("family.a_member_reads_shared_content", 4),
     ("family.a_member_reads_their_own_account", 3),
     ("family.a_member_steps_through_their_own_history", 4),
+    ("family.a_member_switches_mcp", 3),
     ("family.an_owner_governs_their_own_content", 3),
     ("family.an_unattested_device_acts_on_nothing", 2),
     ("family.giving_out_encrypted_content_needs_quorum", 6),
@@ -4115,8 +4196,8 @@ mod tests {
         // written name goes with that case and nothing notices.
         assert_eq!(
             super::PACK_RULES.len(),
-            12,
-            "the family pack ships twelve rules; one deleted with its only denial case \
+            13,
+            "the family pack ships thirteen rules; one deleted with its only denial case \
              moved every count down together and left the run green"
         );
         assert_eq!(
