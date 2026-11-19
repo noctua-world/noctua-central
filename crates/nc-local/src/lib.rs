@@ -7,7 +7,9 @@
 //! (`store_units`, `store_writes`, `store_notes`), and which blobs this machine
 //! holds (`blobs`) — and, through [`LocalStore::journal`], the journal's store
 //! on the person's machine, [`LocalJournal`], in the same file
-//! (`local_journal_entries`). The schema is `local-migrations/`, applied by the same
+//! (`local_journal_entries`), and through [`LocalStore::agents`] the agents the
+//! person made and what each was granted, [`LocalAgents`] (`agents`,
+//! `agent_grants`). The schema is `local-migrations/`, applied by the same
 //! `sqlx` migrator the server uses, and it is never mixed with `migrations/`.
 //! The bytes of those blobs are not in the file: they are files of their own,
 //! in a directory [`blob_directory`] holds to the rule this crate's own
@@ -114,7 +116,9 @@
 //! kernels of two realms on one machine never read or write each other's,
 //! their units numbered by the one minter their journals share
 //! (`nc_journal::Journal::sharing`). An image or a journal entry rewritten after
-//! the fact: the append-only triggers, which hold under `trusted_schema = OFF`.
+//! the fact: the append-only triggers, which hold under `trusted_schema = OFF`;
+//! and an agent edited or deleted, or a grant ended twice, edited or deleted, by
+//! the agents' own triggers under the same pragma.
 //! A half-written unit: one `BEGIN IMMEDIATE` transaction per commit, proved by
 //! a child process that aborts between two of its statements.
 //!
@@ -137,11 +141,13 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+mod agents;
 mod journal;
 mod open;
 pub mod schema;
 mod store;
 
+pub use agents::{AgentRow, AgentsKept, GrantRow, KeepError, LocalAgents};
 pub use journal::LocalJournal;
 pub use open::blob_directory;
 pub use store::{

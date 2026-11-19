@@ -743,7 +743,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      and the daemon and the IPC channel it is reached through hold to every bound \
      under **Daemon**. \
      A `local` table is held by `crates/nc-local`, which refuses a unit at a \
-     `refuse-at-limit` bound as it commits, and by the pruner, which \
+     `refuse-at-limit` bound as it commits and an agent or a grant as it keeps \
+     one, and by the pruner, which \
      `Kernel::pump` and the `limits.prune` command run over the local database — \
      and nothing in this tree calls either on a timer yet. Nothing here prunes a \
      `server` table, and there is no rate limiter and no key derivation, as their \
@@ -758,7 +759,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file \
      on the user's own machine, built by `local-migrations/`. A table whose \
      strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to \
-     take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images \
+     take — user state, what a plugin keeps, a blob a unit pinned or the agents a \
+     person made and every grant they gave them, or a unit's images \
      and notes, which an undo needs whole and which leave with their unit — so nothing \
      prunes it by its own count: its `Maximum rows` is where its writer refuses a new \
      row, and the refusal is the bound. `Counted over` says whose rows that number \

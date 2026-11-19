@@ -56,6 +56,22 @@ pub const TABLES: &[TableLimit] = &[
         prune_batch: Some(50_000),
     },
     TableLimit {
+        name: "agent_grants",
+        database: Database::LocalFile,
+        strategy: Strategy::RefuseAtLimit,
+        order_by: "grant_id",
+        max_rows: Some(65_536),
+        prune_batch: None,
+    },
+    TableLimit {
+        name: "agents",
+        database: Database::LocalFile,
+        strategy: Strategy::RefuseAtLimit,
+        order_by: "agent",
+        max_rows: Some(256),
+        prune_batch: None,
+    },
+    TableLimit {
         name: "blobs",
         database: Database::LocalFile,
         strategy: Strategy::RefuseAtLimit,

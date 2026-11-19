@@ -588,8 +588,9 @@ the registry filtered by the fuzzy core, `find.rs`, what a plugin announces, is 
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
-`lib.rs`, `open.rs`, `schema.rs` and `store.rs` and the journal it keeps,
-`journal.rs`, what makes that database's
+`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, the journal it keeps,
+`journal.rs`, and the agents a person made with their grants, `agents.rs`,
+what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
 and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,

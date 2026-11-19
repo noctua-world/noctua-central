@@ -991,31 +991,32 @@ async fn tamper(profile: &Path, statements: &[&'static str]) {
     connection.close().await.expect("closes");
 }
 
-/// Puts a file one migration behind: `0004_local_journal.sql`'s table gone —
-/// its index and its triggers with it — and its row out of the history, as the
-/// build before it would have left the file.
+/// Puts a file one migration behind, as the build before it would have left it.
+///
+/// `0005_agents.sql`'s tables are dropped — the grants first, which refer to
+/// the agents — their index and their triggers with them, and its row is taken
+/// out of the history.
 async fn one_migration_behind(profile: &Path) {
     tamper(
         profile,
         &[
-            "DROP TABLE main.local_journal_entries",
-            "DELETE FROM main._sqlx_migrations WHERE version = 4",
+            "DROP TABLE main.agent_grants",
+            "DROP TABLE main.agents",
+            "DELETE FROM main._sqlx_migrations WHERE version = 5",
         ],
     )
     .await;
 }
 
-/// Whether the file holds `local_journal_entries`, the newest migration's
-/// table, and which migrations it records — read without the store, after it
-/// answered.
+/// Whether the file holds `agent_grants`, a table of the newest migration, and
+/// which migrations it records — read without the store, after it answered.
 async fn what_the_file_holds(profile: &Path) -> (bool, Vec<i64>) {
     let mut connection = raw(profile).await;
-    let newest: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM main.sqlite_schema WHERE name = 'local_journal_entries'",
-    )
-    .fetch_one(&mut connection)
-    .await
-    .expect("the schema reads");
+    let newest: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM main.sqlite_schema WHERE name = 'agent_grants'")
+            .fetch_one(&mut connection)
+            .await
+            .expect("the schema reads");
     let versions: Vec<i64> =
         sqlx::query_scalar("SELECT version FROM main._sqlx_migrations ORDER BY version")
             .fetch_all(&mut connection)
@@ -1046,19 +1047,21 @@ async fn a_table_its_history_does_not_account_for_is_refused_and_left_as_it_was(
         .await;
     tamper(
         &profile,
-        &["DELETE FROM main._sqlx_migrations WHERE version = 4"],
+        &["DELETE FROM main._sqlx_migrations WHERE version = 5"],
     )
     .await;
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
     assert!(
         error.to_string().contains(
-            "the table `local_journal_entries` on `local_journal_entries` is not one \
-             `local-migrations/` builds"
+            "the table `agent_grants` on `agent_grants` is not one `local-migrations/` builds"
         ),
         "{error}"
     );
-    assert_eq!(what_the_file_holds(&profile).await, (true, vec![1, 2, 3]));
+    assert_eq!(
+        what_the_file_holds(&profile).await,
+        (true, vec![1, 2, 3, 4])
+    );
 }
 
 /// A migration the history records as unfinished is reported as a migration
@@ -1095,8 +1098,8 @@ async fn a_migration_recorded_as_unfinished_is_reported_as_one() {
 ///
 /// **The other side of judging a file before it is migrated**: it is held to
 /// what its own history built, so the file the build before this one left — no
-/// `local_journal_entries` yet, and no row for `0004_local_journal.sql` — is the
-/// file the migrator is for. Held to the whole list, it would be refused for lacking the very table
+/// `agent_grants` yet, and no row for `0005_agents.sql` — is the file the
+/// migrator is for. Held to the whole list, it would be refused for lacking the very table
 /// the migration it waits for builds.
 #[tokio::test]
 async fn a_file_one_migration_behind_is_migrated_and_opens() {
@@ -1108,7 +1111,10 @@ async fn a_file_one_migration_behind_is_migrated_and_opens() {
         .close()
         .await;
     one_migration_behind(&profile).await;
-    assert_eq!(what_the_file_holds(&profile).await, (false, vec![1, 2, 3]));
+    assert_eq!(
+        what_the_file_holds(&profile).await,
+        (false, vec![1, 2, 3, 4])
+    );
     LocalStore::open(&profile)
         .await
         .expect("a file one migration behind opens")
@@ -1116,7 +1122,7 @@ async fn a_file_one_migration_behind_is_migrated_and_opens() {
         .await;
     assert_eq!(
         what_the_file_holds(&profile).await,
-        (true, vec![1, 2, 3, 4])
+        (true, vec![1, 2, 3, 4, 5])
     );
 }
 
@@ -1152,7 +1158,7 @@ async fn a_file_one_migration_behind_is_refused_before_the_migrator_writes() {
     );
     assert_eq!(
         what_the_file_holds(&profile).await,
-        (false, vec![1, 2, 3]),
+        (false, vec![1, 2, 3, 4]),
         "the migrator wrote into a file the store refused"
     );
 }
@@ -1190,12 +1196,15 @@ async fn a_history_with_a_gap_is_refused_and_left_as_it_was() {
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
     assert!(
-        error
-            .to_string()
-            .contains("records the migrations [2, 3, 4], and this build applies [1, 2, 3, 4]"),
+        error.to_string().contains(
+            "records the migrations [2, 3, 4, 5], and this build applies [1, 2, 3, 4, 5]"
+        ),
         "{error}"
     );
-    assert_eq!(what_the_file_holds(&profile).await, (true, vec![2, 3, 4]));
+    assert_eq!(
+        what_the_file_holds(&profile).await,
+        (true, vec![2, 3, 4, 5])
+    );
     let mut connection = raw(&profile).await;
     let entries: i64 =
         sqlx::query_scalar("SELECT count(*) FROM main.sqlite_schema WHERE name = 'store_entries'")
@@ -1215,10 +1224,10 @@ async fn a_history_with_a_gap_is_refused_and_left_as_it_was() {
 /// **Refused by the version, before the schema is judged**: what a newer
 /// build made is not this build's list to judge, and its table would
 /// otherwise be refused as one `local-migrations/` does not build — true, and
-/// not the reason. The file lacks `0004_local_journal.sql` as well, so a
-/// migrator that applied it on the way to refusing would leave
-/// `local_journal_entries` behind; and it is in rollback mode, which the pool
-/// that runs the migrator would have converted.
+/// not the reason. The file lacks `0005_agents.sql` as well, so a migrator that
+/// applied it on the way to refusing would leave `agent_grants` behind; and it
+/// is in rollback mode, which the pool that runs the migrator would have
+/// converted.
 #[tokio::test]
 async fn a_newer_builds_file_is_refused_by_its_version_and_left_as_it_was() {
     let scratch = Scratch::new("newer-build");
@@ -1251,7 +1260,7 @@ async fn a_newer_builds_file_is_refused_by_its_version_and_left_as_it_was() {
     );
     assert_eq!(
         what_the_file_holds(&profile).await,
-        (false, vec![1, 2, 3, 9999])
+        (false, vec![1, 2, 3, 4, 9999])
     );
 }
 
@@ -1326,7 +1335,7 @@ async fn a_damaged_file_one_migration_behind_is_refused_before_the_migrator_writ
     assert!(error.to_string().contains("quick_check"), "{error}");
     assert_eq!(
         what_the_file_holds(&profile).await,
-        (false, vec![1, 2, 3]),
+        (false, vec![1, 2, 3, 4]),
         "the migrator wrote into a file `quick_check` calls damaged"
     );
 }
