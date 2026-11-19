@@ -2220,6 +2220,27 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Noctua is working", "O Noctua está funcionando"],
     ),
     (
+        "error.ai.agents-full",
+        [
+            "This profile already holds as many agents, or has given its agents as many grants, as it can keep. Nothing was changed.",
+            "Este perfil já tem tantos agentes, ou já deu aos seus agentes tantas permissões, quanto consegue guardar. Nada foi alterado.",
+        ],
+    ),
+    (
+        "error.ai.no-such-agent",
+        [
+            "None of your agents has that identifier, so nothing was done.",
+            "Nenhum dos seus agentes tem esse identificador, então nada foi feito.",
+        ],
+    ),
+    (
+        "error.ai.not-the-operator",
+        [
+            "Only a person can have an agent, and only the person an agent acts for can give it access or take it away. Nothing was changed.",
+            "Só uma pessoa pode ter um agente, e só a pessoa por quem um agente age pode dar ou tirar o acesso dele. Nada foi alterado.",
+        ],
+    ),
+    (
         "error.blob.io",
         [
             "A file could not be read or written on this computer. Try again in a moment.",
@@ -3848,6 +3869,9 @@ pub const KEYS: &[&str] = &[
     "command.settings.mcp.set.title",
     "email.catalog.mechanism.body",
     "email.catalog.mechanism.subject",
+    "error.ai.agents-full",
+    "error.ai.no-such-agent",
+    "error.ai.not-the-operator",
     "error.blob.io",
     "error.blob.malformed-hash",
     "error.blob.no-peers",

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "The policy decision point as a library: the core and one realm's pack, embedded when it is built, and the directory it asks about realms, grants and entities."
+description = "The policy decision point as a library: the core and one realm's pack, embedded when it is built, and the directory it asks about realms, grants, entities and the agents a person makes."
 
 [features]
 # The door a test builds a decision point from policy text of its own through —
@@ -22,16 +22,21 @@ cedar-policy.workspace = true
 # the gate's own functions, so what the gate passed and what decides are
 # compiled by one rule.
 nc-policy.workspace = true
-# The entity a question names, as the resource selector extracts it.
+# The entity a question names, as the resource selector extracts it, and the
+# one judge of a character a reader cannot see, which an agent's label and a
+# grant's reason are held to before the directory holds either.
 nc-schema.workspace = true
 # A principal's identifier. **Minted here and never in the kernel**: the kernel
 # reaches the central log, and the log's wall refuses a crate that can reach it
-# minting one. This crate does not depend on `nc-log`, and must not.
+# minting one. An agent's is the text of the `Snowflake` the kernel hands over
+# typed, spelled here and never parsed back. This crate does not depend on
+# `nc-log`, and must not.
 nc-ids.workspace = true
 # The code a denial carries (`NOCTUA.md §15.1`).
 nc-catalog.workspace = true
-# A decision's context is handed to Cedar as JSON, which is Cedar's own format
-# for it, and read against the schema.
+# A decision's context, an agent a person made and its grant are handed to
+# Cedar as JSON, which is Cedar's own format for them, and read against the
+# schema.
 serde_json.workspace = true
 # A profile's world file, read as one canonical document (`LocalWorld::parse`):
 # the same reader every boundary uses, so a file in another spelling is refused

@@ -57,6 +57,12 @@ impl core::fmt::Display for Severity {
 /// Every error code this platform declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ErrorCode {
+    /// NC-AI-0001 — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person
+    AiNoSuchAgent,
+    /// NC-AI-0002 — An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for
+    AiNotTheOperator,
+    /// NC-AI-0003 — A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows
+    AiAgentsFull,
     /// NC-BLOB-0001 — A blob was named by text that is not a BLAKE3 hash
     BlobMalformedHash,
     /// NC-BLOB-0002 — A blob is not on this machine
@@ -388,6 +394,9 @@ pub enum ErrorCode {
 impl ErrorCode {
     /// Every code, in code order.
     pub const ALL: &'static [Self] = &[
+        Self::AiNoSuchAgent,
+        Self::AiNotTheOperator,
+        Self::AiAgentsFull,
         Self::BlobMalformedHash,
         Self::BlobNotLocal,
         Self::BlobTooLarge,
@@ -557,6 +566,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "NC-AI-0001",
+            Self::AiNotTheOperator => "NC-AI-0002",
+            Self::AiAgentsFull => "NC-AI-0003",
             Self::BlobMalformedHash => "NC-BLOB-0001",
             Self::BlobNotLocal => "NC-BLOB-0002",
             Self::BlobTooLarge => "NC-BLOB-0003",
@@ -727,6 +739,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn area(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "AI",
+            Self::AiNotTheOperator => "AI",
+            Self::AiAgentsFull => "AI",
             Self::BlobMalformedHash => "BLOB",
             Self::BlobNotLocal => "BLOB",
             Self::BlobTooLarge => "BLOB",
@@ -897,6 +912,15 @@ impl ErrorCode {
     #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => {
+                "An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
+            }
+            Self::AiNotTheOperator => {
+                "An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for"
+            }
+            Self::AiAgentsFull => {
+                "A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows"
+            }
             Self::BlobMalformedHash => "A blob was named by text that is not a BLAKE3 hash",
             Self::BlobNotLocal => "A blob is not on this machine",
             Self::BlobTooLarge => "A blob grew past the size the kernel accepts",
@@ -1321,6 +1345,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn message_key(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "error.ai.no-such-agent",
+            Self::AiNotTheOperator => "error.ai.not-the-operator",
+            Self::AiAgentsFull => "error.ai.agents-full",
             Self::BlobMalformedHash => "error.blob.malformed-hash",
             Self::BlobNotLocal => "error.blob.not-local",
             Self::BlobTooLarge => "error.blob.too-large",
@@ -1495,6 +1522,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn severity(self) -> Severity {
         match self {
+            Self::AiNoSuchAgent => Severity::Warning,
+            Self::AiNotTheOperator => Severity::Warning,
+            Self::AiAgentsFull => Severity::Warning,
             Self::BlobMalformedHash => Severity::Warning,
             Self::BlobNotLocal => Severity::Info,
             Self::BlobTooLarge => Severity::Warning,
@@ -1665,6 +1695,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn retryable(self) -> bool {
         match self {
+            Self::AiNoSuchAgent => false,
+            Self::AiNotTheOperator => false,
+            Self::AiAgentsFull => false,
             Self::BlobMalformedHash => false,
             Self::BlobNotLocal => true,
             Self::BlobTooLarge => false,
@@ -1835,6 +1868,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn params(self) -> &'static [&'static str] {
         match self {
+            Self::AiNoSuchAgent => &[],
+            Self::AiNotTheOperator => &[],
+            Self::AiAgentsFull => &[],
             Self::BlobMalformedHash => &[],
             Self::BlobNotLocal => &[],
             Self::BlobTooLarge => &[],

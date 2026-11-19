@@ -291,7 +291,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
-│   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
+│   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
 │   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
@@ -939,6 +939,7 @@ entry owns.
 | User data in the central log | typed events only, and a plugin's text kept in its own ring | "A plugin's own log stays in its own ring" |
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
+| An agent named by text it was not made under, given or ended by anyone but its person, or granted past the feature it names | an agent routed by membership of the identifier the machine minted, never parsed; only a person of the realm makes one and only its person grants or ends; a grant's scope compared whole; a change kept before it is held, an ending held first; both tables bounded | "An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
@@ -1186,6 +1187,51 @@ inside it — a process running as the same user is outside what the kernel defe
 (`NOCTUA.md §11.1`); whether a changed pack raised its version, which no gate compares
 with the history and is a reviewer's question, asked of the pull request's diff; and a
 policy that says other than its author meant, which only its cases check.
+
+### An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature
+
+**Guaranteed.** `nc_authz::LocalDirectory` holds the agents a person makes over the world a
+profile was started with (`NOCTUA.md §14.6`). An agent is held under the Crockford text of
+the `Snowflake` the kernel minted for it, turned into an identifier in `nc-authz` alone, and
+a question reaches it only by that text, compared whole: a label, a lower-case spelling, the
+text of a value no change made, a principal of another kind and a question about another
+realm are the world's to answer and never reach the agent held, and nothing is parsed out
+of an identifier (`NOCTUA.md §5.1`). Only a person the world holds in the realm is made an
+operator, and only an agent's operator grants it a feature or ends its grants
+(`[NC-AI-0002]`); a name no agent is held under is `[NC-AI-0001]`. An agent is delegated
+only while the world holds its operator in the realm, whatever was kept. A grant runs for a
+window it must have — it ends after it begins — on a feature the world holds in the realm,
+with a reason of one to 256 characters a reader can see all of, and a label is held to one
+to 64; anything else is refused as the data the directory must never hold (`[NC-VAL-0002]`).
+A grant answers only a question about the feature it names, compared whole, never through an
+entity the resource is in, so an agent granted every feature holds no grant for the realm's
+content; a grant the world holds, a person's or one of the world's own agents', stays
+realm-wide. A new grant on a feature ends the live one there. Neither an agent nor a grant
+is ever deleted, and each table is refused past its bound (`[NC-AI-0003]`), an ended grant
+still counted. A new agent or grant is held only once its keeper kept it; an ending is
+held first, so the next question is answered without it even when the keeper then refuses
+it (the keeper's code). An agent's slice holds its operator beside it — so a rule reading
+`principal.operator` decides in the kernel as over the whole world — its budget as
+`budget_remaining` and `autonomy` as `supervised`, which no embedded policy reads; and
+`Facts::budget_spent` is taken off that budget before Cedar reads it, without wrapping, so
+`core.budget_is_a_permission` refuses an agent that has spent it all. A directory opened
+from what was kept refuses what it would never have written, and leaves another realm's
+rows out of what it holds while they still count against its bounds.
+
+**Enforced by** `crates/nc-authz/src/agents.rs` and its unit tests — the identifier held
+and nothing else, the routing by text, the operator's alone, the feature compared whole,
+each malformed grant, label and budget, the bounds, the order of keeping, the reopening and
+each refusal's kind, code and word; `crates/nc-authz/src/directory.rs`, whose world answers
+an agent's operator only for an agent of the realm and a person of it; and
+`crates/nc-authz/tests/the_embedded_pack_decides.rs`, where a budget spent is taken off what
+an agent holds, a person holds none to spend from, a spend past what a `Long` holds leaves
+nothing, and one whose entity does not read back is refused.
+
+**Not answered:** whether the person may make a change, which the decision point decides
+before the change is asked for; whether a grant is current, which Cedar decides against the
+kernel's clock; whether an agent's rights are its operator's as well as its own, which the
+enforcement point asks of each apart; and an identifier as a secret — it is neither one nor
+authentication, and whoever can reach the person's processes can name any of their agents.
 
 ### A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else
 
@@ -4459,6 +4505,26 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `policy/packs/family/features.cedar` ask no membership, so Cedar alone allows a person of
   another realm a feature — `policy/packs/family/tests/features.toml` pins that answer —
   and only the slice of the asking realm, which holds no other realm's people, refuses it.
+
+**Agents and MCP**
+
+- **An agent's identifier is neither a secret nor authentication.** It is the text of a
+  minted value, matched and never parsed, and naming an agent a person made is never more
+  than that person can do.
+- **A grant to an agent is what keeps it from the household's shared files.**
+  `family.a_member_reads_shared_content` permits any principal to read a `public` or
+  `realm` file, and an agent the directory holds is refused one only because its grants are
+  scoped to features and compared whole, so it holds no grant for content and
+  `core.provenance` refuses; a grant scoped wider, or compared through an ancestor, would
+  open every such file.
+- **Grants are per feature, not per command**: a feature granted reaches every command that
+  selects it.
+- **An ending the keeper refused holds only until the directory is opened again** from what
+  was kept; the refusal says so with the keeper's code.
+- **No agent is ever deleted**, and a profile that made as many agents as its table's bound
+  allows makes no more.
+- **An agent's `autonomy` is carried as `supervised` and read by nothing**: the schema
+  requires one, and nothing in this repository defines what its values permit.
 
 **The fuzzy core**
 

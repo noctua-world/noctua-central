@@ -117,8 +117,9 @@ impl Directory for Shifting {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::GrantFacts>, DirectoryError>> + Send {
-        self.now().grant(realm, principal)
+        self.now().grant(realm, principal, resource)
     }
 
     fn slice(
@@ -129,6 +130,38 @@ impl Directory for Shifting {
         grant: Option<&EntityRef>,
     ) -> impl Future<Output = Result<nc_authz::Slice, DirectoryError>> + Send {
         self.now().slice(realm, principal, resource, grant)
+    }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
+        self.now().delegation(realm, agent)
+    }
+
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<nc_authz::HeldAgent>, DirectoryError>> + Send {
+        self.now().agents(realm, operator)
+    }
+
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.now().rehearse(realm, change)
+    }
+
+    fn change(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.now().change(realm, change)
     }
 }
 

@@ -96,9 +96,10 @@ impl Directory for Revoking {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::GrantFacts>, DirectoryError>> + Send {
         let revoked = self.revoked.load(Ordering::SeqCst) && principal.id == "ana";
-        let answer = self.inner.grant(realm, principal);
+        let answer = self.inner.grant(realm, principal, resource);
         async move { if revoked { Ok(None) } else { answer.await } }
     }
 
@@ -110,6 +111,38 @@ impl Directory for Revoking {
         grant: Option<&EntityRef>,
     ) -> impl Future<Output = Result<nc_authz::Slice, DirectoryError>> + Send {
         self.inner.slice(realm, principal, resource, grant)
+    }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
+        self.inner.delegation(realm, agent)
+    }
+
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<nc_authz::HeldAgent>, DirectoryError>> + Send {
+        self.inner.agents(realm, operator)
+    }
+
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.rehearse(realm, change)
+    }
+
+    fn change(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.change(realm, change)
     }
 }
 
