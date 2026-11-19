@@ -16,9 +16,10 @@
 //!   identifier as text, and whoever opens a kernel over these rows makes the
 //!   principals and the entities of them.
 //! - **Nothing is written twice, nothing is edited but a grant's end, and
-//!   nothing is deleted**, by the tables' own triggers, whoever writes and
-//!   however: an insert of an identifier the file holds is refused before
-//!   SQLite resolves its conflict, so an `INSERT OR REPLACE` deletes nothing.
+//!   nothing is deleted**, by the tables' own triggers, whatever statement
+//!   writes them and whoever runs it: an insert of an identifier the file
+//!   holds is refused before SQLite resolves its conflict, so an
+//!   `INSERT OR REPLACE` deletes nothing.
 //!   A grant that replaces the live one on its scope ends it in the
 //!   transaction that writes it, and the file refuses a second live grant on
 //!   one scope written any other way.
@@ -44,9 +45,12 @@
 //! edit or delete any row, or write a grant nobody gave: SQLite has no roles
 //! (the crate's header), and no row is signed. A trigger dropped is a schema
 //! the open-time check refuses for as long as it stands; one put back before
-//! the next open is not seen. Who may make an agent, grant it or end its
-//! grants is not this crate's to decide either: it keeps what it is handed,
-//! and refuses only what the file could never hold.
+//! the next open is not seen. Nor is a text column no index holds rewritten in
+//! place, at the same length, through SQLite's incremental BLOB I/O, which
+//! runs no statement and fires no trigger: an agent's operator, or a grant's
+//! realm, so its own realm no longer reads it. Who may make an agent, grant it
+//! or end its grants is not this crate's to decide either: it keeps what it is
+//! handed, and refuses only what the file could never hold.
 
 use nc_ids::{OpaqueId, Snowflake};
 use sqlx::Row as _;

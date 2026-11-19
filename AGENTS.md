@@ -1818,9 +1818,13 @@ hold the file's objects.
 
 **Not answered:** a process running as the same user, which can drop the triggers and then
 write, edit or delete any row — SQLite has no roles, and no row is signed: a trigger
-dropped is a schema the next open refuses, and one put back before it is not seen; who may
-make an agent, or give or end a grant, which this crate does not decide — it keeps what it
-is handed; and the bounds being the profile's, under **What is deliberately not claimed**.
+dropped is a schema the next open refuses, and one put back before it is not seen — and
+which can also rewrite in place, at the same length, a text column no index holds, such as
+an agent's operator or a grant's realm (so its own realm no longer reads it), through
+SQLite's incremental BLOB I/O, which runs no statement, fires no trigger and changes no
+schema; who may make an agent, or give or end a grant, which this crate does not decide —
+it keeps what it is handed; and the bounds being the profile's, under
+**What is deliberately not claimed**.
 
 ### The central log cannot contain user data
 
@@ -4032,10 +4036,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The local database stops other accounts, not the account it belongs to.** SQLite has no
   roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
   race the owner and mode checks between check and open, and the next open's refusal of a
-  changed schema is detection, not prevention. Through SQLite, undoing an agent or a grant
-  takes such a change first, since the triggers refuse a replace before it deletes the row
-  it meets; a trigger put back before the next open, or the file's bytes written directly,
-  is not seen. An administrator, and a disk read offline
+  changed schema is detection, not prevention. Through a statement, undoing an agent or a
+  grant takes such a change first, since the triggers refuse a replace before it deletes
+  the row it meets; a trigger put back before the next open is not seen. Nor is what runs
+  no statement: SQLite's incremental BLOB I/O, which fires no trigger and rewrites in place,
+  at the same length, an agent's or a grant's text column no index holds — its realm, so
+  its own realm no longer reads it, or an agent's operator — and the file's bytes written
+  directly. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
   `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
   runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,

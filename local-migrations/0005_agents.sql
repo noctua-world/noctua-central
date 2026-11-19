@@ -22,11 +22,18 @@
 -- under `recursive_triggers`.
 --
 -- **What no trigger answers is a process running as the same user.** It can
--- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header). Through
--- SQLite, undoing what a person granted takes that schema change first, which
--- the open-time check refuses for as long as it stands; a trigger put back
--- before the next open is not seen, and the file's bytes written directly need
--- no schema change at all — no row is signed.
+-- `DROP TRIGGER`: SQLite has no roles (`crates/nc-local`'s header). Through a
+-- statement, undoing what a person granted takes that schema change first,
+-- which the open-time check refuses for as long as it stands; a trigger put
+-- back before the next open is not seen. What runs no statement needs no
+-- schema change, and is not seen either. SQLite's incremental BLOB I/O fires
+-- no trigger and rewrites in place, at the same length, a text column no
+-- index holds: an agent's realm, operator or label, and a grant's realm,
+-- giver, reason or ender — an agent or a grant whose realm is rewritten is
+-- gone from its own realm's reads. It opens no integer, no null and no
+-- indexed column, so an agent's budget, and a grant's agent, scope, window
+-- and whether and when it ended, stay as written. The file's bytes written
+-- directly change anything, and no row is signed.
 --
 -- `catalog/limits.toml` says `refuse-at-limit` for both tables: they are user
 -- state, which nothing prunes, and their writer refuses a new row at the bound

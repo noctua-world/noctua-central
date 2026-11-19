@@ -129,8 +129,10 @@
 //! **A process running as the same user.** SQLite has no roles: whoever can
 //! open the file can `DROP TRIGGER` and then `DELETE`, and can race the checks
 //! above between the check and the open. A trigger it dropped is a schema the
-//! next open refuses, and one it put back before then is not seen. Nor an
-//! administrator, nor a disk read
+//! next open refuses, and one it put back before then is not seen; an agent's
+//! or a grant's text column no index holds, rewritten in place at the same
+//! length through SQLite's incremental BLOB I/O, needs no trigger dropped and
+//! is not seen at all. Nor an administrator, nor a disk read
 //! offline without full-disk encryption — the file is not encrypted. An
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`
