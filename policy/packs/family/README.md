@@ -28,7 +28,7 @@ allowed and never reaches past a floor.
 | `permissions.cedar` | `family.a_guardian_administers_the_realm`, `family.a_member_reads_shared_content`, `family.an_owner_governs_their_own_content`, and the `forbid` `family.giving_out_encrypted_content_needs_quorum` | content and permissions: who reads what the household shares, who changes what they own, who grants, and the quorum for handing out an encrypted content key. The guardian's `Grant` and `Revoke` name no resource type and ask no membership, so they reach any `Realm`, one she is not in included — Cedar's answer over the whole world, pinned by a case and recorded in `../../core/README.md`, and one the decision point in `nc-authz` denies, because a realm's slice holds no other realm |
 | `realm.cedar` | `family.a_guardian_reads_the_realm`, `family.a_guardian_prunes_the_realm`, `family.a_member_steps_through_their_own_history`, `family.a_member_reads_their_own_account` | the realm itself as the resource — the commands that act on the whole realm (the journal verified, the tables pruned, a step undone or redone) — and a person reading their own account. Each permit here that reaches the realm requires `principal in resource`, so a member of another realm is refused them; the undo and redo permit also requires `principal is User`, so a device or an agent in the realm is refused a person's history |
 | `accounts.cedar` | the `forbid`s `family.a_frozen_account_acts_on_nothing` and `family.an_unattested_device_acts_on_nothing` | who may act at all: a frozen account and a device nobody attested are refused whatever they ask |
-| `features.cedar` | `family.a_member_names_files`, `family.a_member_finds_commands`, `family.a_member_switches_mcp` | the platform's features, each named, as the resource a command of the kernel's own selects when it reads none of the realm's data: every person of the household reads the `naming` feature, which is how `naming.propose` and `naming.read` are decided, and the `registry` feature, which is how `kernel.find` is, and reads and writes the `mcp` feature, which is how `settings.mcp.read` and `settings.mcp.set` are — a child included. Each asks `principal is User`, so a device and an agent are refused, and no membership, so realm scoping is the decision point's slice, as for `permissions.cedar` — a case for each pins Cedar's answer over the whole world |
+| `features.cedar` | `family.a_member_names_files`, `family.an_agent_names_files`, `family.a_member_finds_commands`, `family.an_agent_finds_commands`, `family.a_member_switches_mcp` | the platform's features, each named, as the resource a command of the kernel's own selects when it reads none of the realm's data: every person of the household reads the `naming` feature, which is how `naming.propose` and `naming.read` are decided, and the `registry` feature, which is how `kernel.find` is, and reads and writes the `mcp` feature, which is how `settings.mcp.read` and `settings.mcp.set` are — a child included. The person's permits ask `principal is User`, so a device is refused. An agent reads `naming` and `registry` by a permit of its own, `principal is Agent`, which is its half of the answer: the decision point asks the same request again as its operator, and the person's permit is the other half. No agent's permit names `mcp`, so no agent switches it. None asks membership, so realm scoping is the decision point's slice, as for `permissions.cedar` — a case for each pins Cedar's answer over the whole world |
 
 **Each file is also a line of `crates/nc-authz/src/embedded.rs`**, in the pack's
 own list: a kernel decides with the pack compiled into it, and a policy on disk
@@ -79,9 +79,11 @@ derived per request, not that the derivation happens inside Cedar.
 **The succession ladder itself.** `§14.7`'s dormant → presumed-inactive →
 deceased transitions need something that writes `status`, and nothing does until
 Stage 23 — so what is here is the frozen state at the end of the ladder, not the
-quorum of successors that moves an account onto it. A device or an agent acting
-for a frozen account is not refused by this pack either: whether they stop with
-their owner is `§14.5`'s revocation, a credential withdrawn where it is served.
+quorum of successors that moves an account onto it. A device acting for a
+frozen account is not refused by this pack either: whether it stops with its
+owner is `§14.5`'s revocation, a credential withdrawn where it is served. An
+agent acting for one is refused, because the decision point asks its every
+request again as its operator, whom the floor refuses.
 
 Both are recorded here rather than left as an empty file, because a pack that
 looks complete is one nobody checks against the reference again.
@@ -100,4 +102,5 @@ While no realm outside development pins the pack, a permit it gains keeps its
 version: every realm that pins it is a development profile, and
 `cargo xtask dev --install` installs the world again each time it runs, so
 there is no realm for a raised version to migrate. `features.cedar` arrived
-that way, as `family@1`, and so did `family.a_member_switches_mcp` in it. The first realm a release installs ends that.
+that way, as `family@1`, and so did `family.a_member_switches_mcp` and an
+agent's permits in it. The first realm a release installs ends that.

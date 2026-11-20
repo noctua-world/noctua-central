@@ -1322,3 +1322,105 @@ fn a_directory_refusal_prints_what_it_was_given_escaped() {
         assert!(each.contains("\\u{1b}[2J"), "written, not dropped: {each}");
     }
 }
+
+/// The commands an agent reaches in the family pack are naming and finding,
+/// and nothing else.
+///
+/// Every command of the catalog whose resource is known without its
+/// arguments, asked as ana's assistant — marked as an agent's, one link from
+/// her, holding the realm's grant — through the pack this build embeds: an
+/// agent permit added or widened turns one more `allow`, and this fails until
+/// the list below is changed on purpose.
+#[tokio::test]
+async fn the_commands_an_agent_reaches_in_the_family_pack_are_naming_and_finding_and_nothing_else()
+{
+    let pdp = family();
+    let directory = with_the_assistant(&pdp, WORLD);
+    let assistant = entity("Agent", "ana-assistant");
+    let mut allowed_to_it = Vec::new();
+    let mut asked = Vec::new();
+    for command in nc_catalog::COMMANDS {
+        let schema = nc_schema::Schema::compile(command.args_schema).expect("a catalog schema");
+        let selector = nc_schema::Selector::parse(command.resource_selector, &schema)
+            .expect("a catalog selector");
+        let Ok(resource) = selector.extract("home", &serde_json::Value::Null) else {
+            continue;
+        };
+        asked.push(command.name);
+        let decision = ask_vouching(
+            &pdp,
+            &directory,
+            &assistant,
+            command.action,
+            &resource,
+            |facts| {
+                facts.via_agent = true;
+                facts.actor_chain_depth = 1;
+            },
+        )
+        .await;
+        if decision.allowed {
+            allowed_to_it.push(command.name);
+        }
+    }
+    allowed_to_it.sort_unstable();
+    assert_eq!(
+        allowed_to_it,
+        ["kernel.find", "naming.propose", "naming.read"]
+    );
+    for refused in [
+        "journal.verify",
+        "kernel.redo",
+        "kernel.undo",
+        "limits.prune",
+        "settings.mcp.read",
+        "settings.mcp.set",
+    ] {
+        assert!(
+            asked.contains(&refused),
+            "`{refused}` was asked, and refused: {asked:?}"
+        );
+    }
+}
+
+/// An agent of another realm is denied by the slice, whatever the agent
+/// permits say.
+///
+/// The agent permits ask no membership, so over the whole world an agent of
+/// `office` is allowed `home`'s naming feature, which a case pins; asked
+/// through `home`'s slice, which holds no such agent, it is denied. The
+/// control is ana's assistant, of `home`, asked the same.
+#[tokio::test]
+async fn an_agent_of_another_realm_is_denied_by_the_slice_whatever_the_agent_permits_say() {
+    let pdp = family();
+    let directory = with_the_assistant(&pdp, WORLD);
+    let naming = entity("Feature", "naming");
+    let marked: Vouch = |facts| {
+        facts.via_agent = true;
+        facts.actor_chain_depth = 1;
+    };
+    assert_eq!(
+        ask_vouching(
+            &pdp,
+            &directory,
+            &entity("Agent", "ana-assistant"),
+            "Read",
+            &naming,
+            marked
+        )
+        .await,
+        allowed("family.an_agent_names_files")
+    );
+    assert_eq!(
+        ask_vouching(
+            &pdp,
+            &directory,
+            &entity("Agent", "mallory-assistant"),
+            "Read",
+            &naming,
+            marked
+        )
+        .await,
+        denied(sentinel::NO_PERMIT_MATCHED, ErrorCode::PolicyDenied)
+    );
+}

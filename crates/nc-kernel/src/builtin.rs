@@ -60,17 +60,19 @@
 //! when there are — and `read` says with `canonical` whether `name` was already
 //! written as the scheme writes it. Both are `Read` on `Feature::"naming"`,
 //! which the family pack gives every person of the realm
-//! (`family.a_member_names_files`): they read nothing of the realm's, so they
-//! open no unit and change nothing, and the journal's entry names the command
-//! and the feature, never the arguments. **The kernel is handed text only**:
-//! a kept identifier is read in `nc-ids`, which cannot log, and comes back as
-//! text, so nothing here turns a caller's text into an identifier the log
-//! could carry.
+//! (`family.a_member_names_files`) and an agent its person granted the feature
+//! (`family.an_agent_names_files`), its person asked as well: they read nothing
+//! of the realm's, so they open no unit and change nothing, and the journal's
+//! entry names the command and the feature, never the arguments. **The kernel
+//! is handed text only**: a kept identifier is read in `nc-ids`, which cannot
+//! log, and comes back as text, so nothing here turns a caller's text into an
+//! identifier the log could carry.
 //!
 //! **`kernel.find` is the registry filtered by the one fuzzy core**
 //! (`NOCTUA.md §12.4`), `Read` on `Feature::"registry"`, which the family pack
-//! gives every person of the realm (`family.a_member_finds_commands`);
-//! `crate::find` says what it reads and answers.
+//! gives every person of the realm (`family.a_member_finds_commands`) and an
+//! agent its person granted the feature (`family.an_agent_finds_commands`), its
+//! person asked as well; `crate::find` says what it reads and answers.
 //!
 //! **`settings.mcp.read` and `settings.mcp.set` are the channel's MCP
 //! setting** (`NOCTUA.md §12.15`), `Read` and `Write` on `Feature::"mcp"`,

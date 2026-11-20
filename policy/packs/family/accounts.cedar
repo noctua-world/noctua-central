@@ -29,11 +29,13 @@
 // succession ladder before anybody has decided anything. Every other value is
 // frozen, `suspended` and `deceased` among them.
 //
-// What it deliberately does not reach: a `Device` or an `Agent` acting for a
-// frozen account. Neither carries a `status`, and whether a person's devices
-// and agents stop with them is the revocation of `NOCTUA.md §14.5` — a
-// credential withdrawn where it is served, not re-derived from its owner on
-// every request — which this file does not answer.
+// What it does not reach by itself: a `Device` acting for a frozen account. It
+// carries no `status`, and whether a person's devices stop with them is the
+// revocation of `NOCTUA.md §14.5` — a credential withdrawn where it is served,
+// not re-derived from its owner on every request — which this file does not
+// answer. An `Agent` carries no `status` either, and is refused all the same:
+// the decision point asks each of its requests again as its operator, whom
+// this rule refuses.
 @id("family.a_frozen_account_acts_on_nothing")
 forbid (
   principal is User,

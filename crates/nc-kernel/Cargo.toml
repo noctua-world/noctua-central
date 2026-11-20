@@ -123,6 +123,13 @@ nc-plugin-reference.workspace = true
 nc-local = { workspace = true, features = ["test-support"] }
 # The model-based test holds both stores to one sequence of operations.
 proptest.workspace = true
+# The decision point with its test door open, so a suite builds a pack the tree
+# does not ship — the core and the family pack with a permit beside them that
+# lets an agent write, which no shipped pack does — through
+# `Pdp::from_sources_for_tests`, and shows what refuses an agent then. A
+# dev-dependency only: the kernel's own line above takes no door, and a member
+# that turned one on outside its tests would ship it.
+nc-authz = { workspace = true, features = ["test-support"] }
 # A blob directory another user can reach, a link where a blob's bytes would
 # be and what a path lets in, staged the same way on every system.
 nc-platform = { workspace = true, features = ["test-support"] }

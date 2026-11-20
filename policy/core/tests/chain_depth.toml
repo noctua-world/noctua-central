@@ -10,9 +10,21 @@ quorum_met = true
 grant = { entity = 'Grant::"g.current"' }
 
 [[case]]
-# The control: a request within the limit is not refused *by this rule*, which
-# is what makes the refusal below mean something.
+# The control at the depth an agent's session is decided at: one agent between
+# the person and the dispatch.
 name = "an agent acting for a person is within the limit"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { actor_chain_depth = 1 }
+
+[[case]]
+# The control at the limit: a request within it is not refused *by this rule*,
+# which is what makes the refusal below mean something. Two agents stand
+# between the person and the dispatch.
+name = "an agent another agent called for a person is within the limit"
 principal = 'Agent::"ana-assistant"'
 action = "Read"
 resource = 'Content::"notice"'
