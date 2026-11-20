@@ -3,12 +3,13 @@
 //! Gated by the `context` capability. Every function asks it first and answers
 //! `denied` to a plugin not granted it; to one that is, it answers what the
 //! frame of the call running now says — the principal as its opaque
-//! identifier, never a name; an actor chain that is empty, because no agent
-//! acts for anyone before `NOCTUA-PLAN.md`'s Stage 15; and whether a person
-//! confirmed the call, which is true only for the dispatch at the top of a
-//! call tree that redeemed a confirmation the kernel issued for it, and never
-//! for one nested beneath it or for a callback (`crate::dispatch`). Where no
-//! call tree runs — `activate` — each is refused with `[NC-PLUG-0025]`.
+//! identifier, never a name; an actor chain that is empty, whoever the tree
+//! acts as, an agent's chain being the journal's and not told to a plugin; and
+//! whether a person confirmed the call, which is true only for the dispatch at
+//! the top of a call tree that redeemed a confirmation the kernel issued for
+//! it, and never for one nested beneath it or for a callback
+//! (`crate::dispatch`). Where no call tree runs — `activate` — each is refused
+//! with `[NC-PLUG-0025]`.
 //!
 //! **There is no setter in the world, and none here**: the kernel alone writes
 //! what a plugin reads (`NOCTUA.md §11.7`).

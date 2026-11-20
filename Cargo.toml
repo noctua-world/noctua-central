@@ -258,7 +258,7 @@ clap = { version = "4.6", features = ["derive"] }
 # never pick a patch `cargo deny` refuses. When the audit step names a newer
 # patch, the fix is this number and `cargo update -p wasmtime`, in one change;
 # `cargo deny --locked check advisories` is what says which patch that is.
-wasmtime = { version = "49.0.5", default-features = false, features = [
+wasmtime = { version = "49.0.6", default-features = false, features = [
     "runtime",
     "cranelift",
     "component-model",

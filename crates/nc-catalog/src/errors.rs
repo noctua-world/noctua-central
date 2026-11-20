@@ -57,6 +57,12 @@ impl core::fmt::Display for Severity {
 /// Every error code this platform declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ErrorCode {
+    /// NC-AI-0001 — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person
+    AiNoSuchAgent,
+    /// NC-AI-0002 — An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for
+    AiNotTheOperator,
+    /// NC-AI-0003 — A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows
+    AiAgentsFull,
     /// NC-BLOB-0001 — A blob was named by text that is not a BLAKE3 hash
     BlobMalformedHash,
     /// NC-BLOB-0002 — A blob is not on this machine
@@ -299,6 +305,8 @@ pub enum ErrorCode {
     KernelCompensationMoved,
     /// NC-KERN-0024 — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch
     KernelCompensationUngranted,
+    /// NC-KERN-0025 — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it
+    KernelOnlyAtTheTop,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -386,6 +394,9 @@ pub enum ErrorCode {
 impl ErrorCode {
     /// Every code, in code order.
     pub const ALL: &'static [Self] = &[
+        Self::AiNoSuchAgent,
+        Self::AiNotTheOperator,
+        Self::AiAgentsFull,
         Self::BlobMalformedHash,
         Self::BlobNotLocal,
         Self::BlobTooLarge,
@@ -507,6 +518,7 @@ impl ErrorCode {
         Self::KernelStepUnrecorded,
         Self::KernelCompensationMoved,
         Self::KernelCompensationUngranted,
+        Self::KernelOnlyAtTheTop,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -554,6 +566,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "NC-AI-0001",
+            Self::AiNotTheOperator => "NC-AI-0002",
+            Self::AiAgentsFull => "NC-AI-0003",
             Self::BlobMalformedHash => "NC-BLOB-0001",
             Self::BlobNotLocal => "NC-BLOB-0002",
             Self::BlobTooLarge => "NC-BLOB-0003",
@@ -675,6 +690,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "NC-KERN-0022",
             Self::KernelCompensationMoved => "NC-KERN-0023",
             Self::KernelCompensationUngranted => "NC-KERN-0024",
+            Self::KernelOnlyAtTheTop => "NC-KERN-0025",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -723,6 +739,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn area(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "AI",
+            Self::AiNotTheOperator => "AI",
+            Self::AiAgentsFull => "AI",
             Self::BlobMalformedHash => "BLOB",
             Self::BlobNotLocal => "BLOB",
             Self::BlobTooLarge => "BLOB",
@@ -844,6 +863,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "KERN",
             Self::KernelCompensationMoved => "KERN",
             Self::KernelCompensationUngranted => "KERN",
+            Self::KernelOnlyAtTheTop => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -892,6 +912,15 @@ impl ErrorCode {
     #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => {
+                "An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
+            }
+            Self::AiNotTheOperator => {
+                "An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for"
+            }
+            Self::AiAgentsFull => {
+                "A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows"
+            }
             Self::BlobMalformedHash => "A blob was named by text that is not a BLAKE3 hash",
             Self::BlobNotLocal => "A blob is not on this machine",
             Self::BlobTooLarge => "A blob grew past the size the kernel accepts",
@@ -1203,6 +1232,9 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => {
                 "An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
             }
+            Self::KernelOnlyAtTheTop => {
+                "A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
+            }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
             Self::PluginCapabilityDenied => {
@@ -1313,6 +1345,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn message_key(self) -> &'static str {
         match self {
+            Self::AiNoSuchAgent => "error.ai.no-such-agent",
+            Self::AiNotTheOperator => "error.ai.not-the-operator",
+            Self::AiAgentsFull => "error.ai.agents-full",
             Self::BlobMalformedHash => "error.blob.malformed-hash",
             Self::BlobNotLocal => "error.blob.not-local",
             Self::BlobTooLarge => "error.blob.too-large",
@@ -1438,6 +1473,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => "error.kernel.step-unrecorded",
             Self::KernelCompensationMoved => "error.kernel.compensation-moved",
             Self::KernelCompensationUngranted => "error.kernel.compensation-ungranted",
+            Self::KernelOnlyAtTheTop => "error.kernel.only-at-the-top",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1486,6 +1522,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn severity(self) -> Severity {
         match self {
+            Self::AiNoSuchAgent => Severity::Warning,
+            Self::AiNotTheOperator => Severity::Warning,
+            Self::AiAgentsFull => Severity::Warning,
             Self::BlobMalformedHash => Severity::Warning,
             Self::BlobNotLocal => Severity::Info,
             Self::BlobTooLarge => Severity::Warning,
@@ -1607,6 +1646,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => Severity::Error,
             Self::KernelCompensationMoved => Severity::Warning,
             Self::KernelCompensationUngranted => Severity::Warning,
+            Self::KernelOnlyAtTheTop => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1655,6 +1695,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn retryable(self) -> bool {
         match self {
+            Self::AiNoSuchAgent => false,
+            Self::AiNotTheOperator => false,
+            Self::AiAgentsFull => false,
             Self::BlobMalformedHash => false,
             Self::BlobNotLocal => true,
             Self::BlobTooLarge => false,
@@ -1776,6 +1819,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => false,
             Self::KernelCompensationMoved => false,
             Self::KernelCompensationUngranted => false,
+            Self::KernelOnlyAtTheTop => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -1824,6 +1868,9 @@ impl ErrorCode {
     #[must_use]
     pub const fn params(self) -> &'static [&'static str] {
         match self {
+            Self::AiNoSuchAgent => &[],
+            Self::AiNotTheOperator => &[],
+            Self::AiAgentsFull => &[],
             Self::BlobMalformedHash => &[],
             Self::BlobNotLocal => &[],
             Self::BlobTooLarge => &[],
@@ -1945,6 +1992,7 @@ impl ErrorCode {
             Self::KernelStepUnrecorded => &[],
             Self::KernelCompensationMoved => &[],
             Self::KernelCompensationUngranted => &[],
+            Self::KernelOnlyAtTheTop => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

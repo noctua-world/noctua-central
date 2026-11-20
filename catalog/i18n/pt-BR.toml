@@ -31,6 +31,8 @@ dir   = "ltr"
 "command.naming.propose.tags" = ["nome de arquivo", "nomear arquivo", "renomear", "salvar como", "propor"]
 "command.naming.read.tags" = ["nome de arquivo", "ler um nome", "identificador", "analisar", "detalhes"]
 "command.kernel.find.tags" = ["procurar", "pesquisar", "buscar", "filtrar", "comandos disponíveis"]
+"command.settings.mcp.read.tags" = ["mcp", "agentes", "configurações", "ferramentas de ia", "protocolo de contexto"]
+"command.settings.mcp.set.tags" = ["mcp", "agentes", "configurações", "ligar", "desligar", "ferramentas de ia", "protocolo de contexto"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["navegador", "navegador da web", "web", "internet", "google"]
@@ -87,6 +89,11 @@ dir   = "ltr"
 "error.policy.directory-unavailable" = "O Noctua não conseguiu verificar agora quem pode fazer isso, então não fez. Tente novamente em instantes."
 "error.policy.rule-broken" = "As regras de permissão do Noctua foram escritas de um jeito que ele não aceita, então ele não está permitindo nada até que sejam corrigidas."
 
+# --- Agent identity ---
+"error.ai.no-such-agent" = "Nenhum dos seus agentes tem esse identificador, então nada foi feito."
+"error.ai.not-the-operator" = "Só uma pessoa pode ter um agente, e só a pessoa por quem um agente age pode dar ou tirar o acesso dele. Nada foi alterado."
+"error.ai.agents-full" = "Este perfil já tem tantos agentes, ou já deu aos seus agentes tantas permissões, quanto consegue guardar. Nada foi alterado."
+
 # --- Validation ---
 "error.validation.out-of-range" = "{field} precisa estar entre {min} e {max}."
 "error.validation.arguments-invalid" = "Esse pedido não está no formato que o comando espera. Nada foi feito."
@@ -98,7 +105,7 @@ dir   = "ltr"
 "error.kernel.reentrant" = "Uma parte do Noctua tentou chamar a si mesma enquanto ainda estava ocupada, então esse passo foi recusado. Nada foi alterado."
 "error.kernel.too-deep" = "Essa ação disparou passos demais um dentro do outro, então o Noctua a interrompeu. Nada foi alterado."
 "error.kernel.read-only" = "Este passo só pode ler, e o que ele pediu mudaria algo, então foi recusado. Nada foi alterado."
-"error.kernel.unconfirmed" = "Isso não pode ser desfeito, então precisa primeiro da sua confirmação na janela do Noctua. Nada foi feito."
+"error.kernel.unconfirmed" = "Isso não pode ser desfeito, então uma pessoa precisa primeiro confirmar na janela do Noctua. Nada foi feito."
 "error.kernel.deadline" = "Isso demorou demais, então o Noctua interrompeu. Nada foi alterado no Noctua, mas o que já tinha sido enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
 "error.kernel.unit-aborted" = "Essa ação foi cancelada no meio, então nada do que ela mudou no Noctua foi mantido. O que ela já tinha enviado para fora deste computador pode ter chegado."
 "error.kernel.nothing-to-undo" = "Não há nada para desfazer."
@@ -117,6 +124,7 @@ dir   = "ltr"
 "error.kernel.step-unrecorded" = "Esse passo ainda não pode ser desfeito nem refeito, porque o histórico do Noctua não o mostra como concluído. Nada foi alterado."
 "error.kernel.compensation-moved" = "Esse passo não pode ser desfeito, porque o que ele indicou para corrigir as coisas agora pertence a outra parte do Noctua, ou a nenhuma. Nada foi desfeito."
 "error.kernel.compensation-ungranted" = "Esse passo não pode ser desfeito, porque a parte do Noctua que indicou como corrigi-lo não pode mais pedir isso a outra parte. Nada foi desfeito."
+"error.kernel.only-at-the-top" = "Mudar uma configuração e cuidar de agentes só pode ser pedido diretamente, não de dentro de outra ação."
 
 # --- The plugin host ---
 "error.plugin.capability-denied" = "Uma parte do Noctua pediu algo que não tem permissão de usar e foi recusada."
@@ -250,6 +258,12 @@ dir   = "ltr"
 "command.kernel.find.title" = "Encontrar um comando"
 "command.kernel.find.description" = "Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas."
 "command.kernel.find.paragraph" = "Procura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada."
+"command.settings.mcp.read.title" = "Ver se o MCP está ligado"
+"command.settings.mcp.read.description" = "Mostrar se esta instalação do Noctua deixa clientes MCP entrarem."
+"command.settings.mcp.read.paragraph" = "Responde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada."
+"command.settings.mcp.set.title" = "Ligar ou desligar o MCP"
+"command.settings.mcp.set.description" = "Deixar clientes MCP agirem aqui como agentes, ou impedi-los."
+"command.settings.mcp.set.paragraph" = "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava."
 
 # --- Capabilities ---
 "capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."
@@ -669,6 +683,8 @@ dir   = "ltr"
 "category.noctua.files.description" = "Nomear, encontrar e organizar os arquivos de uma pessoa"
 "category.noctua.reference.title" = "Referência"
 "category.noctua.reference.description" = "Comandos do plugin de referência, com o qual a plataforma é testada"
+"category.noctua.settings.title" = "Configurações"
+"category.noctua.settings.description" = "Escolher como esta instalação do Noctua se comporta, uma configuração por vez"
 
 # --- External identifiers ---
 "external-identifier.google-chrome.title" = "Google Chrome"

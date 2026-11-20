@@ -46,8 +46,13 @@
 //! Whether the kernel asked at all, and in what order, is the enforcement
 //! point's. An agent's rights intersected with its operator's (`§14.6`) are two
 //! questions the enforcement point asks and intersects; one question here is one
-//! principal. Whether a directory's grants and epochs are current is the
-//! directory's, and a stale epoch is what `core.fail_closed` and `§14.8` are for.
+//! principal. The budget's count is the enforcement point's too: it says how much
+//! an agent has spent (`Facts::budget_spent`), and this takes that off what the
+//! agent's entity holds before Cedar reads it, so `core.budget_is_a_permission`
+//! refuses an agent that has spent it all. Whether a directory's grants and
+//! epochs are current is the directory's, and a stale epoch is what
+//! `core.fail_closed` and `§14.8` are for, and the kernel asks for the epoch
+//! at every decision.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -57,19 +62,24 @@
 use std::str::FromStr as _;
 
 use cedar_policy::{
-    AuthorizationError, Authorizer, Context, Decision as Verdict, Effect, EntityId, EntityTypeName,
-    EntityUid, Request, Response,
+    AuthorizationError, Authorizer, Context, Decision as Verdict, Effect, Entity, EntityId,
+    EntityTypeName, EntityUid, Request, Response,
 };
 use nc_catalog::ErrorCode;
 use nc_policy::{Problem, manifest::Manifest};
 pub use nc_schema::selector::EntityRef;
 
+mod agents;
 mod directory;
 mod embedded;
 
+pub use agents::{
+    AUTONOMY, AgentRecord, Bounds, Change, ChangeKind, ChangeRefused, GrantRecord, HeldAgent,
+    HeldGrant, Keeper, Kept, LocalDirectory, Records, Unkept,
+};
 pub use directory::{
-    Directory, DirectoryError, GrantFacts, LocalWorld, MemoryDirectory, Principal, PrincipalKind,
-    RealmFacts, Slice,
+    Delegation, Directory, DirectoryError, GrantFacts, LocalWorld, MemoryDirectory, Principal,
+    PrincipalKind, RealmFacts, Slice,
 };
 
 /// Declares the sentinel module, and lists every sentinel it declares in its `ALL`.
@@ -366,6 +376,20 @@ impl Pdp {
                 ErrorCode::PolicyDenied,
             );
         }
+        let spent = question.facts.budget_spent;
+        let lowered = (spent > 0).then(|| self.spent_from(slice, question.principal, spent));
+        let slice = match &lowered {
+            None => slice,
+            Some(Some(lowered)) => lowered,
+            // An agent whose budget does not read back is decided over
+            // nothing, rather than over the budget it held before it spent.
+            Some(None) => {
+                return Decision::denied(
+                    sentinel::REQUEST_INVALID.to_owned(),
+                    ErrorCode::PolicyEvaluationFailed,
+                );
+            }
+        };
         let response =
             Authorizer::new().is_authorized(&request, self.compiled.policies(), slice.entities());
         if !slice.holds(question.resource) {
@@ -432,6 +456,26 @@ impl Pdp {
         }
     }
 
+    /// The slice with `principal`'s `budget_remaining` lowered by `spent`, never below what a `Long` holds.
+    ///
+    /// The slice as it was for a principal that holds no budget, a person's
+    /// included; nothing when the lowered entity does not read back with the
+    /// schema, which [`Pdp::decide`] denies as a request the schema refuses.
+    fn spent_from(&self, slice: &Slice, principal: &EntityRef, spent: u64) -> Option<Slice> {
+        let schema = self.compiled.schema();
+        let held = slice
+            .entities()
+            .get(&uid(&principal.type_name, &principal.id)?)?;
+        let mut written = held.to_json_value().ok()?;
+        let Some(remaining) = written["attrs"]["budget_remaining"].as_i64() else {
+            return Some(slice.clone());
+        };
+        let left = remaining.saturating_sub(i64::try_from(spent).unwrap_or(i64::MAX));
+        written["attrs"]["budget_remaining"] = serde_json::Value::from(left);
+        let lowered = Entity::from_json_value(written, Some(schema)).ok()?;
+        slice.replacing(lowered, schema)
+    }
+
     /// The request a question is, validated against the schema, or nothing when the schema refuses it.
     fn request(&self, question: &Question<'_>) -> Option<Request> {
         let schema = self.compiled.schema();
@@ -494,6 +538,13 @@ pub struct Facts {
     pub quorum_met: bool,
     /// The grant the decision rests on, from the directory.
     pub grant: Option<EntityRef>,
+    /// How much of its budget the acting agent has spent this session.
+    ///
+    /// The decision point takes it off the `budget_remaining` the agent's
+    /// entity holds, because the schema keeps the budget on the entity and not
+    /// in the context; zero for every other principal, and for every half of a
+    /// decision but the acting agent's.
+    pub budget_spent: u64,
 }
 
 impl Facts {

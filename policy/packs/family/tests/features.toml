@@ -5,6 +5,11 @@
 # does not give, a kind of principal it does not let in, and a feature it does
 # not name. The runner re-runs every refusal with every `forbid` removed, so a
 # case still denied is one about the permit and not about a floor.
+#
+# An agent's permit is refused for its kind of principal with a device marked
+# as acting through an agent: a person would be let in by the person's permit,
+# and an agent not so marked is refused by the core, so neither is a boundary of
+# the agent's permit.
 
 [default.context]
 now = { datetime = "2026-08-26T00:00:00Z" }
@@ -56,17 +61,77 @@ decision = "deny"
 no_permit_matched = "family.a_member_names_files"
 
 [[case]]
-# And an agent acting openly as one — `via_agent` set, so no core `forbid`
-# refuses it and the permit is the only thing that can, until Stage 15 gives an
-# agent a permit of its own.
-name = "nor does an agent acting openly as one, until it has a permit of its own"
-the_principal_is_the_boundary = true
+# **The agent's own permit — half of what it is answered.** The decision point
+# asks this as the agent and again as its operator, and allows only what both
+# allow (`NOCTUA.md §14.6`); this is the agent's half, marked as an agent's,
+# one link from the person it acts for.
+name = "an agent of the house has a file named, for the person it acts for"
 principal = 'Agent::"ana-assistant"'
 action = "Read"
 resource = 'Feature::"naming"'
-context = { via_agent = true }
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.an_agent_names_files"
+
+[[case]]
+# **The other half.** The same request asked as the operator, marked as an
+# agent's: the person's own permit answers it, and no core `forbid` refuses it.
+name = "the person an agent acts for has the file named too, as the other half of its answer"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.a_member_names_files"
+
+[[case]]
+# **The verb**, for the agent's permit: naming is a read, and with the
+# permit's action dropped an agent would be given every verb over the feature.
+name = "an agent has a file named and writes nothing to the feature"
+the_action_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
 decision = "deny"
-no_permit_matched = "family.a_member_names_files"
+no_permit_matched = "family.an_agent_names_files"
+
+[[case]]
+# **Who is asking, for the agent's permit.** A person is let in by the person's
+# permit and an unmarked agent is refused by the core, so the boundary is a
+# device marked as acting through an agent: asked as the agent, this request is
+# allowed, and only the type test refuses it here.
+name = "a device in an agent's chain has no file named by the agent's permit"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.an_agent_names_files"
+
+[[case]]
+# **The feature it names**, for the agent's permit: `gallery`, which no other
+# permit gives an agent.
+name = "the agent's naming permit reaches no other feature"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Feature::"gallery"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.an_agent_names_files"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the person's is: the
+# permit asks no membership, so an agent of another realm is allowed over the
+# whole world, and the decision point's slice of `home` denies it.
+name = "an outsider's agent has a file named, which only the decision point refuses"
+principal = 'Agent::"mallory-assistant"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.an_agent_names_files"
 
 [[case]]
 # **The feature it names.** With the resource constraint dropped, the permit
@@ -133,17 +198,77 @@ decision = "deny"
 no_permit_matched = "family.a_member_finds_commands"
 
 [[case]]
-# And an agent acting openly as one — `via_agent` set, so no core `forbid`
-# refuses it and the permit is the only thing that can, until Stage 15 gives an
-# agent a permit of its own.
-name = "nor does an agent finding commands openly, until it has a permit of its own"
-the_principal_is_the_boundary = true
+# **The agent's own permit — half of what it is answered.** The decision point
+# asks this as the agent and again as its operator, and allows only what both
+# allow (`NOCTUA.md §14.6`); this is the agent's half, marked as an agent's,
+# one link from the person it acts for.
+name = "an agent of the house finds a command, for the person it acts for"
 principal = 'Agent::"ana-assistant"'
 action = "Read"
 resource = 'Feature::"registry"'
-context = { via_agent = true }
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.an_agent_finds_commands"
+
+[[case]]
+# **The other half.** The same request asked as the operator, marked as an
+# agent's: the person's own permit answers it, and no core `forbid` refuses it.
+name = "the person an agent acts for finds the command too, as the other half of its answer"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Feature::"registry"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.a_member_finds_commands"
+
+[[case]]
+# **The verb**, for the agent's permit: finding is a read, and with the
+# permit's action dropped an agent would be given every verb over the feature.
+name = "an agent finds a command and writes nothing to the registry"
+the_action_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Feature::"registry"'
+context = { via_agent = true, actor_chain_depth = 1 }
 decision = "deny"
-no_permit_matched = "family.a_member_finds_commands"
+no_permit_matched = "family.an_agent_finds_commands"
+
+[[case]]
+# **Who is asking, for the agent's permit.** A person is let in by the person's
+# permit and an unmarked agent is refused by the core, so the boundary is a
+# device marked as acting through an agent: asked as the agent, this request is
+# allowed, and only the type test refuses it here.
+name = "a device in an agent's chain finds no command by the agent's permit"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Feature::"registry"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.an_agent_finds_commands"
+
+[[case]]
+# **The feature it names**, for the agent's permit: `gallery`, which no other
+# permit gives an agent.
+name = "the agent's finding permit reaches no other feature"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Feature::"gallery"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.an_agent_finds_commands"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the person's is: the
+# permit asks no membership, so an agent of another realm is allowed over the
+# whole world, and the decision point's slice of `home` denies it.
+name = "an outsider's agent finds a command, which only the decision point refuses"
+principal = 'Agent::"mallory-assistant"'
+action = "Read"
+resource = 'Feature::"registry"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "allow"
+because = "family.an_agent_finds_commands"
 
 [[case]]
 # **The feature it names.** With the resource constraint dropped, the permit
@@ -166,3 +291,76 @@ action = "Read"
 resource = 'Feature::"registry"'
 decision = "allow"
 because = "family.a_member_finds_commands"
+
+[[case]]
+name = "a member of the house reads whether MCP is on in their channel"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+name = "a member of the house switches MCP for their own channel"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+# A child as much as an adult.
+name = "a child of the house switches MCP too"
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"
+
+[[case]]
+# **The verb.** A `Delete`: the permit gives the two verbs its commands are
+# decided under, and with its action dropped a member would be given every verb
+# over the feature.
+name = "switching MCP deletes nothing of the feature"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Delete"
+resource = 'Feature::"mcp"'
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **Who is asking**: an agent, marked as one acting for its person, so no core
+# `forbid` refuses it and only `principal is User` does — the rule that keeps
+# an agent from letting itself in, and the case that fails the day an agent's
+# permit grows wide enough to reach this feature.
+name = "an agent switches no MCP, not even to let itself in"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Feature::"mcp"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member write every feature the realm holds.
+name = "the switch reaches no other feature"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"naming"'
+decision = "deny"
+no_permit_matched = "family.a_member_switches_mcp"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the naming permit's is:
+# the permit asks no membership, so over the whole world a person of another
+# realm is allowed it, and only the decision point's slice of `home` denies
+# them.
+name = "an outsider switches MCP, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Write"
+resource = 'Feature::"mcp"'
+decision = "allow"
+because = "family.a_member_switches_mcp"

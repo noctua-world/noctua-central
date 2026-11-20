@@ -406,7 +406,7 @@ pub(crate) fn a_word(text: &str) -> bool {
 }
 
 /// Whether `id` is `<word>:<word>`, at most [`ID_MAX`] bytes.
-fn id_is_well_formed(id: &str) -> bool {
+pub(crate) fn id_is_well_formed(id: &str) -> bool {
     id.len() <= ID_MAX
         && id
             .split_once(':')

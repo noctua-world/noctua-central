@@ -11293,7 +11293,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 777] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11415,6 +11415,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "whatever advisory is named in it, with `advisories ok` printed over it",
     "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
     "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason",
+    "the agent's finding permit reaches no other feature",
+    "the agent's naming permit reaches no other feature",
     "whatever licence is named in it, one crate at a time and without moving `allow`",
     "    pub fn send(&self, _line: String) {} }\n",
     "  fn fields(&self) -> Vec<(&'static str, Field)>; }\n",
@@ -11494,6 +11496,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "a check CI runs has to run. Every reader in this file sees the command and counts its verdict, and a condition or a loop around it means the verdict may be of nothing — measured, the determinism job wrapped in `while false; do … done` left every count in this gate unchanged. Write the commands at the top level of the step",
     "a child of the house finds a command too",
     "a child of the house reads what the house shares",
+    "a child of the house switches MCP too",
     "a citation is how one file sends a reader to the rule it obeys, and a wrong number sends them to a different rule that reads as though it were the right one. Check the number, or mark the line `allow-reference: <reason>` naming the section it excuses",
     "a clock and a timezone, so the output differs by where the machine is",
     "a clock, whatever crate it came from and whatever it is renamed to at the `use`",
@@ -11505,6 +11508,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "a decided control is not an announcement",
     "a declared field type is not a guarantee when the value is built out of text at the call — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for, and `FileName::parse` reaches the same constructor one hop away. Log an identifier the platform minted, or declare what you mean as a field of its own. If this `{minted}` cannot carry caller text — `Duration::new` is the case — say so with `{ALLOW}` on this line and name `{minted}` in the reason",
     "a declared field type is not a guarantee when the value is built out of text — `Snowflake::from_crockford` takes twelve caller-chosen characters and writes them to the store verbatim, which is what `type = \"id\"` is refused for. The value need not be built at the call: a `let` on the line above, or a helper in this file, reaches the same field. Log an identifier the platform minted. If this one cannot carry caller text, say so with `allow-logging:` on this line — and name `{minted}` in the reason, because `cargo fmt` joins lines and a marker that names nothing excuses whatever lands beside it",
+    "a device in an agent's chain finds no command by the agent's permit",
+    "a device in an agent's chain has no file named by the agent's permit",
     "a device in the realm steps through no history, however attested",
     "a device of the house finds no command, however attested",
     "a device of the house has no file named, however attested",
@@ -11561,6 +11566,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "a member has a file named and writes nothing to the feature",
     "a member of the house finds a command",
     "a member of the house has a file named",
+    "a member of the house reads whether MCP is on in their channel",
+    "a member of the house switches MCP for their own channel",
     "a member reads her own account",
     "a member reads her own account and does not rewrite it",
     "a member reads what the house has made public",
@@ -11595,7 +11602,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "a suspended account does not read even its own account",
     "a suspended account finds no command",
     "a suspended account has no file named",
+    "a suspended account lends an agent nothing, asked as its operator",
     "a suspended account steps through no history, not even its own",
+    "a suspended account switches no MCP",
     "a suspended account writes nothing, not even what it owns",
     "a table that can grow without bound needs `[tables.{}]` with `max_rows`, `prune_batch`, `strategy` and `order_by`, so one pruner can enforce it (NOCTUA.md §15.8). If it genuinely cannot grow, say so in the comment block directly above it, on a line beginning `-- {BOUNDED} <reason>`",
     "a tag is a name whoever publishes the image can repoint, so the stack a developer brings up today and the one CI brings up tomorrow are not the same bytes. Write `image:tag@sha256:…` — the tag stays so a reader can see the version, and the digest is what pins it. When the image is written in a compose file the line above is that file's; an image that only exists after resolution is not in any file, and the number is then `docker compose config`'s",
@@ -11616,7 +11625,14 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "an address is where this run happened to put something, and it differs between two runs of one binary",
     "an agent acting for a person is within the limit",
     "an agent acting unmarked is impersonating and is refused",
+    "an agent another agent called for a person is within the limit",
     "an agent cannot delete on a human's behalf without that human confirming",
+    "an agent finds a command and writes nothing to the registry",
+    "an agent has a file named and writes nothing to the feature",
+    "an agent of the house finds a command, for the person it acts for",
+    "an agent of the house has a file named, for the person it acts for",
+    "an agent switches no MCP, not even to let itself in",
+    "an agent that has spent its budget has no file named either",
     "an agent that has spent its budget is refused",
     "an agent with budget, acting as an agent, is not refused by these",
     "an agent with no grant is refused like anybody else",
@@ -11628,6 +11644,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "an outsider finds a command, which only the decision point refuses",
     "an outsider has a file named, which only the decision point refuses",
     "an outsider reads what this household shares, which is the gap invariant 4 leaves",
+    "an outsider switches MCP, which only the decision point refuses",
+    "an outsider's agent finds a command, which only the decision point refuses",
+    "an outsider's agent has a file named, which only the decision point refuses",
     "an owner governs her own content and does not grant over it",
     "an owner writes her own content",
     "and a member who is not a guardian does not",
@@ -11765,8 +11784,6 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "no associated function or constant named `from_macro` found for struct `Literal`",
     "no rules expected `leaked`",
     "no such command",
-    "nor does an agent acting openly as one, until it has a permit of its own",
-    "nor does an agent finding commands openly, until it has a permit of its own",
     "nor does an agent, even one acting openly as an agent",
     "nor revoke from herself, which is how a constraint is removed rather than added",
     "nothing here reads a `FROM` line, so a Dockerfile naming an unpinned tag is invisible to this gate. This stack pulls two pinned images (`§18.4`, `§18.5`) and builds nothing; if that changes, the pin moves to the Dockerfile and this gate has to follow it there. The line number is in `docker compose config`'s output, which is what the stack actually runs",
@@ -11817,6 +11834,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "something inside the walk is filtering, and a `§` in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero",
     "something inside the walk is filtering, and a citation in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero, and a walk that reads one file reports a number that looks like a measurement",
     "struct `Shipper` is private",
+    "switching MCP deletes nothing of the feature",
     "take the row out of `ASSERTED_STATEMENTS` in `xtask/src/gates.rs` if the file is gone, or move it with the file: a row nothing reads is a review nobody can check",
     "test result: ok.",
     "that is the one way past the log's type wall: a leaked `format!` satisfies `LogValue` and carries whatever was interpolated into a store that stays active in production (NOCTUA.md §15.4). If the value is a state, declare it as an `enum` field; if it is a count or a code, it already has a type",
@@ -11861,6 +11879,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "the naming permit reaches no other feature",
     "the path separator differs by platform, and a generated file that holds one differs with it",
     "the path separator differs by platform, and a generated file that holds one differs with it. A generated path is written with a forward slash",
+    "the person an agent acts for finds the command too, as the other half of its answer",
+    "the person an agent acts for has the file named too, as the other half of its answer",
     "the pointer width of the machine that built this, which `size_of::<usize>` above is the other spelling of",
     "the pruner writes `ORDER BY {}` into its DELETE, so a name that is not a column fails the first time it runs — which is when the table is at its limit. The columns the migrations declare are: {}",
     "the pruner writes `ORDER BY … ASC`, and PostgreSQL sorts NULLs last — so every row missing this value would be the newest row in the table and the last one ever removed, while the table grows past its limit with the pruner reporting success. Declare the column `NOT NULL` in the migration, or order by one that is",
@@ -11887,6 +11907,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 756] = [
     "the stack is up",
     "the stack is what the gate needs, not a thing to start for its own sake",
     "the step then exits before it has finished and the runner kills it, so its verdict never exists — while every check here still reads it as a command that ran",
+    "the switch reaches no other feature",
     "the trait bound `&String: LogValue` is not satisfied",
     "the trait bound `&str: LogValue` is not satisfied",
     "the trait bound `Mine: nc_log::sealed::Sealed` is not satisfied",
@@ -13285,7 +13306,7 @@ fn a_step_that_did_not_run(opened: &[String]) -> Result<(), String> {
 /// twice. What a census of a private surface is for is telling a
 /// reviewer that the surface grew, and a phantom entry in it is an entry nobody
 /// can go and read.
-const DOORS: usize = 22;
+const DOORS: usize = 23;
 
 /// Whether a count taken from the tree disagrees with the number written down.
 ///
@@ -19553,7 +19574,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 227] = [
+    const DOCUMENTED: [(&str, usize, usize); 230] = [
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19572,7 +19593,7 @@ mod the_frozen_path_rule {
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
-        ("daemon/channels_side_by_side.rs", 11, 5),
+        ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 14, 16),
         ("daemon/every_command_from_the_cli.rs", 41, 2),
@@ -19592,10 +19613,11 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
-        ("nc-authz/directory.rs", 41, 15),
+        ("nc-authz/agents.rs", 69, 47),
+        ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
-        ("nc-authz/lib.rs", 30, 19),
-        ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
+        ("nc-authz/lib.rs", 31, 20),
+        ("nc-authz/the_embedded_pack_decides.rs", 28, 34),
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
@@ -19683,7 +19705,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 72, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 124, 26),
+        ("nc-kernel/dispatch.rs", 131, 31),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -19700,7 +19722,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 46),
-        ("nc-kernel/lib.rs", 59, 55),
+        ("nc-kernel/lib.rs", 61, 57),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19708,15 +19730,17 @@ mod the_frozen_path_rule {
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
-        ("nc-kernel/registry.rs", 63, 25),
+        ("nc-kernel/registry.rs", 66, 25),
+        ("nc-kernel/session.rs", 24, 7),
+        ("nc-kernel/settings.rs", 25, 1),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 193, 80),
+        ("nc-kernel/the_decision_point.rs", 241, 86),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
+        ("nc-kernel/the_rest_of_the_world.rs", 54, 64),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
         ("nc-kernel/units.rs", 113, 18),
-        ("nc-kernel/units_and_history.rs", 144, 44),
+        ("nc-kernel/units_and_history.rs", 147, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
@@ -19771,7 +19795,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 85, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 250, 33),
+        ("xtask/gates.rs", 253, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
@@ -25730,7 +25754,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 20681;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21139;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25749,7 +25773,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5538;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5625;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25766,7 +25790,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1871;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1898;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25783,7 +25807,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 37, 38, 91];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 36, 37, 91];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25800,7 +25824,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27461;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27907;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25818,7 +25842,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 516;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 514;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25854,8 +25878,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,461 are accepted by the first-line
-    /// rule alone, and 276 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **514 of 27,907 are accepted by the first-line
+    /// rule alone, and 274 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25876,8 +25900,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 37
-    /// swaps, 38 rotations and 91 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 36
+    /// swaps, 37 rotations and 91 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25887,7 +25911,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1871 of
+    /// this tree offers, **1898 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28433,7 +28457,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 756;
+    const THE_REST_IT_SAYS: usize = 777;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -37849,7 +37873,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 241,
+            walked, 244,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37889,7 +37913,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2592] = [
+    static OPERATORS: [(&str, &str, &str); 2685] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41896,6 +41920,36 @@ Options:
             "an agent acting reaches the rules that read it",
         ),
         (
+            "authz",
+            "decide",
+            "a budget spent is taken off what the agent holds",
+        ),
+        (
+            "authz",
+            "decide",
+            "nothing spent decides over the slice as the directory built it",
+        ),
+        (
+            "authz",
+            "decide",
+            "an agent whose spent budget does not read back is refused",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a spend is taken off without wrapping",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a spend past what a long holds is the most a long holds",
+        ),
+        (
+            "authz",
+            "spent_from",
+            "a principal holding no budget is decided as it was",
+        ),
+        (
             "authz_directory",
             "fmt",
             "an unavailable directory's reason is printed escaped",
@@ -41969,9 +42023,221 @@ Options:
             "the grant a world names is its person's",
         ),
         (
+            "authz_directory",
+            "delegation_now",
+            "a world agent's operator is a person of its realm",
+        ),
+        (
+            "authz_directory",
+            "delegation_now",
+            "a world agent is answered in its own realm alone",
+        ),
+        (
+            "authz_directory",
+            "Directory for MemoryDirectory",
+            "a world agent's slice holds its operator",
+        ),
+        (
             "authz_embedded",
             "carried",
             "a profile selects only its own pack",
+        ),
+        (
+            "authz_agents",
+            "runtime",
+            "a held agent is answered in its own realm alone",
+        ),
+        (
+            "authz_agents",
+            "runtime",
+            "only an agent is routed to the held agents",
+        ),
+        (
+            "authz_agents",
+            "grant",
+            "an agent's grant answers for the one resource it names",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a change asked of another realm is refused",
+        ),
+        ("authz_agents", "refused", "only a person makes an agent"),
+        (
+            "authz_agents",
+            "refused",
+            "only a person of the realm makes an agent",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent is made once under its identifier",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent's budget is one it can spend",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent's label is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "an agent past its table's bound is refused",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "only an agent's operator gives it a grant",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "only an agent's operator ends its grants",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant with no time to run is refused",
+        ),
+        ("authz_agents", "refused", "a grant is on a feature"),
+        (
+            "authz_agents",
+            "refused",
+            "a grant is on a feature of the realm",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant's reason is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "refused",
+            "a grant past its table's bound is refused",
+        ),
+        (
+            "authz_agents",
+            "holdable",
+            "a text a reader cannot see is not held",
+        ),
+        ("authz_agents", "holdable", "a text at its bound is held"),
+        (
+            "authz_agents",
+            "holdable",
+            "a bound counts characters, not bytes",
+        ),
+        (
+            "authz_agents",
+            "planned",
+            "a new grant ends the live one on its scope",
+        ),
+        (
+            "authz_agents",
+            "planned",
+            "an ending ends the grant on the scope it names alone",
+        ),
+        ("authz_agents", "change", "an ending is held in memory"),
+        (
+            "authz_agents",
+            "change",
+            "a change the keeper refused is not held",
+        ),
+        (
+            "authz_agents",
+            "slice",
+            "an agent's slice holds its operator",
+        ),
+        (
+            "authz_agents",
+            "slice",
+            "a grant the agent does not hold is the world's to answer for",
+        ),
+        (
+            "authz_agents",
+            "delegation",
+            "an agent is delegated only while the world holds its operator",
+        ),
+        (
+            "authz_agents",
+            "agent_entity",
+            "an agent's budget is the one it was made with",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a directory opened holds its own realm's agents alone",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a directory opened holds its own realm's grants alone",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "what was kept past its bounds is refused",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant of an agent it does not hold is refused",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "two live grants kept on one scope are refused",
+        ),
+        ("authz_agents", "open", "a kept grant is on a feature"),
+        (
+            "authz_agents",
+            "open",
+            "what was kept counts every grant it holds live",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept agent's label is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "a kept agent's budget is one it can spend",
+        ),
+        ("authz_agents", "open", "an agent kept twice is refused"),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant is its agent's operator's to give",
+        ),
+        ("authz_agents", "open", "a kept grant has time to run"),
+        (
+            "authz_agents",
+            "open",
+            "a kept grant's reason is one it can hold",
+        ),
+        (
+            "authz_agents",
+            "code",
+            "an agent past its bound carries its own code",
+        ),
+        (
+            "authz_agents",
+            "kind",
+            "a change not the operator's is denied",
+        ),
+        (
+            "authz_agents",
+            "word",
+            "a change not kept is recorded as not kept",
+        ),
+        (
+            "authz_agents",
+            "fmt",
+            "a keeper's reason is printed escaped",
         ),
         (
             "kernel",
@@ -42629,6 +42895,21 @@ Options:
             "kernel_registry",
             "catalog_entry",
             "the catalog's entry is resolved in each locale",
+        ),
+        (
+            "kernel_registry",
+            "only_at_the_top",
+            "a plugin's command runs below the top of a tree",
+        ),
+        (
+            "kernel_registry",
+            "only_at_the_top",
+            "a setting's read runs below the top of a tree",
+        ),
+        (
+            "kernel_registry",
+            "only_at_the_top",
+            "only a setting's namespace keeps its switch at the top",
         ),
         (
             "kernel_entries",
@@ -43335,6 +43616,16 @@ Options:
         (
             "kernel_dispatch",
             "registered",
+            "a setting's switch is refused nested in a command",
+        ),
+        (
+            "kernel_dispatch",
+            "registered",
+            "a setting's switch is refused one level down",
+        ),
+        (
+            "kernel_dispatch",
+            "registered",
             "a name no command could have is refused as malformed",
         ),
         (
@@ -43534,12 +43825,12 @@ Options:
         ),
         (
             "kernel_dispatch",
-            "decision",
+            "held_for",
             "the directory's grant is asked under a deadline",
         ),
         (
             "kernel_dispatch",
-            "decision",
+            "held_for",
             "the directory's slice is asked under a deadline",
         ),
         (
@@ -43728,6 +44019,57 @@ Options:
             "kernel_find",
             "answer_of",
             "a plugin's command is said to be one",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "a switch is run by the set's handler",
+        ),
+        (
+            "kernel_builtin",
+            "name",
+            "the switch is the catalog's settings.mcp.set",
+        ),
+        (
+            "kernel_settings",
+            "read",
+            "the settings are read from MCP's own entry",
+        ),
+        ("kernel_settings", "on_in", "a setting never written is off"),
+        (
+            "kernel_settings",
+            "on_in",
+            "only the two texts written are read",
+        ),
+        (
+            "kernel_settings",
+            "mcp_read",
+            "the read answers what the store holds",
+        ),
+        (
+            "kernel_settings",
+            "mcp_set",
+            "the set stages what it was asked",
+        ),
+        (
+            "kernel_settings",
+            "mcp_set",
+            "the set is staged over what the store holds",
+        ),
+        (
+            "kernel_settings",
+            "mcp_set",
+            "the set answers what it staged",
+        ),
+        (
+            "kernel_settings",
+            "asked",
+            "a set with no boolean on is refused",
+        ),
+        (
+            "kernel_settings",
+            "writes_only_its_entry",
+            "only the set writes nothing but its entry",
         ),
         (
             "kernel_dispatch",
@@ -44927,6 +45269,11 @@ Options:
             "kernel_history",
             "leaves_the_machine",
             "undo and redo do not leave the machine",
+        ),
+        (
+            "kernel_history",
+            "leaves_the_machine",
+            "a setting's switch does not leave the machine",
         ),
         (
             "kernel_history",
@@ -46406,6 +46753,112 @@ Options:
             "kernel_dispatch",
             "asked",
             "a read refused for the tree's budget is logged as a read",
+        ),
+        (
+            "kernel_dispatch",
+            "bound",
+            "a token issued to an agent is never bound",
+        ),
+        (
+            "kernel_dispatch",
+            "redeemed",
+            "an agent's tree redeems nothing it holds",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "every link of an agent's chain is asked",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "a denial on any link is the answer",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "every link is told an agent acts",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "every link is told how many agents stand between",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "what decided is one segment per link joined by a semicolon",
+        ),
+        (
+            "kernel_dispatch",
+            "decision",
+            "the grant an entry names is the acting principal's",
+        ),
+        (
+            "kernel_dispatch",
+            "turned_away",
+            "a refusal's entry carries the chain the tree acts for",
+        ),
+        (
+            "kernel_dispatch",
+            "journaled",
+            "an entry carries the chain the tree acts for",
+        ),
+        (
+            "kernel_session",
+            "operated_by",
+            "a chain begins with a person",
+        ),
+        (
+            "kernel_session",
+            "through",
+            "a link past the person is an agent",
+        ),
+        (
+            "kernel_session",
+            "through",
+            "the acting agent is no link of its own chain",
+        ),
+        ("kernel_session", "through", "no link is held twice"),
+        (
+            "kernel_session",
+            "through",
+            "a chain holds no more than its links",
+        ),
+        (
+            "kernel_session",
+            "depth",
+            "the person is a link of the depth",
+        ),
+        (
+            "kernel_session",
+            "via_agent",
+            "only an agent's session is marked as an agent's",
+        ),
+        (
+            "kernel_session",
+            "may_hold_tokens",
+            "an agent acting alone holds nothing the kernel issues",
+        ),
+        (
+            "kernel_session",
+            "links",
+            "the principal is asked before the chain",
+        ),
+        (
+            "kernel_session",
+            "outermost_first",
+            "a chain is held outermost first",
+        ),
+        (
+            "kernel_session",
+            "recorded_chain",
+            "the chain an entry records is the session's",
+        ),
+        (
+            "kernel_session",
+            "opened",
+            "a session is opened only for the agent's own person",
         ),
         (
             "kernel_pump",

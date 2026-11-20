@@ -259,6 +259,21 @@
   },
   {
     "uid": {
+      "type": "Feature",
+      "id": "mcp"
+    },
+    "attrs": {
+      "tier": "included"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
       "type": "Content",
       "id": "photo"
     },
@@ -778,6 +793,28 @@
         }
       },
       "status": "active"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "office"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Agent",
+      "id": "mallory-assistant"
+    },
+    "attrs": {
+      "operator": {
+        "__entity": {
+          "type": "User",
+          "id": "mallory"
+        }
+      },
+      "autonomy": "supervised",
+      "budget_remaining": 1000
     },
     "parents": [
       {

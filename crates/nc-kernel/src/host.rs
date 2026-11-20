@@ -578,7 +578,7 @@ impl<E: Environment> types::Host for HostState<E> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::BTreeSet;
 
     use super::HostState;

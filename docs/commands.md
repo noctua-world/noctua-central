@@ -164,3 +164,47 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}
 ```
 
+## `settings.mcp.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:mcp` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it changes nothing |
+| Categories | `noctua.settings` |
+| Glyph | `U+F1E6` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read whether MCP is on | Ver se o MCP está ligado |
+| Line description | Show whether this installation of Noctua lets MCP clients in. | Mostrar se esta instalação do Noctua deixa clientes MCP entrarem. |
+| Paragraph | Answers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing. | Responde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada. |
+| Tags | mcp, agents, settings, model context protocol, ai tools | mcp, agentes, configurações, ferramentas de ia, protocolo de contexto |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.mcp.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:mcp` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F205` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Switch MCP on or off | Ligar ou desligar o MCP |
+| Line description | Let MCP clients act here as agents, or stop them. | Deixar clientes MCP agirem aqui como agentes, ou impedi-los. |
+| Paragraph | Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was. | Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava. |
+| Tags | mcp, agents, settings, turn on, turn off, model context protocol, ai tools | mcp, agentes, configurações, ligar, desligar, ferramentas de ia, protocolo de contexto |
+
+```json
+{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}
+```
+

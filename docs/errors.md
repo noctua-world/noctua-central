@@ -9,6 +9,9 @@ Every error this platform declares. A code is **append-only**: it identifies one
 
 | Code | Severity | Retryable | Raised | Parameters | Developer description | en | pt-BR |
 |---|---|---|---|---|---|---|---|
+| `NC-AI-0001` | warning | no | yes | none | An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person | None of your agents has that identifier, so nothing was done. | Nenhum dos seus agentes tem esse identificador, então nada foi feito. |
+| `NC-AI-0002` | warning | no | yes | none | An agent was made for a principal that is not a person, or its grant was given or ended by someone other than the person it acts for | Only a person can have an agent, and only the person an agent acts for can give it access or take it away. Nothing was changed. | Só uma pessoa pode ter um agente, e só a pessoa por quem um agente age pode dar ou tirar o acesso dele. Nada foi alterado. |
+| `NC-AI-0003` | warning | no | yes | none | A profile already holds as many agents, or has kept as many grants to agents, as its table's bound allows | This profile already holds as many agents, or has given its agents as many grants, as it can keep. Nothing was changed. | Este perfil já tem tantos agentes, ou já deu aos seus agentes tantas permissões, quanto consegue guardar. Nada foi alterado. |
 | `NC-BLOB-0001` | warning | no | yes | none | A blob was named by text that is not a BLAKE3 hash | That is not the name of a file Noctua can look for. | Esse não é o nome de um arquivo que o Noctua consiga procurar. |
 | `NC-BLOB-0002` | info | yes | yes | none | A blob is not on this machine | That file is not on this computer right now. | Esse arquivo não está neste computador agora. |
 | `NC-BLOB-0003` | warning | no | yes | none | A blob grew past the size the kernel accepts | That file is larger than Noctua accepts, so it was not saved. | Esse arquivo é maior do que o Noctua aceita, então não foi salvo. |
@@ -111,7 +114,7 @@ Every error this platform declares. A code is **append-only**: it identifies one
 | `NC-KERN-0003` | error | no | yes | none | A plugin dispatched into itself while it was still running, which the kernel refuses rather than traps | A part of Noctua tried to call itself while it was still busy, so that step was refused. Nothing was changed. | Uma parte do Noctua tentou chamar a si mesma enquanto ainda estava ocupada, então esse passo foi recusado. Nada foi alterado. |
 | `NC-KERN-0004` | error | no | yes | none | A call tree nested its dispatches deeper than the kernel allows | That action set off too many steps inside one another, so Noctua stopped it. Nothing was changed. | Essa ação disparou passos demais um dentro do outro, então o Noctua a interrompeu. Nada foi alterado. |
 | `NC-KERN-0005` | error | no | yes | none | A command that changes state was dispatched where only reading is allowed | This step may only read, and what it asked for would change something, so it was refused. Nothing was changed. | Este passo só pode ler, e o que ele pediu mudaria algo, então foi recusado. Nada foi alterado. |
-| `NC-KERN-0006` | warning | no | yes | none | An irreversible command was dispatched without a confirmation the kernel issued | That cannot be undone, so it needs your confirmation in the Noctua window first. Nothing was done. | Isso não pode ser desfeito, então precisa primeiro da sua confirmação na janela do Noctua. Nada foi feito. |
+| `NC-KERN-0006` | warning | no | yes | none | An irreversible command was dispatched without a confirmation the kernel issued | That cannot be undone, so a person must first confirm it in the Noctua window. Nothing was done. | Isso não pode ser desfeito, então uma pessoa precisa primeiro confirmar na janela do Noctua. Nada foi feito. |
 | `NC-KERN-0007` | error | yes | yes | none | A call tree ran past its deadline and was stopped | That took too long, so Noctua stopped it. Nothing in Noctua was changed, but anything it had already sent outside this computer may have arrived. Check before you try again. | Isso demorou demais, então o Noctua interrompeu. Nada foi alterado no Noctua, mas o que já tinha sido enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente. |
 | `NC-KERN-0008` | error | no | yes | none | A unit of work was aborted, so nothing it did was kept | That action was cancelled part-way, so none of what it changed in Noctua was kept. Anything it had already sent outside this computer may have arrived. | Essa ação foi cancelada no meio, então nada do que ela mudou no Noctua foi mantido. O que ela já tinha enviado para fora deste computador pode ter chegado. |
 | `NC-KERN-0009` | info | no | yes | none | An undo found no step of this person's to reverse | There is nothing to undo. | Não há nada para desfazer. |
@@ -130,6 +133,7 @@ Every error this platform declares. A code is **append-only**: it identifies one
 | `NC-KERN-0022` | error | no | yes | none | An undo or a redo was refused because the journal does not record as kept the step it would reverse | That step cannot be undone or redone yet, because Noctua's history does not show it as finished. Nothing was changed. | Esse passo ainda não pode ser desfeito nem refeito, porque o histórico do Noctua não o mostra como concluído. Nada foi alterado. |
 | `NC-KERN-0023` | warning | no | yes | none | An undo was refused because a command its step registered as a compensation is no longer held by the plugin that held it then | That step cannot be undone, because what it named to set things right now belongs to another part of Noctua, or to none. Nothing was undone. | Esse passo não pode ser desfeito, porque o que ele indicou para corrigir as coisas agora pertence a outra parte do Noctua, ou a nenhuma. Nada foi desfeito. |
 | `NC-KERN-0024` | warning | no | yes | none | An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch | That step cannot be undone, because the part of Noctua that named how to set it right may no longer ask another part to do so. Nothing was undone. | Esse passo não pode ser desfeito, porque a parte do Noctua que indicou como corrigi-lo não pode mais pedir isso a outra parte. Nada foi desfeito. |
+| `NC-KERN-0025` | warning | no | yes | none | A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it | Switching a setting and keeping agents can only be asked for directly, not from inside another action. | Mudar uma configuração e cuidar de agentes só pode ser pedido diretamente, não de dentro de outra ação. |
 | `NC-LOG-0001` | warning | yes | not yet — the number is held | none | The central log store did not accept a batch | Diagnostics are not being recorded right now. Everything else works normally. | Os diagnósticos não estão sendo registrados agora. Todo o resto funciona normalmente. |
 | `NC-LOG-0002` | warning | no | not yet — the number is held | none | Log events were dropped because the queue was full | Some diagnostics were skipped because too many arrived at once. Everything else works normally. | Alguns diagnósticos foram deixados de lado porque chegaram muitos de uma vez. Todo o resto funciona normalmente. |
 | `NC-PLUG-0001` | warning | no | yes | none | A plugin called a host function of a capability its manifest was not granted | A part of Noctua asked for something it is not allowed to use, and was refused. | Uma parte do Noctua pediu algo que não tem permissão de usar e foi recusada. |
@@ -179,7 +183,7 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | Area | Codes | What it covers |
 |---|---|---|
 | `ACCT` | none yet | Accounts, their fields, and activation |
-| `AI` | none yet | Model traffic, agent identity and budget |
+| `AI` | 3 | Model traffic, agent identity and budget |
 | `APPR` | none yet | The approval system |
 | `AUTH` | none yet | Authentication. The IdP's own failures; never authorization |
 | `BLOB` | 6 | Content-addressed blobs |
@@ -193,7 +197,7 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | `IDS` | 9 | Identifiers: Snowflake, the machine flake, file names |
 | `IPC` | 17 | The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1) |
 | `JRNL` | 10 | The command journal and its hash chain |
-| `KERN` | 24 | The local kernel and command dispatch |
+| `KERN` | 25 | The local kernel and command dispatch |
 | `LOG` | 2 | The central log and its shipper |
 | `P2P` | none yet | Peer-to-peer transport and availability |
 | `PLUG` | 29 | The WASM plugin host |

@@ -13,8 +13,9 @@
 # account back its undo and redo. The gate refuses a type test
 # that guards no read in a floor's condition, and these cases stand behind the
 # shape it still excuses. So a suspended member is refused here on `Content`,
-# the `Realm`, her own `User`, and the `naming` and `registry` `Feature`s,
-# which the naming and finding permits give every person of the house. A
+# the `Realm`, her own `User`, and the `naming`, `registry` and `mcp`
+# `Feature`s, which the naming, finding and switch permits give every person
+# of the house. A
 # guardian who has died is refused on the first three and on a `Feature` his
 # role reaches.
 
@@ -56,11 +57,33 @@ decision = "deny"
 because = "family.a_frozen_account_acts_on_nothing"
 
 [[case]]
+# **The operator half meets the floor.** An agent carries no `status`, so this
+# floor never refuses it as itself; the decision point asks every request of an
+# agent again as its operator, marked as an agent's, and that question is
+# refused here — which is how an agent stops with the account it acts for.
+name = "a suspended account lends an agent nothing, asked as its operator"
+principal = 'User::"dora"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
 # The finding permit lets every person of the house look a command up.
 name = "a suspended account finds no command"
 principal = 'User::"dora"'
 action = "Read"
 resource = 'Feature::"registry"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The switch's permit lets every person of the house switch MCP.
+name = "a suspended account switches no MCP"
+principal = 'User::"dora"'
+action = "Write"
+resource = 'Feature::"mcp"'
 decision = "deny"
 because = "family.a_frozen_account_acts_on_nothing"
 

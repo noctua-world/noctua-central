@@ -2039,6 +2039,17 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Reference", "Referência"],
     ),
     (
+        "category.noctua.settings.description",
+        [
+            "Choosing how this installation of Noctua behaves, one setting at a time",
+            "Escolher como esta instalação do Noctua se comporta, uma configuração por vez",
+        ],
+    ),
+    (
+        "category.noctua.settings.title",
+        ["Settings", "Configurações"],
+    ),
+    (
         "command.journal.verify.description",
         [
             "Check that every recorded action is intact and in order.",
@@ -2162,6 +2173,42 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Read a file name", "Ler um nome de arquivo"],
     ),
     (
+        "command.settings.mcp.read.description",
+        [
+            "Show whether this installation of Noctua lets MCP clients in.",
+            "Mostrar se esta instalação do Noctua deixa clientes MCP entrarem.",
+        ],
+    ),
+    (
+        "command.settings.mcp.read.paragraph",
+        [
+            "Answers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing.",
+            "Responde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.mcp.read.title",
+        ["Read whether MCP is on", "Ver se o MCP está ligado"],
+    ),
+    (
+        "command.settings.mcp.set.description",
+        [
+            "Let MCP clients act here as agents, or stop them.",
+            "Deixar clientes MCP agirem aqui como agentes, ou impedi-los.",
+        ],
+    ),
+    (
+        "command.settings.mcp.set.paragraph",
+        [
+            "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.",
+            "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.",
+        ],
+    ),
+    (
+        "command.settings.mcp.set.title",
+        ["Switch MCP on or off", "Ligar ou desligar o MCP"],
+    ),
+    (
         "email.catalog.mechanism.body",
         [
             "This message exists so that Noctua can check its own email reaches you correctly. Nothing is expected of you.",
@@ -2171,6 +2218,27 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "email.catalog.mechanism.subject",
         ["Noctua is working", "O Noctua está funcionando"],
+    ),
+    (
+        "error.ai.agents-full",
+        [
+            "This profile already holds as many agents, or has given its agents as many grants, as it can keep. Nothing was changed.",
+            "Este perfil já tem tantos agentes, ou já deu aos seus agentes tantas permissões, quanto consegue guardar. Nada foi alterado.",
+        ],
+    ),
+    (
+        "error.ai.no-such-agent",
+        [
+            "None of your agents has that identifier, so nothing was done.",
+            "Nenhum dos seus agentes tem esse identificador, então nada foi feito.",
+        ],
+    ),
+    (
+        "error.ai.not-the-operator",
+        [
+            "Only a person can have an agent, and only the person an agent acts for can give it access or take it away. Nothing was changed.",
+            "Só uma pessoa pode ter um agente, e só a pessoa por quem um agente age pode dar ou tirar o acesso dele. Nada foi alterado.",
+        ],
     ),
     (
         "error.blob.io",
@@ -2916,6 +2984,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["There is nothing to undo.", "Não há nada para desfazer."],
     ),
     (
+        "error.kernel.only-at-the-top",
+        [
+            "Switching a setting and keeping agents can only be asked for directly, not from inside another action.",
+            "Mudar uma configuração e cuidar de agentes só pode ser pedido diretamente, não de dentro de outra ação.",
+        ],
+    ),
+    (
         "error.kernel.read-only",
         [
             "This step may only read, and what it asked for would change something, so it was refused. Nothing was changed.",
@@ -2981,8 +3056,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.kernel.unconfirmed",
         [
-            "That cannot be undone, so it needs your confirmation in the Noctua window first. Nothing was done.",
-            "Isso não pode ser desfeito, então precisa primeiro da sua confirmação na janela do Noctua. Nada foi feito.",
+            "That cannot be undone, so a person must first confirm it in the Noctua window. Nothing was done.",
+            "Isso não pode ser desfeito, então uma pessoa precisa primeiro confirmar na janela do Noctua. Nada foi feito.",
         ],
     ),
     (
@@ -3763,6 +3838,8 @@ pub const KEYS: &[&str] = &[
     "category.noctua.maintenance.title",
     "category.noctua.reference.description",
     "category.noctua.reference.title",
+    "category.noctua.settings.description",
+    "category.noctua.settings.title",
     "command.journal.verify.description",
     "command.journal.verify.paragraph",
     "command.journal.verify.title",
@@ -3784,8 +3861,17 @@ pub const KEYS: &[&str] = &[
     "command.naming.read.description",
     "command.naming.read.paragraph",
     "command.naming.read.title",
+    "command.settings.mcp.read.description",
+    "command.settings.mcp.read.paragraph",
+    "command.settings.mcp.read.title",
+    "command.settings.mcp.set.description",
+    "command.settings.mcp.set.paragraph",
+    "command.settings.mcp.set.title",
     "email.catalog.mechanism.body",
     "email.catalog.mechanism.subject",
+    "error.ai.agents-full",
+    "error.ai.no-such-agent",
+    "error.ai.not-the-operator",
     "error.blob.io",
     "error.blob.malformed-hash",
     "error.blob.no-peers",
@@ -3893,6 +3979,7 @@ pub const KEYS: &[&str] = &[
     "error.kernel.not-built",
     "error.kernel.nothing-to-redo",
     "error.kernel.nothing-to-undo",
+    "error.kernel.only-at-the-top",
     "error.kernel.read-only",
     "error.kernel.recovered-unit",
     "error.kernel.redo-blob-swept",
@@ -4185,6 +4272,48 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "identificador",
                 "analisar",
                 "detalhes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.mcp.read.tags",
+        [
+            &[
+                "mcp",
+                "agents",
+                "settings",
+                "model context protocol",
+                "ai tools",
+            ],
+            &[
+                "mcp",
+                "agentes",
+                "configurações",
+                "ferramentas de ia",
+                "protocolo de contexto",
+            ],
+        ],
+    ),
+    (
+        "command.settings.mcp.set.tags",
+        [
+            &[
+                "mcp",
+                "agents",
+                "settings",
+                "turn on",
+                "turn off",
+                "model context protocol",
+                "ai tools",
+            ],
+            &[
+                "mcp",
+                "agentes",
+                "configurações",
+                "ligar",
+                "desligar",
+                "ferramentas de ia",
+                "protocolo de contexto",
             ],
         ],
     ),

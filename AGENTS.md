@@ -291,7 +291,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
-│   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
+│   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
 │   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine and the agents a person made in it
@@ -468,6 +468,7 @@ fails a gate a minute or two later.
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
+| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
 | a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
 | a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher is brought to in Stage 16 (`NOCTUA-PLAN.md`), so a rule changed without a row is one that implementation will not learn. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, its entry's generated `wiki` field names its format, and its registry's page — `docs/commands.md` or `docs/external-identifiers.md` — links it. A text names an entry of the registry it sits under, `commands` or `external-identifiers`, and of no other. Only `md` ships, and only for commands, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry of its own is a row of `REGISTRIES` and of `names_by_registry` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
@@ -513,7 +514,8 @@ whose substance no gate can; 16 is gated in its count and measured by a recipe i
 effect; 22 is gated over the statements written today and by nothing over the next; 25 is
 held by its tests, and by no gate over a signal sent another way; 26 is held by its tests,
 and by no gate over a rule written again beside the judge; 27 is held by its tests, and by
-no gate over a table a function the compiler is handed reads of its own.
+no gate over a table a function the compiler is handed reads of its own; 28 is held by its
+tests, and by no gate over a path to Cedar written beside the decision point's.
 
 1. **The colour system is never named directly.** It reaches this repository through
    `noctua-design`, which vendors `noctua-colors`' generated output (`NOCTUA.md §8.6`); a
@@ -907,6 +909,24 @@ no gate over a table a function the compiler is handed reads of its own.
     `Surfaces` reads of its own beyond the catalog that test changes, which a review sees
     and no gate does.
 
+28. **An agent is decided as itself and as each one it acts for, at the moment of each
+    decision, and is never confirmed.** Every dispatch of a call tree that acts for an
+    agent, at its top and nested, is asked of the decision point once for each link of its
+    chain — the agent first, then its person — with one moment, one epoch and the kernel's
+    own `via_agent` and depth, and runs only if every link allows. The chain is the
+    directory's answer when the kernel opens the session (`Kernel::session`), for the
+    person who made the agent alone, and never a caller's. Every entry of the tree names
+    the agent and, in its actor chain, whom it acts for, with one segment of what decided
+    for each link reached, joined by `;`; a person's entry is what a one-principal decision
+    writes. No confirmation or approval is redeemed in an agent's tree, whatever it holds.
+    **Enforced by** the agent tests of `crates/nc-kernel/tests/the_decision_point.rs`, the
+    unit tests of `crates/nc-kernel/src/session.rs` and `crates/nc-kernel/src/dispatch.rs`,
+    `an_operator_frozen_mid_session_freezes_their_agent_at_its_next_call` in
+    `crates/nc-kernel/tests/units_and_history.rs`, and
+    `no_member_turns_a_test_door_on_outside_its_tests` in `xtask/src/gates.rs`. **Not
+    held**: a same-user process dispatching as the person without naming an agent, which
+    the intersection never sees.
+
 ## The security answer §2.4 asks for
 
 `NOCTUA.md §2.4` asks, on every implementation, how it could be made more secure, and
@@ -940,6 +960,7 @@ entry owns.
 | User data in the central log | typed events only, and a plugin's text kept in its own ring | "A plugin's own log stays in its own ring" |
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
+| An agent named by text it was not made under, given or ended by anyone but its person, or granted past the feature it names | an agent routed by membership of the identifier the machine minted, never parsed; only a person of the realm makes one and only its person grants or ends; a grant's scope compared whole; a change kept before it is held, an ending held first; both tables bounded | "An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
@@ -950,6 +971,10 @@ entry owns.
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 | Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
 | A stop reaching a process that is not the daemon, or a restorer starting a daemon a person stopped | the daemon asked first, a signal only through the process its PID record is held to, and the `stopped` mark written durably before anything is asked and read by the daemon's own restored start | "The CLI starts and stops its own channel's daemon, and signals nothing it did not hold to its record" |
+| An agent doing what its person may not or what it may not itself, or acting for someone the directory did not name | the session opened by the kernel from the directory's answer, for the asking person alone; every decision of its tree asked once for each link at one moment and one epoch, the first denial the answer; each entry naming the agent and whom it acts for | "An agent acts as itself and as the person it acts for, and is never confirmed" |
+| An agent obtaining or presenting a confirmation or an approval | a session with no slot for one, a tree acting for an agent binding none, none ever bound to an agent, and an agent named without a session deciding as itself, which the core refuses | the same entry |
+| A chain of agents deeper than the policy's two | the chain written by the kernel alone, bounded by its type above the policy and refused by `core.chain_depth_is_bounded`; its one longer constructor a test door no member turns on outside its tests | the same entry |
+| A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
@@ -990,7 +1015,7 @@ by a command that reads it, since a permit for a realm-wide change would authori
 plugin's, and never a feature of the platform — not by `feature:`, and not through an
 argument naming `Feature`, which the judge refuses in every declaration (`[NC-PLUG-0009]`)
 — whose permit is a person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
-one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`), declared once, and
+one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`, `settings.`), declared once, and
 matches the catalog where the
 catalog describes it. Each of its own is shown by its entry, a row of the plugin's
 `commands.toml` under the name it has inside the namespace, judged as the next entry says
@@ -1134,7 +1159,8 @@ over the journal in memory and the local journal alike.
 - a confirmation or an approval issued for real — only a test door issues one, so a
   shipped kernel denies every command that cannot be undone and every one a quorum must
   approve;
-- an agent acting for a person, which the actor chain is for (Stage 15);
+- a timer set or an event published in an agent's tree, which is decided again as the agent
+  acting alone and refused when it comes due (`crates/nc-kernel/src/session.rs`);
 - a store that refuses the reversal of a unit whose close the journal did not take: the
   unit stays committed and readable, open in the journal until the next prune or kernel
   opening reverts it, the caller told and `kernel.revert_failed` logged, the units table
@@ -1186,6 +1212,110 @@ inside it — a process running as the same user is outside what the kernel defe
 (`NOCTUA.md §11.1`); whether a changed pack raised its version, which no gate compares
 with the history and is a reviewer's question, asked of the pull request's diff; and a
 policy that says other than its author meant, which only its cases check.
+
+### An agent is held under the identifier the machine minted, for its person alone, and a grant answers for one feature
+
+**Guaranteed.** `nc_authz::LocalDirectory` holds the agents a person makes over the world a
+profile was started with (`NOCTUA.md §14.6`). An agent is held under the Crockford text of
+the `Snowflake` the kernel minted for it, turned into an identifier in `nc-authz` alone, and
+a question reaches it only by that text, compared whole: a label, a lower-case spelling, the
+text of a value no change made, a principal of another kind and a question about another
+realm are the world's to answer and never reach the agent held, and nothing is parsed out
+of an identifier (`NOCTUA.md §5.1`). Only a person the world holds in the realm is made an
+operator, and only an agent's operator grants it a feature or ends its grants
+(`[NC-AI-0002]`); a name no agent is held under is `[NC-AI-0001]`. An agent is delegated
+only while the world holds its operator in the realm, whatever was kept. A grant runs for a
+window it must have — it ends after it begins — on a feature the world holds in the realm,
+with a reason of one to 256 characters a reader can see all of, and a label is held to one
+to 64; anything else is refused as the data the directory must never hold (`[NC-VAL-0002]`).
+A grant answers only a question about the feature it names, compared whole, never through an
+entity the resource is in, so an agent granted every feature holds no grant for the realm's
+content; a grant the world holds, a person's or one of the world's own agents', stays
+realm-wide. A new grant on a feature ends the live one there. Neither an agent nor a grant
+is ever deleted, and each table is refused past its bound (`[NC-AI-0003]`), an ended grant
+still counted. A new agent or grant is held only once its keeper kept it; an ending is
+held first, so the next question is answered without it even when the keeper then refuses
+it (the keeper's code). An agent's slice holds its operator beside it — so a rule reading
+`principal.operator` decides in the kernel as over the whole world — its budget as
+`budget_remaining` and `autonomy` as `supervised`, which no embedded policy reads; and
+`Facts::budget_spent` is taken off that budget before Cedar reads it, without wrapping, so
+`core.budget_is_a_permission` refuses an agent that has spent it all. A directory opened
+from what was kept refuses what it would never have written, and leaves another realm's
+rows out of what it holds while they still count against its bounds.
+
+**Enforced by** `crates/nc-authz/src/agents.rs` and its unit tests — the identifier held
+and nothing else, the routing by text, the operator's alone, the feature compared whole,
+each malformed grant, label and budget, the bounds, the order of keeping, the reopening and
+each refusal's kind, code and word; `crates/nc-authz/src/directory.rs`, whose world answers
+an agent's operator only for an agent of the realm and a person of it; and
+`crates/nc-authz/tests/the_embedded_pack_decides.rs`, where a budget spent is taken off what
+an agent holds, a person holds none to spend from, a spend past what a `Long` holds leaves
+nothing, and one whose entity does not read back is refused.
+
+**Not answered:** whether the person may make a change, which the decision point decides
+before the change is asked for; whether a grant is current, which Cedar decides against the
+kernel's clock; whether an agent's rights are its operator's as well as its own, which the
+enforcement point asks of each apart; and an identifier as a secret — it is neither one nor
+authentication, and whoever can reach the person's processes can name any of their agents.
+
+### An agent acts as itself and as the person it acts for, and is never confirmed
+
+**Guaranteed.** An agent reaches the kernel through a `nc_kernel::Session`, which
+`Kernel::session` opens for an agent and a person: the directory names the agent and its
+operator (`nc_authz::Directory::delegation`), and the session is opened only when that
+operator is the asking person, the answer an agent for the identifier asked; an agent held
+for another person, one held for no person and one never made are refused alike, one
+sentence and `[NC-AI-0001]`, and a directory that does not answer is `[NC-POL-0006]`. The
+session's chain is written by the kernel from that answer — the person, then each agent
+between, outermost first — and nothing a caller sends adds to it. `Kernel::dispatch` takes
+a `Caller`, acting as itself, or a session (`nc_kernel::Asker`). Every decision of a tree
+acting for an agent — the dispatch at its top and every one nested — is asked once for each
+link, the agent first, each with its own grant and slice, all with one moment, one epoch,
+`via_agent` true and the chain's length as the depth, and the first denial is the answer;
+so an agent is allowed only what its own permit, its person's grant to it and its person's
+own rights all allow, decided again at every call, and its person frozen or their grant
+ended refuses its next call. The family pack gives an agent two permits of its own,
+`family.an_agent_names_files` and `family.an_agent_finds_commands`, and a grant on a
+feature no agent permit names allows nothing. What decided is one segment per link reached,
+joined by `;`, and the caller is told one sentence and the code, never which link refused;
+every entry of the tree, its refusals before any decision included, names the agent as its
+principal and the chain as its actor chain; the grant it records, when a decision reached
+one, is the agent's and never its person's. An agent named as a caller with no session
+decides as itself, unmarked, which `core.an_agent_never_impersonates` refuses. **No agent
+is confirmed**: a session holds no token and has nowhere to hold one, a tree acting for an
+agent or as an agent alone redeems and spends none it is handed, and the kernel never binds
+a token to an agent principal, whoever issued it; so an agent's command that cannot be
+undone is refused with `[NC-KERN-0006]`, and its delete by the core's two floors. A chain
+past the policy's two links is refused by `core.chain_depth_is_bounded` and recorded whole;
+the type holds at most four, and nothing but a test door builds one past a single link.
+
+**Enforced by** `crates/nc-kernel/src/session.rs` and its unit tests — what a chain holds,
+how deep it is, and that only a principal acting as itself holds what the kernel issues;
+`crates/nc-kernel/src/dispatch.rs`, whose unit tests hold that no token issued to an agent
+is bound, that an agent acting alone redeems none even of its own, and that an agent's tree
+hands on nothing redeemed even when the binding alone would redeem it;
+`crates/nc-kernel/tests/the_decision_point.rs`, over runtime agents a
+`nc_authz::LocalDirectory` holds and the world's own, through the real pack: both halves
+allowing and each refusing, a grant ended, withheld or run out on the kernel's clock between
+two calls, a nested dispatch, the session refused for every agent that is not the asker's,
+a chain of two and one of three, and every token path — the operator's confirmation and
+approval, the agent's own presented without a session, which the core refuses whatever it
+holds, an argument named as one, a serial carried in an argument the schema takes, a nested
+irreversible command, a delete;
+`crates/nc-kernel/tests/units_and_history.rs`, where the person is frozen mid-session;
+`crates/nc-kernel/tests/the_rest_of_the_world.rs`, where an agent's timer is refused when
+it comes due; `crates/nc-authz/tests/the_embedded_pack_decides.rs`, which holds the commands
+an agent reaches in the pack to naming and finding and refuses an agent of another realm by
+the slice; the cases of `policy/packs/family/tests/features.toml`, `accounts.toml` and
+`policy/core/tests/`; and `no_member_turns_a_test_door_on_outside_its_tests` in
+`xtask/src/gates.rs`, which refuses a member turning the test doors on in a build that
+ships.
+
+**Not answered:** a same-user process, which dispatches as the person without naming an
+agent; what an agent's tree puts off — a timer it sets, an event it publishes — which is
+decided again as the agent acting alone, and refused; which commands an agent finds, a
+search listing every registered command as a person's does; and the operator's grant in
+the entry, which names the agent's alone. See "What is deliberately not claimed".
 
 ### A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else
 
@@ -1451,10 +1581,12 @@ says what each takes and answers):
 
 - **Decided at the one door and journaled**, as every command is: `Read` on
   `Feature::"naming"`, which `family.a_member_names_files` gives every person of the realm.
-  A frozen account is refused by the floor; a device and an agent by the permit's
-  `principal is User`, pinned by cases; a person of another realm by the decision point's
-  slice. The handler — and so the minting — runs only after the decision allowed it, so a
-  denied proposal spends no identifier.
+  A frozen account is refused by the floor; a device by the permit's `principal is User`,
+  pinned by cases; a person of another realm by the decision point's slice. An agent is
+  allowed by a permit of its own, `family.an_agent_names_files`, only once its person
+  granted it the feature, and only while its person may (*An agent acts as itself and as
+  the person it acts for*). The handler — and so the minting — runs only after the
+  decision allowed it, so a denied proposal spends no identifier.
 - **The entity always means naming.** Only a command of the kernel's own selects a
   feature: a plugin declaring `feature:` is refused at `activate`, and an argument naming
   `Feature` is refused in every declaration by the judge the catalog's commands and a
@@ -1484,7 +1616,8 @@ says what each takes and answers):
 name reads back as the fields that built it, a kept identifier in its canonical spelling —
 `crates/nc-kernel/src/builtin.rs`'s tests of the arguments, the bounds and each failure's
 kind, code and word, `crates/nc-kernel/tests/the_decision_point.rs` over the real pack and
-world — every person answered, a frozen account, a device and an agent refused, a rename
+world — every person answered, a frozen account, a device and an agent named without a
+session refused, an agent's session allowed on both halves and refused on either, a rename
 keeping its identifier, a plugin's nested proposal, a minter that mints nothing — the
 registry's and `crates/nc-kernel/tests/activation.rs`' refusal of a plugin's `feature:`
 and of an argument naming `Feature`, the selector's own refusal of that argument in
@@ -1493,8 +1626,8 @@ and of an argument naming `Feature`, the selector's own refusal of that argument
 through the CLI and over the endpoint as one JSON dispatch.
 
 **Not answered:** see "What is deliberately not claimed": a proposal reserves nothing, a
-kept identifier is not vouched for, whether a file of that name exists or collides is the
-saving feature's, and an agent reaches naming only once Stage 15 gives it a permit.
+kept identifier is not vouched for, and whether a file of that name exists or collides is
+the saving feature's.
 
 ### A command is found by its names and tags in bounded work, decided and journaled like any command
 
@@ -1504,10 +1637,11 @@ what it reads and answers):
 
 - **Decided at the one door and journaled**, as every command is: `Read` on
   `Feature::"registry"`, which `family.a_member_finds_commands` gives every person of the
-  realm. A frozen account is refused by the floor; a device and an agent by the permit's
+  realm. A frozen account is refused by the floor; a device by the permit's
   `principal is User`, pinned by cases; a person of another realm by the decision point's
-  slice. It opens no unit, and its entry names the command and the feature, never the
-  query.
+  slice; an agent is allowed by a permit of its own, `family.an_agent_finds_commands`, only
+  once its person granted it the feature, and only while its person may. It opens no unit,
+  and its entry names the command and the feature, never the query.
 - **Bounded work, whatever is typed.** The schema refuses a query past
   `nc_fuzzy::QUERY_CHARS_MAX` characters before the handler runs — its `maxLength`, which a
   test beside the handler holds equal to the core's bound — and the handler refuses one
@@ -1528,14 +1662,57 @@ what it reads and answers):
 bound held to the schema's, every registry bound within the core's, the widest answer, the
 limit and the count, the registry's order among equal scores, and both languages' texts
 over the catalog's own registry — `crates/nc-kernel/tests/the_decision_point.rs` over the
-real pack and world — every person answered, a frozen account, a device and an agent
-refused, and a plugin's command found by its own entry — `policy/packs/family/tests/features.toml`,
+real pack and world — every person answered, a frozen account, a device and an agent named
+without a session refused, an agent's session refused a feature it was not granted, and a
+plugin's command found by its own entry — `policy/packs/family/tests/features.toml`,
 and `apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
 daemon.
 
 **Not answered:** see "What is deliberately not claimed": how many commands the registry
-holds, which commands the asker may dispatch, and an agent finding commands only once
-Stage 15 gives it a permit.
+holds, and which commands the asker may dispatch — an agent's search lists every
+registered command, as a person's does.
+
+### A setting is switched by a person's own call, and MCP is off until one switches it on
+
+**Guaranteed.** A setting of the channel (`NOCTUA.md §12.15`) is two commands of the
+kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
+(`crates/nc-kernel/src/settings.rs`):
+
+- **Decided at the one door and journaled**, as every command is: `Read` and `Write` on
+  `Feature::"mcp"`, which `family.a_member_switches_mcp` gives every person of the realm, a
+  child included. A frozen account is refused by the floor; an agent and a device by the
+  permit's `principal is User`, pinned by cases — the agent's marked as acting for its
+  person, so only the type test refuses it; a person of another realm by the decision
+  point's slice. The set runs in a unit of its own, the read in none.
+- **Only a person's own call switches it.** The set runs at the top of a call tree alone:
+  dispatched from inside a command — a plugin run as the person, a timer's or an event's
+  callback — it is refused with `[NC-KERN-0025]`, journaled under `kernel.top_level_only`
+  before anything is decided, and that is asked before whether a read's frame may change
+  anything. The read runs anywhere.
+- **Off until switched on, per channel.** The value is the kernel's entry in the channel's
+  local store, under a holder no plugin's identity can be, so no plugin reads or writes it,
+  and switching one channel's switches no other. Never written, it is off; an entry
+  holding anything but the two texts the set writes is refused as a row the kernel did not
+  write, never read as on or as off (`Kernel::settings`).
+- **A step like any other.** The set's one effect is that entry, staged in its unit, so it
+  is no step that left the machine: the person's undo puts the value back and reaches the
+  steps before it, and their redo puts it again.
+
+**Enforced by** the tests beside the module in `crates/nc-kernel/src/settings.rs` — the
+declarations held to what it reads, the holder no plugin's identity, the default, and
+every entry holding anything but the two texts it writes refused — and `only_at_the_top`'s in
+`crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_point.rs` over
+the real pack and world — every person answered, a frozen account and a device refused, a
+plugin's nested switch refused from a command that writes and from one that reads —
+`crates/nc-kernel/tests/units_and_history.rs`, which undoes and redoes the switch and an
+earlier step past it, `policy/packs/family/tests/features.toml` and
+`policy/packs/family/tests/accounts.toml`,
+`apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
+daemon, and `apps/daemon/tests/channels_side_by_side.rs`, where MCP switched on in one
+install is on in that one alone.
+
+**Not answered:** see "What is deliberately not claimed": a process running as the person,
+the person's undo of a switch-off, and what being on lets in, which nothing reads yet.
 
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
@@ -3971,9 +4148,21 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **The kernel and the local database**
 
-- **The kernel decides as one person at a time, through test doors for the rest.** No
-  agent is handled — `via_agent` false and an empty actor chain on every dispatch until
-  agents act (Stage 15) — and the directory is the world held in memory. A confirmation
+- **MCP's setting is read by nothing that lets a client in**: no daemon serves an MCP
+  session yet, so switching it on lets no client in.
+- **The switch resists no process running as the person.** It is the kernel's entry in the
+  profile's local database, which stops other accounts and not the account it belongs to:
+  such a process switches it through the CLI as the person would, or by writing the entry
+  in the file, where `{"on":true}` reads as on; only an entry holding anything but the two
+  texts the set writes is refused at the next read, rather than read as on or as off.
+- **The person's undo of a switch-off that is their newest step switches MCP on again.**
+  The switch is a step like any other. Not taken: a switch-off made a barrier to undo,
+  which would put every step before it out of the person's reach for good; a history that
+  names a step before it is undone is the interface's (Stage 16).
+- **The kernel decides a person as themselves and an agent through its session, through
+  test doors for the rest.** A caller is decided unmarked with an empty actor chain, and an
+  agent only through the session `Kernel::session` opened, whose chain no caller writes; a
+  chain longer than one link comes only from `Session::through_for_tests`. A confirmation
   and an approval come only from `confirmation_for_tests` and `approval_for_tests`, so a
   shipped kernel denies every command that cannot be undone and every one a quorum must
   approve until the interfaces that issue them exist (a confirmation, the desktop
@@ -4086,9 +4275,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   user. A deny entry is read as this user's whoever it names — which groups a user is in
   is the token's to say, and reading every deny as this user's refuses more, never less. A path past Windows' 260-character limit
   is refused by the system, since nothing here writes the `\\?\` form for it.
-- **A journal entry's authorization fields are the kernel's to fill, and one stays
-  empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
-  carries what that writer gives it.
+- **A journal entry's authorization fields are the kernel's to fill**: `actor_chain` is
+  empty but in an agent's tree; an entry another writer makes carries what that writer
+  gives it.
 - **A proposed name reserves nothing.** Two proposals are two identifiers, an unused one
   is a gap, as a Snowflake's gaps already are, and nothing records which names were handed
   out; a proposal whose name does not fit, or whose entry the journal refuses, spends its
@@ -4097,9 +4286,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   and does not ask whether this machine minted it or any file carries it, so a caller can
   claim another file's identity, exactly as renaming by hand can; whether a file of that
   name exists, or would collide on disk, is the saving feature's question.
-- **No agent names a file yet**, and a person's plugin may mint as many identifiers as its
-  tree's dispatch count allows: there is no naming budget until Stage 15 gives an agent a
-  permit of its own.
+- **A plugin may mint as many identifiers as its tree's dispatch count allows**, a person's
+  or an agent's, and no budget counts an agent's calls.
 - **Whether Denote removes an `=` inside a signature part** is open
   (`crates/nc-ids/src/naming.rs`), and the commands answer what the builder does today.
 
@@ -4480,6 +4668,41 @@ rather than anything decided for the project, and each is a maintainer's to reop
   another realm a feature — `policy/packs/family/tests/features.toml` pins that answer —
   and only the slice of the asking realm, which holds no other realm's people, refuses it.
 
+**Agents and MCP**
+
+- **An agent's identifier is neither a secret nor authentication.** It is the text of a
+  minted value, matched and never parsed, and naming an agent a person made is never more
+  than that person can do.
+- **A grant to an agent is what keeps it from the household's shared files.**
+  `family.a_member_reads_shared_content` permits any principal to read a `public` or
+  `realm` file, and an agent the directory holds is refused one only because its grants are
+  scoped to features and compared whole, so it holds no grant for content and
+  `core.provenance` refuses; a grant scoped wider, or compared through an ancestor, would
+  open every such file.
+- **Grants are per feature, not per command**: a feature granted reaches every command that
+  selects it.
+- **An ending the keeper refused holds only until the directory is opened again** from what
+  was kept; the refusal says so with the keeper's code.
+- **No agent is ever deleted**, and a profile that made as many agents as its table's bound
+  allows makes no more.
+- **An agent's `autonomy` is carried as `supervised` and read by nothing**: the schema
+  requires one, and nothing in this repository defines what its values permit.
+- **The intersection binds what is dispatched through an agent's session, and nothing
+  else.** A caller naming a person is decided as that person, and a process running as the
+  person can be one; naming an agent without a session decides it as itself, which the core
+  refuses.
+- **The operator's grant is decided and not named in the entry**: `grant_used` holds no
+  grant but the agent's, so the entry says which half refused and not which of the person's
+  grants decided theirs.
+- **The deciding text tells an auditor which half refused, and the caller never**: the
+  caller is told one sentence and the code.
+- **No chain longer than one link exists outside the test door**: an agent another agent
+  calls is a session of its own, of its person, one link deep.
+- **What an agent's tree puts off does not run**: a timer it sets or an event it publishes
+  is decided again as the agent acting alone, which the core refuses.
+- **An agent's command that cannot be undone is refused, never waited on**: no interface
+  confirms one yet, and nothing an agent holds or sends confirms it.
+
 **The fuzzy core**
 
 - **The browser's matcher does not follow the corpus yet.** `noctua-design`'s
@@ -4507,9 +4730,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   finds it and how high, within the bounds its registry holds those texts to; `kernel.find`
   says of each command it found whether a plugin wrote it.
 - **`kernel.find` finds every registered command, not what the asker may dispatch.** Its
-  answer is the registry `Request::Registry` already lists to the same person; whether an
-  agent's search is cut to what the agent may run is Stage 15's (`NOCTUA-PLAN.md`), and no
-  agent finds a command until then.
+  answer is the registry `Request::Registry` already lists to the same person, and an agent
+  granted the feature finds the same: nothing cuts its answer to what it may run.
 - **A search does not bound the registry it reads.** Its work grows with the commands
   registered — the kernel's, and each plugin's a person installed, each held to
   `commands_per_plugin` — and nothing caps how many plugins are installed; a search is

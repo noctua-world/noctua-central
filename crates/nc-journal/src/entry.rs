@@ -26,13 +26,14 @@ pub struct Record {
     /// Who acted. An opaque identifier, and the type is the guarantee: this is
     /// the audit log, and a `String` here would let an email address in.
     pub principal: OpaqueId,
-    /// On whose behalf, outermost first.
+    /// On whose behalf, outermost first: for an agent, the person it acts for
+    /// and each agent between; empty for a person acting as themselves.
     ///
     /// **Delegation, never impersonation** (`§14.6`): the log shows both the
     /// agent and the operator. `§14.6` limits the depth to two, and this does
-    /// **not** enforce that — the kernel refuses a deeper dispatch before it
-    /// happens, and a journal that refused to *record* one would erase the
-    /// evidence of the thing the limit exists to catch.
+    /// **not** enforce that — the decision point refuses a deeper chain and
+    /// records it whole, because a journal that refused to *record* one would
+    /// erase the evidence of the thing the limit exists to catch.
     pub actor_chain: Vec<OpaqueId>,
     /// The Cedar action name.
     pub action: String,

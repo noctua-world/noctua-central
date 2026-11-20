@@ -96,9 +96,10 @@ impl Directory for Revoking {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::GrantFacts>, DirectoryError>> + Send {
         let revoked = self.revoked.load(Ordering::SeqCst) && principal.id == "ana";
-        let answer = self.inner.grant(realm, principal);
+        let answer = self.inner.grant(realm, principal, resource);
         async move { if revoked { Ok(None) } else { answer.await } }
     }
 
@@ -110,6 +111,38 @@ impl Directory for Revoking {
         grant: Option<&EntityRef>,
     ) -> impl Future<Output = Result<nc_authz::Slice, DirectoryError>> + Send {
         self.inner.slice(realm, principal, resource, grant)
+    }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
+        self.inner.delegation(realm, agent)
+    }
+
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<nc_authz::HeldAgent>, DirectoryError>> + Send {
+        self.inner.agents(realm, operator)
+    }
+
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.rehearse(realm, change)
+    }
+
+    fn change(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.change(realm, change)
     }
 }
 
@@ -328,18 +361,28 @@ async fn seeded(store: &LocalStore, plugin: &str, key: &str, value: &str) {
 /// A kernel over the local database in memory, `reference` subscribed to the
 /// peer's topics and `peer` to the reference's.
 async fn opened() -> Fixture {
+    opened_deciding(family(), &[]).await
+}
+
+/// The kernel [`opened`] answers, deciding with `pdp`, with each of `agents`
+/// — agents of the world — granted `g.current` beside the persons.
+async fn opened_deciding(pdp: Pdp, agents: &[&str]) -> Fixture {
     let pack = family();
     let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
     let mut directory = MemoryDirectory::from_world(WORLD, &pack)
         .expect("the world is valid")
         .with_epoch("home", 7);
-    for person in ["ana", "bruno", "carla"] {
+    let persons = ["ana", "bruno", "carla"].map(|person| ("User", person));
+    for (kind, id) in persons
+        .into_iter()
+        .chain(agents.iter().map(|agent| ("Agent", *agent)))
+    {
         directory = directory
             .with_grant(
                 "home",
                 EntityRef {
-                    type_name: "User".to_owned(),
-                    id: person.to_owned(),
+                    type_name: kind.to_owned(),
+                    id: id.to_owned(),
                 },
                 "g.current",
             )
@@ -364,6 +407,7 @@ async fn opened() -> Fixture {
     let revoked = Arc::new(AtomicBool::new(false));
     let stall = Stall::none();
     let kernel = kernel_over(
+        pdp,
         store.clone(),
         clock.clone(),
         Arc::clone(&log),
@@ -396,10 +440,11 @@ async fn opened() -> Fixture {
     }
 }
 
-/// A kernel over `store`, at `clock`, logging to `log`, deciding over
-/// `directory` and journaling into a journal `stall` stalls, with no plugin
-/// loaded.
+/// A kernel deciding with `pdp`, over `store`, at `clock`, logging to `log`,
+/// deciding over `directory` and journaling into a journal `stall` stalls, with
+/// no plugin loaded.
 async fn kernel_over(
+    pdp: Pdp,
     store: LocalStore,
     clock: Manual,
     log: Arc<Captured>,
@@ -415,7 +460,7 @@ async fn kernel_over(
     Kernel::open(KernelConfig {
         store,
         blobs: nc_kernel::blobs::MemoryBlobs::default(),
-        pdp: Ok(family()),
+        pdp: Ok(pdp),
         journal: nc_journal::Journal::new(
             Stalling {
                 inner: nc_journal::InMemory::default(),
@@ -2057,6 +2102,7 @@ async fn plugin_log_lines_stay_in_the_ring() {
     // **A slot nothing was loaded in holds no log**: asked of a kernel that
     // loaded nothing.
     let empty = kernel_over(
+        family(),
         fixture.store.clone(),
         fixture.clock.clone(),
         Arc::new(Captured::default()),
@@ -2106,6 +2152,7 @@ async fn a_table_another_writer_holds_is_reported_left_alone_with_its_code() {
         .await
         .expect("the local database opens");
     let kernel = kernel_over(
+        family(),
         store.clone(),
         Manual(Arc::new(AtomicU64::new(NOW_MS))),
         Arc::new(Captured::default()),
@@ -2256,5 +2303,130 @@ async fn an_undo_leaves_what_its_step_set_going_as_it_is() {
             .as_deref(),
         Some(r#"{"text":"fired"}"#),
         "the timer's callback ran as ana"
+    );
+}
+
+/// The core and the family pack as they are on disk, and one permit more.
+///
+/// The permit the pack does not ship lets an agent write what its operator
+/// owns: the agent's half of the commands a person's own content answers
+/// to.
+fn family_and_an_agent_writing() -> Pdp {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut texts: Vec<(String, String)> = Vec::new();
+    for directory in ["policy/core", "policy/packs/family"] {
+        let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(root.join(directory))
+            .expect("a policy directory")
+            .map(|entry| entry.expect("an entry").path())
+            .filter(|path| path.extension().is_some_and(|kind| kind == "cedar"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            let name = path.file_name().expect("a file").to_string_lossy();
+            texts.push((
+                format!("{directory}/{name}"),
+                std::fs::read_to_string(&path).expect("a readable policy"),
+            ));
+        }
+    }
+    texts.push((
+        "policy/packs/family/agents_for_tests.cedar".to_owned(),
+        "@id(\"family.an_agent_writes_its_operators_notes\")\n\
+         permit (principal is Agent, action == Action::\"Write\", resource is Content)\n\
+         when { resource.owner == principal.operator };\n"
+            .to_owned(),
+    ));
+    let files: Vec<(&str, &str)> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    Pdp::from_sources_for_tests(
+        include_str!("../../../policy/schema.cedarschema"),
+        &files,
+        "family",
+        include_str!("../../../policy/packs/family/pack.toml"),
+    )
+    .expect("the pack compiles with the permit beside it")
+}
+
+/// An agent's timer is refused until its tree is decided for both.
+///
+/// **What an agent's tree puts off fails closed**: with a pack that lets ana's
+/// assistant write what she owns, its session sets a timer on the photo — the
+/// set decided on both halves — and the timer is kept as the agent acting
+/// alone, so when it comes due it is decided unmarked, refused by
+/// `core.an_agent_never_impersonates`, journaled as the agent's with no chain,
+/// and cancelled: its callback never runs.
+#[tokio::test]
+async fn an_agents_timer_is_refused_until_its_tree_is_decided_for_both() {
+    let fixture = opened_deciding(family_and_an_agent_writing(), &["ana-assistant"]).await;
+    let session = fixture
+        .kernel
+        .session(
+            &EntityRef {
+                type_name: "Agent".to_owned(),
+                id: "ana-assistant".to_owned(),
+            },
+            &fixture.principal("ana"),
+        )
+        .await
+        .expect("ana's assistant acts for her");
+    let set = fixture
+        .kernel
+        .dispatch(
+            &session,
+            "reference.timer.set",
+            &timer(1_000, "put:peer:photo", &[("every", Value::Bool(true))]),
+        )
+        .await
+        .expect("the assistant sets a timer on what ana owns");
+    assert_eq!(timers_set(&set).len(), 1, "{set}");
+    fixture.clock.advance(1_000);
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.fired, pumped.refused), (0, 1), "{pumped:?}");
+    assert_eq!(fixture.held(PEER, "note/photo").await, None);
+    let entries = fixture.entries().await;
+    let decided: Vec<(Outcome, &str, Vec<&str>, Option<&str>)> =
+        entries_of(&entries, "reference.timer.set")
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry.record.result,
+                    entry.record.principal.as_str(),
+                    entry
+                        .record
+                        .actor_chain
+                        .iter()
+                        .map(OpaqueId::as_str)
+                        .collect(),
+                    entry.record.deciding_policy.as_deref(),
+                )
+            })
+            .collect();
+    assert_eq!(
+        decided,
+        [
+            (
+                Outcome::Allowed,
+                "ana-assistant",
+                vec!["ana"],
+                Some(
+                    "family.an_agent_writes_its_operators_notes;\
+                     family.an_owner_governs_their_own_content"
+                )
+            ),
+            (
+                Outcome::Denied,
+                "ana-assistant",
+                vec![],
+                Some("core.an_agent_never_impersonates")
+            ),
+        ]
+    );
+    fixture.clock.advance(1_000);
+    assert_eq!(
+        fixture.pump().await,
+        Pumped::default(),
+        "the timer refused once is cancelled"
     );
 }

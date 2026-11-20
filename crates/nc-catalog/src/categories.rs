@@ -1668,6 +1668,14 @@ pub const CATEGORIES: &[Category] = &[
         title_key: "category.noctua.reference.title",
         description_key: "category.noctua.reference.description",
     },
+    Category {
+        name: "noctua.settings",
+        set: "noctua",
+        standard_name: None,
+        role: None,
+        title_key: "category.noctua.settings.title",
+        description_key: "category.noctua.settings.description",
+    },
 ];
 
 /// The set of categories a name refers to, if any.

@@ -3,7 +3,8 @@
 //! **One handler for each command the catalog declares in a namespace the
 //! kernel keeps, and none for any other.** `catalog/commands.toml` declares
 //! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
-//! `naming.propose`, `naming.read` and `kernel.find`; the
+//! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read` and
+//! `settings.mcp.set`; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -59,17 +60,25 @@
 //! when there are — and `read` says with `canonical` whether `name` was already
 //! written as the scheme writes it. Both are `Read` on `Feature::"naming"`,
 //! which the family pack gives every person of the realm
-//! (`family.a_member_names_files`): they read nothing of the realm's, so they
-//! open no unit and change nothing, and the journal's entry names the command
-//! and the feature, never the arguments. **The kernel is handed text only**:
-//! a kept identifier is read in `nc-ids`, which cannot log, and comes back as
-//! text, so nothing here turns a caller's text into an identifier the log
-//! could carry.
+//! (`family.a_member_names_files`) and an agent its person granted the feature
+//! (`family.an_agent_names_files`), its person asked as well: they read nothing
+//! of the realm's, so they open no unit and change nothing, and the journal's
+//! entry names the command and the feature, never the arguments. **The kernel
+//! is handed text only**: a kept identifier is read in `nc-ids`, which cannot
+//! log, and comes back as text, so nothing here turns a caller's text into an
+//! identifier the log could carry.
 //!
 //! **`kernel.find` is the registry filtered by the one fuzzy core**
 //! (`NOCTUA.md §12.4`), `Read` on `Feature::"registry"`, which the family pack
-//! gives every person of the realm (`family.a_member_finds_commands`);
-//! `crate::find` says what it reads and answers.
+//! gives every person of the realm (`family.a_member_finds_commands`) and an
+//! agent its person granted the feature (`family.an_agent_finds_commands`), its
+//! person asked as well; `crate::find` says what it reads and answers.
+//!
+//! **`settings.mcp.read` and `settings.mcp.set` are the channel's MCP
+//! setting** (`NOCTUA.md §12.15`), `Read` and `Write` on `Feature::"mcp"`,
+//! which the family pack gives every person of the realm
+//! (`family.a_member_switches_mcp`); `crate::settings` says where the value is
+//! kept and why the set runs only at the top of a call tree.
 //!
 //! What this answers (`NOCTUA.md §2.4`): a declared command that answers that
 //! it is not built, a pruner run by a caller the pack does not let delete on
@@ -155,6 +164,10 @@ pub(crate) enum Builtin {
     ReadName,
     /// `kernel.find`: the commands a query finds (`crate::find`).
     Find,
+    /// `settings.mcp.read`: whether MCP is on (`crate::settings`).
+    McpRead,
+    /// `settings.mcp.set`: MCP switched on or off (`crate::settings`).
+    McpSet,
 }
 
 impl Builtin {
@@ -162,7 +175,7 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 9] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -170,6 +183,8 @@ impl Builtin {
         Self::Propose,
         Self::ReadName,
         Self::Find,
+        Self::McpRead,
+        Self::McpSet,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -182,6 +197,8 @@ impl Builtin {
             Self::Propose => PROPOSE,
             Self::ReadName => READ,
             Self::Find => crate::find::FIND,
+            Self::McpRead => crate::settings::MCP_READ,
+            Self::McpSet => crate::settings::MCP_SET,
         }
     }
 

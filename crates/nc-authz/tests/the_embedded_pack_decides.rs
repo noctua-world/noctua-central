@@ -65,6 +65,7 @@ fn facts(grant: Option<EntityRef>) -> Facts {
         policy_epoch: EPOCH,
         quorum_met: false,
         grant,
+        budget_spent: 0,
     }
 }
 
@@ -94,7 +95,7 @@ async fn ask_vouching(
     let realm = directory.realm("home").await.expect("home is in the world");
     assert!(pdp.carries(&realm), "home pins the pack this build carries");
     let grant = directory
-        .grant("home", principal)
+        .grant("home", principal, resource)
         .await
         .expect("the directory answers");
     let mut facts = facts(grant.map(|grant| grant.entity));
@@ -295,6 +296,129 @@ async fn every_fact_the_kernel_vouches_for_reaches_the_rule_that_reads_it() {
         let decision = ask_vouching(&pdp, &directory, principal, action, &photo, vouch).await;
         assert_eq!(decision, expected, "{what}");
     }
+}
+
+/// The world's directory, with `ana-assistant` holding `g.current` beside the members.
+fn with_the_assistant(pdp: &Pdp, world: &str) -> MemoryDirectory {
+    let mut directory = MemoryDirectory::from_world(world, pdp)
+        .expect("the world loads with the schema")
+        .with_epoch("home", EPOCH);
+    for principal in [entity("User", "ana"), entity("Agent", "ana-assistant")] {
+        directory = directory
+            .with_grant("home", principal, "g.current")
+            .expect("home holds g.current");
+    }
+    directory
+}
+
+#[tokio::test]
+async fn a_budget_spent_this_session_is_taken_off_what_the_agent_holds() {
+    // `ana-assistant` holds a thousand: the last of them still reads the photo,
+    // and once all are spent the core refuses it by the budget's own rule.
+    let pdp = family();
+    let directory = with_the_assistant(&pdp, WORLD);
+    let (assistant, photo) = (entity("Agent", "ana-assistant"), entity("Content", "photo"));
+    let asked: [(Vouch, Decision); 3] = [
+        (
+            |facts| facts.via_agent = true,
+            allowed("family.a_member_reads_shared_content"),
+        ),
+        (
+            |facts| {
+                facts.via_agent = true;
+                facts.budget_spent = 999;
+            },
+            allowed("family.a_member_reads_shared_content"),
+        ),
+        (
+            |facts| {
+                facts.via_agent = true;
+                facts.budget_spent = 1_000;
+            },
+            denied("core.budget_is_a_permission", ErrorCode::PolicyDenied),
+        ),
+    ];
+    for (vouch, expected) in asked {
+        let decision = ask_vouching(&pdp, &directory, &assistant, "Read", &photo, vouch).await;
+        assert_eq!(decision, expected);
+    }
+}
+
+#[tokio::test]
+async fn a_person_holds_no_budget_to_spend_from() {
+    let pdp = family();
+    let directory = directory(&pdp);
+    let (ana, photo) = (entity("User", "ana"), entity("Content", "photo"));
+    for vouch in [
+        (|_| {}) as Vouch,
+        |facts| facts.budget_spent = 5,
+        |facts| facts.budget_spent = u64::MAX,
+    ] {
+        assert_eq!(
+            ask_vouching(&pdp, &directory, &ana, "Write", &photo, vouch).await,
+            allowed("family.an_owner_governs_their_own_content")
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_spend_past_what_a_long_holds_leaves_nothing() {
+    // More than a `Long` holds is the most it holds, taken off without
+    // wrapping: from a thousand, and from an agent already two past its budget,
+    // whose wrapped balance would be the largest a `Long` holds.
+    let pdp = family();
+    let overdrawn = WORLD.replacen("\"budget_remaining\": 1000", "\"budget_remaining\": -2", 1);
+    assert_ne!(
+        overdrawn, WORLD,
+        "the assistant's budget is written as the test expects"
+    );
+    let (assistant, photo) = (entity("Agent", "ana-assistant"), entity("Content", "photo"));
+    for world in [WORLD, overdrawn.as_str()] {
+        let directory = with_the_assistant(&pdp, world);
+        let decision = ask_vouching(&pdp, &directory, &assistant, "Read", &photo, |facts| {
+            facts.via_agent = true;
+            facts.budget_spent = u64::MAX;
+        })
+        .await;
+        assert_eq!(
+            decision,
+            denied("core.budget_is_a_permission", ErrorCode::PolicyDenied)
+        );
+    }
+}
+
+#[tokio::test]
+async fn an_agent_whose_spent_budget_does_not_read_back_is_a_request_the_schema_refuses() {
+    // A decision point whose schema asks an agent for one attribute more than
+    // the directory's entities hold: an agent that spent nothing is decided
+    // over the slice as it was built, and one that spent is refused, never
+    // decided over the budget it held before it spent.
+    let schema = SCHEMA.replacen(
+        "\"budget_remaining\": Long,\n",
+        "\"budget_remaining\": Long,\n  \"note\": String,\n",
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "the schema is written as the test expects");
+    let core_and_family = family_with(&[]).expect("the shipped pack compiles");
+    let directory = with_the_assistant(&core_and_family, WORLD);
+    let stricter =
+        family_against(&schema, &[]).expect("the pack compiles against the stricter schema");
+    let (assistant, photo) = (entity("Agent", "ana-assistant"), entity("Content", "photo"));
+    assert_eq!(
+        ask_vouching(&stricter, &directory, &assistant, "Read", &photo, |facts| {
+            facts.via_agent = true;
+        })
+        .await,
+        allowed("family.a_member_reads_shared_content")
+    );
+    assert_eq!(
+        ask_vouching(&stricter, &directory, &assistant, "Read", &photo, |facts| {
+            facts.via_agent = true;
+            facts.budget_spent = 1;
+        })
+        .await,
+        denied(sentinel::REQUEST_INVALID, ErrorCode::PolicyEvaluationFailed)
+    );
 }
 
 #[tokio::test]
@@ -535,6 +659,11 @@ async fn a_forbid_on_an_action_group_fires_through_a_slice() {
 
 /// The shipped core and family pack, with `extra` beside them, as a test decision point.
 fn family_with(extra: &[(&str, &str)]) -> Result<Pdp, PdpError> {
+    family_against(SCHEMA, extra)
+}
+
+/// The shipped core and family pack, with `extra` beside them, validated against `schema`.
+fn family_against(schema: &str, extra: &[(&str, &str)]) -> Result<Pdp, PdpError> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut texts: Vec<(String, String)> = Vec::new();
     for directory in ["policy/core", "policy/packs/family"] {
@@ -557,7 +686,7 @@ fn family_with(extra: &[(&str, &str)]) -> Result<Pdp, PdpError> {
         .map(|(path, text)| (path.as_str(), text.as_str()))
         .collect();
     files.extend_from_slice(extra);
-    Pdp::from_sources_for_tests(SCHEMA, &files, "family", MANIFEST)
+    Pdp::from_sources_for_tests(schema, &files, "family", MANIFEST)
 }
 
 /// A `forbid` that errs for every epoch above zero: the product overflows a `Long`.
@@ -973,20 +1102,25 @@ async fn a_grant_is_held_per_realm_and_per_principal() {
     let pdp = family();
     let directory = directory(&pdp);
     let ana = entity("User", "ana");
+    let photo = entity("Content", "photo");
     let held = directory
-        .grant("home", &ana)
+        .grant("home", &ana, &photo)
         .await
         .expect("the directory answers")
         .expect("ana holds a grant in home");
     assert_eq!(held.entity, entity("Grant", "g.current"));
     assert_eq!(held.id.as_str(), "g.current");
-    assert_eq!(directory.grant("office", &ana).await, Ok(None));
+    assert_eq!(directory.grant("office", &ana, &photo).await, Ok(None));
     assert_eq!(
-        directory.grant("home", &entity("User", "elias")).await,
+        directory
+            .grant("home", &entity("User", "elias"), &photo)
+            .await,
         Ok(None)
     );
     assert_eq!(
-        directory.grant("home", &entity("Device", "ana")).await,
+        directory
+            .grant("home", &entity("Device", "ana"), &photo)
+            .await,
         Ok(None)
     );
 }
@@ -1162,8 +1296,10 @@ fn the_directory_answers_on_any_thread() {
     let directory = directory(&pdp);
     let ana = entity("User", "ana");
     sendable(directory.realm("home"));
-    sendable(directory.grant("home", &ana));
+    sendable(directory.grant("home", &ana, &ana));
     sendable(directory.slice("home", &ana, &ana, None));
+    sendable(directory.delegation("home", &ana));
+    sendable(directory.agents("home", &ana));
 }
 
 #[test]
@@ -1185,4 +1321,106 @@ fn a_directory_refusal_prints_what_it_was_given_escaped() {
         assert!(!each.contains('\u{1b}'), "escaped: {each}");
         assert!(each.contains("\\u{1b}[2J"), "written, not dropped: {each}");
     }
+}
+
+/// The commands an agent reaches in the family pack are naming and finding,
+/// and nothing else.
+///
+/// Every command of the catalog whose resource is known without its
+/// arguments, asked as ana's assistant — marked as an agent's, one link from
+/// her, holding the realm's grant — through the pack this build embeds: an
+/// agent permit added or widened turns one more `allow`, and this fails until
+/// the list below is changed on purpose.
+#[tokio::test]
+async fn the_commands_an_agent_reaches_in_the_family_pack_are_naming_and_finding_and_nothing_else()
+{
+    let pdp = family();
+    let directory = with_the_assistant(&pdp, WORLD);
+    let assistant = entity("Agent", "ana-assistant");
+    let mut allowed_to_it = Vec::new();
+    let mut asked = Vec::new();
+    for command in nc_catalog::COMMANDS {
+        let schema = nc_schema::Schema::compile(command.args_schema).expect("a catalog schema");
+        let selector = nc_schema::Selector::parse(command.resource_selector, &schema)
+            .expect("a catalog selector");
+        let Ok(resource) = selector.extract("home", &serde_json::Value::Null) else {
+            continue;
+        };
+        asked.push(command.name);
+        let decision = ask_vouching(
+            &pdp,
+            &directory,
+            &assistant,
+            command.action,
+            &resource,
+            |facts| {
+                facts.via_agent = true;
+                facts.actor_chain_depth = 1;
+            },
+        )
+        .await;
+        if decision.allowed {
+            allowed_to_it.push(command.name);
+        }
+    }
+    allowed_to_it.sort_unstable();
+    assert_eq!(
+        allowed_to_it,
+        ["kernel.find", "naming.propose", "naming.read"]
+    );
+    for refused in [
+        "journal.verify",
+        "kernel.redo",
+        "kernel.undo",
+        "limits.prune",
+        "settings.mcp.read",
+        "settings.mcp.set",
+    ] {
+        assert!(
+            asked.contains(&refused),
+            "`{refused}` was asked, and refused: {asked:?}"
+        );
+    }
+}
+
+/// An agent of another realm is denied by the slice, whatever the agent
+/// permits say.
+///
+/// The agent permits ask no membership, so over the whole world an agent of
+/// `office` is allowed `home`'s naming feature, which a case pins; asked
+/// through `home`'s slice, which holds no such agent, it is denied. The
+/// control is ana's assistant, of `home`, asked the same.
+#[tokio::test]
+async fn an_agent_of_another_realm_is_denied_by_the_slice_whatever_the_agent_permits_say() {
+    let pdp = family();
+    let directory = with_the_assistant(&pdp, WORLD);
+    let naming = entity("Feature", "naming");
+    let marked: Vouch = |facts| {
+        facts.via_agent = true;
+        facts.actor_chain_depth = 1;
+    };
+    assert_eq!(
+        ask_vouching(
+            &pdp,
+            &directory,
+            &entity("Agent", "ana-assistant"),
+            "Read",
+            &naming,
+            marked
+        )
+        .await,
+        allowed("family.an_agent_names_files")
+    );
+    assert_eq!(
+        ask_vouching(
+            &pdp,
+            &directory,
+            &entity("Agent", "mallory-assistant"),
+            "Read",
+            &naming,
+            marked
+        )
+        .await,
+        denied(sentinel::NO_PERMIT_MATCHED, ErrorCode::PolicyDenied)
+    );
 }

@@ -11,10 +11,24 @@
 //! decision point must have been built, the directory must answer for the
 //! realm, the realm must be one whose pack this kernel carries, the grant and
 //! the entities are the directory's, and what the kernel vouches for — the
-//! time, the epoch, whether a human confirmed it and whether a quorum approved
-//! it — is the kernel's alone. A command that cannot be undone is refused
-//! after Cedar allows it unless a confirmation the kernel issued is redeemed
-//! for it. **The plugin runs after all of that or not at all.**
+//! time, the epoch, whether an agent acts and how many stand between its
+//! person and the dispatch, whether a human confirmed it and whether a quorum
+//! approved it — is the kernel's alone. A command that cannot be undone is
+//! refused after Cedar allows it unless a confirmation the kernel issued is
+//! redeemed for it. **The plugin runs after all of that or not at all.**
+//!
+//! **Who acts is a caller acting as itself, or an agent's session**
+//! (`crate::session`). A tree of an agent's is decided once for each link —
+//! the agent, then the person it acts for — at one moment and one epoch, both
+//! told an agent acts and how far down its chain, and the first denial is the
+//! answer; every entry of the tree, its refusals before any decision included,
+//! names the agent and, in its actor chain, the person, and what decided is
+//! one segment per link it reached, joined by `;`. A person is the one link,
+//! and their entry is what a one-principal decision always wrote. **An agent
+//! redeems nothing**: a session has no slot for a token, a tree acting for an
+//! agent binds none it is handed, and none issued to an agent is ever bound,
+//! so its command that cannot be undone is refused until a person can confirm
+//! it.
 //!
 //! **Every dispatch is journaled**: a refusal, a read, a failure and every
 //! dispatch in a tree, each as one entry naming the principal, the action, the
@@ -27,18 +41,22 @@
 //! (`crate::units`). A refusal stands whether or not the journal took it, and
 //! is logged either way.
 //!
-//! **A nested dispatch is the tree's, and runs as its principal.** A plugin
-//! dispatching from inside a command reaches this same door with the tree's
-//! principal and inside the tree's unit; it is never confirmed and never
-//! approved, because a confirmation and an approval are issued for one
+//! **A nested dispatch is the tree's, and runs as the tree acts.** A plugin
+//! dispatching from inside a command reaches this same door as the tree's
+//! principal and chain, and inside the tree's unit; it is never confirmed and
+//! never approved, because a confirmation and an approval are issued for one
 //! dispatch at the top of a tree and redeemed there or not at all. A plugin
 //! dispatching into itself while it runs is refused rather than trapped; one
 //! asking past its tree's count of dispatches is told the count is spent, and
 //! trapped rather than told again when it asks on.
 //! Undo and redo run only at the top of a tree, and are refused nested in
-//! another command (`crate::history`). **A callback the pump calls is a tree
+//! another command (`crate::history`); so does a command of the kernel's own
+//! that switches a setting (`crate::registry::only_at_the_top`), refused with
+//! `[NC-KERN-0025]` and journaled under the same sentinel, so no plugin, timer
+//! or event run as a person switches what may act for them. **A callback the pump calls is a tree
 //! of its own** — a timer fired or an event heard, for the principal it was
-//! set or published for — whose frame is beneath every command it dispatches:
+//! set or published for, acting as itself — whose frame is beneath every
+//! command it dispatches:
 //! each is nested, never confirmed, and beneath an event's callback, which only
 //! reads, no command may change state (`crate::pump`).
 //!
@@ -58,8 +76,10 @@
 //! plugin code runs before the decision, and none runs when the decision point,
 //! the directory or the journal cannot be asked; a forged principal or
 //! confirmation — the principal is the caller's and a nested dispatch's is the
-//! tree's, and a confirmation or an approval is the kernel's, bound to one
-//! principal, one command and its arguments, used once and only before it
+//! tree's, an agent's person and chain are the directory's and never a
+//! caller's, an agent is never decided on fewer than every link, and a
+//! confirmation or an approval is the kernel's, bound to one principal who is
+//! no agent, one command and its arguments, used once and only before it
 //! expires; malformed input, refused before the plugin runs; and a call tree
 //! that never ends, by depth, deadline and count — every dispatch asked for
 //! counting, refused or not, and a plugin asking past the count once it was
@@ -80,7 +100,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
-use nc_authz::{Directory as _, EntityRef, Facts, Principal, Question, sentinel};
+use nc_authz::{Directory as _, EntityRef, Facts, Principal, PrincipalKind, Question, sentinel};
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, KERNEL};
 use nc_ids::{Clock as _, OpaqueId, Snowflake};
@@ -90,6 +110,7 @@ use nc_schema::descriptor::Reversibility;
 use crate::events::Published;
 use crate::logging::LogSink as _;
 use crate::registry::{Admitted, Owner};
+use crate::session::{Acting, Session};
 use crate::units::{self, Ambient, Later};
 use crate::{Environment, PluginSlot, Shared, history, supervisor};
 
@@ -104,6 +125,10 @@ pub struct Caller {
 
 impl Caller {
     /// A caller who is `principal`, holding nothing the kernel issued.
+    ///
+    /// An agent named so, without a session of its own, acts alone and
+    /// unmarked, which the core refuses (`core.an_agent_never_impersonates`):
+    /// an agent acts through [`crate::Kernel::session`].
     #[must_use]
     pub const fn new(principal: Principal) -> Self {
         Self {
@@ -132,22 +157,59 @@ impl Caller {
     pub const fn principal(&self) -> &Principal {
         &self.principal
     }
+}
 
-    /// The same caller again, for the task its dispatch runs on.
+/// Who a dispatch is asked for: a caller acting as itself, or an agent's
+/// session.
+#[derive(Debug, Clone, Copy)]
+pub enum Asker<'a> {
+    /// A person or a device, holding what the kernel issued them for this
+    /// dispatch.
+    Caller(&'a Caller),
+    /// An agent, for whom its session's chain names, holding nothing.
+    Session(&'a Session),
+}
+
+impl<'a> From<&'a Caller> for Asker<'a> {
+    fn from(caller: &'a Caller) -> Self {
+        Self::Caller(caller)
+    }
+}
+
+impl<'a> From<&'a Session> for Asker<'a> {
+    fn from(session: &'a Session) -> Self {
+        Self::Session(session)
+    }
+}
+
+impl Asker<'_> {
+    /// What the task the dispatch runs on holds of its asker.
     ///
-    /// What it holds is a serial the kernel honours once, so the copy is worth
-    /// nothing the first was not.
-    pub(crate) fn again(&self) -> Self {
-        Self {
-            principal: self.principal.clone(),
-            confirmation: self.confirmation.as_ref().map(|held| Confirmation {
-                serial: held.serial,
-            }),
-            approval: self.approval.as_ref().map(|held| Approval {
-                serial: held.serial,
-            }),
+    /// What a caller holds is a serial the kernel honours once, so the copy is
+    /// worth nothing the first was not; and a session holds none.
+    pub(crate) fn asking(self) -> Asking {
+        match self {
+            Self::Caller(caller) => Asking {
+                acting: Acting::Itself(caller.principal.clone()),
+                confirmation: caller.confirmation.as_ref().map(|held| held.serial),
+                approval: caller.approval.as_ref().map(|held| held.serial),
+            },
+            Self::Session(session) => Asking {
+                acting: Acting::Agent(session.clone()),
+                confirmation: None,
+                approval: None,
+            },
         }
     }
+}
+
+/// What the task a top-level dispatch runs on holds of its asker: who acts,
+/// and the serial of each token it presents — none for an agent's session.
+#[derive(Debug)]
+pub(crate) struct Asking {
+    acting: Acting,
+    confirmation: Option<u64>,
+    approval: Option<u64>,
 }
 
 /// A human's confirmation of one dispatch, which only the kernel issues.
@@ -287,7 +349,8 @@ impl Issued {
     ///
     /// **One that does not match is kept**, so a caller presenting a
     /// confirmation with another command does not lose the one it holds; one
-    /// that expired is forgotten.
+    /// that expired is forgotten. **None is ever bound to an agent**, whoever
+    /// issued it: an agent is never confirmed and never approved.
     fn bound(
         &mut self,
         token: Token,
@@ -297,6 +360,9 @@ impl Issued {
         args: &str,
         now_ms: u64,
     ) -> bool {
+        if principal.kind() == PrincipalKind::Agent {
+            return false;
+        }
         let Some(binding) = self.outstanding.get(&serial) else {
             return false;
         };
@@ -499,7 +565,7 @@ impl Reason {
     }
 }
 
-/// One top-level dispatch and everything it dispatched: who it runs for, until
+/// One top-level dispatch and everything it dispatched: who it acts as, until
 /// when, how much it has dispatched, the frames running now and the unit its
 /// writes are staged in.
 ///
@@ -510,7 +576,10 @@ impl Reason {
 /// change of the wall clock moves.
 #[derive(Debug)]
 pub(crate) struct CallTree {
-    principal: Principal,
+    acting: Acting,
+    /// What the session it acts for had spent when it began: what every
+    /// decision of the tree takes off the agent's budget.
+    spent: u64,
     deadline_ms: u64,
     began: Instant,
     dispatches: u32,
@@ -529,10 +598,12 @@ pub(crate) struct CallTree {
 }
 
 impl CallTree {
-    /// A tree for `principal`, begun at `now_ms`, with nothing dispatched yet.
-    pub(crate) fn new(principal: Principal, now_ms: u64) -> Self {
+    /// A tree acting as `acting`, whose session had spent `spent`, begun
+    /// at `now_ms`, with nothing dispatched yet.
+    pub(crate) fn new(acting: Acting, spent: u64, now_ms: u64) -> Self {
         Self {
-            principal,
+            acting,
+            spent,
             deadline_ms: now_ms.saturating_add(KERNEL.dispatch_deadline_ms),
             began: Instant::now(),
             dispatches: 0,
@@ -609,9 +680,9 @@ impl CallTree {
         self.began
     }
 
-    /// Who the tree runs for.
-    pub(crate) const fn principal(&self) -> &Principal {
-        &self.principal
+    /// Who the tree runs for: its acting principal.
+    pub(crate) fn principal(&self) -> &Principal {
+        self.acting.principal()
     }
 
     /// Opens the frame of a callback the kernel calls as the tree's top:
@@ -884,9 +955,9 @@ impl<E: Environment> Frame<E> {
         self.confirmed
     }
 
-    /// Who the tree runs for.
+    /// Who the tree runs for: its acting principal.
     pub(crate) fn principal(&self) -> Principal {
-        self.tree().principal.clone()
+        self.tree().principal().clone()
     }
 
     /// The kernel the command runs under: none once it is gone, which no
@@ -905,7 +976,7 @@ impl<E: Environment> Frame<E> {
         self.tree().began()
     }
 
-    /// Dispatches `name` with `args` from this frame, as the tree's principal.
+    /// Dispatches `name` with `args` from this frame, as the tree acts.
     ///
     /// **On the runtime, not on the calling plugin's stack.** A host function
     /// runs on the fiber wasmtime gives the plugin's call, and Cedar measures
@@ -941,7 +1012,7 @@ impl<E: Environment> Frame<E> {
     }
 }
 
-/// Dispatches `name` with `args` for `caller` as the top of a call tree, on a
+/// Dispatches `name` with `args` for `asker` as the top of a call tree, on a
 /// task of its own.
 ///
 /// **It runs to its end whoever stops waiting for it**, for the reasons
@@ -953,13 +1024,13 @@ impl<E: Environment> Frame<E> {
 /// task did not finish, as [`joined`] says.
 pub(crate) async fn detached<E: Environment>(
     shared: &Arc<Shared<E>>,
-    caller: &Caller,
+    asker: Asker<'_>,
     name: &str,
     args: &str,
 ) -> Result<String, Refusal> {
-    let (shared, caller) = (Arc::clone(shared), caller.again());
+    let (shared, asking) = (Arc::clone(shared), asker.asking());
     let (owned, given) = (name.to_owned(), args.to_owned());
-    let tree = async move { top(&shared, &caller, &owned, &given).await };
+    let tree = async move { top(&shared, &asking, &owned, &given).await };
     joined(name, tokio::spawn(tree).await)
 }
 
@@ -998,7 +1069,7 @@ impl<E: Environment> Frame<E> {
         let principal = directory
             .principal(nc_authz::PrincipalKind::User, "ana")
             .expect("ana is a user of the world");
-        let mut tree = CallTree::new(principal, 0);
+        let mut tree = CallTree::new(Acting::Itself(principal), 0, 0);
         tree.unit = unit.map(Ambient::new);
         Self::new(
             Weak::new(),
@@ -1043,7 +1114,7 @@ impl<E: Environment> Frame<E> {
     }
 }
 
-/// Dispatches `name` with `args` for `caller`, as the top of a call tree.
+/// Dispatches `name` with `args` as `asking` acts, as the top of a call tree.
 ///
 /// **One tree at a time.** Every top-level dispatch takes the kernel's bus
 /// first, so two trees never interleave their units — running trees side by
@@ -1051,17 +1122,18 @@ impl<E: Environment> Frame<E> {
 /// never asks for it.
 pub(crate) async fn top<E: Environment>(
     shared: &Arc<Shared<E>>,
-    caller: &Caller,
+    asking: &Asking,
     name: &str,
     args: &str,
 ) -> Result<String, Refusal> {
     let _one_tree_at_a_time = shared.bus.lock().await;
     supervisor::started_again(shared).await;
     let tree = Arc::new(Mutex::new(CallTree::new(
-        caller.principal.clone(),
+        asking.acting.clone(),
+        0,
         shared.clock.now_ms(),
     )));
-    let answered = decide(shared, &tree, Some(caller), name, args, None).await;
+    let answered = decide(shared, &tree, Some(asking), name, args, None).await;
     let put_off = lock(&tree).put_off_taken();
     if let Some(later) = put_off {
         later.released(shared);
@@ -1069,8 +1141,8 @@ pub(crate) async fn top<E: Environment>(
     answered
 }
 
-/// Dispatches `name` with `args` from inside `tree`, as its principal, asked
-/// for by the plugin in `requester` — none when the kernel asks for its own,
+/// Dispatches `name` with `args` from inside `tree`, as it acts, asked for by
+/// the plugin in `requester` — none when the kernel asks for its own,
 /// as an undo dispatching a compensation does.
 ///
 /// Boxed, because a nested dispatch runs a plugin whose command may dispatch
@@ -1089,15 +1161,15 @@ pub(crate) fn nested<'a, E: Environment>(
 async fn decide<E: Environment>(
     shared: &Arc<Shared<E>>,
     tree: &Arc<Mutex<CallTree>>,
-    caller: Option<&Caller>,
+    asking: Option<&Asking>,
     name: &str,
     args: &str,
     requester: Option<PluginSlot>,
 ) -> Result<String, Refusal> {
     let began = lock(tree).began();
-    let waits = Waits::of(caller.is_none(), began);
+    let waits = Waits::of(asking.is_none(), began);
     let asked = asked(shared, tree, name, args, requester, waits).await?;
-    let authorized = match authorize(shared, &asked, caller, began).await {
+    let authorized = match authorize(shared, &asked, asking, began).await {
         Ok(authorized) => authorized,
         Err(turned) => return Err(turned_away(shared, tree, *turned, waits).await),
     };
@@ -1105,8 +1177,8 @@ async fn decide<E: Environment>(
 }
 
 /// A dispatch that passed every step before authorization: the command, its
-/// arguments as canonical text and as the schema read them, its resource, and
-/// where in the tree it was asked.
+/// arguments as canonical text and as the schema read them, its resource, where
+/// in the tree it was asked, and who the tree acts as.
 struct Asked {
     name: String,
     command: Admitted,
@@ -1114,7 +1186,8 @@ struct Asked {
     json: serde_json::Value,
     resource: EntityRef,
     depth: usize,
-    principal: Principal,
+    acting: Acting,
+    spent: u64,
     waits: Waits,
 }
 
@@ -1219,21 +1292,26 @@ fn resource_of(name: &str, entity: Option<&EntityRef>, failure: Option<&str>) ->
 ///
 /// **The refusal stands whether or not the journal took it**: a journal that
 /// is down denies nothing more and allows nothing more, and the log line is
-/// written either way.
+/// written either way. Its entry names who the tree acts as and, for an agent,
+/// whom it acts for, whatever refused it.
 async fn turned_away<E: Environment>(
     shared: &Shared<E>,
     tree: &Arc<Mutex<CallTree>>,
     turned: Turned,
     waits: Waits,
 ) -> Refusal {
-    let (principal, unit) = {
+    let (principal, chain, unit) = {
         let tree = lock(tree);
-        (tree.principal.clone(), tree.unit().map(Ambient::unit))
+        (
+            tree.principal().id().clone(),
+            tree.acting.recorded_chain(),
+            tree.unit().map(Ambient::unit),
+        )
     };
     let record = Record {
         realm: shared.realm.clone(),
-        principal: principal.id().clone(),
-        actor_chain: Vec::new(),
+        principal,
+        actor_chain: chain,
         action: turned.action,
         resource: turned.resource,
         result: turned.result,
@@ -1281,13 +1359,13 @@ async fn asked<E: Environment>(
     requester: Option<PluginSlot>,
     waits: Waits,
 ) -> Result<Asked, Refusal> {
-    let (principal, depth, spent) = {
+    let (acting, spent, depth, counted) = {
         let mut tree = lock(tree);
         let depth = tree.frames.len();
-        let spent = tree.spend(depth, shared.clock.now_ms(), requester);
-        (tree.principal.clone(), depth, spent)
+        let counted = tree.spend(depth, shared.clock.now_ms(), requester);
+        (tree.acting.clone(), tree.spent, depth, counted)
     };
-    if let Err((refusal, reason)) = spent {
+    if let Err((refusal, reason)) = counted {
         let resource = resource_of(name, None, None);
         let mut turned = Turned::early(refusal, reason, resource);
         // **Logged as the command it would have been**, when the registry
@@ -1313,7 +1391,8 @@ async fn asked<E: Environment>(
             json,
             resource,
             depth,
-            principal,
+            acting,
+            spent,
             waits,
         }),
         Err(refusal) => {
@@ -1337,8 +1416,8 @@ async fn asked<E: Environment>(
 }
 
 /// Steps two to four: a name in the shape of one, a command the registry
-/// holds, and a frame it may run under — undo and redo at the top of a tree
-/// only.
+/// holds, and a frame it may run under — undo, redo and a setting's switch at
+/// the top of a tree only.
 fn registered<E: Environment>(
     shared: &Shared<E>,
     tree: &Arc<Mutex<CallTree>>,
@@ -1376,6 +1455,24 @@ fn registered<E: Environment>(
             format!(
                 "`{name}` runs only at the top of a call tree, and it was dispatched from inside \
                  a command"
+            ),
+        );
+        return Err(Box::new(Turned::of(
+            &command,
+            refusal,
+            Reason::TopLevelOnly,
+            resource_of(name, None, None),
+            Reason::TopLevelOnly.sentinel().to_owned(),
+            None,
+        )));
+    }
+    if depth > 0 && crate::registry::only_at_the_top(command.listed()) {
+        let refusal = Refusal::new(
+            RefusalKind::Denied,
+            ErrorCode::KernelOnlyAtTheTop,
+            format!(
+                "`{name}` switches a setting, which only a person's own call may do, and it was \
+                 dispatched from inside a command"
             ),
         );
         return Err(Box::new(Turned::of(
@@ -1549,7 +1646,7 @@ impl Waits {
 /// The directory's answer, or its refusal, within the deadline a host call is
 /// held to — or what the call tree that began at `began` has left of its own,
 /// when that is nearer, as a host call is held (`supervisor::in_time`).
-async fn within<T>(
+pub(crate) async fn within<T>(
     began: Instant,
     asked: impl Future<Output = Result<T, nc_authz::DirectoryError>>,
 ) -> Result<T, nc_authz::DirectoryError> {
@@ -1577,16 +1674,16 @@ async fn within<T>(
 async fn authorize<E: Environment>(
     shared: &Shared<E>,
     asked: &Asked,
-    caller: Option<&Caller>,
+    asking: Option<&Asking>,
     began: Instant,
 ) -> Result<Authorized, Box<Turned>> {
     let (deciding, decided, held) = decision(
         shared,
         began,
-        &asked.principal,
+        (&asked.acting, asked.spent),
         &asked.command.listed().action,
         &asked.resource,
-        || redeemed(shared, caller, asked),
+        || redeemed(shared, asking, asked),
     )
     .await
     .map_err(|denied| {
@@ -1627,46 +1724,60 @@ struct Denial {
     decided: Option<Decided>,
 }
 
-/// Whether `principal` may do `action` on `resource` now: what step eight
-/// decides of a dispatch, and of an action an undo or a redo authorizes again.
+/// Whether `acting`, its session having spent `spent`, may do `action`
+/// on `resource` now: what step eight decides of a dispatch, and of an
+/// action an undo or a redo authorizes again.
 ///
 /// In order, each refusing what follows: the decision point must have been
 /// built, the directory must answer for the realm, the realm must pin a pack
-/// this kernel carries, and Cedar decides with the grant and the entities the
-/// directory holds — each question asked within a host call's deadline, and
-/// within what the call tree that began at `began` has left — and with the
-/// facts the kernel vouches for, `held` among them: asked once every question
-/// of the directory is answered, so a confirmation is never spent on a
-/// dispatch the kernel could not decide. **Not before the directory has
-/// answered**: with the entities asked for after it is redeemed, a directory
-/// that failed there would take a person's single-use confirmation with the
-/// undecided dispatch. **Nor before Cedar's request is built**: Cedar builds
-/// its request after `held` is asked, and a request it refuses — an epoch past
-/// what its schema holds — is a decision that could not be evaluated
-/// (`[NC-POL-0005]`). So `held` answers the serials it found bound beside what
-/// they vouch for, and those are spent only once the decision is evaluated,
-/// allowed or denied.
+/// this kernel carries, and then Cedar decides **once for each link** —
+/// the acting principal first, then each one it acts for, outermost first
+/// ([`Acting::links`]) — with the grant and the entities the directory holds
+/// for that link, each question asked within a host call's deadline and within
+/// what the call tree that began at `began` has left, and with the facts the
+/// kernel vouches for: one moment and one epoch for every link, whether an
+/// agent acts and how many stand between its person and the dispatch, and
+/// `held`. **The first denial is the answer**: once one link denies, no other
+/// can widen it, and the links it did not reach are the ones the entry holds
+/// no segment for. A person is the one link, and is decided as one principal
+/// always was.
+///
+/// `held` is asked once, at the first link, once the directory has answered
+/// for it, so a confirmation is never spent on a dispatch the kernel could not
+/// decide. **Not before the directory has answered**: with the entities asked
+/// for after it is redeemed, a directory that failed there would take a
+/// person's single-use confirmation with the undecided dispatch. **Nor before
+/// Cedar's request is built**: Cedar builds its request after `held` is asked,
+/// and a request it refuses — an epoch past what its schema holds — is a
+/// decision that could not be evaluated (`[NC-POL-0005]`). So `held` answers
+/// the serials it found bound beside what they vouch for, and those are spent
+/// only once the first link's decision is evaluated, allowed or denied.
+///
+/// What decided is one segment per link reached, joined by `;`: each what a
+/// one-principal decision records, which no `@id` and no sentinel can hold a
+/// `;` of. The grant it is decided under is the acting principal's.
 ///
 /// # Errors
 ///
 /// The [`Denial`]: no decision point, `kernel.pdp_unavailable` with the pack's
 /// own code; a directory that did not answer, `kernel.directory_unavailable`
 /// with `[NC-POL-0006]`; a realm whose profile or pin is not this kernel's
-/// pack, `kernel.pack_not_carried` with `[NC-POL-0004]`; and Cedar's denial,
-/// with the policies that decided or `kernel.no_permit_matched`.
+/// pack, `kernel.pack_not_carried` with `[NC-POL-0004]`; and Cedar's denial of
+/// a link, with the policies that decided or `kernel.no_permit_matched`. The
+/// caller is told one sentence for every link, and never which one denied.
 async fn decision<E: Environment>(
     shared: &Shared<E>,
     began: Instant,
-    principal: &Principal,
+    (acting, spent): (&Acting, u64),
     action: &str,
     resource: &EntityRef,
     held: impl FnOnce() -> (history::Held, Vec<u64>),
 ) -> Result<(String, Decided, history::Held), Denial> {
-    let unavailable = |_: nc_authz::DirectoryError| Denial {
-        code: ErrorCode::PolicyDirectoryUnavailable,
-        deciding: sentinel::DIRECTORY_UNAVAILABLE.to_owned(),
-        why: "the directory the decision point reads could not answer",
-        decided: None,
+    let why = if acting.via_agent() {
+        "the decision point did not allow it, for this agent and for whom it acts, on this \
+         resource"
+    } else {
+        "the decision point did not allow it, for this principal, on this resource"
     };
     let pdp = shared.pdp.as_ref().map_err(|unbuilt| Denial {
         code: unbuilt.code(),
@@ -1677,7 +1788,12 @@ async fn decision<E: Environment>(
     let realm = shared.realm.as_str();
     let facts_of_the_realm = within(began, shared.directory.realm(realm))
         .await
-        .map_err(unavailable)?;
+        .map_err(|_| Denial {
+            code: ErrorCode::PolicyDirectoryUnavailable,
+            deciding: sentinel::DIRECTORY_UNAVAILABLE.to_owned(),
+            why: "the directory the decision point reads could not answer",
+            decided: None,
+        })?;
     let decided = |grant| Decided {
         pack: pdp.pack().to_owned(),
         epoch: facts_of_the_realm.epoch,
@@ -1691,52 +1807,91 @@ async fn decision<E: Environment>(
             decided: Some(decided(None)),
         });
     }
-    let entity = principal.entity();
-    let grant = within(began, shared.directory.grant(realm, &entity))
-        .await
-        .map_err(unavailable)?;
+    let now_ms = shared.clock.now_ms();
+    let mut held = Some(held);
+    let mut vouched = history::Held::default();
+    let mut acting_grant: Option<OpaqueId> = None;
+    let mut segments: Vec<String> = Vec::new();
+    for (index, link) in acting.links().enumerate() {
+        let first = index == 0;
+        let entity = link.entity();
+        let Ok((grant, slice)) = held_for(shared, began, &entity, resource).await else {
+            segments.push(sentinel::DIRECTORY_UNAVAILABLE.to_owned());
+            return Err(Denial {
+                code: ErrorCode::PolicyDirectoryUnavailable,
+                deciding: segments.join(";"),
+                why: "the directory the decision point reads could not answer",
+                decided: (!first).then(|| decided(acting_grant.clone())),
+            });
+        };
+        let mut bound = Vec::new();
+        if let Some(held) = held.take() {
+            (vouched, bound) = held();
+        }
+        let facts = Facts {
+            now_ms,
+            via_agent: acting.via_agent(),
+            confirmed_by_human: vouched.confirmed,
+            actor_chain_depth: acting.depth(),
+            policy_epoch: facts_of_the_realm.epoch,
+            quorum_met: vouched.quorum_met,
+            grant: grant.as_ref().map(|grant| grant.entity.clone()),
+            budget_spent: if first { spent } else { 0 },
+        };
+        let decision = pdp.decide(
+            &Question {
+                principal: &entity,
+                action,
+                resource,
+                facts: &facts,
+            },
+            &slice,
+        );
+        if decision.code != Some(ErrorCode::PolicyEvaluationFailed) {
+            let mut issued = lock(&shared.issued);
+            for serial in bound {
+                issued.used(serial);
+            }
+        }
+        if first {
+            acting_grant = grant.map(|grant| grant.id);
+        }
+        segments.push(decision.deciding);
+        if !decision.allowed {
+            return Err(Denial {
+                code: decision.code.unwrap_or(ErrorCode::PolicyDenied),
+                deciding: segments.join(";"),
+                why,
+                decided: Some(decided(acting_grant)),
+            });
+        }
+    }
+    Ok((segments.join(";"), decided(acting_grant), vouched))
+}
+
+/// The grant `entity` holds for a question about `resource`, and the entities
+/// that question needs: each asked of the directory within a host call's
+/// deadline, and within what the call tree that began at `began` has left.
+///
+/// # Errors
+///
+/// What the directory refused either with, and its silence past a host
+/// call's deadline or what the tree has left.
+async fn held_for<E: Environment>(
+    shared: &Shared<E>,
+    began: Instant,
+    entity: &EntityRef,
+    resource: &EntityRef,
+) -> Result<(Option<nc_authz::GrantFacts>, nc_authz::Slice), nc_authz::DirectoryError> {
+    let realm = shared.realm.as_str();
+    let grant = within(began, shared.directory.grant(realm, entity, resource)).await?;
     let holding = grant.as_ref().map(|grant| &grant.entity);
     let slice = within(
         began,
-        shared.directory.slice(realm, &entity, resource, holding),
+        shared.directory.slice(realm, entity, resource, holding),
     )
-    .await
-    .map_err(unavailable)?;
-    let (held, bound) = held();
-    let facts = Facts {
-        now_ms: shared.clock.now_ms(),
-        via_agent: false,
-        confirmed_by_human: held.confirmed,
-        actor_chain_depth: 0,
-        policy_epoch: facts_of_the_realm.epoch,
-        quorum_met: held.quorum_met,
-        grant: grant.as_ref().map(|grant| grant.entity.clone()),
-    };
-    let decision = pdp.decide(
-        &Question {
-            principal: &entity,
-            action,
-            resource,
-            facts: &facts,
-        },
-        &slice,
-    );
-    if decision.code != Some(ErrorCode::PolicyEvaluationFailed) {
-        let mut issued = lock(&shared.issued);
-        for serial in bound {
-            issued.used(serial);
-        }
-    }
-    let decided = decided(grant.map(|grant| grant.id));
-    if !decision.allowed {
-        return Err(Denial {
-            code: decision.code.unwrap_or(ErrorCode::PolicyDenied),
-            deciding: decision.deciding,
-            why: "the decision point did not allow it, for this principal, on this resource",
-            decided: Some(decided),
-        });
-    }
-    Ok((decision.deciding, decided, held))
+    .await?;
+    Ok((grant, slice))
 }
 
 /// Authorizes `authority` again, now, for `principal` holding `held`: an
@@ -1749,7 +1904,9 @@ async fn decision<E: Environment>(
 /// the tree's unit as the decision point journals any — the action, the
 /// command and resource it was allowed for, and what decided it — and logged,
 /// and the caller is told its code and never the policy: `again` says what was
-/// being authorized again, after the command's name.
+/// being authorized again, after the command's name. **As `principal` acting
+/// alone**: what an agent's tree put off is decided again as the agent unmarked,
+/// which the core refuses (`crate::session`).
 ///
 /// # Errors
 ///
@@ -1769,7 +1926,8 @@ pub(crate) async fn reauthorized<E: Environment>(
         resource,
     } = authority;
     let began = lock(tree).began();
-    let Err(denied) = decision(shared, began, principal, action, resource, || {
+    let acting = Acting::Itself(principal.clone());
+    let Err(denied) = decision(shared, began, (&acting, 0), action, resource, || {
         (held, Vec::new())
     })
     .await
@@ -1821,22 +1979,23 @@ fn denial(
     ))
 }
 
-/// Whether the caller's confirmation and approval were issued for this
+/// Whether the asker's confirmation and approval were issued for this
 /// dispatch, and the serial of each one that was, which the decision spends.
 ///
-/// **Only at the top of a tree.** A nested dispatch is never confirmed and
-/// never approved, whatever the caller holds: what a human confirmed is the one
-/// dispatch they saw.
+/// **Only at the top of a tree, and never for an agent.** A nested dispatch is
+/// never confirmed and never approved, whatever the caller holds: what a human
+/// confirmed is the one dispatch they saw. And a tree acting for an agent, or
+/// as an agent alone, redeems nothing and spends nothing, whatever it holds.
 fn redeemed<E: Environment>(
     shared: &Shared<E>,
-    caller: Option<&Caller>,
+    asking: Option<&Asking>,
     asked: &Asked,
 ) -> (history::Held, Vec<u64>) {
-    let Some(caller) = caller.filter(|_| asked.depth == 0) else {
+    let Some(asking) = asking.filter(|_| asked.depth == 0 && asked.acting.may_hold_tokens()) else {
         return (history::Held::default(), Vec::new());
     };
     let now_ms = shared.clock.now_ms();
-    let principal = &caller.principal;
+    let principal = asked.acting.principal();
     let holder = history::owner_of(shared, &asked.command);
     let mut issued = lock(&shared.issued);
     let mut spent = Vec::new();
@@ -1854,14 +2013,12 @@ fn redeemed<E: Environment>(
         }
         bound
     };
-    let confirmed = caller
+    let confirmed = asking
         .confirmation
-        .as_ref()
-        .is_some_and(|confirmation| bound(Token::Confirmation, confirmation.serial));
-    let quorum_met = caller
+        .is_some_and(|serial| bound(Token::Confirmation, serial));
+    let quorum_met = asking
         .approval
-        .as_ref()
-        .is_some_and(|approval| bound(Token::Approval, approval.serial));
+        .is_some_and(|serial| bound(Token::Approval, serial));
     let held = history::Held {
         confirmed,
         quorum_met,
@@ -2158,8 +2315,8 @@ async fn journaled<E: Environment>(
     }
     let record = Record {
         realm: shared.realm.clone(),
-        principal: asked.principal.id().clone(),
-        actor_chain: Vec::new(),
+        principal: asked.acting.principal().id().clone(),
+        actor_chain: asked.acting.recorded_chain(),
         action: asked.command.listed().action.clone(),
         resource,
         result: if ran.is_ok() {
@@ -2251,7 +2408,7 @@ async fn closed<E: Environment>(
             units::let_go(shared, &ambient, doomed_for).await;
             Err(units::not_run(refusal, &ambient))
         }
-        (Ok(answer), None) => units::close(shared, ambient, &asked.principal, &asked.name)
+        (Ok(answer), None) => units::close(shared, ambient, asked.acting.principal(), &asked.name)
             .await
             .map(|()| answer),
     }
@@ -2296,8 +2453,9 @@ const QUOTED: usize = 256;
 
 /// Runs a command the kernel itself implements, in the tree's own unit:
 /// verifying the journal, pruning the local tables, the history's undo and
-/// redo, proposing and reading a file's name (`crate::builtin`), and finding
-/// a command (`crate::find`).
+/// redo, proposing and reading a file's name (`crate::builtin`), finding a
+/// command (`crate::find`), and reading and switching a setting
+/// (`crate::settings`).
 ///
 /// **A command the registry gives the kernel has a handler**, which
 /// `crate::builtin`'s test holds both ways; one without would be answered as
@@ -2315,8 +2473,12 @@ async fn builtin<E: Environment>(
         Some(Builtin::Prune) => {
             return pruned_once_journaled(shared, tree, asked, authorized).await;
         }
-        Some(Builtin::Undo) => history::undo(shared, tree, &asked.principal, authorized.held).await,
-        Some(Builtin::Redo) => history::redo(shared, tree, &asked.principal, authorized.held).await,
+        Some(Builtin::Undo) => {
+            history::undo(shared, tree, asked.acting.principal(), authorized.held).await
+        }
+        Some(Builtin::Redo) => {
+            history::redo(shared, tree, asked.acting.principal(), authorized.held).await
+        }
         Some(Builtin::Propose) => builtin::proposed(shared, &asked.json, asked.waits).await,
         Some(Builtin::ReadName) => builtin::read_back(&asked.json),
         Some(Builtin::Find) => {
@@ -2326,6 +2488,8 @@ async fn builtin<E: Environment>(
             let listed = shared.plugins().registry.listed();
             crate::find::found(&listed, &asked.json)
         }
+        Some(Builtin::McpRead) => crate::settings::mcp_read(shared).await,
+        Some(Builtin::McpSet) => crate::settings::mcp_set(shared, tree, &asked.json).await,
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,
@@ -2534,7 +2698,12 @@ mod tests {
 
     use nc_authz::{Principal, PrincipalKind};
 
-    use super::{Issued, Reason, RefusalKind, Token, answered, digest, expired, resource_of};
+    use super::{
+        Asked, Asking, Issued, Reason, RefusalKind, Token, Waits, answered, digest, expired, lock,
+        redeemed, resource_of,
+    };
+    use crate::session::{Acting, Session};
+    use crate::{InMemory, Shared};
 
     /// The user `ana`, the user `bruno` and the device `ana`: of the world the
     /// policy cases are about, with a device of ana's own identifier added.
@@ -2724,6 +2893,131 @@ mod tests {
         );
         assert!(issued.outstanding.contains_key(&later));
         assert_ne!(digest("{}"), digest("{ }"));
+    }
+
+    /// No token issued to an agent is ever bound: neither kind, presented by
+    /// the very agent it was issued to, for the very dispatch it names.
+    ///
+    /// **The issuer cannot make one**: a later stage's interface inherits
+    /// the refusal, whatever it issues. The control is the same token issued
+    /// to a person, which binds.
+    #[test]
+    fn a_confirmation_issued_to_an_agent_is_never_bound() {
+        let (ana, _, _) = principals();
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        let assistant =
+            nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
+                .expect("the world loads")
+                .principal(PrincipalKind::Agent, "ana-assistant")
+                .expect("ana's assistant is an agent of the world");
+        let mut issued = Issued::default();
+        let held = ("naming.propose", None);
+        for token in [Token::Confirmation, Token::Approval] {
+            let serial = issued.issue(token, &assistant, held, "{}", 1_000);
+            assert!(
+                !issued.bound(token, serial, &assistant, held, "{}", 1_001),
+                "{token:?} issued to an agent was bound"
+            );
+            let control = issued.issue(token, &ana, held, "{}", 1_000);
+            assert!(
+                issued.bound(token, control, &ana, held, "{}", 1_001),
+                "the control: {token:?} issued to a person"
+            );
+        }
+    }
+
+    /// A name proposed at the top of a tree acting as `acting`, and what that
+    /// tree asks with.
+    ///
+    /// The asking presents a confirmation and an approval of this very
+    /// dispatch, both issued to `to` now. The command is the kernel's own, so
+    /// no plugin holds it.
+    fn presented(shared: &Shared<InMemory>, acting: &Acting, to: &Principal) -> (Asked, Asking) {
+        let (name, args) = ("naming.propose", r#"{"title":"t"}"#);
+        let now_ms = nc_ids::Clock::now_ms(&shared.clock);
+        let mut issued = lock(&shared.issued);
+        let asking = Asking {
+            acting: acting.clone(),
+            confirmation: Some(issued.issue(Token::Confirmation, to, (name, None), args, now_ms)),
+            approval: Some(issued.issue(Token::Approval, to, (name, None), args, now_ms)),
+        };
+        drop(issued);
+        let asked = Asked {
+            name: name.to_owned(),
+            command: shared.command(name).expect("a command of the kernel's own"),
+            canonical: args.to_owned(),
+            json: serde_json::from_str(args).expect("the arguments are JSON"),
+            resource: nc_authz::EntityRef {
+                type_name: "Feature".to_owned(),
+                id: "naming".to_owned(),
+            },
+            depth: 0,
+            acting: acting.clone(),
+            spent: 0,
+            waits: Waits::TOP,
+        };
+        (asked, asking)
+    }
+
+    /// What an agent's tree hands on — to an undo, to its frame, to a
+    /// callback — holds nothing redeemed, whatever its asking holds.
+    ///
+    /// **Only the guard stands in the way**: the session's agent is the very
+    /// person the tokens were issued to, so the binding alone would redeem
+    /// them, as the control shows the same tokens redeemed by that person
+    /// acting as themselves.
+    #[tokio::test]
+    async fn the_held_an_agents_tree_hands_on_is_empty() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let shared = &kernel.shared;
+        let session = Acting::Agent(Session::opened_for(ana.clone(), ana.clone()));
+        let (asked, asking) = presented(shared, &session, &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
+        assert_eq!(held, crate::history::Held::default());
+        assert_eq!(spent, Vec::<u64>::new(), "an agent's tree spent a token");
+        let (asked, asking) = presented(shared, &Acting::Itself(ana.clone()), &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
+        assert_eq!(
+            (held.confirmed, held.quorum_met, spent.len()),
+            (true, true, 2),
+            "the control: the same tokens, presented by the person acting as themselves"
+        );
+    }
+
+    /// An agent acting alone redeems nothing, not even what was issued to it.
+    ///
+    /// **Two refusals stand in the way, and this fails only once both are
+    /// gone**: the tree acts as the very agent a confirmation and an approval
+    /// of this dispatch were issued to, the asking's guard refuses an agent
+    /// acting alone, and the binding refuses any token for an agent. Each alone
+    /// is another test's to show: the binding's is
+    /// `a_confirmation_issued_to_an_agent_is_never_bound`, and the guard's is
+    /// `only_a_principal_acting_as_itself_and_no_agent_holds_what_the_kernel_issues`
+    /// in `session.rs`. The control is the same tokens issued to a person and
+    /// presented by them, which are redeemed.
+    #[tokio::test]
+    async fn an_agent_acting_alone_redeems_nothing_even_what_was_issued_to_it() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let shared = &kernel.shared;
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        let assistant =
+            nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
+                .expect("the world loads")
+                .principal(PrincipalKind::Agent, "ana-assistant")
+                .expect("ana's assistant is an agent of the world");
+        let (asked, asking) = presented(shared, &Acting::Itself(assistant.clone()), &assistant);
+        assert_eq!(
+            redeemed(shared, Some(&asking), &asked),
+            (crate::history::Held::default(), Vec::new()),
+            "an agent acting alone redeemed what was issued to it"
+        );
+        let (asked, asking) = presented(shared, &Acting::Itself(ana.clone()), &ana);
+        let (held, spent) = redeemed(shared, Some(&asking), &asked);
+        assert_eq!(
+            (held.confirmed, held.quorum_met, spent.len()),
+            (true, true, 2),
+            "the control: the same tokens, issued to a person and presented by them"
+        );
     }
 
     #[test]

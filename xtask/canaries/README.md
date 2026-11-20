@@ -570,7 +570,8 @@ by, and the
 kernel a plugin's — `nc-schema`'s `lib.rs`, `selector.rs`, `descriptor.rs` and
 `entry.rs` — and the Leader's grammar every binding is read by, its `keys.rs`,
 and the decision point the kernel embeds, `nc-authz`'s `lib.rs`,
-`directory.rs` and `embedded.rs`, and the kernel's own `lib.rs`, `world.rs`,
+`directory.rs`, `embedded.rs` and `agents.rs`, the directory of the agents a
+person makes, and the kernel's own `lib.rs`, `world.rs`,
 `bindings.rs`, `engine.rs` and `built.rs`, the grants and bounds a plugin's
 manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 `host.rs` with every interface of the world under it, `log.rs`, `context.rs`,
@@ -579,12 +580,13 @@ manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 bytes of its blobs are, `blobs.rs`, the
 registry its commands are judged into, `registry.rs`, what it says of them,
 read from its directory, `entries.rs`, the decision point every
-command goes through, `dispatch.rs`, the units of work its writes are kept in,
+command goes through, `dispatch.rs`, who a call tree acts as, `session.rs`,
+the units of work its writes are kept in,
 `units.rs`, where its events go, `logging.rs`, what becomes of a plugin
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
 `history.rs`, the commands the catalog gives the kernel to run, `builtin.rs`,
-the registry filtered by the fuzzy core, `find.rs`, what a plugin announces, is woken by and shows, `events.rs`,
+the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's

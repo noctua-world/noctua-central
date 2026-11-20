@@ -29,7 +29,8 @@
 // decide for the operator, and a Cedar policy set evaluates one principal
 // against one request — the second decision does not exist to be intersected
 // with. It belongs to the decision point, which asks twice and takes the
-// narrower answer: `commands.dispatch`, once agents act (Stage 15). It is the same
+// narrower answer: `commands.dispatch` (`crates/nc-kernel/src/dispatch.rs`), for
+// every decision of a tree that acts for an agent. It is the same
 // reason `§14.9`'s sixth invariant is not a policy: a policy cannot make itself
 // be consulted, and it cannot consult itself about somebody else either.
 //

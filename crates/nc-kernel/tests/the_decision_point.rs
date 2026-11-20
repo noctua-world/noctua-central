@@ -25,8 +25,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use nc_authz::{
-    Directory, DirectoryError, EntityRef, MemoryDirectory, Pdp, Principal, PrincipalKind,
-    RealmFacts,
+    Directory, DirectoryError, EntityRef, LocalDirectory, MemoryDirectory, Pdp, Principal,
+    PrincipalKind, RealmFacts,
 };
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, KERNEL};
@@ -35,7 +35,7 @@ use nc_journal::{Entry, Outcome};
 use nc_kernel::backend::StoreBackend;
 use nc_kernel::logging::Captured;
 use nc_kernel::manifest::PluginManifest;
-use nc_kernel::{Caller, Environment, Kernel, KernelConfig, Refusal, RefusalKind};
+use nc_kernel::{Caller, Environment, Kernel, KernelConfig, Refusal, RefusalKind, Session};
 use nc_local::{Expect, LocalStore, Quotas, StagedWrite, UnitKind, UnitMeta, UnitRecord};
 use nc_plugin_reference::behaviour::{ACTIVATION, Activation, Variant};
 
@@ -294,10 +294,13 @@ enum Mode {
     Repins { profile: String, pin: String },
     /// It says the realm's policies are at this epoch.
     Epoch(u64),
+    /// It answers that the principal of this identifier holds no grant: their
+    /// authority withdrawn, and every other question as the world says.
+    Withholds(String),
 }
 
-/// Which of a directory's three questions a [`Flaky`] directory answers as
-/// its mode says.
+/// Which of the questions a decision or a session asks a [`Flaky`] directory
+/// answers as its mode says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Call {
     /// The realm's facts: its profile, its pin and its epoch.
@@ -306,15 +309,53 @@ enum Call {
     Grant,
     /// The entities a decision reads.
     Slice,
+    /// The agent a session names, and the person it acts for.
+    Delegation,
 }
 
-/// A directory over the world that answers one of its questions as a test
-/// says, and the other two as the world does.
+/// A keeper that keeps nothing and refuses nothing: the agents a test makes
+/// live as long as its kernel.
+#[derive(Debug)]
+struct Forgetting;
+
+impl nc_authz::Keeper for Forgetting {
+    fn keep(
+        &self,
+        _kept: &nc_authz::Kept,
+    ) -> impl Future<Output = Result<(), nc_authz::Unkept>> + Send {
+        std::future::ready(Ok(()))
+    }
+}
+
+/// How many agents and grants a test's directory may hold: more than any test
+/// makes.
+const BOUNDS: nc_authz::Bounds = nc_authz::Bounds {
+    agents: 16,
+    grants: 64,
+};
+
+/// A directory over the world and the agents a test makes, which answers one
+/// of its questions as a test says, and every other as the two do.
 #[derive(Debug)]
 struct Flaky {
-    inner: MemoryDirectory,
+    inner: Arc<LocalDirectory<Forgetting>>,
     mode: Arc<Mutex<Mode>>,
     call: Arc<Mutex<Call>>,
+}
+
+/// The agents a test makes in `realm` over `world`: the directory a [`Flaky`]
+/// wraps and the test changes.
+fn the_agents_over(world: MemoryDirectory, realm: OpaqueId) -> Arc<LocalDirectory<Forgetting>> {
+    Arc::new(
+        LocalDirectory::open(
+            realm,
+            world,
+            nc_authz::Records::default(),
+            Forgetting,
+            BOUNDS,
+        )
+        .expect("a directory holding nothing opens"),
+    )
 }
 
 impl Flaky {
@@ -335,7 +376,7 @@ async fn as_told<T>(
     answer: impl Future<Output = Result<T, DirectoryError>>,
 ) -> Result<T, DirectoryError> {
     match mode {
-        Mode::Answers | Mode::Repins { .. } | Mode::Epoch(_) => answer.await,
+        Mode::Answers | Mode::Repins { .. } | Mode::Epoch(_) | Mode::Withholds(_) => answer.await,
         Mode::Fails => Err(DirectoryError::Unavailable(
             "down, as the test made it".to_owned(),
         )),
@@ -367,11 +408,12 @@ impl Directory for Flaky {
         &self,
         realm: &str,
         principal: &EntityRef,
+        resource: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::GrantFacts>, DirectoryError>> + Send {
-        as_told(
-            self.mode_of(Call::Grant),
-            self.inner.grant(realm, principal),
-        )
+        let mode = self.mode_of(Call::Grant);
+        let withheld = matches!(&mode, Mode::Withholds(id) if *id == principal.id);
+        let answer = as_told(mode, self.inner.grant(realm, principal, resource));
+        async move { if withheld { Ok(None) } else { answer.await } }
     }
 
     fn slice(
@@ -385,6 +427,41 @@ impl Directory for Flaky {
             self.mode_of(Call::Slice),
             self.inner.slice(realm, principal, resource, grant),
         )
+    }
+
+    fn delegation(
+        &self,
+        realm: &str,
+        agent: &EntityRef,
+    ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
+        as_told(
+            self.mode_of(Call::Delegation),
+            self.inner.delegation(realm, agent),
+        )
+    }
+
+    fn agents(
+        &self,
+        realm: &str,
+        operator: &EntityRef,
+    ) -> impl Future<Output = Result<Vec<nc_authz::HeldAgent>, DirectoryError>> + Send {
+        self.inner.agents(realm, operator)
+    }
+
+    fn rehearse(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.rehearse(realm, change)
+    }
+
+    fn change(
+        &self,
+        realm: &str,
+        change: &nc_authz::Change,
+    ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
+        self.inner.change(realm, change)
     }
 }
 
@@ -645,6 +722,11 @@ struct Fixture<J: nc_journal::Store + Debug + Send + Sync + 'static> {
     mode: Arc<Mutex<Mode>>,
     call: Arc<Mutex<Call>>,
     world: MemoryDirectory,
+    /// The agents the kernel's directory holds, which a test makes, grants
+    /// and ends grants of as a person's commands would.
+    agents: Arc<LocalDirectory<Forgetting>>,
+    /// What mints an agent's identifier and each of its grants'.
+    minter: Mutex<Minter<Manual>>,
 }
 
 /// The identity the kernels here journal under, which every one of them
@@ -829,13 +911,19 @@ async fn opening<J: nc_journal::Store + Debug + Send + Sync + 'static>(
     let mut directory = MemoryDirectory::from_world(WORLD, &pack)
         .expect("the world is valid")
         .with_epoch("home", EPOCH);
-    for person in ["ana", "bruno", "carla", "dora"] {
+    for (kind, id) in [
+        ("User", "ana"),
+        ("User", "bruno"),
+        ("User", "carla"),
+        ("User", "dora"),
+        ("Agent", "ana-assistant"),
+    ] {
         directory = directory
             .with_grant(
                 "home",
                 EntityRef {
-                    type_name: "User".to_owned(),
-                    id: person.to_owned(),
+                    type_name: kind.to_owned(),
+                    id: id.to_owned(),
                 },
                 "g.current",
             )
@@ -844,6 +932,7 @@ async fn opening<J: nc_journal::Store + Debug + Send + Sync + 'static>(
     let clock = Manual::at(NOW_MS);
     let mode = Arc::new(Mutex::new(Mode::Answers));
     let call = Arc::new(Mutex::new(Call::Realm));
+    let agents = the_agents_over(directory, home());
     let keeper = the_keeper();
     let kernel = Kernel::open(KernelConfig {
         store: store.clone(),
@@ -859,7 +948,7 @@ async fn opening<J: nc_journal::Store + Debug + Send + Sync + 'static>(
             ),
         ),
         directory: Flaky {
-            inner: directory,
+            inner: Arc::clone(&agents),
             mode: Arc::clone(&mode),
             call: Arc::clone(&call),
         },
@@ -868,6 +957,10 @@ async fn opening<J: nc_journal::Store + Debug + Send + Sync + 'static>(
         transport: nc_kernel::net::Scripted::default(),
     })
     .await?;
+    let minter = Mutex::new(Minter::new(
+        MachineFlake::from_value(21).expect("a flake"),
+        clock.clone(),
+    ));
     Ok(Fixture {
         kernel,
         store,
@@ -876,6 +969,8 @@ async fn opening<J: nc_journal::Store + Debug + Send + Sync + 'static>(
         mode,
         call,
         world,
+        agents,
+        minter,
     })
 }
 
@@ -1010,6 +1105,172 @@ impl<J: nc_journal::Store + Debug + Send + Sync + 'static> Fixture<J> {
             .expect("the store answers")
             .is_some_and(|row| row.pinned)
     }
+
+    /// A new identifier, from the fixture's own minter.
+    fn minted(&self) -> nc_ids::Snowflake {
+        self.minter
+            .lock()
+            .expect("nothing panics holding it")
+            .mint()
+            .expect("an identifier is minted")
+    }
+
+    /// Makes `change` in the kernel's directory, as a person's command would.
+    async fn changed(&self, change: &nc_authz::Change) {
+        self.agents
+            .change(home().as_str(), change)
+            .await
+            .unwrap_or_else(|refused| panic!("{change:?} was refused: {refused}"));
+    }
+
+    /// A new agent of the person called `person`: the entity a session names
+    /// it by.
+    async fn agent_of(&self, person: &str) -> EntityRef {
+        let agent = self.minted();
+        self.changed(&nc_authz::Change::Make {
+            agent,
+            operator: self.principal(person),
+            label: format!("{person}'s assistant"),
+            budget: 1_000,
+        })
+        .await;
+        EntityRef {
+            type_name: "Agent".to_owned(),
+            id: agent.to_crockford(),
+        }
+    }
+
+    /// Grants `agent`, made by `person`, the feature `feature` for `minutes`
+    /// from now, answering the grant's identifier as the journal records it.
+    async fn granted(
+        &self,
+        person: &str,
+        agent: &EntityRef,
+        feature: &str,
+        minutes: u64,
+    ) -> String {
+        let grant = self.minted();
+        let from_ms = nc_ids::Clock::now_ms(&self.clock);
+        self.changed(&nc_authz::Change::Grant {
+            grant,
+            agent: agent.id.clone(),
+            scope: EntityRef {
+                type_name: "Feature".to_owned(),
+                id: feature.to_owned(),
+            },
+            by: self.principal(person),
+            reason: "what a test grants".to_owned(),
+            from_ms,
+            until_ms: from_ms + minutes * 60_000,
+        })
+        .await;
+        grant.to_crockford()
+    }
+
+    /// Ends the grant `agent`, which the person called `person` made, holds
+    /// on `feature`, now.
+    async fn revoked(&self, person: &str, agent: &EntityRef, feature: &str) {
+        self.changed(&nc_authz::Change::End {
+            agent: agent.id.clone(),
+            scope: Some(EntityRef {
+                type_name: "Feature".to_owned(),
+                id: feature.to_owned(),
+            }),
+            by: self.principal(person),
+            at_ms: nc_ids::Clock::now_ms(&self.clock),
+        })
+        .await;
+    }
+
+    /// The session of the agent `agent` names, for the person called `person`.
+    async fn session(&self, agent: &EntityRef, person: &str) -> Session {
+        self.kernel
+            .session(agent, &self.principal(person))
+            .await
+            .unwrap_or_else(|refused| panic!("{agent:?} acts for {person}: {refused}"))
+    }
+
+    /// The session of the world's own agent, `ana-assistant`, which holds the
+    /// realm's grant, for `ana`.
+    async fn the_assistant(&self) -> Session {
+        self.session(&entity("Agent", "ana-assistant"), "ana").await
+    }
+
+    /// Dispatches `command` with `args` in `session`.
+    async fn by(&self, session: &Session, command: &str, args: &str) -> Result<String, Refusal> {
+        self.kernel.dispatch(session, command, args).await
+    }
+}
+
+/// An entity of type `type_name` called `id`.
+fn entity(type_name: &str, id: &str) -> EntityRef {
+    EntityRef {
+        type_name: type_name.to_owned(),
+        id: id.to_owned(),
+    }
+}
+
+/// The core and the family pack as they are on disk, with `extra` beside them:
+/// a decision point the tree does not ship, built through the same compiler.
+fn family_and(extra: &[(&str, &str)]) -> Pdp {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut texts: Vec<(String, String)> = Vec::new();
+    for directory in ["policy/core", "policy/packs/family"] {
+        let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(root.join(directory))
+            .expect("a policy directory")
+            .map(|entry| entry.expect("an entry").path())
+            .filter(|path| path.extension().is_some_and(|kind| kind == "cedar"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            let name = path.file_name().expect("a file").to_string_lossy();
+            texts.push((
+                format!("{directory}/{name}"),
+                std::fs::read_to_string(&path).expect("a readable policy"),
+            ));
+        }
+    }
+    let mut files: Vec<(&str, &str)> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    files.extend_from_slice(extra);
+    Pdp::from_sources_for_tests(
+        include_str!("../../../policy/schema.cedarschema"),
+        &files,
+        "family",
+        include_str!("../../../policy/packs/family/pack.toml"),
+    )
+    .expect("the pack compiles with what the test adds")
+}
+
+/// A permit the family pack does not ship.
+///
+/// An agent writes, deletes and shares what its operator owns — the agent's
+/// half of the commands a person's own content answers to, so that what
+/// refuses an agent there is shown to be something else.
+const AN_AGENT_WRITES: (&str, &str) = (
+    "policy/packs/family/agents_for_tests.cedar",
+    "@id(\"family.an_agent_writes_its_operators_notes\")\n\
+     permit (principal is Agent, action in [Action::\"Write\", Action::\"Delete\", \
+     Action::\"Share\"], resource is Content)\n\
+     when { resource.owner == principal.operator };\n",
+);
+
+/// The reference plugin alone, over a journal in memory, deciding with the
+/// pack and [`AN_AGENT_WRITES`].
+async fn reference_an_agent_writes_in() -> Fixture<Failing<nc_journal::InMemory>> {
+    let journal = Failing {
+        inner: nc_journal::InMemory::default(),
+        told: Arc::new(Mutex::new(Told::default())),
+    };
+    opened(
+        journal,
+        Ok(family_and(&[AN_AGENT_WRITES])),
+        &[("noctua:reference", "reference")],
+        "",
+    )
+    .await
 }
 
 /// The command the kernel prunes the local tables with.
@@ -5998,7 +6259,10 @@ async fn a_kernel_of(
             units,
         ),
         directory: Flaky {
-            inner: directory,
+            inner: the_agents_over(
+                directory,
+                seen.realm_id(realm).expect("a realm of the world"),
+            ),
             mode: Arc::new(Mutex::new(Mode::Answers)),
             call: Arc::new(Mutex::new(Call::Realm)),
         },
@@ -6197,7 +6461,7 @@ async fn a_write_in_one_realm_does_not_change_what_another_keeps() {
 }
 
 /// A confirmation is not spent on a dispatch the directory could not decide,
-/// whichever of its three questions it failed at.
+/// whichever of the three questions a decision asks it failed at.
 ///
 /// Each time ana dispatches a command that cannot be undone with a fresh
 /// confirmation, the directory fails, and she dispatches again with the same
@@ -6294,7 +6558,7 @@ async fn a_kernel_with_a_device_of_anas_id() -> (Kernel<Env<nc_journal::InMemory
             Minter::new(MachineFlake::from_value(7).expect("a flake"), clock.clone()),
         ),
         directory: Flaky {
-            inner: directory,
+            inner: the_agents_over(directory, home()),
             mode: Arc::new(Mutex::new(Mode::Answers)),
             call: Arc::new(Mutex::new(Call::Realm)),
         },
@@ -6892,7 +7156,7 @@ async fn naming(
             minter,
         ),
         directory: Flaky {
-            inner: directory,
+            inner: the_agents_over(directory, home()),
             mode: Arc::new(Mutex::new(Mode::Answers)),
             call: Arc::new(Mutex::new(Call::Realm)),
         },
@@ -6998,9 +7262,10 @@ async fn every_person_of_the_household_has_a_name_proposed_and_read_decided_on_t
 ///
 /// Dora's account is suspended, and the floor refuses her whatever a permit
 /// says; ana's laptop is attested and holds a grant, and no permit lets a
-/// device name a file; and ana's assistant is refused as every agent the
-/// kernel is asked for is, until Stage 15 marks a dispatch as an agent's. Each
-/// refusal says only the code, and the journal names what decided it.
+/// device name a file; and ana's assistant, named as a caller with no session
+/// of its own, is decided as acting alone, which the core refuses — an agent
+/// acts through its session. Each refusal says only the code, and the journal
+/// names what decided it.
 #[tokio::test]
 async fn a_frozen_account_a_device_and_an_agent_have_no_name_proposed() {
     let (kernel, world) = naming(None).await;
@@ -7215,9 +7480,10 @@ fn first_found(answer: &str) -> (String, String, Vec<(String, String, String)>) 
 /// guardian, an adult and a child each find `kernel.find` by a Portuguese
 /// synonym and its Portuguese display name, each decided on
 /// `Feature::"registry"` by the permit that gives every person of the realm a
-/// search, opening no unit. A frozen account, a device and an agent are each
-/// refused with the code alone, and the journal names what decided it and the
-/// feature it was asked of.
+/// search, opening no unit. A frozen account, a device and an agent named with
+/// no session of its own, which acts alone, are each refused with the code
+/// alone, and the journal names what decided it and the feature it was asked
+/// of.
 #[tokio::test]
 async fn finding_a_command_is_decided_on_the_registry_feature() {
     let (kernel, world) = naming(None).await;
@@ -7327,4 +7593,1240 @@ async fn a_plugins_command_is_found_by_the_texts_of_its_own_entry() {
     );
     let entries = fixture.entries().await;
     assert_eq!(deciding(only(&entries, FIND)), Some(FINDS_COMMANDS));
+}
+
+/// The command that reads whether MCP is on.
+const MCP_READ: &str = "settings.mcp.read";
+
+/// The command that switches MCP on or off.
+const MCP_SET: &str = "settings.mcp.set";
+
+/// The deciding `@id` of every read and switch of MCP a person is allowed.
+const SWITCHES_MCP: &str = "family.a_member_switches_mcp";
+
+/// The MCP setting is read and switched by a person alone, decided on its
+/// feature.
+///
+/// **A person's permit, a child's included, and the denials beside it**
+/// (`NOCTUA.md §20.6`): a guardian, an adult and a child each switch MCP on,
+/// read it on and switch it off, each decided on `Feature::"mcp"` by the
+/// permit that gives every person of the realm the switch — the set in a unit
+/// of its own, the read in none. A frozen account and a device are each
+/// refused with the code alone, the journal naming what decided it, and
+/// neither switches anything.
+#[tokio::test]
+async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_feature() {
+    let (kernel, world) = naming(None).await;
+    let mcp = || async { kernel.settings().await.expect("the settings are read").mcp };
+    assert!(!mcp().await, "MCP is on before anybody switched it");
+    let persons = ["ana", "bruno", "carla"];
+    for person in persons {
+        let caller = Caller::new(
+            world
+                .principal(PrincipalKind::User, person)
+                .expect("a person"),
+        );
+        for (command, args, answer, on) in [
+            (MCP_SET, r#"{"on":true}"#, r#"{"on":true}"#, true),
+            (MCP_READ, "{}", r#"{"on":true}"#, true),
+            (MCP_SET, r#"{"on":false}"#, r#"{"on":false}"#, false),
+        ] {
+            let answered = kernel
+                .dispatch(&caller, command, args)
+                .await
+                .unwrap_or_else(|refused| panic!("{person}: {command} {args}: {refused}"));
+            assert_eq!(answered, answer, "{person}: {command} {args}");
+            assert_eq!(mcp().await, on, "{person}: {command} {args}");
+        }
+    }
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    let decided = dispatched(&entries);
+    assert_eq!(decided.len(), persons.len() * 3, "{entries:#?}");
+    let feature = Some(r#"{"id":"mcp","type":"Feature"}"#);
+    for entry in &decided {
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(deciding(entry), Some(SWITCHES_MCP), "{entry:?}");
+        assert_eq!(entity_of(entry).as_deref(), feature, "{entry:?}");
+        match command_of(entry).as_deref() {
+            Some(MCP_SET) => {
+                assert_eq!(entry.record.action, "Write", "{entry:?}");
+                assert!(entry.record.work_unit.is_some(), "a switch ran in no unit");
+            }
+            Some(MCP_READ) => {
+                assert_eq!(entry.record.action, "Read", "{entry:?}");
+                assert_eq!(entry.record.work_unit, None, "a read opened a unit");
+            }
+            other => panic!("{other:?} was dispatched: {entry:?}"),
+        }
+    }
+    assert_eq!(
+        brackets(&entries),
+        [
+            (nc_journal::unit::OPENS, Outcome::UnitBegun),
+            (nc_journal::unit::CLOSES, Outcome::UnitCommitted)
+        ]
+        .repeat(persons.len() * 2),
+        "each switch was a unit of its own, kept"
+    );
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        for (command, args) in [(MCP_SET, r#"{"on":true}"#), (MCP_READ, "{}")] {
+            let refused = kernel.dispatch(&caller, command, args).await;
+            assert!(
+                is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                "{id}: {command}: {refused:?}"
+            );
+            let entries = kernel.journal_for_tests().await.expect("the journal reads");
+            let entry = entries.last().expect("the denial was journaled");
+            assert_eq!(
+                (
+                    entry.record.principal.as_str(),
+                    entry.record.result,
+                    command_of(entry).as_deref()
+                ),
+                (id, Outcome::Denied, Some(command))
+            );
+            assert_eq!(deciding(entry), Some(decided), "{id}: {command}");
+            assert_eq!(entity_of(entry).as_deref(), feature, "{id}: {command}");
+        }
+        assert!(!mcp().await, "{id} switched MCP on");
+    }
+}
+
+/// A plugin switches no MCP from inside a command.
+///
+/// **Only a person's own call switches what may act for them**: ana runs a
+/// command of the reference plugin that writes and one that only reads, each
+/// dispatching `settings.mcp.set` as her, and each nested switch is refused
+/// with `[NC-KERN-0025]` — before it is decided, and before whether a read's
+/// frame may change anything is asked — journaled with the kernel's own
+/// sentinel and her as the principal, and logged. MCP stays off. The read of
+/// the setting is no switch, and is answered from inside the read.
+#[tokio::test]
+async fn a_plugin_switches_no_mcp_from_inside_a_command() {
+    let (fixture, _) = reference().await;
+    for relay_command in ["reference.relay.write", "reference.relay.read"] {
+        let answered = fixture
+            .as_(
+                "ana",
+                relay_command,
+                &relay(MCP_SET, r#"{"on":true}"#, None),
+            )
+            .await
+            .unwrap_or_else(|refused| panic!("{relay_command} answers: {refused}"));
+        let refused = field(&answered, "refused")
+            .into_text()
+            .unwrap_or_else(|| panic!("{relay_command}: the switch was not refused: {answered}"));
+        assert!(
+            refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+            "{relay_command}: {refused}"
+        );
+    }
+    assert!(
+        !fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings are read")
+            .mcp,
+        "a plugin switched MCP on"
+    );
+    let entries = fixture.entries().await;
+    let switches: Vec<&Entry> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| command_of(entry).as_deref() == Some(MCP_SET))
+        .collect();
+    assert_eq!(switches.len(), 2, "{switches:#?}");
+    for entry in switches {
+        assert_eq!(
+            (
+                entry.record.principal.as_str(),
+                entry.record.result,
+                deciding(entry)
+            ),
+            ("ana", Outcome::Denied, Some("kernel.top_level_only")),
+            "{entry:?}"
+        );
+    }
+    assert_eq!(
+        fixture.logged("kernel.dispatch_refused", "reason"),
+        ["top_level_only", "top_level_only"]
+    );
+    let read = fixture
+        .as_("ana", "reference.relay.read", &relay(MCP_READ, "{}", None))
+        .await
+        .expect("the relay answers");
+    assert_eq!(field(&read, "answered"), Value::Integer(1), "{read}");
+    assert_eq!(text(&read, "last"), r#"{"on":false}"#, "{read}");
+    let entries = fixture.entries().await;
+    let nested = only(&entries, MCP_READ);
+    assert_eq!(
+        (nested.record.principal.as_str(), nested.record.result),
+        ("ana", Outcome::Allowed)
+    );
+    assert_eq!(deciding(nested), Some(SWITCHES_MCP));
+}
+
+/// Who an entry says acted, and on whose behalf, outermost first.
+type Who<'a> = (&'a str, Vec<&'a str>);
+
+/// Who `entry` says acted, and on whose behalf, outermost first.
+fn who(entry: &Entry) -> Who<'_> {
+    (
+        entry.record.principal.as_str(),
+        entry
+            .record
+            .actor_chain
+            .iter()
+            .map(OpaqueId::as_str)
+            .collect(),
+    )
+}
+
+/// The entries of `entries` that record a dispatch of `command`.
+fn entries_of<'a>(entries: &'a [Entry], command: &str) -> Vec<&'a Entry> {
+    dispatched(entries)
+        .into_iter()
+        .filter(|entry| command_of(entry).as_deref() == Some(command))
+        .collect()
+}
+
+/// Holds that no entry of `entries` was refused for its arguments, so that
+/// what a test reads of the others was decided on arguments its command takes.
+fn none_malformed(entries: &[Entry]) {
+    assert_eq!(
+        decided_by(entries, "kernel.malformed_arguments"),
+        0,
+        "an entry was refused for its arguments: {entries:#?}"
+    );
+}
+
+/// An agent is allowed only what it and its operator may, and the journal
+/// names both.
+///
+/// **Two questions, one entry** (`NOCTUA.md §14.6`, `§14.9`): ana's agent,
+/// granted the naming feature, proposes and reads a name. Each entry names the
+/// agent as its principal and ana in its actor chain, records the agent's
+/// permit and then ana's, joined by `;`, rests on the agent's own grant, and
+/// opens no unit.
+#[tokio::test]
+async fn an_agent_is_allowed_only_what_it_and_its_operator_may_and_the_journal_names_both() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    let grant = fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let proposed = fixture
+        .by(&session, PROPOSE, r#"{"title":"Praia"}"#)
+        .await
+        .expect("the agent has a name proposed");
+    fixture
+        .by(
+            &session,
+            READ_NAME,
+            &Value::object([("name", Value::text(text(&proposed, "name")))]).to_canonical(),
+        )
+        .await
+        .expect("the agent has the name read");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for command in [PROPOSE, READ_NAME] {
+        let entry = only(&entries, command);
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]), "{command}");
+        assert_eq!(
+            deciding(entry),
+            Some("family.an_agent_names_files;family.a_member_names_files"),
+            "{command}"
+        );
+        assert_eq!(
+            entry.record.grant_used.as_ref().map(OpaqueId::as_str),
+            Some(grant.as_str()),
+            "the agent's grant, and no other"
+        );
+        assert_eq!(entry.record.work_unit, None, "{command}");
+    }
+}
+
+/// An agent reaches only the features its person granted it.
+///
+/// **The agent's half needs a grant of its own**: ana's agent, granted naming
+/// alone, finds no command — refused by `core.provenance` on its own half,
+/// though ana finds one.
+#[tokio::test]
+async fn an_agent_reaches_only_the_features_its_person_granted_it() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let query = r#"{"query":"nota"}"#;
+    fixture
+        .as_("ana", FIND, query)
+        .await
+        .expect("ana finds a command");
+    let refused = fixture.by(&session, FIND, query).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("the control: the feature it was granted");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let found: Vec<(Outcome, Who, Option<&str>)> = entries_of(&entries, FIND)
+        .into_iter()
+        .map(|entry| (entry.record.result, who(entry), deciding(entry)))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (Outcome::Allowed, ("ana", vec![]), Some(FINDS_COMMANDS)),
+            (
+                Outcome::Denied,
+                (agent.id.as_str(), vec!["ana"]),
+                Some("core.provenance")
+            ),
+        ]
+    );
+}
+
+/// An agent is refused what its operator may do and it may not.
+///
+/// **Both directions of the intersection, here the agent's half**: ana, a
+/// guardian, verifies the journal and steps through her history. Her agent,
+/// granted naming alone, holds no grant on the realm and is refused each by
+/// `core.provenance`; the world's own assistant, which holds the realm's grant,
+/// is refused each by its permit — none names an agent on the realm — so the
+/// refusal is the permit's and not only the grant's. A prune is refused to
+/// either by the core's floors on its half.
+#[tokio::test]
+async fn an_agent_is_refused_what_its_operator_may_do_and_it_may_not() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let runtime = fixture.session(&agent, "ana").await;
+    let assistant = fixture.the_assistant().await;
+    let asked = [
+        ("journal.verify", "{}"),
+        ("kernel.undo", "{}"),
+        ("kernel.redo", "{}"),
+    ];
+    for (command, args) in asked {
+        let answered = fixture.as_("ana", command, args).await;
+        assert!(
+            answered.is_ok()
+                || answered
+                    .as_ref()
+                    .is_err_and(|refused| refused.code() != ErrorCode::PolicyDenied),
+            "ana: {command}: {answered:?}"
+        );
+        for session in [&runtime, &assistant] {
+            let refused = fixture.by(session, command, args).await;
+            assert!(
+                is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                "{command}: {refused:?}"
+            );
+        }
+    }
+    for session in [&runtime, &assistant] {
+        let refused = fixture.by(session, PRUNE, r#"{"dry_run":true}"#).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{refused:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for (command, _) in asked {
+        let decided: Vec<(Outcome, &str, Option<&str>)> = entries_of(&entries, command)
+            .into_iter()
+            .map(|entry| (entry.record.result, who(entry).0, deciding(entry)))
+            .collect();
+        let anas = if command == "journal.verify" {
+            Outcome::Allowed
+        } else {
+            Outcome::Failed
+        };
+        assert_eq!(
+            decided,
+            [
+                (anas, "ana", decided[0].2),
+                (Outcome::Denied, agent.id.as_str(), Some("core.provenance")),
+                (
+                    Outcome::Denied,
+                    "ana-assistant",
+                    Some(nc_authz::sentinel::NO_PERMIT_MATCHED)
+                ),
+            ],
+            "{command}"
+        );
+        assert!(
+            decided[0]
+                .2
+                .is_some_and(|ids| !ids.starts_with("kernel.") && !ids.contains(';')),
+            "ana was allowed it by a permit: {decided:?}"
+        );
+    }
+    for entry in entries_of(&entries, PRUNE) {
+        let floors = deciding(entry).expect("a denial names what decided it");
+        assert!(
+            !floors.contains(';')
+                && floors.contains("core.destructive_needs_quorum")
+                && floors.contains("core.irreversible_needs_a_human"),
+            "refused on the agent's half by the core: {floors}"
+        );
+    }
+}
+
+/// An agent granted a feature no agent permit names is refused by the permit.
+///
+/// **A grant alone allows nothing**: ana grants her agent the `mcp` feature,
+/// and the agent's switch is refused on its half with no permit matched —
+/// resting on the grant it holds — and MCP stays off.
+#[tokio::test]
+async fn an_agent_granted_a_feature_no_agent_permit_names_is_refused_by_the_permit() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    let grant = fixture.granted("ana", &agent, "mcp", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let refused = fixture.by(&session, MCP_SET, r#"{"on":true}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, MCP_SET);
+    assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]));
+    assert_eq!(deciding(entry), Some(nc_authz::sentinel::NO_PERMIT_MATCHED));
+    assert_eq!(
+        entry.record.grant_used.as_ref().map(OpaqueId::as_str),
+        Some(grant.as_str())
+    );
+    assert!(
+        !fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings are read")
+            .mcp,
+        "an agent switched MCP on"
+    );
+}
+
+/// A runtime agent granted every feature reads no shared content its pack lets
+/// any principal read.
+///
+/// **The exact scope is what refuses it.** The household's read permit admits
+/// any principal to `public` and `realm` content, an agent included; ana's
+/// agent, granted every feature of the realm, still holds no grant for
+/// `Content::"notice"`, because a grant answers for the feature it names and
+/// nothing in it, and `core.provenance` refuses its half. The world's own
+/// assistant, whose grant is the realm's, is allowed by that permit on both
+/// halves — ana's allowed by her owner's permit as well, the notice being
+/// hers: the control that shows the scope, and not the permit, refused.
+#[tokio::test]
+async fn a_runtime_agent_granted_every_feature_reads_no_shared_content_its_pack_lets_any_principal_read()
+ {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    for feature in ["gallery", "naming", "registry", "mcp"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let runtime = fixture.session(&agent, "ana").await;
+    let get = "reference.note.get";
+    let refused = fixture.by(&runtime, get, &note("notice", None)).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let assistant = fixture.the_assistant().await;
+    let answered = fixture.by(&assistant, get, &note("notice", None)).await;
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(Outcome, Who, Option<&str>)> = entries_of(&entries, get)
+        .into_iter()
+        .map(|entry| (entry.record.result, who(entry), deciding(entry)))
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            (
+                Outcome::Denied,
+                (agent.id.as_str(), vec!["ana"]),
+                Some("core.provenance")
+            ),
+            (
+                if answered.is_ok() {
+                    Outcome::Allowed
+                } else {
+                    Outcome::Failed
+                },
+                ("ana-assistant", vec!["ana"]),
+                Some(
+                    "family.a_member_reads_shared_content;\
+             family.a_member_reads_shared_content,family.an_owner_governs_their_own_content"
+                )
+            ),
+        ]
+    );
+}
+
+/// An agent reaches nothing its operator cannot, even when granted.
+///
+/// **The operator's half meets the floor**: dora's account is suspended, and
+/// her agent, granted naming by her, is refused on her half by
+/// `family.a_frozen_account_acts_on_nothing`, though its own permit
+/// allowed it.
+#[tokio::test]
+async fn an_agent_reaches_nothing_its_operator_cannot_even_when_granted() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("dora").await;
+    fixture.granted("dora", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "dora").await;
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, PROPOSE);
+    assert_eq!(who(entry), (agent.id.as_str(), vec!["dora"]));
+    assert_eq!(
+        deciding(entry),
+        Some("family.an_agent_names_files;family.a_frozen_account_acts_on_nothing")
+    );
+}
+
+/// An agent is refused what it may do and its operator may not.
+///
+/// **The other direction**: a pack with a permit letting any agent read
+/// carla's private recipe, which ana may not read. Ana's assistant is allowed
+/// on its own half and refused on hers, with no permit matched.
+#[tokio::test]
+async fn an_agent_is_refused_what_it_may_do_and_its_operator_may_not() {
+    let reads_the_recipe = (
+        "policy/packs/family/recipe_for_tests.cedar",
+        "@id(\"family.an_agent_reads_the_recipe\")\n\
+         permit (principal is Agent, action == Action::\"Read\", resource == \
+         Content::\"recipe\");\n",
+    );
+    let journal = Failing {
+        inner: nc_journal::InMemory::default(),
+        told: Arc::new(Mutex::new(Told::default())),
+    };
+    let fixture = opened(
+        journal,
+        Ok(family_and(&[reads_the_recipe])),
+        &[("noctua:reference", "reference")],
+        "",
+    )
+    .await;
+    let assistant = fixture.the_assistant().await;
+    let refused = fixture
+        .by(&assistant, "reference.note.get", &note("recipe", None))
+        .await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, "reference.note.get");
+    assert_eq!(who(entry), ("ana-assistant", vec!["ana"]));
+    assert_eq!(
+        deciding(entry),
+        Some("family.an_agent_reads_the_recipe;kernel.no_permit_matched")
+    );
+}
+
+/// An agent loses a feature at the next dispatch once its grant is revoked.
+///
+/// **Decided again at every call, and nothing cached**: one session, a name
+/// proposed, the grant ended between two calls, and the next refused on the
+/// agent's half by `core.provenance`.
+#[tokio::test]
+async fn an_agent_loses_a_feature_at_the_next_dispatch_once_its_grant_is_revoked() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("granted");
+    fixture.revoked("ana", &agent, "naming").await;
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<Option<&str>> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(deciding)
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            Some("family.an_agent_names_files;family.a_member_names_files"),
+            Some("core.provenance"),
+        ]
+    );
+}
+
+/// An agent loses what its operator loses at the next dispatch.
+///
+/// **The operator's half is asked at every call**: ana's grant withheld by the
+/// directory between two calls of her agent's session refuses the second on
+/// her half, and once the directory answers it again, the third is allowed.
+#[tokio::test]
+async fn an_agent_loses_what_its_operator_loses_at_the_next_dispatch() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    *fixture.call.lock().expect("nothing panics holding it") = Call::Grant;
+    for mode in [
+        Mode::Answers,
+        Mode::Withholds("ana".to_owned()),
+        Mode::Answers,
+    ] {
+        *fixture.mode.lock().expect("nothing panics holding it") = mode;
+        let _decided = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    }
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(Outcome, Option<&str>)> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(|entry| (entry.record.result, deciding(entry)))
+        .collect();
+    let both = Some("family.an_agent_names_files;family.a_member_names_files");
+    assert_eq!(
+        decided,
+        [
+            (Outcome::Allowed, both),
+            (
+                Outcome::Denied,
+                Some("family.an_agent_names_files;core.provenance")
+            ),
+            (Outcome::Allowed, both),
+        ]
+    );
+}
+
+/// The moment ana's grant `g.current` ends: `2027-01-01T00:00:00Z`.
+const ANAS_GRANT_ENDS_MS: u64 = 1_798_761_600_000;
+
+/// An agent's rights end when its operator's grant ends, on the kernel's
+/// clock.
+///
+/// **One moment for both halves, the kernel's**: a second before ana's grant
+/// ends her agent has a name proposed; two seconds later it is refused on her
+/// half by `core.grant_not_expired`, its own grant running still.
+#[tokio::test]
+async fn an_agents_rights_end_when_its_operators_grant_ends_on_the_kernels_clock() {
+    let (fixture, _) = reference().await;
+    fixture.clock.advance(ANAS_GRANT_ENDS_MS - 1_000 - NOW_MS);
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("a second before ana's grant ends");
+    fixture.clock.advance(2_000);
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<Option<&str>> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(deciding)
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            Some("family.an_agent_names_files;family.a_member_names_files"),
+            Some("family.an_agent_names_files;core.grant_not_expired"),
+        ]
+    );
+}
+
+/// An agent's rights end when its own grant ends, on the kernel's clock.
+///
+/// **The window its person gave it**: granted for a minute, the agent has a
+/// name proposed, and a minute and a millisecond later it is refused on its
+/// own half by `core.grant_not_expired`.
+#[tokio::test]
+async fn an_agents_rights_end_when_its_own_grant_ends_on_the_kernels_clock() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 1).await;
+    let session = fixture.session(&agent, "ana").await;
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("within its minute");
+    fixture.clock.advance(60_001);
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<Option<&str>> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(deciding)
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            Some("family.an_agent_names_files;family.a_member_names_files"),
+            Some("core.grant_not_expired"),
+        ]
+    );
+}
+
+/// A nested dispatch in an agent's tree is decided as the agent and its
+/// operator.
+///
+/// **The tree's acting, at every depth**: ana's assistant relays a proposal
+/// from inside a read of the photo, which is hers; the read and the proposal
+/// nested in it are each decided on both halves, and each entry names the
+/// assistant and ana.
+#[tokio::test]
+async fn a_nested_dispatch_in_an_agents_tree_is_decided_as_the_agent_and_its_operator() {
+    let (fixture, _) = reference().await;
+    let assistant = fixture.the_assistant().await;
+    let relayed = fixture
+        .by(
+            &assistant,
+            "reference.relay.read",
+            &relay(PROPOSE, r#"{"title":"From inside"}"#, None),
+        )
+        .await
+        .expect("the assistant reads the photo the house shares");
+    assert_eq!(field(&relayed, "answered"), Value::Integer(1), "{relayed}");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for (command, decided) in [
+        (
+            "reference.relay.read",
+            "family.a_member_reads_shared_content;\
+             family.a_member_reads_shared_content,family.an_owner_governs_their_own_content",
+        ),
+        (
+            PROPOSE,
+            "family.an_agent_names_files;family.a_member_names_files",
+        ),
+    ] {
+        let entry = only(&entries, command);
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(who(entry), ("ana-assistant", vec!["ana"]), "{command}");
+        assert_eq!(deciding(entry), Some(decided), "{command}");
+    }
+}
+
+/// An agent named without a session is decided as acting alone, and refused.
+///
+/// **Unmarked is impersonation**: ana's assistant named as a caller, with no
+/// session, is decided as itself — no chain, not acting for anyone — which
+/// `core.an_agent_never_impersonates` refuses, and its entry carries no
+/// chain.
+#[tokio::test]
+async fn an_agent_named_without_a_session_is_decided_as_acting_alone_and_refused() {
+    let (fixture, _) = reference().await;
+    let assistant = fixture
+        .world
+        .principal(PrincipalKind::Agent, "ana-assistant")
+        .expect("an agent of the world");
+    let refused = fixture
+        .kernel
+        .dispatch(&Caller::new(assistant), PROPOSE, r#"{"title":"t"}"#)
+        .await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    let entry = only(&entries, PROPOSE);
+    assert_eq!(who(entry), ("ana-assistant", vec![]));
+    assert_eq!(deciding(entry), Some("core.an_agent_never_impersonates"));
+}
+
+/// A session is opened only for an agent its person made.
+///
+/// **One answer for every agent that is not theirs**: a person named as an
+/// agent, carla's agent asked for by ana, an identifier no agent was made
+/// under, and the world's assistant asked for by bruno are each refused with
+/// `[NC-AI-0001]` in one sentence; a directory that refuses or never answers
+/// is `[NC-POL-0006]`; and opening a session journals nothing.
+#[tokio::test]
+async fn a_session_is_opened_only_for_an_agent_its_person_made() {
+    let (fixture, _) = reference().await;
+    let anas = fixture.agent_of("ana").await;
+    let carlas = fixture.agent_of("carla").await;
+    let opened = fixture.session(&anas, "ana").await;
+    assert_eq!(opened.agent().entity(), anas);
+    assert_eq!(opened.operator(), &fixture.principal("ana"));
+    let never_made = entity("Agent", &fixture.minted().to_crockford());
+    let mut sentences = Vec::new();
+    for (agent, person) in [
+        (entity("User", "ana"), "ana"),
+        (carlas.clone(), "ana"),
+        (anas.clone(), "carla"),
+        (never_made, "ana"),
+        (entity("Agent", "ana-assistant"), "bruno"),
+    ] {
+        let refused = fixture
+            .kernel
+            .session(&agent, &fixture.principal(person))
+            .await
+            .expect_err("no agent of theirs");
+        assert_eq!(
+            (refused.kind(), refused.code()),
+            (RefusalKind::NotFound, ErrorCode::AiNoSuchAgent),
+            "{agent:?} for {person}"
+        );
+        sentences.push(refused.sentence().to_owned());
+    }
+    sentences.dedup();
+    assert_eq!(sentences.len(), 1, "{sentences:?}");
+    tokio::time::pause();
+    *fixture.call.lock().expect("nothing panics holding it") = Call::Delegation;
+    for mode in [Mode::Fails, Mode::Hangs] {
+        *fixture.mode.lock().expect("nothing panics holding it") = mode.clone();
+        let refused = tokio::time::timeout(
+            WAITED_ON_FOR_EVER,
+            fixture.kernel.session(&anas, &fixture.principal("ana")),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("{mode:?}: the session waited on the directory"))
+        .expect_err("no session without the directory");
+        assert_eq!(
+            (refused.kind(), refused.code()),
+            (
+                RefusalKind::Unavailable,
+                ErrorCode::PolicyDirectoryUnavailable
+            ),
+            "{mode:?}"
+        );
+    }
+    tokio::time::resume();
+    assert_eq!(
+        fixture.entries().await,
+        [],
+        "opening a session journals nothing"
+    );
+}
+
+/// An actor chain of two is decided, and one of three is refused by the core.
+///
+/// **Through the one test door**: ana's agent acting through a second agent of
+/// hers is decided on three links, each allowing; through a third, the agent's
+/// own half is refused by `core.chain_depth_is_bounded`. Each entry records
+/// the chain whole, outermost first.
+#[tokio::test]
+async fn an_actor_chain_of_two_is_decided_and_one_of_three_is_refused_by_the_core() {
+    let (fixture, _) = reference().await;
+    let [first, second, third] = [
+        fixture.agent_of("ana").await,
+        fixture.agent_of("ana").await,
+        fixture.agent_of("ana").await,
+    ];
+    for agent in [&first, &second, &third] {
+        fixture.granted("ana", agent, "naming", 60).await;
+    }
+    let session = fixture.session(&first, "ana").await;
+    let second_agent = fixture.session(&second, "ana").await.agent().clone();
+    let third_agent = fixture.session(&third, "ana").await.agent().clone();
+    let two = session
+        .through_for_tests(vec![second_agent.clone()])
+        .expect("a chain of two");
+    let three = session
+        .through_for_tests(vec![second_agent, third_agent])
+        .expect("a chain of three, which the type holds");
+    fixture
+        .by(&two, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("two links are within the bound");
+    let refused = fixture.by(&three, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(Who, Option<&str>)> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(|entry| (who(entry), deciding(entry)))
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            (
+                (first.id.as_str(), vec!["ana", second.id.as_str()]),
+                Some(
+                    "family.an_agent_names_files;family.a_member_names_files;\
+                     family.an_agent_names_files"
+                )
+            ),
+            (
+                (
+                    first.id.as_str(),
+                    vec!["ana", second.id.as_str(), third.id.as_str()]
+                ),
+                Some("core.chain_depth_is_bounded")
+            ),
+        ]
+    );
+}
+
+/// An agent's irreversible command is refused, and nothing is done.
+///
+/// **Refused until a person can confirm it**: with a pack that lets ana's
+/// assistant write what she owns, both halves allow the command, and the
+/// kernel's precondition refuses it with `[NC-KERN-0006]`, recorded as
+/// `kernel.irreversible_needs_confirmation`; the plugin
+/// never ran.
+#[tokio::test]
+async fn an_agents_irreversible_command_is_refused_and_nothing_is_done() {
+    let fixture = reference_an_agent_writes_in().await;
+    let assistant = fixture.the_assistant().await;
+    let refused = fixture
+        .by(
+            &assistant,
+            "reference.irreversible.do",
+            &note("photo", None),
+        )
+        .await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::KernelUnconfirmed),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, "reference.irreversible.do");
+    assert_eq!(who(entry), ("ana-assistant", vec!["ana"]));
+    assert_eq!(
+        deciding(entry),
+        Some("kernel.irreversible_needs_confirmation")
+    );
+    assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
+}
+
+/// A confirmation issued to the operator is never redeemed by their agent, and
+/// stays theirs.
+///
+/// **A session holds no token, and spends none**: ana holds a confirmation of
+/// the very dispatch her assistant asks for; the assistant is refused, and ana
+/// then redeems the confirmation and the command runs.
+#[tokio::test]
+async fn a_confirmation_issued_to_the_operator_is_never_redeemed_by_their_agent_and_stays_theirs() {
+    let fixture = reference_an_agent_writes_in().await;
+    let (command, args) = ("reference.irreversible.do", note("photo", None));
+    let confirmation =
+        fixture
+            .kernel
+            .confirmation_for_tests(&fixture.principal("ana"), command, &args);
+    let assistant = fixture.the_assistant().await;
+    let refused = fixture.by(&assistant, command, &args).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::KernelUnconfirmed),
+        "{refused:?}"
+    );
+    fixture
+        .kernel
+        .dispatch(
+            &Caller::new(fixture.principal("ana")).confirmed(confirmation),
+            command,
+            &args,
+        )
+        .await
+        .expect("ana's confirmation is hers still");
+    assert_eq!(
+        fixture
+            .held("noctua:reference", "done/photo")
+            .await
+            .as_deref(),
+        Some("true")
+    );
+}
+
+/// An approval issued to the operator is never redeemed by their agent.
+///
+/// **No quorum for an agent**: ana holds a quorum's approval of sharing her
+/// encrypted diary; her assistant, which the pack lets share what she owns, is
+/// refused on its half by the quorum's floor, and ana then shares it with the
+/// approval.
+#[tokio::test]
+async fn an_approval_issued_to_the_operator_is_never_redeemed_by_their_agent() {
+    let fixture = reference_an_agent_writes_in().await;
+    let (command, args) = ("reference.note.share", note("diary", Some("a key")));
+    let approval = fixture
+        .kernel
+        .approval_for_tests(&fixture.principal("ana"), command, &args);
+    let assistant = fixture.the_assistant().await;
+    let refused = fixture.by(&assistant, command, &args).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    fixture
+        .kernel
+        .dispatch(
+            &Caller::new(fixture.principal("ana")).approved(approval),
+            command,
+            &args,
+        )
+        .await
+        .expect("ana's approval is hers still");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(&str, Option<&str>)> = entries_of(&entries, command)
+        .into_iter()
+        .map(|entry| (who(entry).0, deciding(entry)))
+        .collect();
+    assert_eq!(decided.len(), 2, "{decided:?}");
+    assert_eq!(decided[0].0, "ana-assistant");
+    assert!(
+        decided[0].1.is_some_and(|floors| !floors.contains(';')
+            && floors.contains("family.giving_out_encrypted_content_needs_quorum")),
+        "refused on the agent's half by the quorum's floor: {decided:?}"
+    );
+    assert_eq!(decided[1].0, "ana");
+}
+
+/// An agent named without a session redeems nothing it presents.
+///
+/// **The core's refusal stands whatever it presents**: a confirmation and an
+/// approval of the very dispatch, issued to the agent itself and presented by
+/// the agent named as a caller, are each decided as the agent acting alone
+/// and refused by the core, and nothing runs. That the core refuses an agent
+/// acting alone whatever it holds is why this suite cannot tell a token
+/// redeemed from one refused; that neither is redeemed is shown where the
+/// kernel binds them, by `an_agent_acting_alone_redeems_nothing_even_what_was_issued_to_it`
+/// and `a_confirmation_issued_to_an_agent_is_never_bound` in `dispatch.rs`.
+#[tokio::test]
+async fn an_agent_named_without_a_session_redeems_nothing_it_presents() {
+    let fixture = reference_an_agent_writes_in().await;
+    let assistant = fixture
+        .world
+        .principal(PrincipalKind::Agent, "ana-assistant")
+        .expect("an agent of the world");
+    let (command, args) = ("reference.irreversible.do", note("photo", None));
+    let confirmed = Caller::new(assistant.clone()).confirmed(
+        fixture
+            .kernel
+            .confirmation_for_tests(&assistant, command, &args),
+    );
+    let approved = Caller::new(assistant.clone()).approved(
+        fixture
+            .kernel
+            .approval_for_tests(&assistant, command, &args),
+    );
+    for caller in [&confirmed, &approved] {
+        let refused = fixture.kernel.dispatch(caller, command, &args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{refused:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    for entry in entries_of(&entries, command) {
+        assert_eq!(who(entry), ("ana-assistant", vec![]));
+        assert_eq!(deciding(entry), Some("core.an_agent_never_impersonates"));
+    }
+    assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
+}
+
+/// An argument named as a confirmation is refused by the schema, and confirms
+/// nothing.
+///
+/// **No field of a call is read as a token**: ana's agent proposes a name with
+/// each word a confirmation could be smuggled under beside a title, and each
+/// is refused for its arguments with `[NC-VAL-0002]` before anything is
+/// decided, journaled as the agent's, for ana.
+#[tokio::test]
+async fn an_argument_named_as_a_confirmation_is_refused_by_the_schema_and_confirms_nothing() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let smuggled = [
+        ("confirmed_by_human", Value::Bool(true)),
+        ("confirmation", Value::Integer(1)),
+        ("confirmed", Value::Bool(true)),
+        ("approval", Value::Integer(1)),
+        ("serial", Value::Integer(1)),
+        ("_meta", Value::object([("confirmed", Value::Bool(true))])),
+    ];
+    for (key, value) in &smuggled {
+        let args =
+            Value::object([("title", Value::text("t")), (*key, value.clone())]).to_canonical();
+        let refused = fixture.by(&session, PROPOSE, &args).await;
+        assert!(
+            is(
+                &refused,
+                RefusalKind::Invalid,
+                ErrorCode::ValidationArgumentsInvalid
+            ),
+            "{key}: {refused:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    let refused = entries_of(&entries, PROPOSE);
+    assert_eq!(refused.len(), smuggled.len(), "{entries:#?}");
+    for entry in refused {
+        assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]));
+        assert_eq!(deciding(entry), Some("kernel.malformed_arguments"));
+    }
+}
+
+/// An issued serial carried by an argument the schema accepts confirms
+/// nothing.
+///
+/// **A number is not a token**: ana is issued a confirmation of the very
+/// dispatch her assistant asks for; the assistant sends it once as asked, and
+/// once with the confirmation's serial where the note's name goes. The first
+/// is refused by the precondition, the second because that note is nothing
+/// the realm holds; neither runs, and ana's confirmation is hers to redeem
+/// still.
+#[tokio::test]
+async fn an_issued_serial_carried_by_an_argument_the_schema_accepts_confirms_nothing() {
+    let fixture = reference_an_agent_writes_in().await;
+    let command = "reference.irreversible.do";
+    let args = note("photo", None);
+    let confirmation =
+        fixture
+            .kernel
+            .confirmation_for_tests(&fixture.principal("ana"), command, &args);
+    let serial: String = format!("{confirmation:?}")
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect();
+    assert!(!serial.is_empty(), "{confirmation:?}");
+    let assistant = fixture.the_assistant().await;
+    let unconfirmed = fixture.by(&assistant, command, &args).await;
+    assert!(
+        is(
+            &unconfirmed,
+            RefusalKind::Denied,
+            ErrorCode::KernelUnconfirmed
+        ),
+        "{unconfirmed:?}"
+    );
+    let carried = fixture.by(&assistant, command, &note(&serial, None)).await;
+    assert!(
+        is(&carried, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{carried:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<Option<&str>> = entries_of(&entries, command)
+        .into_iter()
+        .map(deciding)
+        .collect();
+    assert_eq!(
+        decided,
+        [
+            Some("kernel.irreversible_needs_confirmation"),
+            Some(nc_authz::sentinel::NO_PERMIT_MATCHED),
+        ]
+    );
+    assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
+    fixture
+        .kernel
+        .dispatch(
+            &Caller::new(fixture.principal("ana")).confirmed(confirmation),
+            command,
+            &args,
+        )
+        .await
+        .expect("ana's confirmation is hers still");
+}
+
+/// A nested irreversible command in an agent's tree is refused.
+///
+/// **Never confirmed beneath the top**: ana's assistant relays the command
+/// that cannot be undone from inside a change to the photo, which the pack
+/// lets it make; the nested dispatch is refused with `[NC-KERN-0006]`, and its
+/// entry names the assistant and ana.
+#[tokio::test]
+async fn a_nested_irreversible_command_in_an_agents_tree_is_refused() {
+    let fixture = reference_an_agent_writes_in().await;
+    let assistant = fixture.the_assistant().await;
+    let relayed = fixture
+        .by(
+            &assistant,
+            "reference.relay.write",
+            &relay("reference.irreversible.do", &note("photo", None), None),
+        )
+        .await
+        .expect("the relay answers");
+    let refused = text(&relayed, "refused");
+    assert!(
+        refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelUnconfirmed)),
+        "{refused}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, "reference.irreversible.do");
+    assert_eq!(who(entry), ("ana-assistant", vec!["ana"]));
+    assert_eq!(
+        deciding(entry),
+        Some("kernel.irreversible_needs_confirmation")
+    );
+    assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
+}
+
+/// An agent's delete is refused by the core, without a human and a quorum.
+///
+/// **The core's two floors, on the agent's half**: with a pack that lets ana's
+/// assistant delete what she owns, its delete of the photo is refused by
+/// `core.destructive_needs_quorum` and `core.irreversible_needs_a_human`
+/// together, and the photo is there still.
+#[tokio::test]
+async fn an_agents_delete_is_refused_by_the_core_without_a_human_and_a_quorum() {
+    let fixture = reference_an_agent_writes_in().await;
+    fixture
+        .as_("ana", "reference.note.put", &note("photo", Some("kept")))
+        .await
+        .expect("ana writes her photo");
+    let assistant = fixture.the_assistant().await;
+    let refused = fixture
+        .by(&assistant, "reference.note.delete", &note("photo", None))
+        .await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let entry = only(&entries, "reference.note.delete");
+    assert_eq!(who(entry), ("ana-assistant", vec!["ana"]));
+    assert_eq!(
+        deciding(entry),
+        Some("core.destructive_needs_quorum,core.irreversible_needs_a_human")
+    );
+    assert!(photo_in(&fixture.store).await.is_some(), "the photo went");
 }
