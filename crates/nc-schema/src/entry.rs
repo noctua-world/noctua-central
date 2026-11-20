@@ -702,23 +702,61 @@ pub fn a_reason_is_prose(reason: &str) -> bool {
     reason.trim().chars().count() >= 20 && reason.split_whitespace().count() >= 4
 }
 
+/// The name a command's tool is listed and called by.
+///
+/// **The command's own name, each dot written as an underscore**, so a tool's
+/// name holds only lower-case letters, digits, hyphens and underscores — the
+/// characters a model's tool name may hold, where a dot is not one — and keeps
+/// its command's length. No command's name holds an underscore
+/// ([`crate::descriptor::command_name_is_well_formed`]), so no two commands
+/// have one tool's name, and [`command_of_tool`] reads each name back to the
+/// one command it was made from.
+#[must_use]
+pub fn tool_name(command: &str) -> String {
+    command.replace('.', "_")
+}
+
+/// The command a tool was named for, or nothing for a name no command's tool
+/// has.
+///
+/// **Read back through the one parser of a command's name.** A dot is refused
+/// before anything is read, so a command's dotted name is never a second
+/// spelling of its tool; every underscore is then read as a dot, and the text
+/// that gives is a command only when
+/// [`crate::descriptor::command_name_is_well_formed`] accepts it. So two
+/// underscores in a row, one at either end, a capital letter, a name of one
+/// word and a name past [`crate::descriptor::NAME_MAX`] are each nothing, and
+/// whatever this answers, [`tool_name`] writes back as the very text it read.
+#[must_use]
+pub fn command_of_tool(tool: &str) -> Option<String> {
+    if tool.contains('.') {
+        return None;
+    }
+    let command = tool.replace('_', ".");
+    crate::descriptor::command_name_is_well_formed(&command).then_some(command)
+}
+
 /// A command as the tool an MCP session lists (`NOCTUA.md §20.3`).
 ///
 /// **The one projection**: `docs/mcp-tools.md` publishes what it answers for
-/// every command the catalog declares, and the MCP server lists what it
-/// answers for every command a session may dispatch (Stage 15). The tool is
-/// called by the command's own name, dotted, because that is the name it is
-/// dispatched by; its description is the entry's two descriptions, the line
-/// and then the paragraph, a blank line between; and its input schema is the
+/// every command the catalog declares, and whatever lists an MCP session's
+/// tools lists what it answers for the commands that session may dispatch.
+/// The tool is named by [`tool_name`], each dot of the command's name an
+/// underscore, and [`command_of_tool`] reads that name back to the command a
+/// call to it dispatches; its description is the entry's two descriptions, the
+/// line and then the paragraph, a blank line between; its input schema is the
 /// command's argument schema, as written, once it compiles inside the subset
-/// the kernel holds a dispatch to. A display name and tags are a person's
-/// words, and no tool carries them.
+/// the kernel holds a dispatch to; and its annotations are `readOnlyHint`
+/// alone, true exactly when the command is not `mutating` — the one hint the
+/// kernel holds a command to, refusing a write beneath one that does not
+/// mutate. A display name and tags are a person's words, and no tool carries
+/// them.
 ///
 /// # Errors
 ///
 /// The [`SchemaError`] [`Schema::compile`] refuses `args_schema` with: a
 /// schema the kernel would refuse is never a tool an agent is handed.
-pub fn as_tool(shown: &Shown<'_>, args_schema: &str) -> Result<Value, SchemaError> {
+pub fn as_tool(shown: &Shown<'_>, args_schema: &str, mutating: bool) -> Result<Value, SchemaError> {
     Schema::compile(args_schema)?;
     // Read by the reader that compiled it, so a key written twice is refused
     // there and the schema an agent is handed is the one judged.
@@ -727,12 +765,17 @@ pub fn as_tool(shown: &Shown<'_>, args_schema: &str) -> Result<Value, SchemaErro
         fault: SchemaFault::NotJson(refused),
     })?;
     let mut tool = Map::new();
-    tool.insert("name".to_owned(), Value::String(shown.name.to_owned()));
+    tool.insert("name".to_owned(), Value::String(tool_name(shown.name)));
     tool.insert(
         "description".to_owned(),
         Value::String(format!("{}\n\n{}", shown.line, shown.paragraph)),
     );
     tool.insert("inputSchema".to_owned(), input_schema);
+    // No `title`, which would be a display name, and no hint the kernel does
+    // not hold a command to: the other hints keep the protocol's defaults.
+    let mut annotations = Map::new();
+    annotations.insert("readOnlyHint".to_owned(), Value::Bool(!mutating));
+    tool.insert("annotations".to_owned(), Value::Object(annotations));
     Ok(Value::Object(tool))
 }
 
@@ -992,8 +1035,9 @@ mod tests {
     use super::{
         CATEGORIES_MAX, Entry, EntryProblem, GlyphProblem, InLocale, Rules, SYMBOLS_ONLY, Shown,
         TAGS_MAX, Text, Texts, WIKI_BYTES_MAX, WikiFormat, WikiProblem, a_reason_is_prose, as_tool,
-        glyph, judge, judge_wiki, placeholders, the_same_sentence,
+        command_of_tool, glyph, judge, judge_wiki, placeholders, the_same_sentence, tool_name,
     };
+    use crate::descriptor::NAME_MAX;
 
     /// Every text a command carries.
     const EVERY_TEXT: [Text; 4] = Text::ALL;
@@ -1683,15 +1727,18 @@ mod tests {
         assert!(placeholders("{ spaced }").is_empty());
     }
 
-    /// A command is a tool by its own name, its line and paragraph, and its
-    /// schema as written.
+    /// A command is a tool by its own name, its line and paragraph, its schema
+    /// as written, and whether it changes anything.
     ///
-    /// The name is the dotted one a dispatch names; the description holds the
-    /// line, a blank line and the paragraph, in that order; the input schema
-    /// keeps the order its author wrote; and nothing a person is shown beside
-    /// those — the display name, the tags, the categories — reaches the tool.
+    /// The name is the dispatched one with each dot an underscore; the
+    /// description holds the line, a blank line and the paragraph, in that
+    /// order; the input schema keeps the order its author wrote; the one
+    /// annotation says a command that changes nothing is read-only; and nothing
+    /// a person is shown beside those — the display name, the tags, the
+    /// categories — reaches the tool.
     #[test]
-    fn a_command_is_a_tool_by_its_name_its_two_descriptions_and_its_schema() {
+    fn a_command_is_a_tool_by_its_name_its_two_descriptions_its_schema_and_whether_it_changes_anything()
+     {
         let tags = vec!["verificar".to_owned()];
         let categories = vec!["noctua.history".to_owned()];
         let shown = Shown {
@@ -1703,15 +1750,93 @@ mod tests {
             categories: &categories,
         };
         let schema = r#"{"type":"object","properties":{"from":{"type":"integer","minimum":0}},"additionalProperties":false}"#;
-        let tool = as_tool(&shown, schema).expect("inside the subset");
+        let tool = as_tool(&shown, schema, false).expect("inside the subset");
         assert_eq!(
             tool.to_string(),
             format!(
-                r#"{{"name":"journal.verify","description":"Check every recorded action.\n\nReads the history and changes nothing.","inputSchema":{schema}}}"#
+                r#"{{"name":"journal_verify","description":"Check every recorded action.\n\nReads the history and changes nothing.","inputSchema":{schema},"annotations":{{"readOnlyHint":true}}}}"#
             )
         );
         for unlisted in ["Verify activity history", "verificar", "noctua.history"] {
             assert!(!tool.to_string().contains(unlisted), "{tool}");
+        }
+    }
+
+    /// A tool is named as its command, each dot an underscore, and its name is
+    /// read back to that command and to nothing else.
+    ///
+    /// A dotted name, the command's own among them, is no tool's: two spellings
+    /// of one tool would be two names a list could hold. Every other refusal is
+    /// the command-name parser's, reached through the underscores read as dots.
+    #[test]
+    fn a_tool_is_named_as_its_command_each_dot_an_underscore_and_read_back_to_it_alone() {
+        let longest = format!("a_{}", "b".repeat(NAME_MAX - 2));
+        let past = format!("a_{}", "b".repeat(NAME_MAX - 1));
+        for (command, tool) in [
+            ("naming.propose", "naming_propose"),
+            ("settings.mcp.set", "settings_mcp_set"),
+            ("a.b-2.c3", "a_b-2_c3"),
+        ] {
+            assert_eq!(tool_name(command), tool);
+            assert_eq!(command_of_tool(tool).as_deref(), Some(command), "{tool}");
+        }
+        assert_eq!(
+            command_of_tool(&longest),
+            Some(longest.replace('_', ".")),
+            "the longest command's tool is refused"
+        );
+        assert_eq!(longest.len(), NAME_MAX);
+        assert_eq!(past.len(), NAME_MAX + 1);
+        for refused in [
+            "naming.propose",
+            "naming_propose.",
+            "naming__propose",
+            "_naming_propose",
+            "naming_propose_",
+            "Naming_propose",
+            "naming_Propose",
+            "naming_1propose",
+            "naming",
+            "naming-propose",
+            "naming propose",
+            "",
+            past.as_str(),
+        ] {
+            assert_eq!(command_of_tool(refused), None, "`{refused}` was read back");
+        }
+    }
+
+    /// Only a command that changes nothing is a read-only tool, and that is
+    /// the one annotation a tool carries.
+    #[test]
+    fn only_a_command_that_changes_nothing_is_a_read_only_tool() {
+        let shown = Shown {
+            name: "limits.prune",
+            display_name: "Prune",
+            line: "Prune.",
+            paragraph: "Deletes what is past its bound.",
+            tags: &[],
+            categories: &[],
+        };
+        let schema = r#"{"type":"object","additionalProperties":false}"#;
+        for (mutating, read_only) in [(true, false), (false, true)] {
+            let tool = as_tool(&shown, schema, mutating).expect("inside the subset");
+            assert_eq!(
+                tool["annotations"],
+                serde_json::json!({ "readOnlyHint": read_only }),
+                "{tool}"
+            );
+            assert_eq!(
+                tool.as_object()
+                    .map(|fields| fields.keys().cloned().collect()),
+                Some(vec![
+                    "name".to_owned(),
+                    "description".to_owned(),
+                    "inputSchema".to_owned(),
+                    "annotations".to_owned()
+                ]),
+                "{tool}"
+            );
         }
     }
 
@@ -1732,7 +1857,9 @@ mod tests {
             r#"{"type":"object","additionalProperties":false,"additionalProperties":true}"#,
             "[]",
         ] {
-            assert!(as_tool(&shown, refused).is_err(), "{refused}");
+            for mutating in [false, true] {
+                assert!(as_tool(&shown, refused, mutating).is_err(), "{refused}");
+            }
         }
     }
 }
