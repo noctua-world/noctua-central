@@ -592,15 +592,26 @@ pub(crate) mod tests {
     use nc_catalog::{Capability, ErrorCode};
 
     /// A kernel over the store, the blobs and the journal in memory, deciding
-    /// with the family pack over the world the policy cases are about, and
-    /// `ana`, a user of that world.
+    /// with the family pack over the world the policy cases are about, at an
+    /// epoch, and `ana`, a user of that world holding the membership the pack
+    /// confers, which has no end, so what ana may do is the same at any hour.
     pub(crate) async fn a_kernel_for_ana() -> (crate::Kernel<InMemory>, nc_authz::Principal) {
         let pack = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
         let world = nc_authz::MemoryDirectory::from_world(
             include_str!("../../../policy/world.json"),
             &pack,
         )
-        .expect("the world loads");
+        .expect("the world loads")
+        .with_epoch("home", 1)
+        .with_grant(
+            "home",
+            nc_authz::EntityRef {
+                type_name: "User".to_owned(),
+                id: "ana".to_owned(),
+            },
+            "g.by_policy",
+        )
+        .expect("home holds the membership grant");
         let realm = world.realm_id("home").expect("home is a realm");
         let ana = world
             .principal(nc_authz::PrincipalKind::User, "ana")

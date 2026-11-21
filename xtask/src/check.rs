@@ -19727,7 +19727,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 66, 25),
-        ("nc-kernel/session.rs", 34, 7),
+        ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 263, 86),
@@ -25749,7 +25749,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21166;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21168;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25802,7 +25802,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 19, 36, 37, 91];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 19, 36, 37, 90];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25819,7 +25819,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 28049;
+    const THE_REARRANGEMENTS_JUDGED: usize = 28054;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25837,7 +25837,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 516;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 515;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25873,8 +25873,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 28,049 are accepted by the first-line
-    /// rule alone, and 276 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **515 of 28,054 are accepted by the first-line
+    /// rule alone, and 275 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25896,7 +25896,7 @@ mod the_frozen_path_rule {
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
     /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 19 descending, 36
-    /// swaps, 37 rotations and 91 reversals** — so the reversal is one of its
+    /// swaps, 37 rotations and 90 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -37907,7 +37907,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2684] = [
+    static OPERATORS: [(&str, &str, &str); 2685] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46829,6 +46829,11 @@ Options:
             "kernel_session",
             "dispatchable",
             "a probe lists only what may be dispatched",
+        ),
+        (
+            "kernel_session",
+            "dispatchable",
+            "a probe lists no command that cannot be undone",
         ),
         (
             "kernel_host_commands",

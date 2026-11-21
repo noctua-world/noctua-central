@@ -464,9 +464,12 @@ pub(crate) async fn opened<E: Environment>(
 
 #[cfg(test)]
 mod tests {
-    use nc_authz::{Principal, PrincipalKind};
+    use std::time::Instant;
 
-    use super::{Acting, ActorChain, LINKS_MAX, Session};
+    use nc_authz::{Principal, PrincipalKind};
+    use nc_schema::descriptor::Reversibility;
+
+    use super::{Acting, ActorChain, LINKS_MAX, Session, dispatchable};
 
     /// The world the policy cases are about, with `extra` agents of ana's.
     fn world_with(extra: &[&str]) -> nc_authz::MemoryDirectory {
@@ -640,5 +643,34 @@ mod tests {
             Acting::Itself(assistant.clone()).whose_history(),
             &assistant
         );
+    }
+
+    /// A command that cannot be undone is never listed, though the decision
+    /// point allows it.
+    ///
+    /// **Its twin that can be undone is**: every command of the registry is
+    /// listed beside a copy of it marked irreversible, under the same name,
+    /// action and resource, and the probe answers what it answers for the
+    /// registry alone — some command, and none of the copies.
+    #[tokio::test]
+    async fn a_command_that_cannot_be_undone_is_never_listed() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let registry = kernel.registry();
+        let copies = registry.iter().cloned().map(|mut command| {
+            command.reversibility = Reversibility::Irreversible;
+            command
+        });
+        let listed = registry.iter().cloned().chain(copies).collect();
+        let acting = Acting::Itself(ana);
+        let probed = dispatchable(&kernel.shared, &acting, 0, Instant::now(), listed).await;
+        assert!(!probed.is_empty(), "ana may dispatch some command");
+        assert!(
+            probed
+                .iter()
+                .all(|command| command.reversibility != Reversibility::Irreversible),
+            "{probed:?}"
+        );
+        let alone = dispatchable(&kernel.shared, &acting, 0, Instant::now(), registry).await;
+        assert_eq!(probed, alone);
     }
 }

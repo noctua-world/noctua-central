@@ -1292,27 +1292,29 @@ past the policy's two links is refused by `core.chain_depth_is_bounded` and reco
 the type holds at most four, and nothing but a test door builds one past a single link.
 
 **A session spends its agent's budget, and the core refuses what is past it**: one unit for
-each call it sends — refused or not, counted under the kernel's bus before anything is
-asked of the call — one for each timer its tree set that fires, and one for each event its
-tree published that is delivered, whatever its subscribers; what a call dispatches nested
-spends nothing, and each session, a clone of one included, counts its own. Every decision of
-a tree is told what its session had spent when the tree began, which `nc-authz` takes off
-the agent's `budget_remaining`, so `core.budget_is_a_permission` refuses a spent session's
-call, firing or delivery, and the entry names the rule. **What its tree puts off acts as its
-tree did**: a timer it sets and an event it publishes carry the session, are decided again
-for every link when they come due — its person's authority withdrawn or ended cancels the
-timer or drops the event — and call back as the agent for its person, never confirmed.
-**Its steps are its person's**: a step its tree keeps, its timer's callback's included, is
-in its person's history, whose undo takes it back, and an agent's own undo finds no step.
-**Nothing it arranges runs later as its person alone**: a compensation registered in its
-tree is refused (`[NC-KERN-0026]`), so its step is undone by its images or is a barrier.
-**It may list what it may dispatch**: `Kernel::dispatchable` is the decision point's probe —
-each command whose resource is known without arguments and that can be undone, decided for
-every link on what the session has spent, never journaled, spending nothing and redeeming
-nothing — and its search finds that set.
+each call it sends — refused or not, counted under the kernel's bus before anything is asked
+of the call — one for each timer its tree set that fires, and one for each event its tree
+published that is delivered, whatever its subscribers; what a call dispatches nested spends
+nothing, and each session counts its own, a clone of it spending from the same count. Every
+decision of a tree is told what its session had spent when the tree began, which `nc-authz`
+takes off the agent's `budget_remaining`, so `core.budget_is_a_permission` refuses a spent
+session's call, firing or delivery, and the entry names the rule. **What its tree puts off
+acts as its tree did**: a timer it sets and an event it publishes carry the session, are
+decided again for every link when they come due — its person's authority withdrawn or ended
+cancels the timer or drops the event — and call back as the agent for its person, never
+confirmed. **Its steps are its person's**: a step its tree keeps, its timer's callback's
+included, is in its person's history, whose undo takes it back, and an agent's own undo
+finds no step. **Nothing it arranges runs later as its person alone**: a compensation
+registered in its tree is refused (`[NC-KERN-0026]`), so its step is undone by its images or
+is a barrier. **It may list what it may dispatch**: `Kernel::dispatchable` is the decision
+point's probe — each command whose resource is known without arguments and that can be
+undone, decided for every link on what the session has spent, never journaled, spending
+nothing and redeeming nothing — and its search finds that set.
 
 **Enforced by** `crates/nc-kernel/src/session.rs` and its unit tests — what a chain holds,
-how deep it is, and that only a principal acting as itself holds what the kernel issues;
+how deep it is, that only a principal acting as itself holds what the kernel issues, that a
+session and its clone spend from one count, and that the probe lists no command that cannot
+be undone, though the decision point allows it;
 `crates/nc-kernel/src/dispatch.rs`, whose unit tests hold that no token issued to an agent
 is bound, that an agent acting alone redeems none even of its own, and that an agent's tree
 hands on nothing redeemed even when the binding alone would redeem it;
