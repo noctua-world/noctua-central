@@ -4852,9 +4852,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   reaches them otherwise: a plugin, a timer and an event run as the person are refused at
   the top of the tree, and an agent by the permit.
 - **The widest list of a person's agents fits one frame for the features the shipped world
-  holds**: an agent holds one live grant per feature, so a realm of many more features can
-  make the list of every agent at its bound longer than a frame, which the daemon then
-  refuses whole (`NC-IPC-0016`) rather than send in part.
+  holds, and not a payload**: an agent holds one live grant per feature, so a realm of many
+  more features can make the list of every agent at its bound longer than a frame, which the
+  daemon then refuses whole (`NC-IPC-0016`) rather than send in part. Within the shipped world
+  the widest list is already longer than `[kernel] payload_bytes`, so `agents.list`
+  dispatched from inside a command can hand the plugin more than a payload, which that plugin
+  cannot then answer with as its own.
 - **An agent's `autonomy` is carried as `supervised` and read by nothing**: the schema
   requires one, and nothing in this repository defines what its values permit.
 - **The intersection binds what is dispatched through an agent's session, and nothing

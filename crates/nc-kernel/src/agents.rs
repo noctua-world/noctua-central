@@ -1217,9 +1217,9 @@ mod tests {
     /// keeps one live grant per feature — every identifier minted as wide as
     /// base32 writes one, every window as long as a grant may run, and every
     /// label and reason at its bound in a character canonical JSON writes in
-    /// four bytes, the widest of any a reader can see. The daemon answers it
-    /// in one frame, its envelope around it; a realm of more features is one
-    /// whose list a frame may refuse whole (`NC-IPC-0016`), never cut.
+    /// four bytes, the widest of any a reader can see. Longer than a payload,
+    /// it fits one frame with the daemon's envelope; a realm of more features
+    /// may have it refused whole (`NC-IPC-0016`), and never cut.
     #[tokio::test]
     async fn the_widest_list_of_agents_fits_one_frame() {
         use nc_authz::Directory as _;
@@ -1309,6 +1309,14 @@ mod tests {
             "the widest list of agents is {bytes} bytes, and a frame holds {} with its \
              envelope",
             DAEMON.ipc_frame_max_bytes
+        );
+        // What `docs/limits.md` and `AGENTS.md` say of it: once it fits a
+        // payload, the bound here is `payload_bytes` and both say so instead.
+        assert!(
+            bytes > KERNEL.payload_bytes,
+            "the widest list of agents is {bytes} bytes, within the {} of a payload, which \
+             the documents say it is longer than",
+            KERNEL.payload_bytes
         );
     }
 }

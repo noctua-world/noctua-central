@@ -913,7 +913,8 @@ fn kernel(catalog: &Catalog) -> String {
          `commands_per_plugin` and each one's texts to `entry_bytes`, a call tree's dispatches to its deadline, depth and count, \
          each question the decision point asks the directory to `host_call_deadline_ms`, \
          a confirmation or an approval to `confirmation_ttl_ms`, a dispatch's arguments \
-         and answer to `payload_bytes`, the store's keys, values and listings to theirs, \
+         and answer to `payload_bytes` (`agents.list`'s answer apart, below), the store's \
+         keys, values and listings to theirs, \
          what one unit stages to `store_writes`' bound in keys and to `unit_bytes` in \
          bytes, a blob to `blob_bytes`, each read of one to `blob_read_chunk_bytes`, the \
          blob readers and writers a plugin holds to `blob_handles`, the units it holds \
@@ -931,7 +932,10 @@ fn kernel(catalog: &Catalog) -> String {
          lines of `log_line_bytes` each, and what a person gives an agent to spend to \
          `agent_budget_max` and how long a grant to one runs to \
          `agent_grant_minutes_max`, through the schemas of `agents.create` and \
-         `agents.grant`, which a test holds to them.\n\n",
+         `agents.grant`, which a test holds to them. **`agents.list`'s answer is not held \
+         to `payload_bytes`**: the widest list of agents a profile of the shipped world can \
+         hold is longer than a payload, and a test holds it within one frame, so a plugin \
+         that dispatches it can be handed more than it may answer with itself.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.kernel.each() {
