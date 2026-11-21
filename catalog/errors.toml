@@ -845,6 +845,20 @@ message = "error.kernel.only-at-the-top"
 severity = "warning"
 retryable = false
 
+[[error]]
+# **Nothing an agent arranges runs later as the person alone.** An undo
+# dispatches a step's compensations as the person who asks, so one registered
+# in a call tree acting for an agent would be the agent's dispatch put off and
+# decided without the agent. It is refused when it is registered, and the step
+# is undone by its images or is a barrier undo stops at. Not NC-KERN-0021,
+# whose description names what a command is, and which the ledger keeps
+# meaning that.
+code = "NC-KERN-0026"
+description = "A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
+message = "error.kernel.compensation-for-an-agent"
+severity = "warning"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer

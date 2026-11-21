@@ -19705,7 +19705,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 72, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 131, 31),
+        ("nc-kernel/dispatch.rs", 136, 31),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -19713,8 +19713,8 @@ mod the_frozen_path_rule {
         ("nc-kernel/history.rs", 48, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
-        ("nc-kernel/host/commands.rs", 33, 15),
-        ("nc-kernel/host/context.rs", 0, 7),
+        ("nc-kernel/host/commands.rs", 35, 15),
+        ("nc-kernel/host/context.rs", 1, 7),
         ("nc-kernel/host/events.rs", 0, 4),
         ("nc-kernel/host/log.rs", 13, 12),
         ("nc-kernel/host/net.rs", 12, 20),
@@ -19722,7 +19722,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 46),
-        ("nc-kernel/lib.rs", 61, 57),
+        ("nc-kernel/lib.rs", 62, 57),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19731,16 +19731,16 @@ mod the_frozen_path_rule {
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 66, 25),
-        ("nc-kernel/session.rs", 24, 7),
+        ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 241, 86),
+        ("nc-kernel/the_decision_point.rs", 263, 86),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 54, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 71, 64),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
         ("nc-kernel/units.rs", 113, 18),
-        ("nc-kernel/units_and_history.rs", 147, 48),
+        ("nc-kernel/units_and_history.rs", 159, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
@@ -25754,7 +25754,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21156;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21277;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25773,7 +25773,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5628;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5683;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25790,7 +25790,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1899;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1919;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25807,7 +25807,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 36, 37, 91];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 36, 37, 90];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25824,7 +25824,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27948;
+    const THE_REARRANGEMENTS_JUDGED: usize = 28173;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25842,7 +25842,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 514;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 513;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25878,8 +25878,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **514 of 27,948 are accepted by the first-line
-    /// rule alone, and 274 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **513 of 28,173 are accepted by the first-line
+    /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25901,7 +25901,7 @@ mod the_frozen_path_rule {
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
     /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 36
-    /// swaps, 37 rotations and 91 reversals** — so the reversal is one of its
+    /// swaps, 37 rotations and 90 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25911,7 +25911,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1899 of
+    /// this tree offers, **1919 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37913,7 +37913,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2689] = [
+    static OPERATORS: [(&str, &str, &str); 2710] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46114,7 +46114,7 @@ Options:
         (
             "kernel_host_context",
             "actor_chain",
-            "the actor chain is empty",
+            "the actor chain is the tree's",
         ),
         (
             "kernel_host_context",
@@ -46859,6 +46859,107 @@ Options:
             "kernel_session",
             "opened",
             "a session is opened only for the agent's own person",
+        ),
+        (
+            "kernel_dispatch",
+            "top",
+            "a session spends one for each call it sends",
+        ),
+        (
+            "kernel_dispatch",
+            "top",
+            "a tree is decided on what its session had spent when it began",
+        ),
+        (
+            "kernel_dispatch",
+            "reauthorized",
+            "what was put off is decided again as the tree acts",
+        ),
+        (
+            "kernel_dispatch",
+            "reauthorized",
+            "what was put off is decided again on what its session had spent",
+        ),
+        (
+            "kernel_dispatch",
+            "closed",
+            "an agent's step joins the history of whom it acts for",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "an agent finds only what its session may dispatch",
+        ),
+        (
+            "kernel_pump",
+            "fired",
+            "a timer fired for a session spends from its budget",
+        ),
+        (
+            "kernel_pump",
+            "delivered",
+            "an event delivered for a session spends one",
+        ),
+        (
+            "kernel_pump",
+            "called_back",
+            "a step a timer's callback keeps joins the history of whom its tree acts for",
+        ),
+        (
+            "kernel_pump",
+            "tree_for",
+            "a callback's tree acts as the tree that put it off",
+        ),
+        (
+            "kernel_timers",
+            "set",
+            "a timer carries who its tree acts as",
+        ),
+        (
+            "kernel_host_events",
+            "publish",
+            "an event carries who its tree acts as",
+        ),
+        (
+            "kernel_session",
+            "spend",
+            "a spend answers the count before it",
+        ),
+        ("kernel_session", "spend", "a spend counts one"),
+        (
+            "kernel_session",
+            "whose_history",
+            "an agent's steps join its person's history",
+        ),
+        (
+            "kernel_session",
+            "may",
+            "a probe allows only what the decision point allows",
+        ),
+        (
+            "kernel_session",
+            "dispatchable",
+            "a probe lists only what may be dispatched",
+        ),
+        (
+            "kernel_session",
+            "dispatchable",
+            "a probe lists no command that cannot be undone",
+        ),
+        (
+            "kernel_host_commands",
+            "compensate_with",
+            "a compensation is never registered in a tree acting for an agent",
+        ),
+        (
+            "kernel_host_context",
+            "confirmed_by_human",
+            "an agent's tree reads no confirmation",
+        ),
+        (
+            "kernel",
+            "dispatchable",
+            "a probe reads what its session spent",
         ),
         (
             "kernel_pump",

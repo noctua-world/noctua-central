@@ -27,6 +27,14 @@
 //! changes nothing, so it opens no unit, and the journal's entry names the
 //! command and the feature, never the query.
 //!
+//! **An agent finds what its session may dispatch now**: for a call tree
+//! acting for an agent, the registry is cut to the decision point's probe
+//! before anything is matched (`crate::session::dispatchable`) — a command
+//! whose resource is known without arguments, that is not one that cannot be
+//! undone, and that the agent and every one it acts for may be allowed — so its
+//! search answers the set its tool list is. A person finds every registered
+//! command.
+//!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
 //! A query costs the daemon bounded work: the schema refuses one past
@@ -36,11 +44,13 @@
 //! hold fits within; the registry's lock is let go before anything is matched,
 //! so no load or dispatch waits on a match; and the answer lists at most
 //! [`LISTED_MAX`] commands, whose widest fits one frame. It shows nothing the
-//! registry does not already show the same caller. **What it does not
-//! answer**: how many commands the registry holds, which is the plugins a
-//! person installed, each held to `commands_per_plugin`; and which commands
-//! the asker may dispatch — every registered command is found, and cutting the
-//! answer to an agent's own is Stage 15's (`NOCTUA-PLAN.md`).
+//! registry does not already show the same caller, and an agent nothing its
+//! session may not dispatch. **What it does not answer**: how many commands
+//! the registry holds, which is the plugins a person installed, each held to
+//! `commands_per_plugin`; which commands a person may dispatch — every
+//! registered command is found for them; and an agent's command that takes
+//! its resource from an argument, which its search does not find though a
+//! dispatch of it is decided as any.
 
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, Locale};

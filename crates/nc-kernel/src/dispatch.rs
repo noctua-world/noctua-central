@@ -30,6 +30,17 @@
 //! so its command that cannot be undone is refused until a person can confirm
 //! it.
 //!
+//! **What a tree hands on acts as the tree did.** A session spends one unit of
+//! its agent's budget for each call it sends, under the kernel's bus before
+//! anything is asked of the call, so a refused call spends as an allowed one;
+//! every decision of the tree is told what the session had spent when the tree
+//! began, and what it dispatches nested spends nothing. A timer the tree sets
+//! and an event it publishes carry who it acts as, and are decided again for
+//! every link when they come due; a step an agent's tree kept joins the
+//! history of the person it acts for; a compensation is never registered in a
+//! tree acting for an agent (`crate::host`); and an agent's search finds only
+//! what its session may dispatch now (`crate::session::dispatchable`).
+//!
 //! **Every dispatch is journaled**: a refusal, a read, a failure and every
 //! dispatch in a tree, each as one entry naming the principal, the action, the
 //! command and the entity, what was decided and by which policy or sentinel,
@@ -54,9 +65,9 @@
 //! that switches a setting (`crate::registry::only_at_the_top`), refused with
 //! `[NC-KERN-0025]` and journaled under the same sentinel, so no plugin, timer
 //! or event run as a person switches what may act for them. **A callback the pump calls is a tree
-//! of its own** — a timer fired or an event heard, for the principal it was
-//! set or published for, acting as itself — whose frame is beneath every
-//! command it dispatches:
+//! of its own** — a timer fired or an event heard, acting as the tree that set
+//! or published it acted — whose frame is beneath every command it
+//! dispatches:
 //! each is nested, never confirmed, and beneath an event's callback, which only
 //! reads, no command may change state (`crate::pump`).
 //!
@@ -77,10 +88,12 @@
 //! the directory or the journal cannot be asked; a forged principal or
 //! confirmation — the principal is the caller's and a nested dispatch's is the
 //! tree's, an agent's person and chain are the directory's and never a
-//! caller's, an agent is never decided on fewer than every link, and a
-//! confirmation or an approval is the kernel's, bound to one principal who is
-//! no agent, one command and its arguments, used once and only before it
-//! expires; malformed input, refused before the plugin runs; and a call tree
+//! caller's, an agent is never decided on fewer than every link — nor is what
+//! its tree put off when it comes due — and a confirmation or an approval is
+//! the kernel's, bound to one principal who is no agent, one command and its
+//! arguments, used once and only before it expires; an agent past its budget,
+//! whose session's count is the kernel's, spent for every call it sends
+//! whatever is answered; malformed input, refused before the plugin runs; and a call tree
 //! that never ends, by depth, deadline and count — every dispatch asked for
 //! counting, refused or not, and a plugin asking past the count once it was
 //! told trapped, so one that asks again whatever it is told is stopped rather
@@ -200,6 +213,12 @@ impl Asker<'_> {
                 approval: None,
             },
         }
+    }
+
+    /// Who acts for the asker, and nothing it presents: what a probe of what
+    /// it may dispatch is decided as.
+    pub(crate) fn acting(self) -> Acting {
+        self.asking().acting
     }
 }
 
@@ -685,6 +704,12 @@ impl CallTree {
         self.acting.principal()
     }
 
+    /// Who the tree acts as: what a timer it sets and an event it publishes
+    /// carry, and are decided again as.
+    pub(crate) const fn acting(&self) -> &Acting {
+        &self.acting
+    }
+
     /// Opens the frame of a callback the kernel calls as the tree's top:
     /// every command it dispatches is nested beneath it.
     pub(crate) fn calls_back(&mut self, call: Call) {
@@ -960,6 +985,18 @@ impl<E: Environment> Frame<E> {
         self.tree().principal().clone()
     }
 
+    /// Who the tree acts as, which a timer set and an event published here
+    /// carry.
+    pub(crate) fn acting(&self) -> Acting {
+        self.tree().acting().clone()
+    }
+
+    /// On whose behalf the tree acts, outermost first: the chain its every
+    /// entry records, empty for a principal acting as itself.
+    pub(crate) fn chain(&self) -> Vec<OpaqueId> {
+        self.tree().acting().recorded_chain()
+    }
+
     /// The kernel the command runs under: none once it is gone, which no
     /// frame outlives, and none in a frame a host function's own test made.
     pub(crate) fn kernel(&self) -> Option<Arc<Shared<E>>> {
@@ -1088,6 +1125,30 @@ impl<E: Environment> Frame<E> {
         )
     }
 
+    /// A frame under no kernel, of a tree acting for an agent of `ana`'s.
+    ///
+    /// As [`Frame::for_tests`], but its tree acts as the world's
+    /// `ana-assistant` in a session for `ana`: what a host function answers in
+    /// an agent's tree.
+    pub(crate) fn for_agent_tests(mutating: bool, unit: Option<Snowflake>) -> Self {
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        let directory =
+            nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
+                .expect("the world loads");
+        let of = |kind, name| {
+            directory
+                .principal(kind, name)
+                .expect("the world holds the principal")
+        };
+        let session = Session::opened_for(
+            of(nc_authz::PrincipalKind::Agent, "ana-assistant"),
+            of(nc_authz::PrincipalKind::User, "ana"),
+        );
+        let frame = Self::for_tests(mutating, unit);
+        frame.tree().acting = Acting::Agent(session);
+        frame
+    }
+
     /// The frame, running `call` rather than the command it was made for.
     pub(crate) const fn calling_for_tests(mut self, call: Call) -> Self {
         self.call = call;
@@ -1120,6 +1181,11 @@ impl<E: Environment> Frame<E> {
 /// first, so two trees never interleave their units — running trees side by
 /// side is not built; a nested dispatch is inside the tree that holds it, and
 /// never asks for it.
+///
+/// **A session spends one unit here, under the bus**, before anything is
+/// asked of the call: a call refused for its name, its arguments or its
+/// decision spends as one allowed does, and every decision of the tree is
+/// decided on what the session had spent before it.
 pub(crate) async fn top<E: Environment>(
     shared: &Arc<Shared<E>>,
     asking: &Asking,
@@ -1127,10 +1193,11 @@ pub(crate) async fn top<E: Environment>(
     args: &str,
 ) -> Result<String, Refusal> {
     let _one_tree_at_a_time = shared.bus.lock().await;
+    let spent = asking.acting.spend();
     supervisor::started_again(shared).await;
     let tree = Arc::new(Mutex::new(CallTree::new(
         asking.acting.clone(),
-        0,
+        spent,
         shared.clock.now_ms(),
     )));
     let answered = decide(shared, &tree, Some(asking), name, args, None).await;
@@ -1193,7 +1260,7 @@ struct Asked {
 
 /// What the decision point decided a dispatch under, beside the policies.
 #[derive(Debug, Clone)]
-struct Decided {
+pub(crate) struct Decided {
     pack: String,
     epoch: u64,
     grant: Option<OpaqueId>,
@@ -1717,7 +1784,7 @@ async fn authorize<E: Environment>(
 ///
 /// What its refusal is made of: its code, what decided it, the kernel's words
 /// for why, and what it was decided under when it got that far.
-struct Denial {
+pub(crate) struct Denial {
     code: ErrorCode,
     deciding: String,
     why: &'static str,
@@ -1765,7 +1832,7 @@ struct Denial {
 /// pack, `kernel.pack_not_carried` with `[NC-POL-0004]`; and Cedar's denial of
 /// a link, with the policies that decided or `kernel.no_permit_matched`. The
 /// caller is told one sentence for every link, and never which one denied.
-async fn decision<E: Environment>(
+pub(crate) async fn decision<E: Environment>(
     shared: &Shared<E>,
     began: Instant,
     (acting, spent): (&Acting, u64),
@@ -1894,7 +1961,7 @@ async fn held_for<E: Environment>(
     Ok((grant, slice))
 }
 
-/// Authorizes `authority` again, now, for `principal` holding `held`: an
+/// Authorizes `authority` again, now, as `tree` acts, holding `held`: an
 /// action a step being undone or redone was allowed, or the authority a timer
 /// was set or an event published under, as it comes due.
 ///
@@ -1904,9 +1971,10 @@ async fn held_for<E: Environment>(
 /// the tree's unit as the decision point journals any — the action, the
 /// command and resource it was allowed for, and what decided it — and logged,
 /// and the caller is told its code and never the policy: `again` says what was
-/// being authorized again, after the command's name. **As `principal` acting
-/// alone**: what an agent's tree put off is decided again as the agent unmarked,
-/// which the core refuses (`crate::session`).
+/// being authorized again, after the command's name. **As the tree acts, and
+/// on what its session had spent**: what an agent's tree put off is decided
+/// again for the agent and for every one it acts for, as a dispatch of the
+/// agent's would be, its budget included.
 ///
 /// # Errors
 ///
@@ -1915,7 +1983,6 @@ async fn held_for<E: Environment>(
 pub(crate) async fn reauthorized<E: Environment>(
     shared: &Shared<E>,
     tree: &Arc<Mutex<CallTree>>,
-    principal: &Principal,
     authority: &Authority,
     held: history::Held,
     again: &str,
@@ -1925,9 +1992,11 @@ pub(crate) async fn reauthorized<E: Environment>(
         action,
         resource,
     } = authority;
-    let began = lock(tree).began();
-    let acting = Acting::Itself(principal.clone());
-    let Err(denied) = decision(shared, began, (&acting, 0), action, resource, || {
+    let (acting, spent, began) = {
+        let tree = lock(tree);
+        (tree.acting.clone(), tree.spent, tree.began())
+    };
+    let Err(denied) = decision(shared, began, (&acting, spent), action, resource, || {
         (held, Vec::new())
     })
     .await
@@ -2362,7 +2431,8 @@ async fn journaled<E: Environment>(
     ran.map_err(|failure| (failure.refusal, Cause::Failed))
 }
 
-/// Step thirteen: the unit of a top-level dispatch, kept or let go.
+/// Step thirteen: the unit of a top-level dispatch, kept or let go — kept as
+/// a step of whose history the tree's steps join, an agent's in its person's.
 ///
 /// # Errors
 ///
@@ -2408,9 +2478,11 @@ async fn closed<E: Environment>(
             units::let_go(shared, &ambient, doomed_for).await;
             Err(units::not_run(refusal, &ambient))
         }
-        (Ok(answer), None) => units::close(shared, ambient, asked.acting.principal(), &asked.name)
-            .await
-            .map(|()| answer),
+        (Ok(answer), None) => {
+            units::close(shared, ambient, asked.acting.whose_history(), &asked.name)
+                .await
+                .map(|()| answer)
+        }
     }
 }
 
@@ -2486,6 +2558,16 @@ async fn builtin<E: Environment>(
             // statement: no load and no dispatch waits while the query is
             // matched.
             let listed = shared.plugins().registry.listed();
+            // **An agent finds what its session may dispatch now**, decided
+            // as the tree is, on what it had spent; a person finds every
+            // registered command.
+            let listed = if asked.acting.via_agent() {
+                let began = lock(tree).began();
+                crate::session::dispatchable(shared, &asked.acting, asked.spent, began, listed)
+                    .await
+            } else {
+                listed
+            };
             crate::find::found(&listed, &asked.json)
         }
         Some(Builtin::McpRead) => crate::settings::mcp_read(shared).await,

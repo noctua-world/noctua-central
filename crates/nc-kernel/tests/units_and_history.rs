@@ -30,7 +30,7 @@ use nc_kernel::blobs::{BlobStore as _, Hash, MemoryBlobs};
 use nc_kernel::logging::Captured;
 use nc_kernel::manifest::PluginManifest;
 use nc_kernel::{
-    Caller, Environment, Kernel, KernelConfig, Kill, PluginSlot, Refusal, RefusalKind,
+    Caller, Environment, Kernel, KernelConfig, Kill, PluginSlot, Refusal, RefusalKind, Session,
 };
 use nc_local::{
     BlobCreated, Expect, LocalStore, Quotas, StagedWrite, UnitKind, UnitMeta, UnitRecord, UnitRow,
@@ -432,12 +432,51 @@ async fn opened_over<J: History>(
     with_the_peer: bool,
     granted: &str,
 ) -> Fixture<J> {
+    let deciding = Deciding {
+        pdp: family(),
+        the_assistant: false,
+    };
+    opened_deciding(deciding, store, history, limits, with_the_peer, granted).await
+}
+
+/// What a kernel of this suite decides with: its pack, and whether ana's
+/// assistant holds the realm's grant beside ana and carla.
+struct Deciding {
+    pdp: Pdp,
+    the_assistant: bool,
+}
+
+/// The kernel [`opened_over`] answers, deciding as `deciding` says.
+async fn opened_deciding<J: History>(
+    deciding: Deciding,
+    store: LocalStore,
+    history: J,
+    limits: &str,
+    with_the_peer: bool,
+    granted: &str,
+) -> Fixture<J> {
     let pack = family();
     let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
     let shift = Arc::new(AtomicBool::new(false));
+    let granting = |directory: MemoryDirectory| {
+        if deciding.the_assistant {
+            directory
+                .with_grant(
+                    "home",
+                    EntityRef {
+                        type_name: "Agent".to_owned(),
+                        id: "ana-assistant".to_owned(),
+                    },
+                    "g.current",
+                )
+                .expect("the realm holds the grant")
+        } else {
+            directory
+        }
+    };
     let directory = Shifting {
-        written: directory_over(WORLD, &pack),
-        shifted: directory_over(&photo_given_to_carla(), &pack),
+        written: granting(directory_over(WORLD, &pack)),
+        shifted: granting(directory_over(&photo_given_to_carla(), &pack)),
         shift: Arc::clone(&shift),
     };
     if with_the_peer {
@@ -464,7 +503,7 @@ async fn opened_over<J: History>(
     let kernel = Kernel::open(KernelConfig {
         store: store.clone(),
         blobs: Arc::clone(&blobs),
-        pdp: Ok(pack),
+        pdp: Ok(deciding.pdp),
         journal: nc_journal::Journal::new(
             history,
             world.realm_id("home").expect("home is a realm"),
@@ -4550,4 +4589,269 @@ async fn an_operator_frozen_mid_session_freezes_their_agent_at_its_next_call() {
             ),
         ]
     );
+}
+
+/// A permit the family pack does not ship: an agent writes what its operator
+/// owns — the agent's half of the commands a person's own content answers to.
+const AN_AGENT_WRITES: (&str, &str) = (
+    "policy/packs/family/agents_for_tests.cedar",
+    "@id(\"family.an_agent_writes_its_operators_notes\")\n\
+     permit (principal is Agent, action == Action::\"Write\", resource is Content)\n\
+     when { resource.owner == principal.operator };\n",
+);
+
+/// A permit the family pack does not ship: an agent writes the realm — the
+/// agent's half of an undo and a redo.
+const AN_AGENT_UNDOES: (&str, &str) = (
+    "policy/packs/family/agents_undoing_for_tests.cedar",
+    "@id(\"family.an_agent_steps_through_history\")\n\
+     permit (principal is Agent, action == Action::\"Write\", resource is Realm);\n",
+);
+
+/// The core and the family pack as they are on disk, with `extra` beside them:
+/// a decision point the tree does not ship, built through the same compiler.
+fn family_and(extra: &[(&str, &str)]) -> Pdp {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut texts: Vec<(String, String)> = Vec::new();
+    for directory in ["policy/core", "policy/packs/family"] {
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(root.join(directory))
+            .expect("a policy directory")
+            .map(|entry| entry.expect("an entry").path())
+            .filter(|path| path.extension().is_some_and(|kind| kind == "cedar"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            let name = path.file_name().expect("a file").to_string_lossy();
+            texts.push((
+                format!("{directory}/{name}"),
+                std::fs::read_to_string(&path).expect("a readable policy"),
+            ));
+        }
+    }
+    let mut files: Vec<(&str, &str)> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    files.extend_from_slice(extra);
+    Pdp::from_sources_for_tests(
+        include_str!("../../../policy/schema.cedarschema"),
+        &files,
+        "family",
+        include_str!("../../../policy/packs/family/pack.toml"),
+    )
+    .expect("the pack compiles with what the test adds")
+}
+
+/// The reference plugin alone, deciding with `pdp`.
+///
+/// Over the local database in memory, ana's assistant holding the realm's
+/// grant beside ana and carla.
+async fn with_the_assistant(pdp: Pdp) -> Fixture {
+    let deciding = Deciding {
+        pdp,
+        the_assistant: true,
+    };
+    opened_deciding(
+        deciding,
+        in_memory().await,
+        nc_journal::InMemory::default(),
+        "",
+        false,
+        GRANTED,
+    )
+    .await
+}
+
+/// What a test of an agent's session asks of the fixture.
+impl Fixture {
+    /// The session of the world's own agent, `ana-assistant`, for `ana`.
+    async fn the_assistant(&self) -> Session {
+        let ana = self
+            .world
+            .principal(PrincipalKind::User, "ana")
+            .expect("ana is a user of the world");
+        let assistant = EntityRef {
+            type_name: "Agent".to_owned(),
+            id: "ana-assistant".to_owned(),
+        };
+        self.kernel
+            .session(&assistant, &ana)
+            .await
+            .unwrap_or_else(|refused| panic!("ana's assistant acts for her: {refused}"))
+    }
+
+    /// Dispatches `command` with `args` in `session`.
+    async fn by(&self, session: &Session, command: &str, args: &str) -> Result<String, Refusal> {
+        self.kernel.dispatch(session, command, args).await
+    }
+}
+
+/// An agent cannot undo, and its undo reaches nothing of the person's.
+///
+/// **Two refusals, each alone enough**: in the family pack ana's assistant's
+/// undo and redo are refused on its half, no permit naming an agent on the
+/// realm; with a pack that permits them, each is allowed on both halves and
+/// finds no step of the agent's own, since a history is looked up by who
+/// asks. Ana's step is committed and her note as she wrote it, either way.
+#[tokio::test]
+async fn an_agent_cannot_undo_and_its_undo_reaches_nothing_of_the_persons() {
+    for (pdp, refused) in [
+        (
+            family(),
+            [
+                (RefusalKind::Denied, ErrorCode::PolicyDenied),
+                (RefusalKind::Denied, ErrorCode::PolicyDenied),
+            ],
+        ),
+        (
+            family_and(&[AN_AGENT_UNDOES]),
+            [
+                (RefusalKind::NotFound, ErrorCode::KernelNothingToUndo),
+                (RefusalKind::NotFound, ErrorCode::KernelNothingToRedo),
+            ],
+        ),
+    ] {
+        let fixture = with_the_assistant(pdp).await;
+        fixture
+            .as_ana("reference.note.put", &photo("hers"))
+            .await
+            .expect("ana writes her photo");
+        let step = fixture.newest_step().await;
+        let assistant = fixture.the_assistant().await;
+        for (command, (kind, code)) in ["kernel.undo", "kernel.redo"].into_iter().zip(refused) {
+            let answered = fixture.by(&assistant, command, "{}").await;
+            assert!(is(&answered, kind, code), "{command}: {answered:?}");
+        }
+        assert_eq!(fixture.state_of(step.unit).await, UnitState::Committed);
+        assert_eq!(
+            held(&fixture.store, REFERENCE, "note/photo").await,
+            Some(kept_as("hers"))
+        );
+        let entries = fixture.entries().await;
+        let theirs: Vec<&Entry> = entries
+            .iter()
+            .filter(|entry| entry.record.principal.as_str() == "ana-assistant")
+            .collect();
+        assert_eq!(theirs.len(), 2, "{theirs:#?}");
+        for entry in theirs {
+            assert_eq!(
+                entry
+                    .record
+                    .actor_chain
+                    .iter()
+                    .map(OpaqueId::as_str)
+                    .collect::<Vec<_>>(),
+                ["ana"]
+            );
+        }
+    }
+}
+
+/// An agent's step joins its operator's history, and they undo it.
+///
+/// **One history for the person and what acts for them**: with a pack that
+/// lets ana's assistant write what she owns, ana writes her photo and then
+/// her assistant writes it again. The assistant's write is journaled as the
+/// agent's for ana, its unit is ana's newest step and none is the agent's,
+/// and ana's undo takes it back to what she wrote.
+#[tokio::test]
+async fn an_agents_step_joins_its_operators_history_and_they_undo_it() {
+    let fixture = with_the_assistant(family_and(&[AN_AGENT_WRITES])).await;
+    fixture
+        .as_ana("reference.note.put", &photo("hers"))
+        .await
+        .expect("ana writes her photo");
+    let assistant = fixture.the_assistant().await;
+    fixture
+        .by(&assistant, "reference.note.put", &photo("the assistant's"))
+        .await
+        .expect("the assistant writes what ana owns");
+    let step = fixture.newest_step().await;
+    let entries = fixture.entries().await;
+    let written = entries_of(&entries, "reference.note.put", Outcome::Allowed);
+    assert_eq!(written.len(), 2, "{written:#?}");
+    let theirs = written[1];
+    assert_eq!(theirs.record.principal.as_str(), "ana-assistant");
+    assert_eq!(
+        theirs
+            .record
+            .actor_chain
+            .iter()
+            .map(OpaqueId::as_str)
+            .collect::<Vec<_>>(),
+        ["ana"]
+    );
+    assert_eq!(
+        theirs.record.work_unit,
+        Some(step.unit),
+        "ana's newest step"
+    );
+    let the_agent = fixture
+        .world
+        .principal(PrincipalKind::Agent, "ana-assistant")
+        .expect("an agent of the world");
+    let agents = fixture
+        .store
+        .units(&home(), the_agent.id(), 10)
+        .await
+        .expect("the store answers");
+    assert_eq!(agents, [], "the agent has no history of its own");
+    let undone = fixture
+        .undo()
+        .await
+        .expect("ana undoes her assistant's step");
+    assert_eq!(undone, reversed_as(step.unit, 1, 0, 0, 0));
+    assert_eq!(
+        held(&fixture.store, REFERENCE, "note/photo").await,
+        Some(kept_as("hers"))
+    );
+}
+
+/// A compensation registered in an agent's tree is refused, and their undo
+/// runs nothing it named.
+///
+/// **Nothing an agent arranges is dispatched later as the person alone**: with
+/// a pack that lets ana's assistant write what she owns, the assistant sends a
+/// request and names its compensation. The plugin is told `[NC-KERN-0026]`,
+/// which the log records, and the request is sent all the same — so the step
+/// left the machine with nothing to set it right, and ana's undo stops at it,
+/// dispatching nothing it named.
+#[tokio::test]
+async fn a_compensation_registered_in_an_agents_tree_is_refused_and_their_undo_runs_nothing_it_named()
+ {
+    let fixture = with_the_assistant(family_and(&[AN_AGENT_WRITES])).await;
+    let assistant = fixture.the_assistant().await;
+    let posted = fixture
+        .by(
+            &assistant,
+            "reference.compensated.post",
+            &compensated_post(None),
+        )
+        .await
+        .expect("the assistant sends the request");
+    let registered = field(&posted, "compensation")
+        .into_text()
+        .unwrap_or_else(|| panic!("what the plugin was told: {posted}"));
+    assert!(
+        registered.contains(&format!("[{}]", ErrorCode::KernelCompensationForAnAgent)),
+        "{registered}"
+    );
+    assert_eq!(
+        fixture.logged("kernel.host_call_refused", "code"),
+        [ErrorCode::KernelCompensationForAnAgent.code()]
+    );
+    let step = fixture.newest_step().await;
+    let refused = fixture.undo().await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::KernelUndoBarrier),
+        "{refused:?}"
+    );
+    assert_eq!(fixture.state_of(step.unit).await, UnitState::Committed);
+    let entries = fixture.entries().await;
+    assert_eq!(
+        entries_of(&entries, "reference.note.put", Outcome::Allowed),
+        [] as [&Entry; 0],
+        "no compensation was dispatched"
+    );
+    assert_eq!(held(&fixture.store, REFERENCE, "note/photo").await, None);
 }

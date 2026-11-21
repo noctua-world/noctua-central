@@ -307,6 +307,8 @@ pub enum ErrorCode {
     KernelCompensationUngranted,
     /// NC-KERN-0025 — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it
     KernelOnlyAtTheTop,
+    /// NC-KERN-0026 — A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone
+    KernelCompensationForAnAgent,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -519,6 +521,7 @@ impl ErrorCode {
         Self::KernelCompensationMoved,
         Self::KernelCompensationUngranted,
         Self::KernelOnlyAtTheTop,
+        Self::KernelCompensationForAnAgent,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -691,6 +694,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => "NC-KERN-0023",
             Self::KernelCompensationUngranted => "NC-KERN-0024",
             Self::KernelOnlyAtTheTop => "NC-KERN-0025",
+            Self::KernelCompensationForAnAgent => "NC-KERN-0026",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -864,6 +868,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => "KERN",
             Self::KernelCompensationUngranted => "KERN",
             Self::KernelOnlyAtTheTop => "KERN",
+            Self::KernelCompensationForAnAgent => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -1235,6 +1240,9 @@ impl ErrorCode {
             Self::KernelOnlyAtTheTop => {
                 "A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
             }
+            Self::KernelCompensationForAnAgent => {
+                "A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
+            }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
             Self::PluginCapabilityDenied => {
@@ -1474,6 +1482,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => "error.kernel.compensation-moved",
             Self::KernelCompensationUngranted => "error.kernel.compensation-ungranted",
             Self::KernelOnlyAtTheTop => "error.kernel.only-at-the-top",
+            Self::KernelCompensationForAnAgent => "error.kernel.compensation-for-an-agent",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1647,6 +1656,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => Severity::Warning,
             Self::KernelCompensationUngranted => Severity::Warning,
             Self::KernelOnlyAtTheTop => Severity::Warning,
+            Self::KernelCompensationForAnAgent => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1820,6 +1830,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => false,
             Self::KernelCompensationUngranted => false,
             Self::KernelOnlyAtTheTop => false,
+            Self::KernelCompensationForAnAgent => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -1993,6 +2004,7 @@ impl ErrorCode {
             Self::KernelCompensationMoved => &[],
             Self::KernelCompensationUngranted => &[],
             Self::KernelOnlyAtTheTop => &[],
+            Self::KernelCompensationForAnAgent => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

@@ -148,7 +148,8 @@ pub enum UnitState {
 pub struct UnitMeta {
     /// The realm it ran in.
     pub realm: OpaqueId,
-    /// The principal it ran as.
+    /// Whose history the unit is in: the principal it ran as, or the person
+    /// an agent ran it for.
     pub principal: OpaqueId,
     /// Step, undo or redo.
     pub kind: UnitKind,

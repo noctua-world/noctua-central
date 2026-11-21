@@ -56,7 +56,11 @@
 //! unless it is granted `commands.dispatch` too**: the undo dispatches it as
 //! the person, so naming another's command is a dispatch put off until then,
 //! refused with `[NC-PLUG-0001]` before anything else of that command is
-//! judged. Nothing runs it now: an abort does not, and an undo of the step
+//! judged. **And never in a call tree acting for an agent**, refused with
+//! `[NC-KERN-0026]` before the command it names is judged: the undo would
+//! dispatch it as the person alone, the agent's dispatch put off and decided
+//! without the agent, so an agent's step is undone by its images or is a
+//! barrier. Nothing runs it now: an abort does not, and an undo of the step
 //! does, nested, through the decision point — and only while the plugin that
 //! held the command when it was registered holds it still, whoever takes an
 //! unloaded plugin's namespace meanwhile (`crate::history`).
@@ -68,9 +72,10 @@
 //!
 //! What this answers (`NOCTUA.md §2.4`): half-applied state — a plugin that
 //! stops part-way, or drops what it began, leaves its tree's unit unkept — a
-//! plugin that holds the kernel's memory by beginning without end, and one not
+//! plugin that holds the kernel's memory by beginning without end, one not
 //! granted `commands.dispatch` having another plugin's command dispatched as
-//! the person by naming it as a compensation. What it does not answer: a
+//! the person by naming it as a compensation, and an agent's call tree having
+//! anything dispatched later as its person alone. What it does not answer: a
 //! plugin that commits a group whose work it got wrong, which is its own code;
 //! a compensation that does not set right what its step did; and which
 //! commands are registered, which a plugin not granted `commands.dispatch`
@@ -200,6 +205,23 @@ fn ended(function: &str) -> KernelError {
              in a command that has returned"
         ),
     ))
+}
+
+/// The refusal of a compensation registered in a call tree acting for an
+/// agent.
+///
+/// **Before the command it names is judged**, so the plugin learns nothing of
+/// it: an undo dispatches a compensation as the person who asks, and one an
+/// agent's tree registered would be the agent's dispatch put off and decided
+/// without it.
+fn for_an_agent() -> Refusal {
+    Refusal::new(
+        RefusalKind::Denied,
+        ErrorCode::KernelCompensationForAnAgent,
+        "a compensation is never registered in a call tree acting for an agent: the undo would \
+         dispatch it as the person alone"
+            .to_owned(),
+    )
 }
 
 impl<E: Environment> HostState<E> {
@@ -343,6 +365,9 @@ impl<E: Environment> world::HostUnit for HostState<E> {
             Found::Held(_) => {}
             Found::Ended => return Err(ended(FUNCTION)),
             Found::NeverIssued => return Err(KernelError::Trap(not_issued(FUNCTION))),
+        }
+        if self.frame().is_some_and(|frame| frame.acting().via_agent()) {
+            return Err(self.refused_here(FUNCTION, &for_an_agent()));
         }
         let kernel = self.frame().and_then(crate::dispatch::Frame::kernel);
         let Some(kernel) = kernel else {
@@ -787,6 +812,51 @@ mod tests {
         assert!(
             refused_as(&answer, internal, ErrorCode::KernelUnitAborted),
             "{answer:?}"
+        );
+    }
+
+    /// A compensation registered in a call tree acting for an agent is refused,
+    /// and its unit holds none.
+    ///
+    /// **Before anything of the command it names is asked**: the refusal is
+    /// `[NC-KERN-0026]`, recorded as a call refused for where it ran, and the
+    /// unit and the tree are as they were. The control is the same call in a
+    /// person's tree, which gets past the guard to the kernel it asks of the
+    /// command — none here, so it is refused as the unit's loss.
+    #[tokio::test]
+    async fn a_compensation_in_an_agents_tree_is_refused_before_its_command_is_asked() {
+        let mut state = HostState::in_memory(GrantSet::of([
+            Capability::CommandsDispatch,
+            Capability::CommandsBegin,
+        ]));
+        let frame = Frame::for_agent_tests(true, Some(unit()));
+        let tree = frame.tree_for_tests();
+        state.enter(frame);
+        let begun = state.begin("a step".to_owned()).await.expect("begun");
+        let answer = state
+            .compensate_with(begun, "a.b".to_owned(), "{}".to_owned())
+            .await;
+        assert!(
+            denied_with(&answer, ErrorCode::KernelCompensationForAnAgent),
+            "{answer:?}"
+        );
+        assert_eq!(
+            state.calls_refused(),
+            [ErrorCode::KernelCompensationForAnAgent]
+        );
+        let registered = crate::dispatch::lock(&tree)
+            .unit()
+            .map(crate::units::Ambient::compensations_registered);
+        assert_eq!(registered, Some(Vec::new()), "the unit holds none");
+        assert_eq!(doomed(&tree), None, "and stands as it was");
+        let (mut state, _tree) = in_a_change();
+        let unit = state.begin("a step".to_owned()).await.expect("begun");
+        let answer = state
+            .compensate_with(unit, "a.b".to_owned(), "{}".to_owned())
+            .await;
+        assert!(
+            refused_as(&answer, internal, ErrorCode::KernelUnitAborted),
+            "the control, in a person's tree: {answer:?}"
         );
     }
 

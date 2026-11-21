@@ -38,7 +38,7 @@ impl<E: Environment> world::Host for HostState<E> {
             topic,
             data,
             publisher: frame.slot(),
-            principal: frame.principal(),
+            acting: frame.acting(),
             authority: frame.authority().clone(),
         };
         crate::events::publish(&kernel, &mut frame.tree(), event)

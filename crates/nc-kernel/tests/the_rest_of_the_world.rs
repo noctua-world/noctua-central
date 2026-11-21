@@ -7,7 +7,10 @@
 //! subscribed to the other's topics — over the local database held in memory,
 //! deciding with the family pack over `policy/world.json`, at a clock a test
 //! moves. A directory beside the world's can take `ana`'s grant away, which is
-//! how a test shows a timer or an event decided again when it comes due.
+//! how a test shows a timer or an event decided again when it comes due. The
+//! world's own agent of ana's acts through a session, so a test shows what an
+//! agent's tree put off decided for it and for ana when it comes due, spending
+//! from its budget, and its steps in ana's history.
 //!
 //! **What a test asserts is what was kept.** A callback is shown to have run,
 //! and as whom, by the lines it wrote to its plugin's log and the entries its
@@ -32,9 +35,11 @@ use nc_kernel::logging::Captured;
 use nc_kernel::manifest::PluginManifest;
 use nc_kernel::{
     Caller, Environment, Kernel, KernelConfig, LogLevel, PluginSlot, Pumped, Refusal, RefusalKind,
-    SurfaceKind,
+    Session, SurfaceKind,
 };
-use nc_local::{Expect, LocalStore, Quotas, StagedWrite, UnitKind, UnitMeta, UnitRecord};
+use nc_local::{
+    Expect, LocalStore, Quotas, StagedWrite, UnitKind, UnitMeta, UnitRecord, UnitState,
+};
 use nc_plugin_reference::behaviour::{ACTIVATION, Activation, Variant};
 
 /// The world every policy case is about.
@@ -367,9 +372,15 @@ async fn opened() -> Fixture {
 /// The kernel [`opened`] answers, deciding with `pdp`, with each of `agents`
 /// — agents of the world — granted `g.current` beside the persons.
 async fn opened_deciding(pdp: Pdp, agents: &[&str]) -> Fixture {
+    opened_in(WORLD, pdp, agents).await
+}
+
+/// The kernel [`opened_deciding`] answers, over the world `text` rather than
+/// the one the policy cases are about.
+async fn opened_in(text: &str, pdp: Pdp, agents: &[&str]) -> Fixture {
     let pack = family();
-    let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
-    let mut directory = MemoryDirectory::from_world(WORLD, &pack)
+    let world = MemoryDirectory::from_world(text, &pack).expect("the world is valid");
+    let mut directory = MemoryDirectory::from_world(text, &pack)
         .expect("the world is valid")
         .with_epoch("home", 7);
     let persons = ["ana", "bruno", "carla"].map(|person| ("User", person));
@@ -497,6 +508,22 @@ impl Fixture {
         self.kernel
             .dispatch(&Caller::new(self.principal(name)), command, args)
             .await
+    }
+
+    /// The session of the world's own agent, `ana-assistant`, for `ana`.
+    async fn the_assistant(&self) -> Session {
+        self.kernel
+            .session(&agent("ana-assistant"), &self.principal("ana"))
+            .await
+            .unwrap_or_else(|refused| panic!("ana's assistant acts for her: {refused}"))
+    }
+
+    /// Dispatches `command` with `args` in `session`, which must answer.
+    async fn by(&self, session: &Session, command: &str, args: &str) -> String {
+        self.kernel
+            .dispatch(session, command, args)
+            .await
+            .unwrap_or_else(|refused| panic!("`{command}` answers the session: {refused}"))
     }
 
     /// Dispatches `command` with `args` as `ana`, which must answer.
@@ -2306,12 +2333,58 @@ async fn an_undo_leaves_what_its_step_set_going_as_it_is() {
     );
 }
 
-/// The core and the family pack as they are on disk, and one permit more.
-///
-/// The permit the pack does not ship lets an agent write what its operator
-/// owns: the agent's half of the commands a person's own content answers
-/// to.
-fn family_and_an_agent_writing() -> Pdp {
+/// The world's agent called `id`, as a session names it.
+fn agent(id: &str) -> EntityRef {
+    EntityRef {
+        type_name: "Agent".to_owned(),
+        id: id.to_owned(),
+    }
+}
+
+/// The world the policy cases are about, with ana's assistant holding a
+/// budget of `budget` and a second agent of hers, `ana-helper`, in the
+/// household beside it.
+fn a_world_where_the_assistant_holds(budget: i64) -> String {
+    let mut world: serde_json::Value = serde_json::from_str(WORLD).expect("the world is JSON");
+    let entities = world.as_array_mut().expect("a list of entities");
+    let assistant = entities
+        .iter_mut()
+        .find(|entity| entity["uid"] == serde_json::json!({"type": "Agent", "id": "ana-assistant"}))
+        .expect("the world holds ana's assistant");
+    assistant["attrs"]["budget_remaining"] = serde_json::Value::from(budget);
+    entities.push(serde_json::json!({
+        "uid": {"type": "Agent", "id": "ana-helper"},
+        "attrs": {
+            "operator": {"__entity": {"type": "User", "id": "ana"}},
+            "autonomy": "supervised",
+            "budget_remaining": 1000
+        },
+        "parents": [{"type": "Realm", "id": "home"}]
+    }));
+    world.to_string()
+}
+
+/// A permit the family pack does not ship: an agent writes what its operator
+/// owns — the agent's half of the commands a person's own content answers to.
+const AN_AGENT_WRITES: (&str, &str) = (
+    "policy/packs/family/agents_for_tests.cedar",
+    "@id(\"family.an_agent_writes_its_operators_notes\")\n\
+     permit (principal is Agent, action == Action::\"Write\", resource is Content)\n\
+     when { resource.owner == principal.operator };\n",
+);
+
+/// A permit the family pack does not ship: an agent writes the realm — the
+/// agent's half of an undo, so that what stands between an agent and its
+/// person's history is shown to be the history's own.
+const AN_AGENT_UNDOES: (&str, &str) = (
+    "policy/packs/family/agents_undoing_for_tests.cedar",
+    "@id(\"family.an_agent_steps_through_history\")\n\
+     permit (principal is Agent, action == Action::\"Write\", resource is Realm);\n",
+);
+
+/// The core and the family pack as they are on disk, with `extra` beside them:
+/// a decision point the tree does not ship, built through the same compiler.
+fn family_and(extra: &[(&str, &str)]) -> Pdp {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut texts: Vec<(String, String)> = Vec::new();
     for directory in ["policy/core", "policy/packs/family"] {
@@ -2329,104 +2402,472 @@ fn family_and_an_agent_writing() -> Pdp {
             ));
         }
     }
-    texts.push((
-        "policy/packs/family/agents_for_tests.cedar".to_owned(),
-        "@id(\"family.an_agent_writes_its_operators_notes\")\n\
-         permit (principal is Agent, action == Action::\"Write\", resource is Content)\n\
-         when { resource.owner == principal.operator };\n"
-            .to_owned(),
-    ));
-    let files: Vec<(&str, &str)> = texts
+    let mut files: Vec<(&str, &str)> = texts
         .iter()
         .map(|(path, text)| (path.as_str(), text.as_str()))
         .collect();
+    files.extend_from_slice(extra);
     Pdp::from_sources_for_tests(
         include_str!("../../../policy/schema.cedarschema"),
         &files,
         "family",
         include_str!("../../../policy/packs/family/pack.toml"),
     )
-    .expect("the pack compiles with the permit beside it")
+    .expect("the pack compiles with what the test adds")
 }
 
-/// An agent's timer is refused until its tree is decided for both.
+/// Who an entry says acted, on whose behalf, and what decided it.
+type Decided<'a> = (Outcome, &'a str, Vec<&'a str>, Option<&'a str>);
+
+/// What each entry of `command` among `entries` says: its result, who acted,
+/// on whose behalf and what decided it.
+fn decided<'a>(entries: &'a [Entry], command: &str) -> Vec<Decided<'a>> {
+    entries_of(entries, command)
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.record.result,
+                entry.record.principal.as_str(),
+                entry
+                    .record
+                    .actor_chain
+                    .iter()
+                    .map(OpaqueId::as_str)
+                    .collect(),
+                entry.record.deciding_policy.as_deref(),
+            )
+        })
+        .collect()
+}
+
+/// What decides ana's assistant's read of the photo, the household's: the
+/// household's read permit on its half, and on ana's the same beside her
+/// owner's permit.
+const READ_FOR_BOTH: &str = "family.a_member_reads_shared_content;\
+                             family.a_member_reads_shared_content,\
+                             family.an_owner_governs_their_own_content";
+
+/// A timer fired for a session spends from its budget, and one past it is
+/// refused.
 ///
-/// **What an agent's tree puts off fails closed**: with a pack that lets ana's
-/// assistant write what she owns, its session sets a timer on the photo — the
-/// set decided on both halves — and the timer is kept as the agent acting
-/// alone, so when it comes due it is decided unmarked, refused by
-/// `core.an_agent_never_impersonates`, journaled as the agent's with no chain,
-/// and cancelled: its callback never runs.
+/// **Each firing is one unit, and the core refuses the one past the budget**:
+/// ana's assistant, holding three, sets a repeating timer — its call is one —
+/// and the timer fires twice, each spending one, before the firing past the
+/// budget is refused by `core.budget_is_a_permission`, journaled as the
+/// agent's for ana, and the timer is cancelled.
 #[tokio::test]
-async fn an_agents_timer_is_refused_until_its_tree_is_decided_for_both() {
-    let fixture = opened_deciding(family_and_an_agent_writing(), &["ana-assistant"]).await;
-    let session = fixture
-        .kernel
-        .session(
-            &EntityRef {
-                type_name: "Agent".to_owned(),
-                id: "ana-assistant".to_owned(),
-            },
-            &fixture.principal("ana"),
-        )
-        .await
-        .expect("ana's assistant acts for her");
+async fn a_timer_fired_for_a_session_spends_from_its_budget_and_one_past_it_is_refused() {
+    let fixture = opened_in(
+        &a_world_where_the_assistant_holds(3),
+        family(),
+        &["ana-assistant"],
+    )
+    .await;
+    let session = fixture.the_assistant().await;
     let set = fixture
-        .kernel
-        .dispatch(
+        .by(
             &session,
-            "reference.timer.set",
-            &timer(1_000, "put:peer:photo", &[("every", Value::Bool(true))]),
+            "reference.timer.remind",
+            &timer(1_000, "log", &[("every", Value::Bool(true))]),
         )
-        .await
-        .expect("the assistant sets a timer on what ana owns");
+        .await;
     assert_eq!(timers_set(&set).len(), 1, "{set}");
+    assert_eq!(session.spent(), 1, "the call that set it");
+    for spent in [2, 3] {
+        fixture.clock.advance(1_000);
+        let pumped = fixture.pump().await;
+        assert_eq!((pumped.fired, pumped.refused), (1, 0), "{pumped:?}");
+        assert_eq!(session.spent(), spent, "one for the firing");
+    }
     fixture.clock.advance(1_000);
     let pumped = fixture.pump().await;
     assert_eq!((pumped.fired, pumped.refused), (0, 1), "{pumped:?}");
-    assert_eq!(fixture.held(PEER, "note/photo").await, None);
-    let entries = fixture.entries().await;
-    let decided: Vec<(Outcome, &str, Vec<&str>, Option<&str>)> =
-        entries_of(&entries, "reference.timer.set")
-            .into_iter()
-            .map(|entry| {
-                (
-                    entry.record.result,
-                    entry.record.principal.as_str(),
-                    entry
-                        .record
-                        .actor_chain
-                        .iter()
-                        .map(OpaqueId::as_str)
-                        .collect(),
-                    entry.record.deciding_policy.as_deref(),
-                )
-            })
-            .collect();
-    assert_eq!(
-        decided,
-        [
-            (
-                Outcome::Allowed,
-                "ana-assistant",
-                vec!["ana"],
-                Some(
-                    "family.an_agent_writes_its_operators_notes;\
-                     family.an_owner_governs_their_own_content"
-                )
-            ),
-            (
-                Outcome::Denied,
-                "ana-assistant",
-                vec![],
-                Some("core.an_agent_never_impersonates")
-            ),
-        ]
-    );
+    assert_eq!(session.spent(), 4, "the firing refused spent too");
     fixture.clock.advance(1_000);
     assert_eq!(
         fixture.pump().await,
         Pumped::default(),
         "the timer refused once is cancelled"
     );
+    assert_eq!(
+        fixture.lines_opening(fixture.reference, "timer"),
+        ["timer log fired for ana-assistant, confirmed false"; 2]
+    );
+    let entries = fixture.entries().await;
+    assert_eq!(
+        decided(&entries, "reference.timer.remind"),
+        [
+            (
+                Outcome::Allowed,
+                "ana-assistant",
+                vec!["ana"],
+                Some(READ_FOR_BOTH)
+            ),
+            (
+                Outcome::Denied,
+                "ana-assistant",
+                vec!["ana"],
+                Some("core.budget_is_a_permission")
+            ),
+        ]
+    );
+}
+
+/// An event delivered for a session spends one, whatever its subscribers.
+///
+/// **The event is the unit, not who hears it**: ana's assistant announces an
+/// event two plugins subscribed to, and its delivery spends one unit of the
+/// session's budget, decided again once, and each subscriber hears it as the
+/// agent.
+#[tokio::test]
+async fn an_event_delivered_for_a_session_spends_one_whatever_its_subscribers() {
+    let fixture = opened_deciding(family(), &["ana-assistant"]).await;
+    let third = "noctua:reference-third";
+    let activation = Activation {
+        namespace: "third".to_owned(),
+        variant: Variant::Normal,
+        subscribe: vec!["reference.*".to_owned()],
+    };
+    seeded(&fixture.store, third, ACTIVATION, &activation.written()).await;
+    let listening = fixture
+        .kernel
+        .load(
+            manifest(third, "third", "reference.*"),
+            &nc_kernel::component_for_tests("reference"),
+        )
+        .await
+        .unwrap_or_else(|refused| panic!("a third plugin loads: {refused}"));
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.event.announce",
+            &event("reference.counted", &[]),
+        )
+        .await;
+    assert_eq!(session.spent(), 1, "the call that announced it");
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.delivered, pumped.refused), (2, 0), "{pumped:?}");
+    assert_eq!(
+        session.spent(),
+        2,
+        "one for the event, two subscribers heard"
+    );
+    for slot in [fixture.peer, listening] {
+        assert_eq!(
+            fixture.lines_opening(slot, "heard"),
+            ["heard reference.counted {} for ana-assistant, confirmed false"],
+            "{slot:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    assert_eq!(
+        decided(&entries, "reference.event.announce").len(),
+        1,
+        "its one delivery, allowed, journals nothing more"
+    );
+}
+
+/// An agent's timer whose operator lost the authority is cancelled, and
+/// journaled with both.
+///
+/// **Decided again for every link when it comes due**: ana's assistant sets a
+/// timer on the photo, decided on both halves; ana's grant is then
+/// withdrawn, and the firing is refused on her half — the entry naming the
+/// agent, ana as its chain and both segments — and the timer is cancelled.
+#[tokio::test]
+async fn an_agents_timer_whose_operator_lost_the_authority_is_cancelled_and_journaled_with_both() {
+    let fixture = opened_deciding(family(), &["ana-assistant"]).await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.timer.remind",
+            &timer(1_000, "log", &[]),
+        )
+        .await;
+    fixture.revoked.store(true, Ordering::SeqCst);
+    fixture.clock.advance(1_000);
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.fired, pumped.refused), (0, 1), "{pumped:?}");
+    assert_eq!(
+        fixture.lines_opening(fixture.reference, "timer"),
+        [] as [String; 0]
+    );
+    let entries = fixture.entries().await;
+    assert_eq!(
+        decided(&entries, "reference.timer.remind"),
+        [
+            (
+                Outcome::Allowed,
+                "ana-assistant",
+                vec!["ana"],
+                Some(READ_FOR_BOTH)
+            ),
+            (
+                Outcome::Denied,
+                "ana-assistant",
+                vec!["ana"],
+                Some("family.a_member_reads_shared_content;core.provenance")
+            ),
+        ]
+    );
+    fixture.revoked.store(false, Ordering::SeqCst);
+    fixture.clock.advance(1_000);
+    assert_eq!(
+        fixture.pump().await,
+        Pumped::default(),
+        "cancelled, though ana's grant is back"
+    );
+}
+
+/// An agent's event is dropped once its operator lost the authority.
+///
+/// **Decided again for every link before anyone hears it**: ana's assistant
+/// announces an event; ana's grant is withdrawn before the pump, and the
+/// delivery is refused on her half, journaled with both segments, and no
+/// subscriber hears it.
+#[tokio::test]
+async fn an_agents_event_is_dropped_once_its_operator_lost_the_authority() {
+    let fixture = opened_deciding(family(), &["ana-assistant"]).await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.event.announce",
+            &event("reference.counted", &[]),
+        )
+        .await;
+    fixture.revoked.store(true, Ordering::SeqCst);
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.delivered, pumped.refused), (0, 1), "{pumped:?}");
+    assert_eq!(
+        fixture.lines_opening(fixture.peer, "heard"),
+        [] as [String; 0]
+    );
+    let entries = fixture.entries().await;
+    assert_eq!(
+        decided(&entries, "reference.event.announce"),
+        [
+            (
+                Outcome::Allowed,
+                "ana-assistant",
+                vec!["ana"],
+                Some(READ_FOR_BOTH)
+            ),
+            (
+                Outcome::Denied,
+                "ana-assistant",
+                vec!["ana"],
+                Some("family.a_member_reads_shared_content;core.provenance")
+            ),
+        ]
+    );
+}
+
+/// The actor chain a plugin reads is the one the journal records.
+///
+/// **One chain, written by the kernel, read twice**: ana's assistant reads its
+/// context, as itself for ana and then through a second agent of hers — a
+/// chain only the test door builds — and the plugin is told the agent as the
+/// principal, each link outermost first and no confirmation, which is the
+/// principal and the chain the entry of each call records.
+#[tokio::test]
+async fn the_actor_chain_a_plugin_reads_is_the_one_the_journal_records() {
+    let fixture = opened_in(
+        &a_world_where_the_assistant_holds(1000),
+        family(),
+        &["ana-assistant", "ana-helper"],
+    )
+    .await;
+    let session = fixture.the_assistant().await;
+    let helper = fixture
+        .world
+        .principal(PrincipalKind::Agent, "ana-helper")
+        .expect("an agent of the world");
+    let deeper = session
+        .through_for_tests(vec![helper])
+        .expect("a chain of two");
+    let args = r#"{"note":"photo"}"#;
+    let mut read = Vec::new();
+    for asked in [&session, &deeper] {
+        let answer = fixture.by(asked, "reference.context.read", args).await;
+        assert_eq!(field(&answer, "confirmed"), Value::Bool(false), "{answer}");
+        let chain: Vec<String> = field(&answer, "actor_chain")
+            .into_array()
+            .unwrap_or_else(|| panic!("a list: {answer}"))
+            .into_iter()
+            .map(|link| link.into_text().expect("a link's identifier"))
+            .collect();
+        read.push((text(&answer, "principal"), chain));
+    }
+    assert_eq!(
+        read,
+        [
+            ("ana-assistant".to_owned(), vec!["ana".to_owned()]),
+            (
+                "ana-assistant".to_owned(),
+                vec!["ana".to_owned(), "ana-helper".to_owned()]
+            ),
+        ]
+    );
+    let entries = fixture.entries().await;
+    let recorded: Vec<(String, Vec<String>)> = decided(&entries, "reference.context.read")
+        .into_iter()
+        .map(|(result, principal, chain, _)| {
+            assert_eq!(result, Outcome::Allowed);
+            (
+                principal.to_owned(),
+                chain.into_iter().map(str::to_owned).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(recorded, read, "what the plugin read is what was journaled");
+}
+
+/// An agent's timer callback is never confirmed.
+///
+/// **Not in a callback, and not for an agent**: the callback of a timer ana's
+/// assistant set reads its context as the agent, confirmed by nobody.
+#[tokio::test]
+async fn an_agents_timer_callback_is_never_confirmed() {
+    let fixture = opened_deciding(family(), &["ana-assistant"]).await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.timer.remind",
+            &timer(1_000, "log", &[]),
+        )
+        .await;
+    fixture.clock.advance(1_000);
+    assert_eq!(fixture.pump().await.fired, 1);
+    assert_eq!(
+        fixture.lines_opening(fixture.reference, "timer"),
+        ["timer log fired for ana-assistant, confirmed false"]
+    );
+}
+
+/// An agent's event callback is never confirmed.
+///
+/// **Not in a callback, and not for an agent**: a plugin hearing an event
+/// ana's assistant announced reads its context as the agent, confirmed by
+/// nobody.
+#[tokio::test]
+async fn an_agents_event_callback_is_never_confirmed() {
+    let fixture = opened_deciding(family(), &["ana-assistant"]).await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.event.announce",
+            &event("reference.counted", &[]),
+        )
+        .await;
+    assert_eq!(fixture.pump().await.delivered, 1);
+    assert_eq!(
+        fixture.lines_opening(fixture.peer, "heard"),
+        ["heard reference.counted {} for ana-assistant, confirmed false"]
+    );
+}
+
+/// An agent's timer step joins its operator's history, and they undo it.
+///
+/// **The step a callback keeps is its person's**: with a pack that lets ana's
+/// assistant write what she owns and write the realm, the assistant sets a
+/// timer whose callback groups two writes of the peer's note in a unit of its
+/// own. The writes are journaled as the agent's for ana, and the unit is a
+/// step of ana's history; the assistant's own undo is allowed on both halves
+/// and finds no step of its own, leaving hers as it was, and ana's undo takes
+/// the step back.
+#[tokio::test]
+async fn an_agents_timer_step_joins_its_operators_history_and_they_undo_it() {
+    let fixture = opened_deciding(
+        family_and(&[AN_AGENT_WRITES, AN_AGENT_UNDOES]),
+        &["ana-assistant"],
+    )
+    .await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.timer.set",
+            &timer(1_000, "group:peer:photo", &[]),
+        )
+        .await;
+    fixture.clock.advance(1_000);
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.fired, pumped.failed), (1, 0), "{pumped:?}");
+    let grouped = fixture.held(PEER, "note/photo").await;
+    assert!(grouped.is_some(), "the callback wrote the peer's note");
+    let entries = fixture.entries().await;
+    for command in ["peer.note.put", "peer.note.put-many"] {
+        let written = entries_of(&entries, command);
+        assert_eq!(written.len(), 1, "{command}: {written:#?}");
+        assert_eq!(written[0].record.principal.as_str(), "ana-assistant");
+        assert_eq!(
+            written[0]
+                .record
+                .actor_chain
+                .iter()
+                .map(OpaqueId::as_str)
+                .collect::<Vec<_>>(),
+            ["ana"]
+        );
+    }
+    let unit = entries_of(&entries, "peer.note.put")[0]
+        .record
+        .work_unit
+        .expect("written in the unit the callback began");
+    let ana = fixture.principal("ana");
+    let history = fixture
+        .store
+        .steps(&home(), ana.id(), 10)
+        .await
+        .expect("the store answers");
+    assert_eq!(
+        history.first().map(|step| (step.unit, step.state)),
+        Some((unit, UnitState::Committed)),
+        "the callback's step is ana's newest: {history:#?}"
+    );
+    let theirs = fixture.kernel.dispatch(&session, "kernel.undo", "{}").await;
+    assert!(
+        is(
+            &theirs,
+            RefusalKind::NotFound,
+            ErrorCode::KernelNothingToUndo
+        ),
+        "{theirs:?}"
+    );
+    assert_eq!(fixture.held(PEER, "note/photo").await, grouped);
+    fixture.ana("kernel.undo", "{}").await;
+    assert_eq!(
+        fixture.held(PEER, "note/photo").await,
+        None,
+        "ana's undo took the callback's step back"
+    );
+    let entries = fixture.entries().await;
+    let undone: Vec<(Outcome, &str, Option<&str>)> = entries_of(&entries, "kernel.undo")
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.record.result,
+                entry.record.principal.as_str(),
+                entry.record.deciding_policy.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(undone.len(), 2, "{undone:?}");
+    assert_eq!(
+        (undone[0].0, undone[0].1),
+        (Outcome::Failed, "ana-assistant"),
+        "allowed, and nothing of its own to undo"
+    );
+    assert!(
+        undone[0]
+            .2
+            .is_some_and(|ids| ids.starts_with("family.an_agent_steps_through_history;")),
+        "{undone:?}"
+    );
+    assert_eq!((undone[1].0, undone[1].1), (Outcome::Allowed, "ana"));
 }

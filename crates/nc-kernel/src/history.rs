@@ -14,7 +14,9 @@
 //! after image of every key it wrote and a note of everything else it did
 //! (`crate::units`). Undo finds the newest step of the person asking still
 //! committed, among their newest `undo_history` steps of this realm — steps
-//! alone, so the undos and redos between them push none out of reach — and:
+//! alone, so the undos and redos between them push none out of reach; a step
+//! an agent's call tree kept is its person's, and an agent asking finds none
+//! of its own — and:
 //!
 //! 1. refuses a step whose effects left the machine — a request that asked its
 //!    host to change something, a command that cannot be undone, a command the
@@ -79,7 +81,11 @@
 //! registered and refused at every undo while the diary stays private
 //! (`[NC-KERN-0014]`), its step one no undo reaches past. The registration does
 //! not refuse every compensation needing a quorum's approval: only one the
-//! core's rules hold to it on every resource.
+//! core's rules hold to it on every resource. **None is registered in a call
+//! tree acting for an agent** (`[NC-KERN-0026]`, `crate::host`): the undo would
+//! dispatch it as the person alone, the agent's dispatch put off and decided
+//! without the agent, so such a step is undone by its images, or is a barrier
+//! when it left the machine.
 //!
 //! What this answers (`NOCTUA.md §2.4`): undo used as escalation — only a
 //! person's own steps, only with the authority they hold now, held to what
@@ -744,13 +750,12 @@ async fn recorded<E: Environment>(shared: &Shared<E>, units: &[Snowflake]) -> Re
     Ok(())
 }
 
-/// Authorizes again, now, every action in `authorized`: as `principal`,
-/// holding `held`.
+/// Authorizes again, now, every action in `authorized`: as the undo's or the
+/// redo's own tree acts, holding `held`.
 async fn authorized_now<E: Environment>(
     shared: &Arc<Shared<E>>,
     tree: &Arc<Mutex<CallTree>>,
     name: &str,
-    principal: &Principal,
     authorized: &[(String, EntityRef)],
     held: Held,
 ) -> Result<(), Failure> {
@@ -763,7 +768,6 @@ async fn authorized_now<E: Environment>(
         dispatch::reauthorized(
             shared,
             tree,
-            principal,
             &authority,
             held,
             "what the step changed being authorized again now",
@@ -930,7 +934,7 @@ pub(crate) async fn undo<E: Environment>(
         ));
     }
     recorded(shared, &[step.unit]).await?;
-    authorized_now(shared, tree, UNDO, principal, &notes.authorized, held).await?;
+    authorized_now(shared, tree, UNDO, &notes.authorized, held).await?;
     held_as_left(shared, &detail.images).await?;
     let unpinned = unpinned(shared, step.unit, &notes.made).await?;
     let (unit, writes) = staged(tree, &detail.images)?;
@@ -1110,7 +1114,7 @@ pub(crate) async fn redo<E: Environment>(
     }
     recorded(shared, &[step.row.unit, undo.row.unit]).await?;
     let notes = read(&step.notes)?;
-    authorized_now(shared, tree, REDO, principal, &notes.authorized, held).await?;
+    authorized_now(shared, tree, REDO, &notes.authorized, held).await?;
     held_as_left(shared, &undo.images).await?;
     let repinned = repinned(shared, &notes.made).await?;
     let (unit, writes) = staged(tree, &undo.images)?;

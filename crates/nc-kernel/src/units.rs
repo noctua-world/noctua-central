@@ -253,7 +253,8 @@ pub(crate) struct Ambient {
 /// every entry it gave the journal was taken, and dropped otherwise. **Never at
 /// once**: a read that armed its timer and queued its event at once would, when
 /// the journal refused its entry — its answer withheld — still have its timer
-/// fire and its event heard as the person, for a dispatch that is in no entry.
+/// fire and its event heard as its tree acted, for a dispatch that is in no
+/// entry.
 #[derive(Debug, Default)]
 pub(crate) struct Later {
     /// The events published, queued once it is released.
@@ -1380,6 +1381,10 @@ fn pinned_by(ambient: &Ambient) -> Vec<BlobCreated> {
 /// Keeps a top-level dispatch's unit: its overlay committed to the store as
 /// one transaction, then its close written to the journal.
 ///
+/// **A step of `principal`'s history**: the person a call tree acts as, or
+/// the one an agent's tree acts for (`crate::session::Acting::whose_history`),
+/// whose undo finds it.
+///
 /// **A close the journal answers with an error may have landed** — a
 /// connection lost after the journal's own commit answers just so — so the
 /// journal is asked how the unit closed before anything is reverted. Closed
@@ -2085,13 +2090,15 @@ mod tests {
             tag: "tag".to_owned(),
             due_ms: 10,
             every_ms: None,
-            principal: nc_authz::MemoryDirectory::from_world(
-                include_str!("../../../policy/world.json"),
-                &pdp,
-            )
-            .expect("the world loads")
-            .principal(nc_authz::PrincipalKind::User, "ana")
-            .expect("ana is a user"),
+            acting: crate::session::Acting::Itself(
+                nc_authz::MemoryDirectory::from_world(
+                    include_str!("../../../policy/world.json"),
+                    &pdp,
+                )
+                .expect("the world loads")
+                .principal(nc_authz::PrincipalKind::User, "ana")
+                .expect("ana is a user"),
+            ),
             authority: crate::dispatch::Authority {
                 command: "reference.timer.set".to_owned(),
                 action: "Write".to_owned(),
@@ -2140,7 +2147,7 @@ mod tests {
             topic: "reference.noted".to_owned(),
             data: "{}".to_owned(),
             publisher: PluginSlot(0),
-            principal: timer.principal.clone(),
+            acting: timer.acting.clone(),
             authority: timer.authority.clone(),
         });
         assert_eq!(ambient.changes(), 1, "an event held is a change");

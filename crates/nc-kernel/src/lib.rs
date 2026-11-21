@@ -20,7 +20,7 @@
 //! [`Session`], which [`Kernel::session`] opens for the person who made the
 //! agent — and `commands.dispatch` is the same door from inside a command: the
 //! decision point authorizes it with Cedar before anything runs, an agent's on
-//! every link of its chain,
+//! every link of its chain and on what its session has spent of its budget,
 //! journals it, and runs a command that changes state inside a unit of work
 //! whose writes are kept whole or not at all. A plugin that traps, spins,
 //! burns its fuel, outgrows its memory or waits on a host call past its
@@ -45,13 +45,15 @@
 //! door, each decided as a plugin's is (`crate::builtin`). A plugin
 //! announces what happened in its own namespace, and an event published in a
 //! unit is queued only when the unit is kept; it sets timers, and is woken as
-//! the person it set them for; it describes what it shows in surfaces, in a
+//! the call tree that set them acted; it describes what it shows in surfaces, in a
 //! closed set of nodes whose interactions name registered commands; it reads
 //! who its call runs for; and it writes to a log of its own, which never
 //! reaches the central one ([`Kernel::plugin_log`]). [`Kernel::pump`] fires the
 //! timers due and delivers the events queued, each callback a call tree of its
 //! own, decided again before it runs, and holds the local database's tables to
-//! their bounds; [`Kernel::surfaces`] lists what every plugin shows, and
+//! their bounds; [`Kernel::dispatchable`] lists the commands an asker may
+//! dispatch now, a probe of the decision point that journals and spends
+//! nothing; [`Kernel::surfaces`] lists what every plugin shows, and
 //! [`Kernel::unload`] takes a plugin out with its commands, timers and
 //! surfaces.
 //!
@@ -63,8 +65,10 @@
 //! learns as a refusal it can read rather than as a crash; a command a plugin
 //! declares is registered only when it can be authorized, in a namespace that
 //! plugin alone holds; an agent is allowed only what it and every one it acts
-//! for are allowed, each asked at the moment of the decision, and redeems no
-//! confirmation and no approval; and no command runs before it is authorized
+//! for are allowed, each asked at the moment of the decision — what its tree
+//! put off included — within its budget, and redeems no confirmation and no
+//! approval, nor has anything of its tree dispatched later as its person
+//! alone; and no command runs before it is authorized
 //! and every one is journaled before its answer is returned, with what it
 //! changed never surviving a journal that did not take it, nor a process
 //! stopped before the journal took its close — but for the cases `crate::units` names as not
@@ -74,7 +78,8 @@
 //! of its own; a blob is said to be on this machine only when it is, and
 //! never to be on another; a plugin's request reaches a public address of a
 //! name its manifest declares, or nothing; an undo reverses only the person's
-//! own steps, with the authority they hold now; and a timer or an event runs
+//! own steps, their agents' among them, with the authority they hold now; and
+//! a timer or an event runs
 //! its callback only under an authority the decision point grants again when
 //! it comes due. **What it does not answer:**
 //! whether a plugin acts on the resource it was authorized for inside its own
@@ -434,6 +439,33 @@ impl<E: Environment> Kernel<E> {
         session::opened(&self.shared, agent, person).await
     }
 
+    /// The commands `asker` may dispatch now whose resource is known without
+    /// arguments and that need no confirmation, in the registry's order.
+    ///
+    /// **A probe of the decision point, and nothing else of a dispatch**: each
+    /// command whose selector is the realm or a feature and that can be undone
+    /// is decided for every link of the asker's chain, on what its session has
+    /// spent, as its dispatch would be — never journaled, spending none of a
+    /// session's budget and redeeming nothing the asker holds. A command that
+    /// takes its resource from an argument is not listed, though a dispatch of
+    /// it is decided as any. What it answers can change at the next call: every
+    /// dispatch is decided again.
+    pub async fn dispatchable<'a>(
+        &self,
+        asker: impl Into<Asker<'a>>,
+    ) -> Vec<registry::RegisteredCommand> {
+        let acting = asker.into().acting();
+        let spent = acting.spent();
+        session::dispatchable(
+            &self.shared,
+            &acting,
+            spent,
+            std::time::Instant::now(),
+            self.registry(),
+        )
+        .await
+    }
+
     /// Loads the plugin `manifest` describes from `component`'s bytes.
     ///
     /// In order: the plugin's identity and namespace must be free, and its
@@ -552,9 +584,10 @@ impl<E: Environment> Kernel<E> {
     /// publishes waits for the next pump — and runs the one pruner last, once
     /// every unit this kernel left committed in the store and open in the
     /// journal is reverted, and not while one stays. Each
-    /// timer and each event is a callback in a call tree of its own, for the
-    /// principal it was set or published for, the authority it was set or
-    /// published under decided again before it runs. A daemon runs it from time
+    /// timer and each event is a callback in a call tree of its own, acting as
+    /// the tree that set or published it acted, the authority it was set or
+    /// published under decided again before it runs — for an agent's, for every
+    /// link of its session's chain, the session spending one unit for it. A daemon runs it from time
     /// to time; nothing here does on its own, and it runs to its end whoever
     /// stops waiting for it.
     pub async fn pump(&self) -> Pumped {

@@ -14,10 +14,17 @@
 //!
 //! **A callback is a call tree of its own, decided before it runs.** Each
 //! timer fired and each event heard by each plugin that subscribed runs in a
-//! tree of its own, for the principal the timer was set for or the event
-//! published for, never confirmed: the decision point first decides again the
-//! authority the timer was set or the event published under, and a denial,
-//! journaled, cancels the timer or drops the event rather than calling anyone.
+//! tree of its own, acting as the tree that set the timer or published the
+//! event acted, never confirmed: the decision point first decides again the
+//! authority the timer was set or the event published under — for an agent's,
+//! once for each link of its chain — and a denial, journaled, cancels the
+//! timer or drops the event rather than calling anyone.
+//!
+//! **An agent's session spends one for each, under the bus**: a timer of its
+//! tree fired, and an event of its tree delivered, once whatever its
+//! subscribers — before it is decided again, so a repeating timer stops at the
+//! budget, refused by the core and cancelled. A step a timer's callback keeps
+//! joins the history of whom its tree acts for, an agent's in its person's.
 //! The callback's frame is beneath every command it dispatches, so each is a
 //! nested dispatch, through the decision point — never `kernel.undo` or
 //! `kernel.redo`, never confirmed — and an event's callback only reads, so no
@@ -52,7 +59,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use nc_authz::Principal;
 use nc_catalog::ErrorCode;
 use nc_ids::Clock as _;
 
@@ -136,11 +142,11 @@ async fn fired<E: Environment>(shared: &Arc<Shared<E>>, pumped: &mut Pumped) {
         let Some(timer) = lock(&shared.timers).fire(id, now_ms) else {
             continue;
         };
-        let tree = tree_for(shared, &timer.principal);
+        let spent = timer.acting.spend();
+        let tree = tree_for(shared, &timer.acting, spent);
         let again = dispatch::reauthorized(
             shared,
             &tree,
-            &timer.principal,
             &timer.authority,
             Held::default(),
             "firing a timer it set being authorized again now",
@@ -156,7 +162,15 @@ async fn fired<E: Environment>(shared: &Arc<Shared<E>>, pumped: &mut Pumped) {
             tag: timer.tag,
             may_change: timer.may_change,
         };
-        if !called_back(shared, owner, &timer.principal, &timer.authority, callback).await {
+        let ended_well = called_back(
+            shared,
+            owner,
+            (&timer.acting, spent),
+            &timer.authority,
+            callback,
+        )
+        .await;
+        if !ended_well {
             pumped.failed = pumped.failed.saturating_add(1);
         }
     }
@@ -173,11 +187,11 @@ async fn delivered<E: Environment>(shared: &Arc<Shared<E>>, queued: usize, pumpe
         if subscribers.is_empty() {
             continue;
         }
-        let tree = tree_for(shared, &event.principal);
+        let spent = event.acting.spend();
+        let tree = tree_for(shared, &event.acting, spent);
         let decided = dispatch::reauthorized(
             shared,
             &tree,
-            &event.principal,
             &event.authority,
             Held::default(),
             "delivering an event it published being authorized again now",
@@ -198,7 +212,7 @@ async fn delivered<E: Environment>(shared: &Arc<Shared<E>>, queued: usize, pumpe
             let ended_well = called_back(
                 shared,
                 subscriber,
-                &event.principal,
+                (&event.acting, spent),
                 &event.authority,
                 callback,
             )
@@ -245,25 +259,31 @@ pub(crate) fn code_of(why: &str) -> ErrorCode {
         .unwrap_or(ErrorCode::DbPruneRefused)
 }
 
-/// A call tree for `principal` acting as itself, begun now, which a callback
-/// runs in and a refusal to run one is journaled in.
-fn tree_for<E: Environment>(shared: &Shared<E>, principal: &Principal) -> Arc<Mutex<CallTree>> {
+/// A call tree acting as `acting`, whose session had spent `spent`, begun
+/// now, which a callback runs in and a refusal to run one is journaled in.
+fn tree_for<E: Environment>(
+    shared: &Shared<E>,
+    acting: &Acting,
+    spent: u64,
+) -> Arc<Mutex<CallTree>> {
     Arc::new(Mutex::new(CallTree::new(
-        Acting::Itself(principal.clone()),
-        0,
+        acting.clone(),
+        spent,
         shared.clock.now_ms(),
     )))
 }
 
-/// Calls `callback` of the plugin in `slot`, as `principal` under `authority`.
+/// Calls `callback` of the plugin in `slot`, acting as `acting` on what its
+/// session had spent, under `authority`.
 ///
 /// In a call tree of its own, answering whether it ended well: it ran to its
-/// end, and the unit it began, if any, was kept. **Its caller starts what a
-/// call tree killed first**, and asks then whether the plugin is stopped.
+/// end, and the unit it began, if any, was kept — as a step of whose history
+/// the tree's steps join. **Its caller starts what a call tree killed first**,
+/// and asks then whether the plugin is stopped.
 async fn called_back<E: Environment>(
     shared: &Arc<Shared<E>>,
     slot: PluginSlot,
-    principal: &Principal,
+    (acting, spent): (&Acting, u64),
     authority: &Authority,
     callback: Callback,
 ) -> bool {
@@ -274,7 +294,7 @@ async fn called_back<E: Environment>(
         Callback::Timer { may_change, .. } => Call::Timer { may_change },
         Callback::Event(..) => Call::Event,
     };
-    let tree = tree_for(shared, principal);
+    let tree = tree_for(shared, acting, spent);
     lock(&tree).calls_back(call);
     instance.enter(Frame::new(
         Arc::downgrade(shared),
@@ -315,7 +335,7 @@ async fn called_back<E: Environment>(
     match (ran, ambient.doomed_for()) {
         (true, None) => {
             let label = shared.plugin_of(slot).unwrap_or_default();
-            units::close(shared, ambient, principal, &label)
+            units::close(shared, ambient, acting.whose_history(), &label)
                 .await
                 .is_ok()
         }
