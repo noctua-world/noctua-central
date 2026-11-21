@@ -1828,13 +1828,14 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// **One minter per flake per process**, which [`Journal::new`] says is the
     /// caller's rule — and a caller that needs an identifier besides the
     /// ones [`Journal::open_unit`] mints would otherwise need a second minter,
-    /// which collides with this one. The kernel has two such callers: a unit's
+    /// which collides with this one. The kernel's callers are a unit's
     /// reversal — when the store has committed a unit and the journal will not
     /// take its close, the kernel commits the unit's reversal at once, as a
     /// unit of its own in the store, and the journal is the thing that cannot
-    /// be written at that moment — and a file's proposed name, whose identifier
-    /// is what the file is from then on (`NOCTUA.md §16.3`). Nothing is
-    /// written here.
+    /// be written at that moment — a file's proposed name, whose identifier is
+    /// what the file is from then on (`NOCTUA.md §16.3`), and an agent and each
+    /// of its grants (`agents.create`, `agents.grant`), all from the machine's
+    /// one minter. Nothing is written here.
     ///
     /// # Errors
     ///

@@ -7,8 +7,9 @@
 //! decided on the platform's feature of the setting's name — `Read` and `Write`
 //! on `Feature::"mcp"`, which the family pack gives every person of the realm
 //! (`family.a_member_switches_mcp`) and no agent or device — and the settings
-//! are the commands of category `noctua.settings`, so there is no second list
-//! of them. The value is one entry of the local store under the holder
+//! are listed under category `noctua.settings`, beside a person's agents'
+//! commands (`crate::agents`), which change who may act for them too, so there
+//! is no second list of them. The value is one entry of the local store under the holder
 //! [`HOLDER`], which no plugin's identity can be (`crate::manifest`), and a
 //! setting never written is its default: MCP is off until a person turns it
 //! on. The store is the channel's profile's own, so a setting switched in one

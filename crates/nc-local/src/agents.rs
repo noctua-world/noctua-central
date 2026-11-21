@@ -135,6 +135,20 @@ pub struct AgentsKept {
     pub grants_kept: u64,
 }
 
+/// A grant to an agent that was ended, and when and by whom.
+///
+/// The grant as it was given, which its end left as it was, and what the end
+/// wrote beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndedGrant {
+    /// The grant, as it was given.
+    pub grant: GrantRow,
+    /// When it was ended, in milliseconds since the Unix epoch.
+    pub ended_at_ms: u64,
+    /// Who ended it.
+    pub ended_by: OpaqueId,
+}
+
 /// Why an agent or a grant was not kept; nothing the call wrote is in the file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeepError {
@@ -239,6 +253,32 @@ impl LocalAgents {
             live,
             grants_kept: as_unsigned(grants_kept, "a count of grants")?,
         })
+    }
+
+    /// Every grant of `realm` that was ended, in the order of their
+    /// identifiers, each with when and by whom.
+    ///
+    /// Each judged as [`kept`](Self::kept) judges a grant, and its end as a
+    /// time and an identifier.
+    ///
+    /// # Errors
+    ///
+    /// [`LocalError::Unexpected`] for a row this build does not write, or a
+    /// file SQLite answers for as damaged; [`LocalError::Unavailable`] when
+    /// the file could not be asked.
+    pub async fn ended_grants(&self, realm: &OpaqueId) -> Result<Vec<EndedGrant>, LocalError> {
+        sqlx::query(
+            "SELECT grant_id, agent, realm, scope_type, scope_id, granted_by, reason, \
+             valid_from, valid_until, ended_at, ended_by FROM main.agent_grants \
+             WHERE realm = ?1 AND ended_at IS NOT NULL ORDER BY grant_id",
+        )
+        .bind(realm.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| said("reading the agents' ended grants", &error))?
+        .iter()
+        .map(ended_row)
+        .collect()
     }
 
     /// Keeps a new agent.
@@ -496,6 +536,18 @@ fn grant_row(row: &SqliteRow) -> Result<GrantRow, LocalError> {
     })
 }
 
+/// One ended grant's row, or why it is not one this build writes.
+fn ended_row(row: &SqliteRow) -> Result<EndedGrant, LocalError> {
+    let at: i64 = row
+        .try_get("ended_at")
+        .map_err(|error| said("reading a grant's end", &error))?;
+    Ok(EndedGrant {
+        grant: grant_row(row)?,
+        ended_at_ms: as_unsigned(at, "a grant's end")?,
+        ended_by: identifier(row, "ended_by", "a grant's end")?,
+    })
+}
+
 /// An identifier the minter gave, out of `column`, or why it is not one.
 fn minted(row: &SqliteRow, column: &str, of: &str) -> Result<Snowflake, LocalError> {
     let value: i64 = row
@@ -520,7 +572,9 @@ fn identifier(row: &SqliteRow, column: &str, of: &str) -> Result<OpaqueId, Local
 
 #[cfg(test)]
 mod tests {
-    use super::{AgentRow, AgentsKept, Bounds, GrantRow, KeepError, LocalAgents, max_rows};
+    use super::{
+        AgentRow, AgentsKept, Bounds, EndedGrant, GrantRow, KeepError, LocalAgents, max_rows,
+    };
     use crate::{LocalError, LocalStore};
     use nc_catalog::ErrorCode;
     use nc_ids::{OpaqueId, Snowflake};
@@ -675,6 +729,89 @@ mod tests {
         assert_eq!(
             ended(&store, 105).await,
             (Some(5_000), Some("ana".to_owned()))
+        );
+        store.close().await;
+    }
+
+    /// An ended grant reads back with when and by whom it ended.
+    ///
+    /// The realm's ended grants alone, in the order of their identifiers — one
+    /// ended by an ending and one by the grant that replaced it, each as it was
+    /// given and with the end the file wrote — never a live one or another
+    /// realm's; and an end the file holds below zero is refused when read.
+    #[tokio::test]
+    async fn an_ended_grant_reads_back_with_when_and_by_whom_it_ended() {
+        let (store, agents) = agents().await;
+        for row in [agent(1, "home", "ana"), agent(2, "work", "ana")] {
+            agents.keep_agent(&row).await.expect("kept");
+        }
+        let (replaced, revoked, abroad) = (
+            grant(10, 1, "home", "naming", 1_000),
+            grant(11, 1, "home", "registry", 1_000),
+            grant(12, 2, "work", "naming", 1_000),
+        );
+        for row in [&replaced, &revoked, &abroad] {
+            agents.keep_grant(row, None).await.expect("kept");
+        }
+        agents
+            .end_grants(&[minted(11)], 2_000, &id("ana"))
+            .await
+            .expect("ended");
+        agents
+            .keep_grant(
+                &grant(13, 1, "home", "naming", 2_500),
+                Some((minted(10), 2_500, &id("carla"))),
+            )
+            .await
+            .expect("kept");
+        agents
+            .end_grants(&[minted(12)], 3_000, &id("ana"))
+            .await
+            .expect("ended");
+
+        assert_eq!(
+            agents.ended_grants(&id("home")).await.expect("read"),
+            [
+                EndedGrant {
+                    grant: replaced,
+                    ended_at_ms: 2_500,
+                    ended_by: id("carla"),
+                },
+                EndedGrant {
+                    grant: revoked,
+                    ended_at_ms: 2_000,
+                    ended_by: id("ana"),
+                },
+            ]
+        );
+        assert_eq!(
+            agents.ended_grants(&id("work")).await.expect("read"),
+            [EndedGrant {
+                grant: abroad,
+                ended_at_ms: 3_000,
+                ended_by: id("ana"),
+            }]
+        );
+        assert_eq!(
+            agents.ended_grants(&id("elsewhere")).await.expect("read"),
+            Vec::<EndedGrant>::new()
+        );
+
+        // Only a writer around the store can leave an end below zero.
+        tamper(
+            &store,
+            "UPDATE main.agent_grants SET ended_at = -1, ended_by = 'ana' WHERE grant_id = 13",
+        )
+        .await
+        .expect("the file takes it");
+        let refused = agents
+            .ended_grants(&id("home"))
+            .await
+            .expect_err("an end below zero");
+        assert_eq!(
+            refused.code(),
+            ErrorCode::DbLocalSchemaUnexpected,
+            "{refused}"
         );
         store.close().await;
     }

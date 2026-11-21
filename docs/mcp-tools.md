@@ -7,6 +7,62 @@ Every command the catalog declares, as the tool definition an MCP session is han
 
 **A session sees only the tools it may dispatch**: a session lists those of these whose resource is known without their arguments, that need no confirmation, and that it may dispatch now, decided when it asks, for the principal it is, as each of its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares its commands at `activate`, so no page lists them, and the daemon's registry holds them while the plugin is loaded (`§15.3`). **Nothing serves these yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).
 
+## `agents.create`
+
+In `en`:
+
+```json
+{"name":"agents_create","description":"Make an agent that acts for you, with a budget of its own.\n\nMakes a new agent of yours: an identity of its own that an MCP client acts as, for you alone. You give it a label and a budget, which each of its sessions spends one at a time, and it can do nothing until you grant it a feature. Only you can make one, asking directly, never from inside another action. An agent is never deleted, so undo stops at the step that made it.","inputSchema":{"type":"object","properties":{"label":{"type":"string","minLength":1,"maxLength":64},"budget":{"type":"integer","minimum":1,"maximum":100000}},"required":["label","budget"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"agents_create","description":"Criar um agente que age por você, com um orçamento próprio.\n\nCria um novo agente seu: uma identidade própria, com a qual um cliente MCP age só por você. Você lhe dá um nome e um orçamento, que cada sessão dele gasta uma unidade por vez, e ele não pode fazer nada até que você lhe dê acesso a um recurso. Só você pode criar um, pedindo diretamente, nunca de dentro de outra ação. Um agente nunca é apagado, então desfazer para no passo que o criou.","inputSchema":{"type":"object","properties":{"label":{"type":"string","minLength":1,"maxLength":64},"budget":{"type":"integer","minimum":1,"maximum":100000}},"required":["label","budget"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `agents.grant`
+
+In `en`:
+
+```json
+{"name":"agents_grant","description":"Let one of your agents use a feature, for a reason and a time you give.\n\nLets one of your agents, named by the identifier Noctua gave it, use one feature for as many minutes as you say, within the longest a grant may run, and keeps why. A new grant on the same feature ends the one before it, and the agent still does only what you yourself may do. Only you can grant it, asking directly, never from inside another action. To take it back, revoke it: undo stops at a grant.","inputSchema":{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64},"minutes":{"type":"integer","minimum":1,"maximum":43200},"reason":{"type":"string","minLength":1,"maxLength":256}},"required":["agent","feature","minutes","reason"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"agents_grant","description":"Deixar um agente seu usar um recurso, por um motivo e um prazo que você dá.\n\nDeixa um agente seu, indicado pelo identificador que o Noctua lhe deu, usar um recurso por quantos minutos você disser, até o prazo mais longo que uma permissão pode ter, e guarda o motivo. Uma nova permissão no mesmo recurso encerra a anterior, e o agente continua fazendo só o que você mesmo pode fazer. Só você pode dar a permissão, pedindo diretamente, nunca de dentro de outra ação. Para retirá-la, revogue: desfazer para numa permissão dada.","inputSchema":{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64},"minutes":{"type":"integer","minimum":1,"maximum":43200},"reason":{"type":"string","minLength":1,"maxLength":256}},"required":["agent","feature","minutes","reason"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `agents.list`
+
+In `en`:
+
+```json
+{"name":"agents_list","description":"Show the agents you made, each with what you granted it and until when.\n\nAnswers every agent you made, in the order you made them, with its label, its budget and each grant you gave it and have not ended, even one whose time is up: its feature, why you gave it, and from when until when. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"agents_list","description":"Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.\n\nResponde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada permissão que você lhe deu e não encerrou, mesmo a que já venceu: o recurso, o motivo e de quando até quando. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `agents.revoke`
+
+In `en`:
+
+```json
+{"name":"agents_revoke","description":"End what you granted one of your agents: one feature, or all of them.\n\nEnds the grant one of your agents holds on the feature you name, or every grant it holds when you name none, from its very next action. The agent itself is kept, with its budget, for you to grant again. Only you can revoke, asking directly, never from inside another action, and undo stops at a revocation.","inputSchema":{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"agents_revoke","description":"Encerrar o que você deu a um agente seu: um recurso, ou todos.\n\nEncerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação.","inputSchema":{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
 ## `journal.verify`
 
 In `en`:

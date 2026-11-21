@@ -73,11 +73,12 @@
 # The commands below are the kernel's own operations: verifying the journal's
 # chain, pruning a table that has passed its limit, stepping back and forward
 # through a person's own history, proposing and reading a file's name, finding
-# a command by any word of its names and tags, and reading and switching a
-# setting of the channel. The
+# a command by any word of its names and tags, reading and switching a setting
+# of the channel, and making, listing, granting and ending what a person's
+# agents may do. The
 # kernel registers every one as its own — a command in the namespaces it keeps,
-# `kernel.`, `journal.`, `limits.`, `naming.` and `settings.`, is the kernel's —
-# decides each at its decision point as it decides
+# `agents.`, `kernel.`, `journal.`, `limits.`, `naming.` and `settings.`, is the
+# kernel's — decides each at its decision point as it decides
 # a plugin's, and runs each one it allows itself: every command here has a
 # handler in `crates/nc-kernel/src/builtin.rs`, and that file's test holds the
 # two lists to each other both ways. A plugin's commands are not written here:
@@ -238,8 +239,9 @@ args_schema = """
 # kernel's own, `settings.<setting>.read` and `settings.<setting>.set`, each on
 # the platform's feature of the setting's name — `Read` and `Write` on
 # `Feature::"mcp"`, which the family pack gives every person of the realm and
-# no agent or device — and the settings are the commands of category
-# `noctua.settings`. Neither reads the realm's data. The value is the kernel's
+# no agent or device — and the settings are listed under category
+# `noctua.settings`, beside a person's agents' commands below. Neither reads the
+# realm's data. The value is the kernel's
 # own entry in the channel's local store, `{"on":false}` until a person writes
 # it, and the set writes it in its unit: a step the person's undo takes back,
 # never one that left the machine, and never irreversible, since nothing could
@@ -275,3 +277,86 @@ reversibility = "write"
 mutating = true
 args_schema = """
 {"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}"""
+
+# The agents a person makes (`NOCTUA.md §14.6`): each an identity of its own,
+# minted by the machine's minter, acting for the person who made it and for no
+# one else, with a label, a budget a session of it spends, and grants each
+# scoped to one feature of the realm, given for a reason and for at most
+# `[kernel] agent_grant_minutes_max`. All four are `Feature::"agents"`'s —
+# `Write`, `Read`, `Grant` and `Revoke`, which the family pack gives every
+# person of the realm and no agent or device — and are listed with the settings,
+# since what they change is who may act for the person. **The three that change
+# run only at the top of a call tree** (`[NC-KERN-0025]`), so no plugin, timer or
+# event run as a person makes, grants or ends an agent in their name; the list
+# is answered anywhere. They change the profile's own database outside every
+# unit, so a step that ran one is one undo stops at, and each is journaled as
+# allowed before it is made, its entry naming the identifiers it made and, for a
+# grant, its window — never the label or the reason. The reverse of a grant is
+# `agents.revoke`. An agent is never deleted.
+#
+# The bounds: a label holds what the table holds, one to 64 characters, and a
+# reason one to 256; a budget is at most `[kernel] agent_budget_max` and a grant
+# runs at most `[kernel] agent_grant_minutes_max` minutes, each held equal to its
+# limit by a test beside the commands (`crates/nc-kernel/src/agents.rs`). An
+# agent is named by the identifier `agents.create` answered, as `to_crockford`
+# writes it — 12 characters for every one minted before about 2034, 13 after —
+# and matched whole, never parsed.
+[[command]]
+name = "agents.create"
+title = "command.agents.create.title"
+description = "command.agents.create.description"
+paragraph = "command.agents.create.paragraph"
+tags = "command.agents.create.tags"
+categories = ["noctua.settings"]
+glyph = "U+F234"   # nf-fa-user_plus
+action = "Write"
+resource_selector = "feature:agents"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"label":{"type":"string","minLength":1,"maxLength":64},"budget":{"type":"integer","minimum":1,"maximum":100000}},"required":["label","budget"],"additionalProperties":false}"""
+
+[[command]]
+name = "agents.list"
+title = "command.agents.list.title"
+description = "command.agents.list.description"
+paragraph = "command.agents.list.paragraph"
+tags = "command.agents.list.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0C0"   # nf-fa-users
+action = "Read"
+resource_selector = "feature:agents"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "agents.grant"
+title = "command.agents.grant.title"
+description = "command.agents.grant.description"
+paragraph = "command.agents.grant.paragraph"
+tags = "command.agents.grant.tags"
+categories = ["noctua.settings"]
+glyph = "U+F084"   # nf-fa-key
+action = "Grant"
+resource_selector = "feature:agents"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64},"minutes":{"type":"integer","minimum":1,"maximum":43200},"reason":{"type":"string","minLength":1,"maxLength":256}},"required":["agent","feature","minutes","reason"],"additionalProperties":false}"""
+
+[[command]]
+name = "agents.revoke"
+title = "command.agents.revoke.title"
+description = "command.agents.revoke.description"
+paragraph = "command.agents.revoke.paragraph"
+tags = "command.agents.revoke.tags"
+categories = ["noctua.settings"]
+glyph = "U+F235"   # nf-fa-user_times
+action = "Revoke"
+resource_selector = "feature:agents"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false}"""

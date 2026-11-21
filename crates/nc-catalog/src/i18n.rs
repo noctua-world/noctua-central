@@ -2050,6 +2050,81 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Settings", "Configurações"],
     ),
     (
+        "command.agents.create.description",
+        [
+            "Make an agent that acts for you, with a budget of its own.",
+            "Criar um agente que age por você, com um orçamento próprio.",
+        ],
+    ),
+    (
+        "command.agents.create.paragraph",
+        [
+            "Makes a new agent of yours: an identity of its own that an MCP client acts as, for you alone. You give it a label and a budget, which each of its sessions spends one at a time, and it can do nothing until you grant it a feature. Only you can make one, asking directly, never from inside another action. An agent is never deleted, so undo stops at the step that made it.",
+            "Cria um novo agente seu: uma identidade própria, com a qual um cliente MCP age só por você. Você lhe dá um nome e um orçamento, que cada sessão dele gasta uma unidade por vez, e ele não pode fazer nada até que você lhe dê acesso a um recurso. Só você pode criar um, pedindo diretamente, nunca de dentro de outra ação. Um agente nunca é apagado, então desfazer para no passo que o criou.",
+        ],
+    ),
+    (
+        "command.agents.create.title",
+        ["Make an agent", "Criar um agente"],
+    ),
+    (
+        "command.agents.grant.description",
+        [
+            "Let one of your agents use a feature, for a reason and a time you give.",
+            "Deixar um agente seu usar um recurso, por um motivo e um prazo que você dá.",
+        ],
+    ),
+    (
+        "command.agents.grant.paragraph",
+        [
+            "Lets one of your agents, named by the identifier Noctua gave it, use one feature for as many minutes as you say, within the longest a grant may run, and keeps why. A new grant on the same feature ends the one before it, and the agent still does only what you yourself may do. Only you can grant it, asking directly, never from inside another action. To take it back, revoke it: undo stops at a grant.",
+            "Deixa um agente seu, indicado pelo identificador que o Noctua lhe deu, usar um recurso por quantos minutos você disser, até o prazo mais longo que uma permissão pode ter, e guarda o motivo. Uma nova permissão no mesmo recurso encerra a anterior, e o agente continua fazendo só o que você mesmo pode fazer. Só você pode dar a permissão, pedindo diretamente, nunca de dentro de outra ação. Para retirá-la, revogue: desfazer para numa permissão dada.",
+        ],
+    ),
+    (
+        "command.agents.grant.title",
+        [
+            "Grant an agent a feature",
+            "Dar a um agente acesso a um recurso",
+        ],
+    ),
+    (
+        "command.agents.list.description",
+        [
+            "Show the agents you made, each with what you granted it and until when.",
+            "Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.",
+        ],
+    ),
+    (
+        "command.agents.list.paragraph",
+        [
+            "Answers every agent you made, in the order you made them, with its label, its budget and each grant you gave it and have not ended, even one whose time is up: its feature, why you gave it, and from when until when. It changes nothing.",
+            "Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada permissão que você lhe deu e não encerrou, mesmo a que já venceu: o recurso, o motivo e de quando até quando. Não muda nada.",
+        ],
+    ),
+    (
+        "command.agents.list.title",
+        ["List your agents", "Listar seus agentes"],
+    ),
+    (
+        "command.agents.revoke.description",
+        [
+            "End what you granted one of your agents: one feature, or all of them.",
+            "Encerrar o que você deu a um agente seu: um recurso, ou todos.",
+        ],
+    ),
+    (
+        "command.agents.revoke.paragraph",
+        [
+            "Ends the grant one of your agents holds on the feature you name, or every grant it holds when you name none, from its very next action. The agent itself is kept, with its budget, for you to grant again. Only you can revoke, asking directly, never from inside another action, and undo stops at a revocation.",
+            "Encerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação.",
+        ],
+    ),
+    (
+        "command.agents.revoke.title",
+        ["Revoke an agent's access", "Revogar o acesso de um agente"],
+    ),
+    (
         "command.journal.verify.description",
         [
             "Check that every recorded action is intact and in order.",
@@ -3847,6 +3922,18 @@ pub const KEYS: &[&str] = &[
     "category.noctua.reference.title",
     "category.noctua.settings.description",
     "category.noctua.settings.title",
+    "command.agents.create.description",
+    "command.agents.create.paragraph",
+    "command.agents.create.title",
+    "command.agents.grant.description",
+    "command.agents.grant.paragraph",
+    "command.agents.grant.title",
+    "command.agents.list.description",
+    "command.agents.list.paragraph",
+    "command.agents.list.title",
+    "command.agents.revoke.description",
+    "command.agents.revoke.paragraph",
+    "command.agents.revoke.title",
     "command.journal.verify.description",
     "command.journal.verify.paragraph",
     "command.journal.verify.title",
@@ -4196,6 +4283,67 @@ fn is_a_placeholder(name: &str) -> bool {
 
 /// Every tag list, sorted by key. One row per key, one column per locale.
 const TAGS: &[(&str, [&[&str]; 2])] = &[
+    (
+        "command.agents.create.tags",
+        [
+            &[
+                "agents",
+                "make an agent",
+                "new agent",
+                "mcp",
+                "assistant",
+                "delegate",
+            ],
+            &[
+                "agentes",
+                "criar agente",
+                "novo agente",
+                "mcp",
+                "assistente",
+                "delegar",
+            ],
+        ],
+    ),
+    (
+        "command.agents.grant.tags",
+        [
+            &["agents", "grant", "give access", "allow", "mcp", "delegate"],
+            &[
+                "agentes",
+                "dar acesso",
+                "permissão",
+                "permitir",
+                "mcp",
+                "delegar",
+            ],
+        ],
+    ),
+    (
+        "command.agents.list.tags",
+        [
+            &["agents", "my agents", "list agents", "grants", "mcp"],
+            &[
+                "agentes",
+                "meus agentes",
+                "listar agentes",
+                "permissões",
+                "mcp",
+            ],
+        ],
+    ),
+    (
+        "command.agents.revoke.tags",
+        [
+            &["agents", "revoke", "take access away", "end a grant", "mcp"],
+            &[
+                "agentes",
+                "revogar",
+                "tirar acesso",
+                "encerrar permissão",
+                "mcp",
+            ],
+        ],
+    ),
     (
         "command.journal.verify.tags",
         [

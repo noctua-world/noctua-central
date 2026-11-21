@@ -274,6 +274,21 @@
   },
   {
     "uid": {
+      "type": "Feature",
+      "id": "agents"
+    },
+    "attrs": {
+      "tier": "included"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
       "type": "Content",
       "id": "photo"
     },

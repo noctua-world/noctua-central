@@ -1,9 +1,10 @@
 //! A real daemon process serves its kernel at its endpoint (`NOCTUA.md
 //! §11.1`): the registry of its kernel and the plugins installed in its
 //! profile, its status, every dispatch decided by the kernel and journaled,
-//! the pump and the sweep on their schedule, one daemon to a profile, none of
-//! its spawner's handles held, a session of its own, and a stop that leaves
-//! nothing of the run.
+//! the agents its person made held again by the next start, the pump and the
+//! sweep on their schedule, one daemon to a profile, none of its spawner's
+//! handles held, a session of its own, and a stop that leaves nothing of the
+//! run.
 //!
 //! **The binary this build made, copied where an installer puts it**, beside
 //! a manifest under a scratch root and a namespace of its own
@@ -441,6 +442,130 @@ async fn every_dispatch_is_the_kernels_decision_and_is_journaled() {
             other => panic!("{command} was answered with {other:?}"),
         }
     }
+}
+
+/// What `command` with `args` answers over `client`, which must be a result.
+async fn dispatched(client: &mut nc_ipc::Client, command: &str, args: &str) -> Value {
+    match asked(
+        client,
+        Request::Dispatch {
+            command: command.to_owned(),
+            args: nc_canon::parse(args).expect("JSON"),
+        },
+    )
+    .await
+    {
+        Answer::Result(answer) => answer,
+        other => panic!("{command} was answered with {other:?}"),
+    }
+}
+
+/// The agents the daemon's person made, each by its identifier beside its
+/// live grants, each by its own identifier and its feature.
+async fn the_agents(client: &mut nc_ipc::Client) -> Vec<(String, Vec<(String, String)>)> {
+    let listed = dispatched(client, "agents.list", "{}").await;
+    listed
+        .into_object()
+        .and_then(|mut fields| fields.remove("agents"))
+        .and_then(Value::into_array)
+        .expect("a list of agents")
+        .into_iter()
+        .map(|agent| {
+            let grants = agent
+                .clone()
+                .into_object()
+                .and_then(|mut fields| fields.remove("grants"))
+                .and_then(Value::into_array)
+                .expect("a list of grants")
+                .iter()
+                .map(|grant| {
+                    (
+                        text(grant, "grant").expect("an identifier"),
+                        text(grant, "feature").expect("a feature"),
+                    )
+                })
+                .collect();
+            (text(&agent, "agent").expect("an identifier"), grants)
+        })
+        .collect()
+}
+
+/// An agent and its grants are held again after the daemon starts again.
+///
+/// **Kept in the profile's own database, and read back at the next start**:
+/// an agent made, granted naming and finding and its finding grant ended, then
+/// the daemon stopped and started again — the agent is listed with the grant
+/// that was live and not the one that was ended; a new grant on naming ends
+/// the one read back, which is held live; and ending every grant ends that new
+/// one alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() {
+    let installed = Installed::new(Path::new(BINARY));
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    once(&mut client, runs).await;
+    let made = dispatched(
+        &mut client,
+        "agents.create",
+        r#"{"budget":10,"label":"kept"}"#,
+    )
+    .await;
+    let agent = text(&made, "agent").expect("an identifier");
+    let granting = |feature: &str| {
+        format!(r#"{{"agent":"{agent}","feature":"{feature}","minutes":60,"reason":"kept"}}"#)
+    };
+    let naming = text(
+        &dispatched(&mut client, "agents.grant", &granting("naming")).await,
+        "grant",
+    )
+    .expect("a grant");
+    let finding = text(
+        &dispatched(&mut client, "agents.grant", &granting("registry")).await,
+        "grant",
+    )
+    .expect("a grant");
+    let ended = dispatched(
+        &mut client,
+        "agents.revoke",
+        &format!(r#"{{"agent":"{agent}","feature":"registry"}}"#),
+    )
+    .await;
+    assert_eq!(
+        ended.to_canonical(),
+        format!(r#"{{"agent":"{agent}","ended":["{finding}"]}}"#)
+    );
+    let before = the_agents(&mut client).await;
+    assert_eq!(
+        before,
+        [(agent.clone(), vec![(naming.clone(), "naming".to_owned())])]
+    );
+    stopped(&mut client, &mut daemon).await;
+    let mut again = installed.spawn();
+    let (mut client, _) = again.connected().await;
+    once(&mut client, runs).await;
+    assert_eq!(
+        the_agents(&mut client).await,
+        before,
+        "the agents read back are not the ones kept"
+    );
+    let regranted = dispatched(&mut client, "agents.grant", &granting("naming")).await;
+    assert_eq!(
+        text(&regranted, "ends").as_deref(),
+        Some(naming.as_str()),
+        "the grant read back was not held live: {regranted:?}"
+    );
+    let renewed = text(&regranted, "grant").expect("a grant");
+    let all = dispatched(
+        &mut client,
+        "agents.revoke",
+        &format!(r#"{{"agent":"{agent}"}}"#),
+    )
+    .await;
+    assert_eq!(
+        all.to_canonical(),
+        format!(r#"{{"agent":"{agent}","ended":["{renewed}"]}}"#)
+    );
+    stopped(&mut client, &mut again).await;
 }
 
 /// The pump runs every `pump_every_ms`, the first as soon as the daemon runs,

@@ -3,12 +3,12 @@
 //!
 //! **The kernel's own come from the catalog.** Every command of
 //! `catalog/commands.toml` whose namespace is one the kernel keeps —
-//! [`RESERVED`]: `journal.`, `kernel.`, `limits.`, `naming.`, `settings.` — is
-//! a built-in, registered when the registry is made. The ones that change a
-//! setting run only at the top of a call tree (`only_at_the_top`): the decision
-//! point refuses them dispatched from inside a command (`[NC-KERN-0025]`), so a
-//! plugin, a timer or an event run as a person never switches what may act for
-//! them. A catalog command in any other
+//! [`RESERVED`]: `agents.`, `journal.`, `kernel.`, `limits.`, `naming.`,
+//! `settings.` — is a built-in, registered when the registry is made. The ones
+//! that change a setting or a person's agents run only at the top of a call
+//! tree (`only_at_the_top`): the decision point refuses them dispatched from
+//! inside a command (`[NC-KERN-0025]`), so a plugin, a timer or an event run as
+//! a person never switches or keeps what may act for them. A catalog command in any other
 //! namespace is one the catalog describes for a plugin to implement
 //! (`NOCTUA.md §15.2`): it is registered when a plugin declares it, matching
 //! the catalog in every field a dispatch is decided by, and is not registered
@@ -93,13 +93,15 @@ use crate::manifest::PluginManifest;
 use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands.
-pub const RESERVED: [&str; 5] = ["journal", "kernel", "limits", "naming", "settings"];
+pub const RESERVED: [&str; 6] = [
+    "agents", "journal", "kernel", "limits", "naming", "settings",
+];
 
 /// The namespaces whose changes decide what may act for a person.
 ///
 /// A command of the kernel's own in one of them that changes state runs only
 /// at the top of a call tree, as the person's own call (`[NC-KERN-0025]`).
-const ONLY_AT_THE_TOP: [&str; 1] = ["settings"];
+const ONLY_AT_THE_TOP: [&str; 2] = ["agents", "settings"];
 
 /// The one action a plugin's command may select the whole realm under.
 const THE_REALM_IS_READ_WITH: &str = "Read";
@@ -789,8 +791,9 @@ fn in_a_reserved_namespace(name: &str) -> bool {
 /// Whether `command` runs only at the top of a call tree.
 ///
 /// It does when it is the kernel's own, changes state, and sits in one of
-/// [`ONLY_AT_THE_TOP`]'s namespaces: a read of a setting runs anywhere, and
-/// undo and redo are `crate::history::is_history`'s.
+/// [`ONLY_AT_THE_TOP`]'s namespaces: a read of a setting and the list of a
+/// person's agents run anywhere, and undo and redo are the history's own
+/// (`crate::history::is_history`).
 pub(crate) fn only_at_the_top(command: &RegisteredCommand) -> bool {
     command.owner == Owner::Kernel
         && command.mutating
@@ -1080,14 +1083,16 @@ mod tests {
         );
     }
 
-    /// Only a setting switched by a command of the kernel's own runs at the top
-    /// of a call tree alone.
+    /// Only a setting or an agent changed by a command of the kernel's own runs
+    /// at the top of a call tree alone.
     ///
-    /// **Each clause by a command it alone keeps out**: the setting's read,
-    /// which changes nothing and is answered anywhere; undo and redo and the
-    /// prune, the kernel's changes in namespaces of its own that are not a
-    /// setting's — the history's rule is its own; and a plugin's command,
-    /// however it is named.
+    /// **Each clause by a command it alone keeps out**: the setting's read and
+    /// the list of agents, which change nothing and are answered anywhere; undo
+    /// and redo and the prune, the kernel's changes in namespaces of its own
+    /// that are neither — the history's rule is its own; and a plugin's
+    /// command, however it is named. **And each namespace by a command of its
+    /// own**: the switch, and each of the three that make, grant and end an
+    /// agent.
     #[test]
     fn only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone() {
         let listed = Registry::from_catalog().listed();
@@ -1098,9 +1103,17 @@ mod tests {
                 .cloned()
                 .unwrap_or_else(|| panic!("`{name}` is registered"))
         };
-        assert!(only_at_the_top(&of("settings.mcp.set")));
+        for name in [
+            "settings.mcp.set",
+            "agents.create",
+            "agents.grant",
+            "agents.revoke",
+        ] {
+            assert!(only_at_the_top(&of(name)), "`{name}`");
+        }
         for name in [
             "settings.mcp.read",
+            "agents.list",
             "kernel.undo",
             "kernel.redo",
             "limits.prune",

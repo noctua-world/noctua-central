@@ -3,8 +3,9 @@
 //! **One handler for each command the catalog declares in a namespace the
 //! kernel keeps, and none for any other.** `catalog/commands.toml` declares
 //! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
-//! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read` and
-//! `settings.mcp.set`; the
+//! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read`,
+//! `settings.mcp.set`, `agents.create`, `agents.list`, `agents.grant` and
+//! `agents.revoke`; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -79,6 +80,13 @@
 //! which the family pack gives every person of the realm
 //! (`family.a_member_switches_mcp`); `crate::settings` says where the value is
 //! kept and why the set runs only at the top of a call tree.
+//!
+//! **`agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are a
+//! person's agents** (`NOCTUA.md §14.6`), `Write`, `Read`, `Grant` and `Revoke`
+//! on `Feature::"agents"`, which the family pack gives every person of the
+//! realm (`family.a_member_keeps_their_agents`); `crate::agents` says what the
+//! directory holds of them, why each change is journaled before it is made and
+//! why the three that change run only at the top of a call tree.
 //!
 //! What this answers (`NOCTUA.md §2.4`): a declared command that answers that
 //! it is not built, a pruner run by a caller the pack does not let delete on
@@ -168,6 +176,14 @@ pub(crate) enum Builtin {
     McpRead,
     /// `settings.mcp.set`: MCP switched on or off (`crate::settings`).
     McpSet,
+    /// `agents.create`: an agent made (`crate::agents`).
+    AgentsCreate,
+    /// `agents.list`: the asker's agents (`crate::agents`).
+    AgentsList,
+    /// `agents.grant`: an agent granted a feature (`crate::agents`).
+    AgentsGrant,
+    /// `agents.revoke`: an agent's grants ended (`crate::agents`).
+    AgentsRevoke,
 }
 
 impl Builtin {
@@ -175,7 +191,7 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 13] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -185,6 +201,10 @@ impl Builtin {
         Self::Find,
         Self::McpRead,
         Self::McpSet,
+        Self::AgentsCreate,
+        Self::AgentsList,
+        Self::AgentsGrant,
+        Self::AgentsRevoke,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -199,6 +219,10 @@ impl Builtin {
             Self::Find => crate::find::FIND,
             Self::McpRead => crate::settings::MCP_READ,
             Self::McpSet => crate::settings::MCP_SET,
+            Self::AgentsCreate => crate::agents::CREATE,
+            Self::AgentsList => crate::agents::LIST,
+            Self::AgentsGrant => crate::agents::GRANT,
+            Self::AgentsRevoke => crate::agents::REVOKE,
         }
     }
 

@@ -45,6 +45,10 @@ dir   = "ltr"
 "command.kernel.find.tags" = ["search", "filter", "look up", "list of commands"]
 "command.settings.mcp.read.tags" = ["mcp", "agents", "settings", "model context protocol", "ai tools"]
 "command.settings.mcp.set.tags" = ["mcp", "agents", "settings", "turn on", "turn off", "model context protocol", "ai tools"]
+"command.agents.create.tags" = ["agents", "make an agent", "new agent", "mcp", "assistant", "delegate"]
+"command.agents.list.tags" = ["agents", "my agents", "list agents", "grants", "mcp"]
+"command.agents.grant.tags" = ["agents", "grant", "give access", "allow", "mcp", "delegate"]
+"command.agents.revoke.tags" = ["agents", "revoke", "take access away", "end a grant", "mcp"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["browser", "web browser", "web", "internet", "google"]
@@ -281,6 +285,18 @@ dir   = "ltr"
 "command.settings.mcp.set.title" = "Switch MCP on or off"
 "command.settings.mcp.set.description" = "Let MCP clients act here as agents, or stop them."
 "command.settings.mcp.set.paragraph" = "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was."
+"command.agents.create.title" = "Make an agent"
+"command.agents.create.description" = "Make an agent that acts for you, with a budget of its own."
+"command.agents.create.paragraph" = "Makes a new agent of yours: an identity of its own that an MCP client acts as, for you alone. You give it a label and a budget, which each of its sessions spends one at a time, and it can do nothing until you grant it a feature. Only you can make one, asking directly, never from inside another action. An agent is never deleted, so undo stops at the step that made it."
+"command.agents.list.title" = "List your agents"
+"command.agents.list.description" = "Show the agents you made, each with what you granted it and until when."
+"command.agents.list.paragraph" = "Answers every agent you made, in the order you made them, with its label, its budget and each grant you gave it and have not ended, even one whose time is up: its feature, why you gave it, and from when until when. It changes nothing."
+"command.agents.grant.title" = "Grant an agent a feature"
+"command.agents.grant.description" = "Let one of your agents use a feature, for a reason and a time you give."
+"command.agents.grant.paragraph" = "Lets one of your agents, named by the identifier Noctua gave it, use one feature for as many minutes as you say, within the longest a grant may run, and keeps why. A new grant on the same feature ends the one before it, and the agent still does only what you yourself may do. Only you can grant it, asking directly, never from inside another action. To take it back, revoke it: undo stops at a grant."
+"command.agents.revoke.title" = "Revoke an agent's access"
+"command.agents.revoke.description" = "End what you granted one of your agents: one feature, or all of them."
+"command.agents.revoke.paragraph" = "Ends the grant one of your agents holds on the feature you name, or every grant it holds when you name none, from its very next action. The agent itself is kept, with its budget, for you to grant again. Only you can revoke, asking directly, never from inside another action, and undo stops at a revocation."
 
 # --- Capabilities ---
 "capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."

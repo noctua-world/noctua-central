@@ -434,6 +434,10 @@ pub struct KernelLimits {
     pub undo_history: u32,
     /// How long a confirmation a person gave stays good for, in milliseconds.
     pub confirmation_ttl_ms: u64,
+    /// The most an agent's person may give it to spend in a session.
+    pub agent_budget_max: u32,
+    /// How long a grant to an agent may run at most, in minutes.
+    pub agent_grant_minutes_max: u32,
 }
 
 /// The kernel's limits, as `catalog/limits.toml` declares them under `[kernel]`.
@@ -483,6 +487,8 @@ pub const KERNEL: KernelLimits = KernelLimits {
     log_line_bytes: 1_024,
     undo_history: 100,
     confirmation_ttl_ms: 60_000,
+    agent_budget_max: 100_000,
+    agent_grant_minutes_max: 43_200,
 };
 
 /// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).

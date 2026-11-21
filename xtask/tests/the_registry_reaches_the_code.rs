@@ -2556,12 +2556,17 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.log_line_bytes, declared.log_line_bytes);
     assert_eq!(generated.undo_history, declared.undo_history);
     assert_eq!(generated.confirmation_ttl_ms, declared.confirmation_ttl_ms);
+    assert_eq!(generated.agent_budget_max, declared.agent_budget_max);
+    assert_eq!(
+        generated.agent_grant_minutes_max,
+        declared.agent_grant_minutes_max
+    );
     // **And every one of them is a row the compiler hands the emitter**, so a
     // limit this test reads and `KernelLimits::each` dropped is not a limit
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        45,
+        47,
         "a kernel limit was added or lost"
     );
 }

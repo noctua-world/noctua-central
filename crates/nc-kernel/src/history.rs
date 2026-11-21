@@ -185,7 +185,8 @@ pub(crate) enum Note {
     /// Something the unit did left the machine.
     ///
     /// A request that asks its host to change something, or a command that
-    /// cannot be undone or that the kernel runs on the realm itself.
+    /// cannot be undone or that the kernel runs outside every unit — on the
+    /// realm itself, or on a person's agents.
     LeftTheMachine,
     /// A blob the unit made, and whether a committed unit pinned it before.
     BlobCreated {
@@ -380,11 +381,14 @@ pub(crate) fn left_by(command: &str) -> String {
 ///
 /// It does as a request that changes something elsewhere does when the
 /// command cannot be undone, and when the kernel owns it and it changes
-/// state — `limits.prune` — but for undo and redo, which are the history
-/// itself, and a setting's switch, whose one effect is its entry in its own
-/// unit (`crate::settings::writes_only_its_entry`): named by the command,
-/// never by its namespace, so the person's undo takes the switch back and
-/// reaches the steps before it.
+/// state outside every unit — `limits.prune`, and `agents.create`,
+/// `agents.grant` and `agents.revoke`, whose change is the profile's
+/// database's (`crate::agents`), so the reverse of a grant is a revocation
+/// and never an undo — but for undo and redo, which are the history itself,
+/// and a setting's switch, whose one effect is its entry in its own unit
+/// (`crate::settings::writes_only_its_entry`): named by the command, never by
+/// its namespace, so the person's undo takes the switch back and reaches the
+/// steps before it.
 pub(crate) fn leaves_the_machine(command: &crate::registry::RegisteredCommand) -> bool {
     command.reversibility == Reversibility::Irreversible
         || (command.owner == crate::registry::Owner::Kernel
@@ -1420,9 +1424,10 @@ mod tests {
 
     /// A command that cannot be undone leaves the machine.
     ///
-    /// So does one the kernel owns that changes state — `limits.prune` — but
-    /// not undo and redo, a setting's switch, a read, or a plugin's command
-    /// that can be undone.
+    /// So does one the kernel owns that changes state — `limits.prune`, and
+    /// each of the three that change a person's agents — but not undo and
+    /// redo, a setting's switch, a read, the list of agents among them, or a
+    /// plugin's command that can be undone.
     #[test]
     fn what_leaves_the_machine_is_what_cannot_be_undone_or_the_kernels_own_change() {
         let listed = crate::registry::Registry::from_catalog().listed();
@@ -1433,13 +1438,21 @@ mod tests {
                 .cloned()
                 .unwrap_or_else(|| panic!("`{name}` is registered"))
         };
-        assert!(leaves_the_machine(&of("limits.prune")));
+        for name in [
+            "limits.prune",
+            "agents.create",
+            "agents.grant",
+            "agents.revoke",
+        ] {
+            assert!(leaves_the_machine(&of(name)), "`{name}`");
+        }
         for name in [
             "journal.verify",
             "kernel.undo",
             "kernel.redo",
             "settings.mcp.set",
             "settings.mcp.read",
+            "agents.list",
         ] {
             assert!(!leaves_the_machine(&of(name)), "`{name}`");
         }

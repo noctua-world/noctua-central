@@ -41,8 +41,9 @@
 //! kernel's own commands — the journal's chain verified, the local tables
 //! pruned, a file's name proposed and read, a command found by the words of
 //! its names and tags (`crate::find`), a setting of the channel read and
-//! switched (`crate::settings`, [`Kernel::settings`]) — run through the same
-//! door, each decided as a plugin's is (`crate::builtin`). A plugin
+//! switched (`crate::settings`, [`Kernel::settings`]), a person's agents made,
+//! listed, granted and ended (`crate::agents`) — run through the same door,
+//! each decided as a plugin's is (`crate::builtin`). A plugin
 //! announces what happened in its own namespace, and an event published in a
 //! unit is queued only when the unit is kept; it sets timers, and is woken as
 //! the call tree that set them acted; it describes what it shows in surfaces, in a
@@ -90,6 +91,7 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+mod agents;
 pub mod backend;
 mod bindings;
 pub mod blobs;

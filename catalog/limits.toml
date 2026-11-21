@@ -444,6 +444,13 @@ log_ring_lines = 256
 log_line_bytes = 1_024
 undo_history = 100
 confirmation_ttl_ms = 60_000
+# An agent a person makes (§14.6): the most a session of it may be given to
+# spend, and the longest a grant to it may run, in minutes — thirty days, so a
+# grant nobody ends ends on its own. Each is the maximum the schema of
+# `agents.create` and of `agents.grant` declares, which a test beside the
+# commands holds equal, so the kernel refuses past it before anything is made.
+agent_budget_max = 100_000
+agent_grant_minutes_max = 43_200
 
 # --- The daemon (§11.1, §16.2) ---
 #
@@ -470,9 +477,10 @@ mark_lease_ms = 2_000
 # anything is allocated for it, so a connection costs the daemon at most this
 # much at once. At least the kernel's `payload_bytes` and 64 KiB more, which
 # the compiler holds it to: a dispatch's arguments and its answer are each one
-# payload, carried inside a frame with its type, a command's name or a
-# refusal's code and sentence around it, so a payload the kernel accepts always
-# fits one frame.
+# payload (`agents.list`'s answer apart, which a test in
+# `crates/nc-kernel/src/agents.rs` holds within one frame), carried inside a
+# frame with its type, a command's name or a refusal's code and sentence around
+# it, so a payload the kernel accepts always fits one frame.
 ipc_frame_max_bytes = 2_097_152
 # How long a connection has to prove it holds the channel's token, from the
 # daemon's challenge to its welcome; one that has not finished by then is

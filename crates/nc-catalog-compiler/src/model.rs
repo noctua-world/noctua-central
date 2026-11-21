@@ -342,6 +342,10 @@ pub struct KernelLimits {
     pub undo_history: u32,
     /// How long a confirmation a person gave stays good for.
     pub confirmation_ttl_ms: u64,
+    /// The most an agent's person may give it to spend in a session.
+    pub agent_budget_max: u32,
+    /// How long a grant to an agent may run at most.
+    pub agent_grant_minutes_max: u32,
 }
 
 /// What one kernel limit is counted in.
@@ -355,6 +359,8 @@ pub enum Unit {
     Fuel,
     /// Ticks of the epoch `epoch_tick_ms` advances.
     Ticks,
+    /// Minutes.
+    Minutes,
     /// Things, counted.
     Count,
 }
@@ -367,6 +373,7 @@ impl Unit {
             Self::Milliseconds => Some("milliseconds"),
             Self::Fuel => Some("units of fuel"),
             Self::Ticks => Some("ticks of the epoch"),
+            Self::Minutes => Some("minutes"),
             Self::Count => None,
         }
     }
@@ -449,6 +456,8 @@ impl KernelLimits {
             log_line_bytes,
             undo_history,
             confirmation_ttl_ms,
+            agent_budget_max,
+            agent_grant_minutes_max,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -723,6 +732,18 @@ impl KernelLimits {
                 Unit::Milliseconds,
                 "How long a confirmation a person gave stays good for",
             ),
+            narrow(
+                "agent_budget_max",
+                agent_budget_max,
+                "The most an agent's person may give it to spend in a session",
+            ),
+            NamedLimit {
+                name: "agent_grant_minutes_max",
+                value: u64::from(agent_grant_minutes_max),
+                wide: false,
+                unit: Unit::Minutes,
+                bounds: "How long a grant to an agent may run at most",
+            },
         ]
     }
 }

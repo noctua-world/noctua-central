@@ -30,8 +30,9 @@
 //! host to change something is noted in the unit before it is sent
 //! (`crate::net::note`), and the note is kept with the unit when it commits —
 //! what undoing it is told it cannot reach. So is a command that cannot be
-//! undone, and one the kernel runs on the realm itself. A unit let go takes
-//! the note with it, and the request stays sent.
+//! undone, and one the kernel runs outside every unit — on the realm itself,
+//! or on a person's agents. A unit let go takes the note with it, and the
+//! request stays sent.
 //!
 //! **And what undoing it needs.** A unit keeps a note of each action a
 //! command of it was allowed on each resource, which an undo authorizes again,

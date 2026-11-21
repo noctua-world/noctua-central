@@ -364,3 +364,93 @@ action = "Write"
 resource = 'Feature::"mcp"'
 decision = "allow"
 because = "family.a_member_switches_mcp"
+
+[[case]]
+name = "a member of the house makes an agent of their own"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
+
+[[case]]
+name = "and reads back the agents they made"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
+
+[[case]]
+name = "and grants one of them a feature"
+principal = 'User::"carla"'
+action = "Grant"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
+
+[[case]]
+name = "and ends what they granted it"
+principal = 'User::"carla"'
+action = "Revoke"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
+
+[[case]]
+# A child as much as an adult: a delegation of what they may do themselves,
+# which the decision point asks of them again at every call of the agent's.
+name = "and so does a child of the house, for agents of their own"
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
+
+[[case]]
+# **The verb.** A `Delete`: the permit gives the four verbs its commands are
+# decided under, and with its action dropped a member would be given every verb
+# over the feature — and no agent is ever deleted.
+name = "a member deletes nothing of the agents feature"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Delete"
+resource = 'Feature::"agents"'
+decision = "deny"
+no_permit_matched = "family.a_member_keeps_their_agents"
+
+[[case]]
+# **Who is asking**: an agent, marked as one acting for its person, so no core
+# `forbid` refuses it and only `principal is User` does — the rule that keeps
+# an agent from granting itself or another agent more, and the case that fails
+# the day an agent's permit grows wide enough to reach this feature.
+name = "nor does an agent keep agents, even one acting openly as an agent"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Grant"
+resource = 'Feature::"agents"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.a_member_keeps_their_agents"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member grant on every feature the realm holds.
+name = "the agents permit reaches no other feature"
+principal = 'User::"carla"'
+action = "Grant"
+resource = 'Feature::"naming"'
+decision = "deny"
+no_permit_matched = "family.a_member_keeps_their_agents"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the naming permit's is:
+# the permit asks no membership, so over the whole world a person of another
+# realm is allowed it, and only the decision point's slice of `home` denies
+# them.
+name = "an outsider keeps agents, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Write"
+resource = 'Feature::"agents"'
+decision = "allow"
+because = "family.a_member_keeps_their_agents"
