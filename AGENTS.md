@@ -4849,8 +4849,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   would be a revocation under another name and bury every step before it.
 - **Delegating resists no process running as the person**: such a process makes, grants and
   ends the person's agents through the CLI as the person would. Only a person's own call
-  reaches them otherwise: a plugin, a timer and an event run as the person are refused at
-  the top of the tree, and an agent by the permit.
+  reaches them otherwise: a plugin, a timer and an event run as the person are refused, since
+  only a call at the top of a call tree delegates (`[NC-KERN-0025]`), and an agent is refused
+  by the permit.
 - **The widest list of a person's agents fits one frame for the features the shipped world
   holds, and not a payload**: an agent holds one live grant per feature, so a realm of many
   more features can make the list of every agent at its bound longer than a frame, which the
