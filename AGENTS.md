@@ -1392,11 +1392,14 @@ directory would never have written.
 
 **Enforced by** the unit tests in `crates/nc-kernel/src/agents.rs` — the declared commands
 both ways, the schemas' bounds held to the kernel's limits and to the profile's table, each
-refusal's kind, code and word, nothing minted for a text a reader cannot see, and the widest
-list of agents within a frame; `only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone`
+refusal's kind, code and word, nothing minted for a text a reader cannot see, each change
+handed to the keeper at the kernel's clock and by its asker, and the widest list of agents
+within a frame; `only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone`
 in `crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_point.rs`, where a
-person makes, grants and ends an agent, each entry read back, an agent and a plugin make,
-grant and end none, and a journal and a directory that do not take a change leave it unmade;
+person makes, grants and ends an agent, each entry read back, another person grants and ends
+nothing of it (`a_person_grants_and_ends_nothing_of_another_persons_agent`), an agent and a
+plugin make, grant and end none, and a journal and a directory that do not take a change
+leave it unmade;
 `apps/daemon/tests/every_command_from_the_cli.rs` and `serves_its_kernel.rs`, where the CLI
 makes, grants, lists and ends an agent, names it by its identifier alone, and a daemon started
 again holds what was kept; the cases of `policy/packs/family/tests/features.toml` and

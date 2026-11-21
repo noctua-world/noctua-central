@@ -585,7 +585,7 @@ mod tests {
 
     use super::{
         AGENT, BUDGET, CREATE, FEATURE, GRANT, LABEL, LIST, MINUTES, REASON, REVOKE, judged,
-        listing, planned, refused,
+        listing, made, planned, refused,
     };
     use crate::builtin::Builtin;
     use crate::dispatch::{RefusalKind, Waits};
@@ -865,8 +865,35 @@ mod tests {
         }
     }
 
+    /// A keeper that refuses nothing and holds on to what it was handed.
+    ///
+    /// Each change as the directory hands it over, in order, so a test reads
+    /// when and by whom the profile's database would have kept it.
+    #[derive(Debug, Clone, Default)]
+    struct Recording(Arc<std::sync::Mutex<Vec<nc_authz::Kept>>>);
+
+    impl Recording {
+        /// What it was handed so far, in order.
+        fn handed(&self) -> Vec<nc_authz::Kept> {
+            self.0.lock().expect("nothing panics holding it").clone()
+        }
+    }
+
+    impl nc_authz::Keeper for Recording {
+        fn keep(
+            &self,
+            kept: &nc_authz::Kept,
+        ) -> impl Future<Output = Result<(), nc_authz::Unkept>> + Send {
+            self.0
+                .lock()
+                .expect("nothing panics holding it")
+                .push(kept.clone());
+            std::future::ready(Ok(()))
+        }
+    }
+
     /// A kernel over a store held in memory, on the [`Standing`] clock, over a
-    /// directory of agents that keeps nothing.
+    /// directory of agents whose keeper is a [`Recording`].
     #[derive(Debug)]
     struct Delegating;
 
@@ -875,14 +902,14 @@ mod tests {
         type Blobs = crate::blobs::MemoryBlobs;
         type Journal = nc_journal::InMemory;
         type Clock = Standing;
-        type Directory = nc_authz::LocalDirectory<Forgets>;
+        type Directory = nc_authz::LocalDirectory<Recording>;
         type Log = crate::logging::Captured;
         type Transport = crate::net::Scripted;
     }
 
     /// A kernel deciding with the family pack over the world the policy cases
-    /// are about, its agents held by a directory over it, and `ana`.
-    async fn delegating() -> (crate::Kernel<Delegating>, nc_authz::Principal) {
+    /// are about, its agents held by a directory over it, `ana`, and its keeper.
+    async fn delegating() -> (crate::Kernel<Delegating>, nc_authz::Principal, Recording) {
         let pack = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
         let world = nc_authz::MemoryDirectory::from_world(
             include_str!("../../../policy/world.json"),
@@ -895,11 +922,12 @@ mod tests {
             .principal(nc_authz::PrincipalKind::User, "ana")
             .expect("ana is a user of the world");
         let clock = Standing(Arc::new(AtomicU64::new(1_787_702_400_000)));
+        let handed = Recording::default();
         let directory = nc_authz::LocalDirectory::open(
             realm.clone(),
             world,
             nc_authz::Records::default(),
-            Forgets,
+            handed.clone(),
             nc_authz::Bounds {
                 agents: 4,
                 grants: 4,
@@ -926,7 +954,7 @@ mod tests {
         })
         .await
         .expect("the kernel opens");
-        (kernel, ana)
+        (kernel, ana, handed)
     }
 
     /// The next identifier the kernel's one minter gives.
@@ -953,7 +981,7 @@ mod tests {
     #[tokio::test]
     async fn a_label_or_a_reason_holding_an_unseen_character_is_refused_before_anything_is_minted()
     {
-        let (kernel, ana) = delegating().await;
+        let (kernel, ana, _) = delegating().await;
         let asked = |command: &str, args: serde_json::Value| {
             let shared = Arc::clone(&kernel.shared);
             let ana = ana.clone();
@@ -1020,6 +1048,132 @@ mod tests {
         );
         assert!(judged(GRANT, &serde_json::json!({"reason": "seen"})).is_ok());
         assert!(judged(GRANT, &serde_json::json!({"reason": "\u{feff}"})).is_err());
+    }
+
+    /// What `command` answers when `ana` asks it with `args` at `moment`.
+    ///
+    /// The kernel's clock is moved to `moment` first, and the change is
+    /// planned and made as a dispatch makes it once the decision allowed it.
+    async fn changed_at(
+        kernel: &crate::Kernel<Delegating>,
+        ana: &nc_authz::Principal,
+        moment: u64,
+        command: &str,
+        args: serde_json::Value,
+    ) -> serde_json::Value {
+        kernel.shared.clock.0.store(moment, Ordering::SeqCst);
+        let planned = planned(
+            &kernel.shared,
+            ana,
+            command,
+            &args,
+            Waits::TOP,
+            std::time::Instant::now(),
+        )
+        .await
+        .expect("the change is planned");
+        let answer = made(&kernel.shared, planned)
+            .await
+            .expect("the change is made");
+        serde_json::from_str(&answer).expect("an answer is JSON")
+    }
+
+    /// Each change is handed to the keeper at the kernel's clock, by its asker.
+    ///
+    /// **What the profile's database would keep**, as a dispatch plans and
+    /// makes each change on a clock moved between them: ana makes an agent,
+    /// grants it naming, grants it naming again a minute later — which ends
+    /// the first grant where the second begins, by her — and half a minute
+    /// after that ends what is live on naming. Each grant begins at the
+    /// clock's reading, runs for the minutes asked and is given by ana; the
+    /// ending is kept at the clock's reading, by ana, of exactly the grant that
+    /// was live — so the next start reads back when each grant began and
+    /// ended, and not some other moment.
+    #[tokio::test]
+    async fn each_change_is_handed_to_the_keeper_at_the_kernels_clock_by_its_asker() {
+        let (kernel, ana, keeper) = delegating().await;
+        let began = kernel.shared.clock.0.load(Ordering::SeqCst);
+        let (first_at, second_at, ended_at) = (began + 60_000, began + 120_000, began + 150_000);
+        let made_one = changed_at(
+            &kernel,
+            &ana,
+            began,
+            CREATE,
+            serde_json::json!({"label": "kept", "budget": 3}),
+        )
+        .await;
+        let agent = made_one[AGENT].as_str().expect("an identifier").to_owned();
+        let granting = |minutes: u64, reason: &str| {
+            serde_json::json!({
+                "agent": agent, "feature": "naming", "minutes": minutes, "reason": reason
+            })
+        };
+        let first = changed_at(&kernel, &ana, first_at, GRANT, granting(5, "first")).await;
+        let second = changed_at(&kernel, &ana, second_at, GRANT, granting(1, "second")).await;
+        let ending = serde_json::json!({"agent": agent, "feature": "naming"});
+        let ended = changed_at(&kernel, &ana, ended_at, REVOKE, ending).await;
+        assert_eq!(ended["ended"], serde_json::json!([second["grant"]]));
+        let handed = keeper.handed();
+        let [
+            nc_authz::Kept::Agent(kept_agent),
+            nc_authz::Kept::Grant {
+                record: first_kept,
+                ends: None,
+            },
+            nc_authz::Kept::Grant {
+                record: second_kept,
+                ends: Some(ends),
+            },
+            nc_authz::Kept::Ended { grants, at_ms, by },
+        ] = handed.as_slice()
+        else {
+            panic!("the keeper was handed {handed:#?}");
+        };
+        assert_eq!(
+            (
+                kept_agent.agent.to_crockford(),
+                &kept_agent.operator,
+                kept_agent.budget
+            ),
+            (agent, ana.id(), 3)
+        );
+        let naming = super::feature("naming");
+        for (kept, answered, from_ms, minutes) in [
+            (first_kept, &first, first_at, 5),
+            (second_kept, &second, second_at, 1),
+        ] {
+            assert_eq!(
+                (
+                    kept.grant.to_crockford(),
+                    kept.agent,
+                    &kept.scope,
+                    &kept.granted_by,
+                    kept.valid_from_ms,
+                    kept.valid_until_ms,
+                ),
+                (
+                    answered["grant"]
+                        .as_str()
+                        .expect("an identifier")
+                        .to_owned(),
+                    kept_agent.agent,
+                    &naming,
+                    ana.id(),
+                    from_ms,
+                    from_ms + minutes * 60_000,
+                ),
+                "a grant is kept from the kernel's clock, by its giver"
+            );
+        }
+        assert_eq!(
+            *ends, first_kept.grant,
+            "the second grant ends the first where it begins"
+        );
+        assert_eq!(
+            (grants.as_slice(), *at_ms, by),
+            ([second_kept.grant].as_slice(), ended_at, ana.id()),
+            "an ending is kept at the kernel's clock, by its asker"
+        );
     }
 
     /// How many features the realm of the shipped world holds: as many as an

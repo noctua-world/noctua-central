@@ -9942,6 +9942,110 @@ async fn an_agent_makes_lists_grants_and_ends_no_agent() {
     );
 }
 
+/// A person grants and ends nothing of another person's agent.
+///
+/// **Only the agent's person delegates through it**: ana makes an agent and
+/// grants it naming, and carla, whose own permit allows her the agents'
+/// commands and who makes an agent of her own, names ana's to grant it a
+/// feature, to grant it naming again, and to end its grant on naming and every
+/// one. Each is refused with `[NC-AI-0002]` after the decision allowed it,
+/// journaled as failed under the refusal's word with no agent noted, and
+/// changes nothing: each person's list holds their own agent alone, ana's
+/// with the grant she gave it.
+#[tokio::test]
+async fn a_person_grants_and_ends_nothing_of_another_persons_agent() {
+    let (fixture, _) = reference().await;
+    let theirs = fixture
+        .as_("ana", CREATE, &making("ana's own", 5))
+        .await
+        .expect("ana makes an agent");
+    let theirs = text(&theirs, "agent");
+    fixture
+        .as_("ana", GRANT, &granting(&theirs, "naming", 60))
+        .await
+        .expect("ana grants it naming");
+    let before = fixture
+        .as_("ana", LIST, "{}")
+        .await
+        .expect("ana lists her agents");
+    assert_eq!(
+        listed_in(&before),
+        [(theirs.clone(), vec!["naming".to_owned()])]
+    );
+    let own = fixture
+        .as_("carla", CREATE, &making(LABEL, 5))
+        .await
+        .expect("carla makes an agent");
+    let own = text(&own, "agent");
+    assert_ne!(own, theirs);
+    let asked = [
+        (GRANT, granting(&theirs, "registry", 60)),
+        (GRANT, granting(&theirs, "naming", 1)),
+        (REVOKE, revoking(&theirs, Some("naming"))),
+        (REVOKE, revoking(&theirs, None)),
+    ];
+    for (command, args) in &asked {
+        let refused = fixture.as_("carla", command, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::AiNotTheOperator),
+            "{command} {args}: {refused:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let carlas: Vec<(String, Outcome, Option<&str>, String)> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| {
+            who(entry) == ("carla", vec![])
+                && command_of(entry).is_some_and(|command| command == GRANT || command == REVOKE)
+        })
+        .map(|entry| {
+            (
+                command_of(entry).expect("named"),
+                entry.record.result,
+                deciding(entry),
+                entry.record.resource.to_canonical(),
+            )
+        })
+        .collect();
+    let refusal = |command: &str| {
+        (
+            command.to_owned(),
+            Outcome::Failed,
+            Some(KEEPS_AGENTS),
+            format!(
+                r#"{{"command":"{command}","entity":{ON_THE_AGENTS},"failure":"not-the-operator"}}"#
+            ),
+        )
+    };
+    assert_eq!(
+        carlas,
+        asked
+            .iter()
+            .map(|(command, _)| refusal(command))
+            .collect::<Vec<_>>(),
+        "a refused change notes nothing it would have made"
+    );
+    assert_eq!(
+        listed_in(
+            &fixture
+                .as_("carla", LIST, "{}")
+                .await
+                .expect("carla lists her agents")
+        ),
+        [(own, vec![])],
+        "carla's list holds another person's agent, or a grant she was refused"
+    );
+    assert_eq!(
+        fixture
+            .as_("ana", LIST, "{}")
+            .await
+            .expect("ana lists her agents"),
+        before,
+        "another person changed ana's agent"
+    );
+}
+
 /// A plugin makes, grants and ends no agent from inside a command.
 ///
 /// **Only a person's own call delegates**: ana runs a command of the

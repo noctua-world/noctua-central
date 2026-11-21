@@ -19707,7 +19707,7 @@ mod the_frozen_path_rule {
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
         ("nc-kernel/activation.rs", 32, 67),
-        ("nc-kernel/agents.rs", 50, 15),
+        ("nc-kernel/agents.rs", 54, 18),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
@@ -19745,7 +19745,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 284, 86),
+        ("nc-kernel/the_decision_point.rs", 285, 86),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 71, 64),
         ("nc-kernel/timers.rs", 18, 5),
@@ -25765,7 +25765,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21432;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21441;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25784,7 +25784,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5719;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5720;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25835,7 +25835,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 28370;
+    const THE_REARRANGEMENTS_JUDGED: usize = 28389;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25889,7 +25889,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 28,370 are accepted by the first-line
+    /// rules the gates apply: **513 of 28,389 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37924,7 +37924,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2732] = [
+    static OPERATORS: [(&str, &str, &str); 2734] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44136,6 +44136,16 @@ Options:
             "kernel_agents",
             "asked_for",
             "a grant runs for the minutes asked",
+        ),
+        (
+            "kernel_agents",
+            "asked_for",
+            "a grant begins at the kernel's clock",
+        ),
+        (
+            "kernel_agents",
+            "asked_for",
+            "an ending is kept at the kernel's clock",
         ),
         (
             "kernel_agents",
