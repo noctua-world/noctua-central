@@ -2490,7 +2490,7 @@ const MIGRATIONS_ON_DISK: [&str; 12] = [
 /// before it made refused at each open. A change to a migration a build carried is a new
 /// migration; a rewrite before any release is an edit of its pin, here. The
 /// pin also sees a `sqlx` that computes its checksums otherwise.
-const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 4] = [
+const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 5] = [
     (
         "0001_plugin_store.sql",
         "e4f8dc74d2e625fd5c1f529d3ca3ea6ef5f2bfa8f789869ec40a2b2c645cf9f529fd7ec1c34c64b8f0ac7abb0c83fe02",
@@ -2506,6 +2506,10 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 4] = [
     (
         "0004_local_journal.sql",
         "c9d84ce101fdbe9e19a9f164a3465133adb66a7bde2631cb9db85de074b811061857ca5ef0fdc25d0324364c247fcd22",
+    ),
+    (
+        "0005_agents.sql",
+        "bccfe551fc5c93cdc84556fe56ac4e918dec8d3608b8bc3484cb5a1a790b468e7946dc56ea1708bfab0098f2679962e8",
     ),
 ];
 
@@ -19570,7 +19574,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 229] = [
+    const DOCUMENTED: [(&str, usize, usize); 230] = [
         ("cli/args.rs", 46, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19740,12 +19744,13 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
+        ("nc-local/agents.rs", 38, 11),
         ("nc-local/journal.rs", 26, 11),
-        ("nc-local/lib.rs", 12, 9),
+        ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 84, 12),
+        ("nc-local/store.rs", 85, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 27, 135),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
@@ -25749,7 +25754,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21047;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21139;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25768,7 +25773,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5571;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5625;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25785,7 +25790,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1880;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1898;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25802,7 +25807,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 19, 36, 37, 91];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 36, 37, 91];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25819,7 +25824,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27829;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27907;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25837,7 +25842,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 516;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 514;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25873,8 +25878,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 27,829 are accepted by the first-line
-    /// rule alone, and 276 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **514 of 27,907 are accepted by the first-line
+    /// rule alone, and 274 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25895,7 +25900,7 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 19 descending, 36
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 36
     /// swaps, 37 rotations and 91 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
@@ -25906,7 +25911,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1880 of
+    /// this tree offers, **1898 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34107,7 +34112,8 @@ mod every_report_wire {
                 ("local-migrations/0001_first.sql", "SELECT 1;\n"),
                 ("local-migrations/0002_second.sql", "SELECT 1;\n"),
                 ("local-migrations/0003_third.sql", "SELECT 1;\n"),
-                ("local-migrations/0005_fifth.sql", "SELECT 1;\n"),
+                ("local-migrations/0004_fourth.sql", "SELECT 1;\n"),
+                ("local-migrations/0006_sixth.sql", "SELECT 1;\n"),
             ],
         );
         let mut failures = Vec::new();
@@ -37867,7 +37873,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 243,
+            walked, 244,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37907,7 +37913,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2664] = [
+    static OPERATORS: [(&str, &str, &str); 2685] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46457,6 +46463,111 @@ Options:
             "local_journal",
             "open_units",
             "an opening naming its unit as this code never writes one is refused, never skipped",
+        ),
+        (
+            "local_agents",
+            "kept",
+            "a realm's agents are read back alone",
+        ),
+        (
+            "local_agents",
+            "kept",
+            "an ended grant is not read back as live",
+        ),
+        (
+            "local_agents",
+            "kept",
+            "every grant the file holds is counted, ended and another realm's included",
+        ),
+        (
+            "local_agents",
+            "keep_agent",
+            "a temporary object on the connection stops an agent's keeping",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a temporary object on the connection stops a grant's keeping",
+        ),
+        (
+            "local_agents",
+            "end_grants",
+            "a temporary object on the connection stops an ending",
+        ),
+        (
+            "local_agents",
+            "keep_agent",
+            "an agent something silenced is refused",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a grant something silenced is refused",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "an end of the grant a new one replaces something silenced is refused",
+        ),
+        (
+            "local_agents",
+            "end_grants",
+            "an end something silenced, or of a grant ended already, is refused",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a new grant ends only the live grant on its own scope",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a new grant ends only the live grant of its own agent and realm",
+        ),
+        (
+            "local_agents",
+            "room_for_one",
+            "a table at its bound has no room for one more",
+        ),
+        (
+            "local_agents",
+            "keep_agent",
+            "an agent is held to the agents' bound",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "a grant is held to the grants' bound",
+        ),
+        (
+            "local_agents",
+            "max_rows",
+            "a table the catalog does not bound takes no row",
+        ),
+        (
+            "local_agents",
+            "agent_row",
+            "an agent read back with no budget is refused",
+        ),
+        (
+            "local_agents",
+            "grant_row",
+            "a grant read back whose end is not after its beginning is refused",
+        ),
+        (
+            "local_agents",
+            "keep_agent",
+            "the file refuses an agent written twice, a replace included",
+        ),
+        (
+            "local_agents",
+            "keep_grant",
+            "the file refuses a grant written twice, a replace included",
+        ),
+        (
+            "local_agents",
+            "end_grants",
+            "the file refuses a second live grant on one scope, a replace included",
         ),
         (
             "kernel_units",

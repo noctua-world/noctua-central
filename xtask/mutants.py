@@ -550,6 +550,12 @@ SOURCES = {
     # asked of four columns. Decided by the crate's own suites, the local
     # journal's held line for line to the store in memory.
     "local_journal": os.path.join(ROOT, "crates/nc-local/src/journal.rs"),
+    # **The agents a person made, and their grants**, in the same file: a
+    # realm's rows read back alone and judged, every write counted after no
+    # temporary object, a grant's end bound to the live one on its scope, and
+    # each table refused a row at its bound. Decided by the module's own unit
+    # tests over a store in memory.
+    "local_agents": os.path.join(ROOT, "crates/nc-local/src/agents.rs"),
     # The pruner's second target, over the same file: decided by `nc-prune`'s
     # suite against a scratch SQLite file, which needs no service.
     "prune_sqlite": os.path.join(ROOT, "crates/nc-prune/src/sqlite.rs"),
@@ -7082,6 +7088,76 @@ WEAKENINGS = [
     ("local_journal", "open_units", "an opening naming its unit as this code never writes one is refused, never skipped",
      "        rows.into_iter()\n            .map(|(sequence, unit)| {\n                unit_of(&unit).map_err(",
      "        rows.into_iter()\n            .filter(|(_, unit)| unit_of(unit).is_ok())\n            .map(|(sequence, unit)| {\n                unit_of(&unit).map_err("),
+    # -- the agents a person made, and their grants, in the local file -------
+    ("local_agents", "kept", "a realm's agents are read back alone",
+     "WHERE realm = ?1 ORDER BY agent",
+     "WHERE ?1 = ?1 ORDER BY agent"),
+    ("local_agents", "kept", "an ended grant is not read back as live",
+     "WHERE realm = ?1 AND ended_at IS NULL ORDER BY grant_id",
+     "WHERE realm = ?1 ORDER BY grant_id"),
+    ("local_agents", "kept", "every grant the file holds is counted, ended and another realm's included",
+     "sqlx::query_scalar(\"SELECT count(*) FROM main.agent_grants\")",
+     "sqlx::query_scalar(\"SELECT count(*) FROM main.agent_grants WHERE ended_at IS NULL\")"),
+    ("local_agents", "keep_agent", "a temporary object on the connection stops an agent's keeping",
+     "        schema::no_temporary_object(&mut transaction).await?;\n        room_for_one(\n            &mut transaction,\n            \"agents\",",
+     "        room_for_one(\n            &mut transaction,\n            \"agents\","),
+    ("local_agents", "keep_grant", "a temporary object on the connection stops a grant's keeping",
+     "        schema::no_temporary_object(&mut transaction).await?;\n        room_for_one(\n            &mut transaction,\n            \"agent_grants\",",
+     "        room_for_one(\n            &mut transaction,\n            \"agent_grants\","),
+    ("local_agents", "end_grants", "a temporary object on the connection stops an ending",
+     "        schema::no_temporary_object(&mut transaction).await?;\n        for grant in grants {",
+     "        for grant in grants {"),
+    ("local_agents", "keep_agent", "an agent something silenced is refused",
+     "        write_exactly(written, 1, \"keeping an agent\")?;",
+     "        written.map_err(|error| said(\"keeping an agent\", &error))?;"),
+    ("local_agents", "keep_grant", "a grant something silenced is refused",
+     "        write_exactly(written, 1, \"keeping a grant\")?;",
+     "        written.map_err(|error| said(\"keeping a grant\", &error))?;"),
+    ("local_agents", "keep_grant", "an end of the grant a new one replaces something silenced is refused",
+     "            write_exactly(replaced, 1, \"ending the grant a new one replaces\")?;",
+     "            replaced.map_err(|error| said(\"ending the grant a new one replaces\", &error))?;"),
+    ("local_agents", "end_grants", "an end something silenced, or of a grant ended already, is refused",
+     "            write_exactly(ended, 1, \"ending a grant\")?;",
+     "            ended.map_err(|error| said(\"ending a grant\", &error))?;"),
+    ("local_agents", "keep_grant", "a new grant ends only the live grant on its own scope",
+     "                 AND scope_type = ?6 AND scope_id = ?7\",",
+     "                 AND ?6 = ?6 AND ?7 = ?7\","),
+    ("local_agents", "keep_grant", "a new grant ends only the live grant of its own agent and realm",
+     "AND ended_at IS NULL AND agent = ?4 AND realm = ?5 \\",
+     "AND ended_at IS NULL AND ?4 = ?4 AND ?5 = ?5 \\"),
+    ("local_agents", "room_for_one", "a table at its bound has no room for one more",
+     "    if as_unsigned(held, \"a count of rows\")? >= bound {",
+     "    if as_unsigned(held, \"a count of rows\")? > bound {"),
+    ("local_agents", "keep_agent", "an agent is held to the agents' bound",
+     "            self.bounds.agents,",
+     "            u64::MAX,"),
+    ("local_agents", "keep_grant", "a grant is held to the grants' bound",
+     "            self.bounds.grants,",
+     "            u64::MAX,"),
+    ("local_agents", "max_rows", "a table the catalog does not bound takes no row",
+     "        .unwrap_or(0)",
+     "        .unwrap_or(u64::MAX)"),
+    ("local_agents", "agent_row", "an agent read back with no budget is refused",
+     "            .filter(|budget| *budget > 0)",
+     "            .filter(|_| true)"),
+    ("local_agents", "grant_row", "a grant read back whose end is not after its beginning is refused",
+     "    if valid_until_ms <= valid_from_ms {",
+     "    if false && valid_until_ms <= valid_from_ms {"),
+    # **The triggers that write each row once, whose clauses are SQL.** An
+    # operator over `0005_agents.sql` itself is refused at every open by
+    # `EXPECTED`'s digest, so every test would die of the open and none of the
+    # clause. These weaken each clause after the store opened, as a process
+    # around the store could, in the first write of its kind each test makes,
+    # and only a test that drives the insert that clause alone refuses notices.
+    ("local_agents", "keep_agent", "the file refuses an agent written twice, a replace included",
+     "            .map_err(|error| said(\"beginning to keep an agent\", &error))?;",
+     "            .map_err(|error| said(\"beginning to keep an agent\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agents_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
+    ("local_agents", "keep_grant", "the file refuses a grant written twice, a replace included",
+     "            .map_err(|error| said(\"beginning to keep a grant\", &error))?;",
+     "            .map_err(|error| said(\"beginning to keep a grant\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agent_grants_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;\n        sqlx::query(\"CREATE TRIGGER main.agent_grants_are_written_once BEFORE INSERT ON agent_grants WHEN NEW.ended_at IS NULL AND EXISTS (SELECT 1 FROM agent_grants WHERE agent = NEW.agent AND scope_type = NEW.scope_type AND scope_id = NEW.scope_id AND ended_at IS NULL) BEGIN SELECT RAISE(ABORT, 'agent_grants: a grant is written once, and a scope holds one live grant'); END\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
+    ("local_agents", "end_grants", "the file refuses a second live grant on one scope, a replace included",
+     "            .map_err(|error| said(\"beginning to end grants\", &error))?;",
+     "            .map_err(|error| said(\"beginning to end grants\", &error))?;\n        sqlx::query(\"DROP TRIGGER IF EXISTS main.agent_grants_are_written_once\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;\n        sqlx::query(\"CREATE TRIGGER main.agent_grants_are_written_once BEFORE INSERT ON agent_grants WHEN EXISTS (SELECT 1 FROM agent_grants WHERE grant_id = NEW.grant_id) BEGIN SELECT RAISE(ABORT, 'agent_grants: a grant is written once, and a scope holds one live grant'); END\")\n            .execute(&mut *transaction)\n            .await\n            .map_err(|error| said(\"weakening the file\", &error))?;"),
     # -- what the recovery and a prune owe a unit the journal holds open ------
     ("kernel_units", "close", "a unit whose reversal the store refused is held from the pruner",
      "            crate::dispatch::lock(&shared.left_committed).insert(unit);",
@@ -9764,6 +9840,10 @@ ELSEWHERE = {
     "local_schema": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_store": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_journal": ["cargo", "test", "-q", "-p", "nc-local"],
+    # **The agents' module by its own unit tests alone**, which hold every
+    # clause over a store in memory: none of the crate's suites reaches it,
+    # and the one that kills a child mid-commit would run for nothing.
+    "local_agents": ["cargo", "test", "-q", "-p", "nc-local", "--", "agents::"],
     # Each system's privacy, by its own crate's tests first, and then — in
     # `ALSO_RUN` — by the local database's suites that stand on it. **All of
     # the crate but the three tests that register a real service**, which judge

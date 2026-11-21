@@ -294,7 +294,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
-│   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
+│   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine and the agents a person made in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
 │   └── nc-schema/                  a command's schema subset, selector and judge (§11.4), the tool an MCP session is handed of it (§20.3), and the Leader's grammar (§12.8)
@@ -793,8 +793,8 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     success.** A trigger can answer success for a statement it silenced — a temporary
     `BEFORE INSERT … RAISE(IGNORE)`, or the same trigger added to `main` by another
     connection after the store opened, which neither schema check sees. So every statement
-    `crates/nc-local/src/store.rs` and `crates/nc-local/src/journal.rs` write with goes
-    through `write_exactly`, which refuses any count but the one the statement had to
+    `crates/nc-local/src/store.rs`, `crates/nc-local/src/journal.rs` and
+    `crates/nc-local/src/agents.rs` write with goes through `write_exactly`, which refuses any count but the one the statement had to
     change (`NC-DB-0007`, and the journal's `NC-JRNL-0009`), every transaction first checks
     that no temporary object sits on its connection, and the pruner's SQLite target refuses
     a `DELETE` that removed more than its batch (`crates/nc-prune/src/sqlite.rs`). **Gated
@@ -803,7 +803,9 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     `crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` silences each of the store's
     in turn and requires the write refused with nothing left, and
     `an_append_a_trigger_silences_is_refused_and_lands_nothing` in
-    `crates/nc-local/tests/the_local_journal.rs` the journal's. Each list is its own, so a new write that
+    `crates/nc-local/tests/the_local_journal.rs` the journal's, and
+    `a_write_to_the_agents_a_trigger_silences_is_refused_and_leaves_nothing` in
+    `crates/nc-local/src/agents.rs` each of the four the agents are written with. Each list is its own, so a new write that
     skips `write_exactly` and is not added there is refused by nothing — no gate reads the
     store's source for an `execute` outside it.
 
@@ -1942,6 +1944,66 @@ never writes, which keeps every kernel of that realm from opening until somebody
 the file by hand — refused rather than skipped, because skipped it might be the unit a
 stopped process left; and retention, which is the realm's pack's to state and nothing
 applies yet (`catalog/limits.toml`, `policy-pack`).
+
+### The agents a person made are kept as written: each row written once, an agent never changed and a grant ended once
+
+`nc_local::LocalAgents` (`crates/nc-local/src/agents.rs`, whose header has the rules) keeps
+the agents a profile's person made, and every grant they gave one, in the local file beside
+the plugin store and the journal: `agents` and `agent_grants`, built by
+`local-migrations/0005_agents.sql`, and never the world file a daemon starts from
+(`NOCTUA.md §5.13`). It learns no type of the decision point's: an operator and a giver are
+opaque identifiers, and a grant's scope is a type and an identifier as text.
+
+**Guaranteed:**
+
+- **An agent is written once and never edited or deleted, and a grant is written once,
+  ended once and never deleted**, by triggers that refuse the statement whoever runs it,
+  under `trusted_schema = OFF`: `BEFORE UPDATE` and `BEFORE DELETE` ones, and
+  `BEFORE INSERT` ones that refuse an identifier the file holds before SQLite resolves the
+  conflict — so an `INSERT OR REPLACE`, or a `REPLACE`, which would delete the row it meets
+  and fire no delete trigger, is refused as a plain `INSERT` is. The end's trigger holds
+  every other column of a grant as it was and an end to both when and by whom, so a
+  connection that switches the `CHECK`s off with `PRAGMA ignore_check_constraints` still
+  ends no grant without saying who ended it.
+- **One live grant per agent and scope**, whatever statement writes it and whoever runs
+  it: the grants' `BEFORE INSERT` trigger refuses a second live one before SQLite
+  resolves a conflict, a plain `INSERT` and a replace alike (a replace would otherwise
+  delete the live one to make room), and the file's partial unique index states the same
+  rule beneath it. A grant that replaces the live one on its scope ends it in the
+  transaction that writes it, and only that one: a replacement naming a grant of another
+  scope, agent or realm, or one ended already, is refused with the new grant, and the old
+  one stays live.
+- **Every write is counted** through `write_exactly`, in a `BEGIN IMMEDIATE` that first
+  checks no temporary object sits on its connection (invariant 22), and **each table
+  refuses a new row at its bound**, `catalog/limits.toml`'s `max_rows`, counted over the
+  whole table in the transaction that would add the row (`nc_local::KeepError::Full`): every
+  realm's rows and every ended grant count, and a bound the catalog does not hold refuses
+  every row rather than none.
+- **A row read back is judged, or the read is refused** (`NC-DB-0007`): an identifier no
+  minter gives, a realm or a person that is not an opaque identifier, a budget no agent
+  holds, a time below zero, or a window that ends where it begins or before. A label, a
+  reason and a scope are handed on as the file holds them, for whoever opens a directory
+  over the rows to judge.
+
+**Enforced by** the unit tests in `crates/nc-local/src/agents.rs` — the triggers driven
+around the store with the `CHECK`s on and off, a plain insert of an identifier held, an
+`INSERT OR REPLACE` and a `REPLACE` of an agent, of an ended grant, of a live one and on a
+live one's scope, a second live grant, a replacement refused half way and one naming a
+grant of another scope, agent or realm, an ended one or none, a trigger silencing each of
+the four writes, a temporary object, a full table, and rows planted with the checks off —
+by the operators over `agents.rs` in `xtask/mutants.py`, each clause of the insert triggers
+among them, and by `nc_local::schema::EXPECTED`, to which every open and `cargo xtask check`
+hold the file's objects.
+
+**Not answered:** a process running as the same user, which can drop the triggers and then
+write, edit or delete any row — SQLite has no roles, and no row is signed: a trigger
+dropped is a schema the next open refuses, and one put back before it is not seen — and
+which can also rewrite in place, at the same length, a text column no index holds, such as
+an agent's operator or a grant's realm (so its own realm no longer reads it), through
+SQLite's incremental BLOB I/O, which runs no statement, fires no trigger and changes no
+schema; who may make an agent, or give or end a grant, which this crate does not decide —
+it keeps what it is handed; and the bounds being the profile's, under
+**What is deliberately not claimed**.
 
 ### The central log cannot contain user data
 
@@ -4109,6 +4171,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   plugin's namespace redeems none issued before. A person's history is read by identifier
   alone, so the directory is what keeps two principals of different kinds from sharing
   one.
+- **The agents' bounds are the profile's, not a realm's or a person's.** `agents` and
+  `agent_grants` are each counted whole, every realm's rows together and every grant ever
+  given, ended ones included, and nothing in either is ever deleted: a person in one realm
+  can fill them for every realm the profile serves, and a profile that has kept as many
+  grants as `[tables.agent_grants]` allows keeps no more. Not taken: a bound per realm or
+  per person, which `per` in `catalog/limits.toml` cannot say — it counts each plugin's
+  rows or each unit's.
 - **Plugins can time one another**: they share one process, one machine and one bus, one
   top-level call tree at a time, and nothing pads, batches or randomises a wait — the
   reason the kernel's crate header names timing between plugins as unanswered.
@@ -4158,7 +4227,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The local database stops other accounts, not the account it belongs to.** SQLite has no
   roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
   race the owner and mode checks between check and open, and the next open's refusal of a
-  changed schema is detection, not prevention. An administrator, and a disk read offline
+  changed schema is detection, not prevention. Through a statement, undoing an agent or a
+  grant takes such a change first, since the triggers refuse a replace before it deletes
+  the row it meets; a trigger put back before the next open is not seen. Nor is what runs
+  no statement: SQLite's incremental BLOB I/O, which fires no trigger and rewrites in place,
+  at the same length, an agent's or a grant's text column no index holds — its realm, so
+  its own realm no longer reads it, or an agent's operator — and the file's bytes written
+  directly. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
   `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
   runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,
