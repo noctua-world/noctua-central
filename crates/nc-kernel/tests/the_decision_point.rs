@@ -311,6 +311,8 @@ enum Call {
     Slice,
     /// The agent a session names, and the person it acts for.
     Delegation,
+    /// A change to a person's agents, rehearsed and made.
+    Change,
 }
 
 /// A keeper that keeps nothing and refuses nothing: the agents a test makes
@@ -453,7 +455,8 @@ impl Directory for Flaky {
         realm: &str,
         change: &nc_authz::Change,
     ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
-        self.inner.rehearse(realm, change)
+        let answer = self.inner.rehearse(realm, change);
+        as_changed(self.mode_of(Call::Change), answer)
     }
 
     fn change(
@@ -461,8 +464,19 @@ impl Directory for Flaky {
         realm: &str,
         change: &nc_authz::Change,
     ) -> impl Future<Output = Result<(), nc_authz::ChangeRefused>> + Send {
-        self.inner.change(realm, change)
+        let answer = self.inner.change(realm, change);
+        as_changed(self.mode_of(Call::Change), answer)
     }
+}
+
+/// A change's `answer`, or the refusal or the silence `mode` puts in its place.
+async fn as_changed(
+    mode: Mode,
+    answer: impl Future<Output = Result<(), nc_authz::ChangeRefused>>,
+) -> Result<(), nc_authz::ChangeRefused> {
+    as_told(mode, async { Ok(answer.await) })
+        .await
+        .map_err(nc_authz::ChangeRefused::Directory)?
 }
 
 /// The local database held in memory, whose reads a test can make wait until
@@ -9134,6 +9148,13 @@ async fn an_exhausted_session_may_dispatch_nothing() {
 /// a command registered with the realm's or a feature's selector and no row
 /// here fails it, and so does a row no such command has.
 const FITTING: &[(&str, &str)] = &[
+    ("agents.create", r#"{"budget":1,"label":"a"}"#),
+    (
+        "agents.grant",
+        r#"{"agent":"0000000000000","feature":"naming","minutes":1,"reason":"a"}"#,
+    ),
+    ("agents.list", "{}"),
+    ("agents.revoke", r#"{"agent":"0000000000000"}"#),
     ("journal.verify", r#"{"from":0}"#),
     ("kernel.find", r#"{"query":"a"}"#),
     ("kernel.redo", "{}"),
@@ -9526,4 +9547,592 @@ async fn probing_what_a_session_may_dispatch_spends_no_confirmation_no_budget_an
         .dispatch(&confirmed, command, &args)
         .await
         .expect("the confirmation is still ana's to redeem");
+}
+
+/// The command that makes an agent.
+const CREATE: &str = "agents.create";
+
+/// The command that lists the asker's agents.
+const LIST: &str = "agents.list";
+
+/// The command that grants an agent a feature.
+const GRANT: &str = "agents.grant";
+
+/// The command that ends an agent's grants.
+const REVOKE: &str = "agents.revoke";
+
+/// The deciding `@id` of every agents' command a person who is not a guardian
+/// is allowed.
+const KEEPS_AGENTS: &str = "family.a_member_keeps_their_agents";
+
+/// What carla calls the agent she makes, which no entry may hold.
+const LABEL: &str = "carla's own assistant";
+
+/// Why carla grants it a feature, which no entry may hold.
+const REASON: &str = "to name the photos of the trip";
+
+/// `agents.create`'s arguments: `label`, and a budget of `budget`.
+fn making(label: &str, budget: i64) -> String {
+    Value::object([
+        ("budget", Value::Integer(budget)),
+        ("label", Value::text(label)),
+    ])
+    .to_canonical()
+}
+
+/// `agents.grant`'s arguments: `agent` granted `feature` for `minutes`.
+fn granting(agent: &str, feature: &str, minutes: i64) -> String {
+    Value::object([
+        ("agent", Value::text(agent)),
+        ("feature", Value::text(feature)),
+        ("minutes", Value::Integer(minutes)),
+        ("reason", Value::text(REASON)),
+    ])
+    .to_canonical()
+}
+
+/// `agents.revoke`'s arguments: `agent`'s grant on `feature`, or every one.
+fn revoking(agent: &str, feature: Option<&str>) -> String {
+    let mut fields = vec![("agent", Value::text(agent))];
+    if let Some(feature) = feature {
+        fields.push(("feature", Value::text(feature)));
+    }
+    Value::object(fields).to_canonical()
+}
+
+/// The entity every agents' command is decided on, as an entry records it.
+const ON_THE_AGENTS: &str = r#"{"id":"agents","type":"Feature"}"#;
+
+/// The agents `answer`, an `agents.list` answer, holds: each by its
+/// identifier, beside the features of its live grants.
+fn listed_in(answer: &str) -> Vec<(String, Vec<String>)> {
+    field(answer, "agents")
+        .into_array()
+        .expect("a list")
+        .into_iter()
+        .map(|one| {
+            let one = one.to_canonical();
+            let grants = field(&one, "grants")
+                .into_array()
+                .expect("a list")
+                .into_iter()
+                .map(|grant| text(&grant.to_canonical(), "feature"))
+                .collect();
+            (text(&one, "agent"), grants)
+        })
+        .collect()
+}
+
+/// A person makes an agent, grants it a feature and ends the grant, each
+/// journaled with what it made.
+///
+/// **Through the decision point, as carla's own calls**: each command decided
+/// on `Feature::"agents"` by the permit that gives every person their agents,
+/// each change in a unit of its own, kept. The agent is answered by the
+/// identifier the minter gave it, a grant by its own with its window, a second
+/// grant on the feature ends the first, and an ending answers what it ended —
+/// the feature named, leaving another live; every one; nothing, once nothing
+/// is live. Each entry's resource names what the change
+/// made: the window as integers, the grant it ends, the grants ended; and **no
+/// entry holds the label or the reason**. What carla grants is what her agent
+/// may then do — its session proposes a name — and what she ends it may not.
+/// Her undo stops at the step that changed her agents, and a frozen account
+/// makes none.
+#[tokio::test]
+async fn a_person_makes_an_agent_grants_it_a_feature_and_ends_the_grant_each_journaled_with_what_it_made()
+ {
+    let (fixture, _) = reference().await;
+    let made = fixture
+        .as_("carla", CREATE, &making(LABEL, 10))
+        .await
+        .expect("carla makes an agent");
+    let agent = text(&made, "agent");
+    assert_eq!(agent.len(), nc_ids::base32::MIN_WIDTH, "{made}");
+    assert_eq!(
+        made,
+        Value::object([
+            ("agent", Value::text(agent.as_str())),
+            ("budget", Value::Integer(10)),
+            ("label", Value::text(LABEL)),
+        ])
+        .to_canonical()
+    );
+    let list = || async {
+        listed_in(
+            &fixture
+                .as_("carla", LIST, "{}")
+                .await
+                .expect("carla lists her agents"),
+        )
+    };
+    assert_eq!(list().await, [(agent.clone(), vec![])]);
+    let first = fixture
+        .as_("carla", GRANT, &granting(&agent, "naming", 60))
+        .await
+        .expect("carla grants it naming");
+    let hour = NOW_MS + 3_600_000;
+    let first_grant = text(&first, "grant");
+    assert_eq!(first, a_grant(&agent, "naming", &first_grant, hour));
+    let session = fixture.session(&entity("Agent", &agent), "carla").await;
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("what carla granted her agent does");
+    let second = fixture
+        .as_("carla", GRANT, &granting(&agent, "naming", 1))
+        .await
+        .expect("carla grants it naming again");
+    let second_grant = text(&second, "grant");
+    assert_eq!(text(&second, "ends"), first_grant, "{second}");
+    let finding = fixture
+        .as_("carla", GRANT, &granting(&agent, "registry", 60))
+        .await
+        .expect("carla grants it finding");
+    let finding_grant = text(&finding, "grant");
+    assert_eq!(
+        list().await,
+        [(
+            agent.clone(),
+            vec!["naming".to_owned(), "registry".to_owned()]
+        )]
+    );
+    let ended = fixture
+        .as_("carla", REVOKE, &revoking(&agent, Some("naming")))
+        .await
+        .expect("carla ends the grant");
+    assert_eq!(
+        ended,
+        format!(r#"{{"agent":"{agent}","ended":["{second_grant}"]}}"#)
+    );
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let every = fixture
+        .as_("carla", REVOKE, &revoking(&agent, None))
+        .await
+        .expect("carla ends every grant");
+    assert_eq!(
+        field(&every, "ended"),
+        Value::Array(vec![Value::text(finding_grant.as_str())]),
+        "the grant on the other feature outlived the first ending"
+    );
+    let none = fixture
+        .as_("carla", REVOKE, &revoking(&agent, None))
+        .await
+        .expect("an ending of nothing live is still answered");
+    assert_eq!(field(&none, "ended"), Value::Array(Vec::new()));
+    assert_eq!(list().await, [(agent.clone(), vec![])]);
+    let undone = fixture.as_("carla", "kernel.undo", "{}").await;
+    assert!(
+        is(&undone, RefusalKind::Denied, ErrorCode::KernelUndoBarrier),
+        "{undone:?}"
+    );
+    each_change_noted(
+        &fixture.entries().await,
+        &agent,
+        [&first_grant, &second_grant, &finding_grant],
+    );
+    nobody_else_makes_one(&fixture).await;
+    assert_eq!(
+        list().await,
+        [(agent, vec![])],
+        "a refused call made an agent"
+    );
+}
+
+/// What `agents.grant` answers for a grant that ends no other.
+///
+/// A grant of `feature` to `agent` under `grant`, given now and running
+/// until `until`.
+fn a_grant(agent: &str, feature: &str, grant: &str, until: u64) -> String {
+    Value::object([
+        ("agent", Value::text(agent)),
+        ("feature", Value::text(feature)),
+        ("grant", Value::text(grant)),
+        ("valid_from", Value::text(nc_authz::datetime(NOW_MS))),
+        ("valid_until", Value::text(nc_authz::datetime(until))),
+    ])
+    .to_canonical()
+}
+
+/// Holds that each of carla's calls on her agents was allowed by her permit,
+/// a change in a unit and the list in none, and that each entry notes what
+/// the change made and never what she wrote.
+///
+/// `agent` is the agent she made, and `grants` the three grants she gave it:
+/// naming for an hour, naming again for a minute, and finding for an hour.
+fn each_change_noted(entries: &[Entry], agent: &str, grants: [&str; 3]) {
+    let [first_grant, second_grant, finding_grant] = grants;
+    let hour = NOW_MS + 3_600_000;
+    none_malformed(entries);
+    let entity = format!(r#""entity":{ON_THE_AGENTS}"#);
+    let resources: Vec<(String, String)> = dispatched(entries)
+        .into_iter()
+        .filter(|entry| {
+            command_of(entry).is_some_and(|command| command.starts_with("agents."))
+                && who(entry) == ("carla", vec![])
+        })
+        .map(|entry| {
+            assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+            assert_eq!(deciding(entry), Some(KEEPS_AGENTS), "{entry:?}");
+            let command = command_of(entry).expect("named");
+            assert_eq!(
+                entry.record.work_unit.is_some(),
+                command != LIST,
+                "{command} ran in a unit as only a change does"
+            );
+            (command, entry.record.resource.to_canonical())
+        })
+        .collect();
+    let named = |command: &str, fields: &str| {
+        (
+            command.to_owned(),
+            format!(r#"{{{fields}"command":"{command}",{entity}}}"#),
+        )
+    };
+    let window = |feature: &str, until: u64| {
+        format!(
+            r#","scope":{{"id":"{feature}","type":"Feature"}},"valid_from_ms":{NOW_MS},"valid_until_ms":{until}"#
+        )
+    };
+    let listing = (
+        LIST.to_owned(),
+        format!(r#"{{"command":"{LIST}",{entity}}}"#),
+    );
+    assert_eq!(
+        resources,
+        [
+            named(CREATE, &format!(r#""agent":"{agent}","#)),
+            listing.clone(),
+            (
+                GRANT.to_owned(),
+                format!(
+                    r#"{{"agent":"{agent}","command":"{GRANT}",{entity},"grant":"{first_grant}"{}}}"#,
+                    window("naming", hour)
+                )
+            ),
+            (
+                GRANT.to_owned(),
+                format!(
+                    r#"{{"agent":"{agent}","command":"{GRANT}","ends":"{first_grant}",{entity},"grant":"{second_grant}"{}}}"#,
+                    window("naming", NOW_MS + 60_000)
+                )
+            ),
+            (
+                GRANT.to_owned(),
+                format!(
+                    r#"{{"agent":"{agent}","command":"{GRANT}",{entity},"grant":"{finding_grant}"{}}}"#,
+                    window("registry", hour)
+                )
+            ),
+            listing.clone(),
+            (
+                REVOKE.to_owned(),
+                format!(
+                    r#"{{"agent":"{agent}","command":"{REVOKE}","ended":["{second_grant}"],{entity}}}"#
+                )
+            ),
+            (
+                REVOKE.to_owned(),
+                format!(
+                    r#"{{"agent":"{agent}","command":"{REVOKE}","ended":["{finding_grant}"],{entity}}}"#
+                )
+            ),
+            (
+                REVOKE.to_owned(),
+                format!(r#"{{"agent":"{agent}","command":"{REVOKE}","ended":[],{entity}}}"#)
+            ),
+            listing,
+        ]
+    );
+    for entry in entries {
+        let written = format!("{:?}", entry.record);
+        assert!(
+            !written.contains(LABEL) && !written.contains(REASON),
+            "an entry holds what carla wrote: {written}"
+        );
+    }
+}
+
+/// Holds that a frozen account makes no agent.
+///
+/// Refused by the pack's floor, which the journal names. Dora holds the realm's
+/// grant here, so the floor and not a missing grant is what refuses her; a
+/// device is refused by the permit's own `principal is User`, which the
+/// pack's cases pin.
+async fn nobody_else_makes_one<J: nc_journal::Store + Debug + Send + Sync + 'static>(
+    fixture: &Fixture<J>,
+) {
+    let refused = fixture.as_("dora", CREATE, &making("theirs", 1)).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    let entry = entries.last().expect("the denial was journaled");
+    assert_eq!(
+        (entry.record.principal.as_str(), deciding(entry)),
+        ("dora", Some("family.a_frozen_account_acts_on_nothing"))
+    );
+}
+
+/// An agent makes, lists, grants and ends no agent.
+///
+/// **The permit refuses it, and not the grant**: ana grants her agent the
+/// `agents` feature itself, so its own half holds a grant there, and each of
+/// the four commands its session sends — making another agent, listing,
+/// granting itself more, ending its own grants — is refused on that half
+/// because no permit names an agent on the feature, journaled with the agent
+/// and ana. What ana's agents hold is as it was.
+#[tokio::test]
+async fn an_agent_makes_lists_grants_and_ends_no_agent() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    for feature in ["agents", "naming"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let before = fixture
+        .as_("ana", LIST, "{}")
+        .await
+        .expect("ana lists her agents");
+    assert_eq!(
+        listed_in(&before),
+        [(
+            agent.id.clone(),
+            vec!["agents".to_owned(), "naming".to_owned()]
+        )]
+    );
+    let session = fixture.session(&agent, "ana").await;
+    let asked = [
+        (CREATE, making("another", 1)),
+        (LIST, "{}".to_owned()),
+        (GRANT, granting(&agent.id, "registry", 60)),
+        (REVOKE, revoking(&agent.id, None)),
+    ];
+    for (command, args) in &asked {
+        let refused = fixture.by(&session, command, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{command}: {refused:?}"
+        );
+    }
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for (command, _) in &asked {
+        let by_the_agent: Vec<&Entry> = entries_of(&entries, command)
+            .into_iter()
+            .filter(|entry| who(entry) == (agent.id.as_str(), vec!["ana"]))
+            .collect();
+        assert_eq!(by_the_agent.len(), 1, "{command}: {by_the_agent:#?}");
+        assert_eq!(
+            (by_the_agent[0].record.result, deciding(by_the_agent[0])),
+            (Outcome::Denied, Some(nc_authz::sentinel::NO_PERMIT_MATCHED)),
+            "{command}"
+        );
+    }
+    assert_eq!(
+        fixture
+            .as_("ana", LIST, "{}")
+            .await
+            .expect("ana lists her agents"),
+        before,
+        "an agent changed its person's agents"
+    );
+}
+
+/// A plugin makes, grants and ends no agent from inside a command.
+///
+/// **Only a person's own call delegates**: ana runs a command of the
+/// reference plugin that writes and one that only reads, each dispatching the
+/// three commands that change her agents as her, and each nested change is
+/// refused with `[NC-KERN-0025]` before it is decided, journaled under the
+/// kernel's own sentinel with her as the principal, and logged. Her agents are
+/// as they were. The list is no change, and is answered from inside the read.
+#[tokio::test]
+async fn a_plugin_makes_grants_and_ends_no_agent_from_inside_a_command() {
+    let (fixture, _) = reference().await;
+    let made = fixture
+        .as_("ana", CREATE, &making("ana's own", 5))
+        .await
+        .expect("ana makes an agent herself");
+    let agent = text(&made, "agent");
+    let before = fixture
+        .as_("ana", LIST, "{}")
+        .await
+        .expect("ana lists her agents");
+    let nested = [
+        (CREATE, making("a plugin's", 1)),
+        (GRANT, granting(&agent, "naming", 60)),
+        (REVOKE, revoking(&agent, None)),
+    ];
+    for relay_command in ["reference.relay.write", "reference.relay.read"] {
+        for (command, args) in &nested {
+            let answered = fixture
+                .as_("ana", relay_command, &relay(command, args, None))
+                .await
+                .unwrap_or_else(|refused| panic!("{relay_command} answers: {refused}"));
+            let refused = field(&answered, "refused").into_text().unwrap_or_else(|| {
+                panic!("{relay_command}: {command} was not refused: {answered}")
+            });
+            assert!(
+                refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+                "{relay_command}: {command}: {refused}"
+            );
+        }
+    }
+    let entries = fixture.entries().await;
+    for (command, _) in &nested {
+        let refusals: Vec<(&str, Outcome, Option<&str>)> = entries_of(&entries, command)
+            .into_iter()
+            .filter(|entry| entry.record.result != Outcome::Allowed)
+            .map(|entry| {
+                (
+                    entry.record.principal.as_str(),
+                    entry.record.result,
+                    deciding(entry),
+                )
+            })
+            .collect();
+        assert_eq!(
+            refusals,
+            [("ana", Outcome::Denied, Some("kernel.top_level_only")); 2],
+            "{command}"
+        );
+    }
+    assert_eq!(
+        fixture.logged("kernel.dispatch_refused", "reason"),
+        ["top_level_only"; 6]
+    );
+    let read = fixture
+        .as_("ana", "reference.relay.read", &relay(LIST, "{}", None))
+        .await
+        .expect("the relay answers");
+    assert_eq!(field(&read, "answered"), Value::Integer(1), "{read}");
+    assert_eq!(text(&read, "last"), before, "{read}");
+    assert_eq!(
+        fixture
+            .as_("ana", LIST, "{}")
+            .await
+            .expect("ana lists her agents"),
+        before,
+        "a plugin changed ana's agents"
+    );
+}
+
+/// A change the journal does not take is never made.
+///
+/// **Journaled before it is made**: with the journal refusing the entry of a
+/// change, the dispatch is withheld as unavailable and the directory is left
+/// as it was — no agent made, no grant given, no grant ended — and once the
+/// journal takes the entry, the same change is made.
+#[tokio::test]
+async fn a_change_the_journal_does_not_take_is_never_made() {
+    let (fixture, told) = reference().await;
+    let refusing = |refuses: Option<fn(&Entry) -> bool>| {
+        told.lock().expect("nothing panics holding it").refuses = refuses;
+    };
+    let list = || async {
+        listed_in(
+            &fixture
+                .as_("carla", LIST, "{}")
+                .await
+                .expect("carla lists her agents"),
+        )
+    };
+    let withheld = |refused: &Result<String, Refusal>| {
+        assert!(
+            is(
+                refused,
+                RefusalKind::Unavailable,
+                ErrorCode::JournalUnavailable
+            ),
+            "{refused:?}"
+        );
+    };
+    refusing(Some(|entry: &Entry| {
+        command_of(entry).as_deref() == Some(CREATE) && entry.record.result == Outcome::Allowed
+    }));
+    withheld(&fixture.as_("carla", CREATE, &making(LABEL, 1)).await);
+    refusing(None);
+    assert_eq!(
+        list().await,
+        [],
+        "an agent the journal holds no entry of was made"
+    );
+    let made = fixture
+        .as_("carla", CREATE, &making(LABEL, 1))
+        .await
+        .expect("made once the journal takes it");
+    let agent = text(&made, "agent");
+    refusing(Some(|entry: &Entry| {
+        command_of(entry).as_deref() == Some(GRANT) && entry.record.result == Outcome::Allowed
+    }));
+    withheld(
+        &fixture
+            .as_("carla", GRANT, &granting(&agent, "naming", 60))
+            .await,
+    );
+    refusing(None);
+    assert_eq!(list().await, [(agent.clone(), vec![])]);
+    fixture
+        .as_("carla", GRANT, &granting(&agent, "naming", 60))
+        .await
+        .expect("granted once the journal takes it");
+    refusing(Some(|entry: &Entry| {
+        command_of(entry).as_deref() == Some(REVOKE) && entry.record.result == Outcome::Allowed
+    }));
+    withheld(&fixture.as_("carla", REVOKE, &revoking(&agent, None)).await);
+    refusing(None);
+    assert_eq!(
+        list().await,
+        [(agent, vec!["naming".to_owned()])],
+        "a grant was ended though the journal holds no entry of its end"
+    );
+}
+
+/// A change the directory cannot answer for is refused and changes nothing.
+///
+/// **Rehearsed before it is journaled**: a directory that cannot answer for
+/// the change refuses it as unavailable with `[NC-POL-0006]`, journaled as
+/// failed after the decision allowed it, and nothing is held; once the
+/// directory answers, the same change is made.
+#[tokio::test]
+async fn a_change_the_directory_cannot_answer_for_is_refused_and_changes_nothing() {
+    let (fixture, _) = reference().await;
+    *fixture.call.lock().expect("nothing panics holding it") = Call::Change;
+    *fixture.mode.lock().expect("nothing panics holding it") = Mode::Fails;
+    let refused = fixture.as_("carla", CREATE, &making(LABEL, 1)).await;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Unavailable,
+            ErrorCode::PolicyDirectoryUnavailable
+        ),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    let entry = only(&entries, CREATE);
+    assert_eq!(
+        (entry.record.result, deciding(entry)),
+        (Outcome::Failed, Some(KEEPS_AGENTS))
+    );
+    assert_eq!(
+        entry.record.resource.to_canonical(),
+        format!(
+            r#"{{"command":"{CREATE}","entity":{ON_THE_AGENTS},"failure":"directory-unavailable"}}"#
+        ),
+        "a refused change notes nothing it would have made"
+    );
+    let listed = fixture
+        .as_("carla", LIST, "{}")
+        .await
+        .expect("the list is no change");
+    assert_eq!(listed_in(&listed), []);
+    *fixture.mode.lock().expect("nothing panics holding it") = Mode::Answers;
+    fixture
+        .as_("carla", CREATE, &making(LABEL, 1))
+        .await
+        .expect("made once the directory answers");
 }

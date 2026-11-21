@@ -2104,9 +2104,12 @@ fn a_catalog_with_nothing_the_pruner_can_prune_fails_the_build() {
 
 /// A kernel limit of zero fails the build, whichever width its field has.
 ///
-/// Two rows, a `u64` and a `u32`, because `KernelLimits::each` widens the
-/// narrow ones on the way to the check, and a row that dropped them would leave
-/// every count bound unchecked while the byte bounds stayed refused.
+/// A `u64` and a `u32`, because `KernelLimits::each` widens the narrow ones on
+/// the way to the check, and a row that dropped them would leave every count
+/// bound unchecked while the byte bounds stayed refused; and each bound on an
+/// agent a person makes, the minutes' written by a row of its own: a budget of
+/// zero is an agent no call can be decided for, and a grant of no minutes one
+/// that ends as it begins.
 #[test]
 fn a_kernel_limit_of_zero_fails_the_build() {
     for (from, to, naming) in [
@@ -2119,6 +2122,16 @@ fn a_kernel_limit_of_zero_fails_the_build() {
             "undo_history = 100",
             "undo_history = 0",
             "`[kernel] undo_history` is zero",
+        ),
+        (
+            "agent_budget_max = 100_000",
+            "agent_budget_max = 0",
+            "`[kernel] agent_budget_max` is zero",
+        ),
+        (
+            "agent_grant_minutes_max = 43_200",
+            "agent_grant_minutes_max = 0",
+            "`[kernel] agent_grant_minutes_max` is zero",
         ),
     ] {
         let scratch = Scratch::new(&format!("kernel-zero-{}", to.replace(' ', "")));

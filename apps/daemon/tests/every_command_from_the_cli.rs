@@ -12,6 +12,11 @@
 //! through the daemon's endpoint as one JSON object — a raw dispatch, the path
 //! `noctua mcp` will take — each decided on the platform's `naming` feature.
 //!
+//! **And a person's agents, end to end**: an agent made through the CLI, granted
+//! a feature, listed and its grant ended, each decided on the platform's
+//! `agents` feature, and named to the CLI by the identifier it was made under
+//! and never by its label.
+//!
 //! **And acceptance 5, end to end**: `kernel.find` run through the CLI finds a
 //! command by a Portuguese synonym and by its English name, every word at its
 //! own positions, a plugin's command by its own entry's texts, and nothing
@@ -142,7 +147,8 @@ const A_NOTE_AND_TEXT: &[&str] = &["--note", NOTE, "--text", "written"];
 ///
 /// **Held both ways to the registry** (`the_table_is_the_registry`).
 /// **Undo and redo after the write they step through**, and the setting's
-/// switch after them, so the step they find is the note's; and **the abuses
+/// switch and the agents' commands after them, so the step they find is the
+/// note's — a change of the agents is one undo stops at; and **the abuses
 /// last**, after the two commands that trap once they have written: a plugin
 /// killed `restart_budget` times inside `restart_window_ms` is quarantined,
 /// so the third kill — `abuse.trap`'s — quarantines the plugin and the three
@@ -171,6 +177,33 @@ const ROWS: &[Row] = &[
     ran("kernel.redo", &[]),
     ran("settings.mcp.read", &[]),
     ran("settings.mcp.set", &["--on"]),
+    ran("agents.create", &["--label", "assistant", "--budget", "10"]),
+    ran("agents.list", &[]),
+    // **No agent is held under the identifier named**: the schema takes it,
+    // and the directory answers it as an agent the asking person did not make.
+    ended(
+        "agents.grant",
+        &[
+            "--agent",
+            "0000000000000",
+            "--feature",
+            "naming",
+            "--minutes",
+            "1",
+            "--reason",
+            "a scratch daemon's agent",
+        ],
+        Exit::NotFound,
+        ErrorCode::AiNoSuchAgent,
+        Journaled::Failed("no-such-agent"),
+    ),
+    ended(
+        "agents.revoke",
+        &["--agent", "0000000000000"],
+        Exit::NotFound,
+        ErrorCode::AiNoSuchAgent,
+        Journaled::Failed("no-such-agent"),
+    ),
     ran("reference.note.get", A_NOTE),
     ran("reference.probe", A_NOTE),
     ended(
@@ -1163,5 +1196,197 @@ fn the_cli_finds_a_command_by_a_portuguese_synonym_and_by_its_english_name_with_
             .all(|rule| rule == "family.a_member_finds_commands"),
         "{decided:?}"
     );
+    serving.stopped();
+}
+
+/// The permit every agents' command a person is allowed is decided by.
+const KEEPS_AGENTS: &str = "family.a_member_keeps_their_agents";
+
+/// The command line of `command` with `words`, as `answered_to` takes it.
+fn line<'a>(command: &'a str, words: &[&'a str]) -> Vec<&'a str> {
+    std::iter::once(command)
+        .chain(words.iter().copied())
+        .collect()
+}
+
+/// The CLI makes an agent, grants it naming, lists it and ends the grant.
+///
+/// **Through `nc_cli::run`, as a person types it, against the daemon's own
+/// directory**: the agent is answered by the identifier the daemon's minter
+/// gave it and listed with its label and budget; a grant of naming is answered
+/// with its own identifier and listed with the feature it is for; ending it
+/// answers that grant, and the list then holds the agent with nothing live.
+/// Every command was decided by the agents' permit, a guardian's beside it
+/// where the verb is one a guardian administers.
+#[test]
+fn the_cli_makes_an_agent_grants_it_naming_lists_it_and_ends_the_grant() {
+    let serving = Serving::new();
+    let made = answered_to(
+        &serving,
+        &line("agents.create", &["--label", "assistant", "--budget", "10"]),
+    );
+    let agent = text_of(&made, "agent");
+    assert_eq!(agent.len(), nc_ids::base32::MIN_WIDTH, "{made:?}");
+    let granted = answered_to(
+        &serving,
+        &line(
+            "agents.grant",
+            &[
+                "--agent",
+                agent.as_str(),
+                "--feature",
+                "naming",
+                "--minutes",
+                "60",
+                "--reason",
+                "to name the photos",
+            ],
+        ),
+    );
+    let grant = text_of(&granted, "grant");
+    assert_eq!(text_of(&granted, "feature"), "naming");
+    let listed = answered_to(&serving, &["agents.list"]);
+    assert_eq!(
+        listed.to_canonical(),
+        Value::object([(
+            "agents",
+            Value::Array(vec![Value::object([
+                ("agent", Value::text(agent.as_str())),
+                ("budget", Value::Integer(10)),
+                (
+                    "grants",
+                    Value::Array(vec![Value::object([
+                        ("feature", Value::text("naming")),
+                        ("grant", Value::text(grant.as_str())),
+                        ("reason", Value::text("to name the photos")),
+                        ("valid_from", Value::text(text_of(&granted, "valid_from"))),
+                        ("valid_until", Value::text(text_of(&granted, "valid_until"))),
+                    ])]),
+                ),
+                ("label", Value::text("assistant")),
+            ])]),
+        )])
+        .to_canonical()
+    );
+    let ended = answered_to(
+        &serving,
+        &line(
+            "agents.revoke",
+            &["--agent", agent.as_str(), "--feature", "naming"],
+        ),
+    );
+    assert_eq!(
+        ended.to_canonical(),
+        Value::object([
+            ("agent", Value::text(agent.as_str())),
+            ("ended", Value::Array(vec![Value::text(grant.as_str())])),
+        ])
+        .to_canonical()
+    );
+    let after = answered_to(&serving, &["agents.list"]);
+    assert!(after.to_canonical().contains(r#""grants":[]"#), "{after:?}");
+    let decided = allowed_by(&serving, "agents.");
+    assert_eq!(decided.len(), 5, "{decided:?}");
+    assert!(
+        decided
+            .iter()
+            .all(|rules| rules.split(',').any(|rule| rule == KEEPS_AGENTS)),
+        "{decided:?}"
+    );
+    serving.stopped();
+}
+
+/// An agent is named to the CLI by its identifier, and never by its label.
+///
+/// **Text is matched, never minted from**: an agent made with a label the
+/// schema would take as an identifier is not reached by that label, nor by its
+/// identifier in lower case — each `[NC-AI-0001]`, ending as a thing named that
+/// is not there, and journaled with nothing the person typed — and its own
+/// identifier reaches it.
+#[test]
+fn an_agent_is_named_to_the_cli_by_its_identifier_and_never_by_its_label() {
+    let serving = Serving::new();
+    let label = "my assistant";
+    assert_eq!(label.chars().count(), nc_ids::base32::MIN_WIDTH);
+    let made = answered_to(
+        &serving,
+        &line("agents.create", &["--label", label, "--budget", "3"]),
+    );
+    let agent = text_of(&made, "agent");
+    let lower = agent.to_lowercase();
+    for named in [label, lower.as_str()] {
+        let outcome = serving.run(
+            &line(
+                "agents.grant",
+                &[
+                    "--agent",
+                    named,
+                    "--feature",
+                    "naming",
+                    "--minutes",
+                    "1",
+                    "--reason",
+                    "by a name it was not made under",
+                ],
+            )
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>(),
+            &english(),
+        );
+        assert_eq!(outcome.exit, Exit::NotFound, "{named}: {outcome:?}");
+        assert!(
+            outcome
+                .stderr
+                .starts_with(&format!("error[{}]", ErrorCode::AiNoSuchAgent.code())),
+            "{named}: {}",
+            outcome.stderr
+        );
+    }
+    answered_to(
+        &serving,
+        &line(
+            "agents.grant",
+            &[
+                "--agent",
+                agent.as_str(),
+                "--feature",
+                "naming",
+                "--minutes",
+                "1",
+                "--reason",
+                "by the name it was made under",
+            ],
+        ),
+    );
+    let store = serving
+        .runtime
+        .block_on(nc_local::LocalStore::open(&serving.installed.layout.data))
+        .expect("the daemon's database opens beside it");
+    let read = serving
+        .runtime
+        .block_on(nc_journal::Store::from(&store.journal(), 0))
+        .expect("the journal reads");
+    serving.runtime.block_on(store.close());
+    let failed: Vec<&nc_journal::Record> = read
+        .entries
+        .iter()
+        .map(|entry| &entry.record)
+        .filter(|record| record.result == Outcome::Failed)
+        .collect();
+    assert_eq!(failed.len(), 2, "{failed:?}");
+    for record in &failed {
+        assert_eq!(
+            record.resource.to_canonical(),
+            r#"{"command":"agents.grant","entity":{"id":"agents","type":"Feature"},"failure":"no-such-agent"}"#
+        );
+    }
+    for entry in &read.entries {
+        let written = format!("{:?}", entry.record);
+        assert!(
+            !written.contains(label) && !written.contains(&lower),
+            "an entry holds what the person typed: {written}"
+        );
+    }
     serving.stopped();
 }

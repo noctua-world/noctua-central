@@ -9,6 +9,94 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 **`Action` is what the policy pack decides on, and the pack has rules of its own.** `policy/core/quorum.cedar` forbids `Delete` unless the context carries `quorum_met`, and the schema makes that attribute required — so *every* command whose action is `Delete` needs a quorum, whatever else it declares. A reader designing a scheduled caller for one has to read the pack as well as this page.
 
+## `agents.create`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:agents` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F234` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Make an agent | Criar um agente |
+| Line description | Make an agent that acts for you, with a budget of its own. | Criar um agente que age por você, com um orçamento próprio. |
+| Paragraph | Makes a new agent of yours: an identity of its own that an MCP client acts as, for you alone. You give it a label and a budget, which each of its sessions spends one at a time, and it can do nothing until you grant it a feature. Only you can make one, asking directly, never from inside another action. An agent is never deleted, so undo stops at the step that made it. | Cria um novo agente seu: uma identidade própria, com a qual um cliente MCP age só por você. Você lhe dá um nome e um orçamento, que cada sessão dele gasta uma unidade por vez, e ele não pode fazer nada até que você lhe dê acesso a um recurso. Só você pode criar um, pedindo diretamente, nunca de dentro de outra ação. Um agente nunca é apagado, então desfazer para no passo que o criou. |
+| Tags | agents, make an agent, new agent, mcp, assistant, delegate | agentes, criar agente, novo agente, mcp, assistente, delegar |
+
+```json
+{"type":"object","properties":{"label":{"type":"string","minLength":1,"maxLength":64},"budget":{"type":"integer","minimum":1,"maximum":100000}},"required":["label","budget"],"additionalProperties":false}
+```
+
+## `agents.grant`
+
+| | |
+|---|---|
+| Action | `Grant` |
+| Resource selector | `feature:agents` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F084` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Grant an agent a feature | Dar a um agente acesso a um recurso |
+| Line description | Let one of your agents use a feature, for a reason and a time you give. | Deixar um agente seu usar um recurso, por um motivo e um prazo que você dá. |
+| Paragraph | Lets one of your agents, named by the identifier Noctua gave it, use one feature for as many minutes as you say, within the longest a grant may run, and keeps why. A new grant on the same feature ends the one before it, and the agent still does only what you yourself may do. Only you can grant it, asking directly, never from inside another action. To take it back, revoke it: undo stops at a grant. | Deixa um agente seu, indicado pelo identificador que o Noctua lhe deu, usar um recurso por quantos minutos você disser, até o prazo mais longo que uma permissão pode ter, e guarda o motivo. Uma nova permissão no mesmo recurso encerra a anterior, e o agente continua fazendo só o que você mesmo pode fazer. Só você pode dar a permissão, pedindo diretamente, nunca de dentro de outra ação. Para retirá-la, revogue: desfazer para numa permissão dada. |
+| Tags | agents, grant, give access, allow, mcp, delegate | agentes, dar acesso, permissão, permitir, mcp, delegar |
+
+```json
+{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64},"minutes":{"type":"integer","minimum":1,"maximum":43200},"reason":{"type":"string","minLength":1,"maxLength":256}},"required":["agent","feature","minutes","reason"],"additionalProperties":false}
+```
+
+## `agents.list`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:agents` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it changes nothing |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0C0` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | List your agents | Listar seus agentes |
+| Line description | Show the agents you made, each with what you granted it and until when. | Mostrar os agentes que você criou, cada um com o que lhe deu e até quando. |
+| Paragraph | Answers every agent you made, in the order you made them, with its label, its budget and each feature it may reach now, with why you granted it and from when until when. It changes nothing. | Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada recurso que ele pode usar agora, com o motivo e de quando até quando. Não muda nada. |
+| Tags | agents, my agents, list agents, grants, mcp | agentes, meus agentes, listar agentes, permissões, mcp |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `agents.revoke`
+
+| | |
+|---|---|
+| Action | `Revoke` |
+| Resource selector | `feature:agents` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F235` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Revoke an agent's access | Revogar o acesso de um agente |
+| Line description | End what you granted one of your agents: one feature, or all of them. | Encerrar o que você deu a um agente seu: um recurso, ou todos. |
+| Paragraph | Ends the grant one of your agents holds on the feature you name, or every grant it holds when you name none, from its very next action. The agent itself is kept, with its budget, for you to grant again. Only you can revoke, asking directly, never from inside another action, and undo stops at a revocation. | Encerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação. |
+| Tags | agents, revoke, take access away, end a grant, mcp | agentes, revogar, tirar acesso, encerrar permissão, mcp |
+
+```json
+{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false}
+```
+
 ## `journal.verify`
 
 | | |

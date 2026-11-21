@@ -33,6 +33,10 @@ dir   = "ltr"
 "command.kernel.find.tags" = ["procurar", "pesquisar", "buscar", "filtrar", "comandos disponíveis"]
 "command.settings.mcp.read.tags" = ["mcp", "agentes", "configurações", "ferramentas de ia", "protocolo de contexto"]
 "command.settings.mcp.set.tags" = ["mcp", "agentes", "configurações", "ligar", "desligar", "ferramentas de ia", "protocolo de contexto"]
+"command.agents.create.tags" = ["agentes", "criar agente", "novo agente", "mcp", "assistente", "delegar"]
+"command.agents.list.tags" = ["agentes", "meus agentes", "listar agentes", "permissões", "mcp"]
+"command.agents.grant.tags" = ["agentes", "dar acesso", "permissão", "permitir", "mcp", "delegar"]
+"command.agents.revoke.tags" = ["agentes", "revogar", "tirar acesso", "encerrar permissão", "mcp"]
 
 # --- External identifiers ---
 "external-identifier.google-chrome.tags" = ["navegador", "navegador da web", "web", "internet", "google"]
@@ -265,6 +269,18 @@ dir   = "ltr"
 "command.settings.mcp.set.title" = "Ligar ou desligar o MCP"
 "command.settings.mcp.set.description" = "Deixar clientes MCP agirem aqui como agentes, ou impedi-los."
 "command.settings.mcp.set.paragraph" = "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava."
+"command.agents.create.title" = "Criar um agente"
+"command.agents.create.description" = "Criar um agente que age por você, com um orçamento próprio."
+"command.agents.create.paragraph" = "Cria um novo agente seu: uma identidade própria, com a qual um cliente MCP age só por você. Você lhe dá um nome e um orçamento, que cada sessão dele gasta uma unidade por vez, e ele não pode fazer nada até que você lhe dê acesso a um recurso. Só você pode criar um, pedindo diretamente, nunca de dentro de outra ação. Um agente nunca é apagado, então desfazer para no passo que o criou."
+"command.agents.list.title" = "Listar seus agentes"
+"command.agents.list.description" = "Mostrar os agentes que você criou, cada um com o que lhe deu e até quando."
+"command.agents.list.paragraph" = "Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada recurso que ele pode usar agora, com o motivo e de quando até quando. Não muda nada."
+"command.agents.grant.title" = "Dar a um agente acesso a um recurso"
+"command.agents.grant.description" = "Deixar um agente seu usar um recurso, por um motivo e um prazo que você dá."
+"command.agents.grant.paragraph" = "Deixa um agente seu, indicado pelo identificador que o Noctua lhe deu, usar um recurso por quantos minutos você disser, até o prazo mais longo que uma permissão pode ter, e guarda o motivo. Uma nova permissão no mesmo recurso encerra a anterior, e o agente continua fazendo só o que você mesmo pode fazer. Só você pode dar a permissão, pedindo diretamente, nunca de dentro de outra ação. Para retirá-la, revogue: desfazer para numa permissão dada."
+"command.agents.revoke.title" = "Revogar o acesso de um agente"
+"command.agents.revoke.description" = "Encerrar o que você deu a um agente seu: um recurso, ou todos."
+"command.agents.revoke.paragraph" = "Encerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação."
 
 # --- Capabilities ---
 "capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."

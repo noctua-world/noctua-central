@@ -119,3 +119,27 @@ permit (
   action in [Action::"Read", Action::"Write"],
   resource == Feature::"mcp"
 );
+
+// Every person of the household keeps their own agents.
+//
+// `agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are a
+// person's delegation to an agent (`NOCTUA.md §14.6`): what they make, see,
+// give and end. Delegating one's own rights grants nothing beyond them — every
+// decision for the agent is asked again as its person, and the narrower answer
+// stands — and only the agent's person grants it or ends a grant, which the
+// directory refuses to anyone else when the change is made, so this is not
+// `family.a_guardian_administers_the_realm`. **A person, and only a person:
+// `principal is User` is this permit's own constraint.** An agent manages no
+// agent, its own included: no permit names `Agent` on this feature, so the
+// agent's half of every question about it is refused; and a device is no
+// person. A child of the house as much as an adult, for agents of their own. A
+// frozen account is refused by `family.a_frozen_account_acts_on_nothing`, as
+// for every permit. The three commands that change run only at the top of a
+// call tree, so no plugin, timer or event makes, grants or ends an agent in a
+// person's name (`crates/nc-kernel/src/registry.rs`).
+@id("family.a_member_keeps_their_agents")
+permit (
+  principal is User,
+  action in [Action::"Read", Action::"Write", Action::"Grant", Action::"Revoke"],
+  resource == Feature::"agents"
+);

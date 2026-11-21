@@ -380,11 +380,14 @@ pub(crate) fn left_by(command: &str) -> String {
 ///
 /// It does as a request that changes something elsewhere does when the
 /// command cannot be undone, and when the kernel owns it and it changes
-/// state — `limits.prune` — but for undo and redo, which are the history
-/// itself, and a setting's switch, whose one effect is its entry in its own
-/// unit (`crate::settings::writes_only_its_entry`): named by the command,
-/// never by its namespace, so the person's undo takes the switch back and
-/// reaches the steps before it.
+/// state outside every unit — `limits.prune`, and `agents.create`,
+/// `agents.grant` and `agents.revoke`, whose change is the profile's
+/// database's (`crate::agents`), so the reverse of a grant is a revocation
+/// and never an undo — but for undo and redo, which are the history itself,
+/// and a setting's switch, whose one effect is its entry in its own unit
+/// (`crate::settings::writes_only_its_entry`): named by the command, never by
+/// its namespace, so the person's undo takes the switch back and reaches the
+/// steps before it.
 pub(crate) fn leaves_the_machine(command: &crate::registry::RegisteredCommand) -> bool {
     command.reversibility == Reversibility::Irreversible
         || (command.owner == crate::registry::Owner::Kernel

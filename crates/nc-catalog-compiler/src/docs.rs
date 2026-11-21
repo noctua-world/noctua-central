@@ -898,9 +898,9 @@ fn kernel(catalog: &Catalog) -> String {
     let mut out = String::new();
     out.push_str("\n## Kernel\n\n");
     out.push_str(
-        "The bounds the local kernel holds every plugin to (`§11.3`), read from `[kernel]` \
-         and from nowhere else: a plugin's manifest may lower some of them for itself and \
-         raise none. How many keys one plugin may keep and how many writes one unit may \
+        "The bounds the local kernel holds every plugin to (`§11.3`), and every agent a \
+         person makes (`§14.6`), read from `[kernel]` and from nowhere else: a plugin's \
+         manifest may lower some of them for itself and raise none. How many keys one plugin may keep and how many writes one unit may \
          record are not here — they are `store_entries` and `store_writes` under **Tables**, \
          where their writer refuses at them, so each is one number held in one place.\n\n\
          **Every one is enforced by `crates/nc-kernel`.** It reads them as the ceiling a \
@@ -927,8 +927,11 @@ fn kernel(catalog: &Catalog) -> String {
          `timer_min_interval_ms` and `timer_max_delay_ms`, the events waiting for \
          delivery to `event_queue` and `event_queue_bytes`, the surfaces a plugin holds \
          to `surfaces_per_plugin` and each tree it renders to `ui_tree_nodes`, \
-         `ui_tree_depth` and `ui_text_bytes`, and a plugin's own log to `log_ring_lines` \
-         lines of `log_line_bytes` each.\n\n",
+         `ui_tree_depth` and `ui_text_bytes`, a plugin's own log to `log_ring_lines` \
+         lines of `log_line_bytes` each, and what a person gives an agent to spend to \
+         `agent_budget_max` and how long a grant to one runs to \
+         `agent_grant_minutes_max`, through the schemas of `agents.create` and \
+         `agents.grant`, which a test holds to them.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.kernel.each() {

@@ -13,9 +13,9 @@
 # account back its undo and redo. The gate refuses a type test
 # that guards no read in a floor's condition, and these cases stand behind the
 # shape it still excuses. So a suspended member is refused here on `Content`,
-# the `Realm`, her own `User`, and the `naming`, `registry` and `mcp`
-# `Feature`s, which the naming, finding and switch permits give every person
-# of the house. A
+# the `Realm`, her own `User`, and the `naming`, `registry`, `mcp` and `agents`
+# `Feature`s, which the naming, finding, switch and agents permits give every
+# person of the house. A
 # guardian who has died is refused on the first three and on a `Feature` his
 # role reaches.
 
@@ -84,6 +84,15 @@ name = "a suspended account switches no MCP"
 principal = 'User::"dora"'
 action = "Write"
 resource = 'Feature::"mcp"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The agents' permit lets every person of the house make an agent of their own.
+name = "a suspended account makes no agent"
+principal = 'User::"dora"'
+action = "Write"
+resource = 'Feature::"agents"'
 decision = "deny"
 because = "family.a_frozen_account_acts_on_nothing"
 

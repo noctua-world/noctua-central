@@ -62,9 +62,10 @@
 //! trapped rather than told again when it asks on.
 //! Undo and redo run only at the top of a tree, and are refused nested in
 //! another command (`crate::history`); so does a command of the kernel's own
-//! that switches a setting (`crate::registry::only_at_the_top`), refused with
-//! `[NC-KERN-0025]` and journaled under the same sentinel, so no plugin, timer
-//! or event run as a person switches what may act for them. **A callback the pump calls is a tree
+//! that switches a setting or makes, grants or ends an agent
+//! (`crate::registry::only_at_the_top`), refused with `[NC-KERN-0025]` and
+//! journaled under the same sentinel, so no plugin, timer or event run as a
+//! person switches what may act for them. **A callback the pump calls is a tree
 //! of its own** — a timer fired or an event heard, acting as the tree that set
 //! or published it acted — whose frame is beneath every command it
 //! dispatches:
@@ -74,8 +75,12 @@
 //! **What an undo needs is noted as the tree runs.** Every command that
 //! changes state and ran leaves a note in the unit of the action it was
 //! allowed on its resource, which an undo authorizes again, and a command that
-//! cannot be undone or that the kernel runs on the realm itself leaves one,
-//! before it runs, of having left the machine, which an undo stops at.
+//! cannot be undone or that the kernel runs outside every unit — on the realm
+//! itself, or on a person's agents — leaves one, before it runs, of having left
+//! the machine, which an undo stops at. **And what no unit holds is journaled
+//! before it is done**: a prune and an agent's change are journaled as allowed
+//! before they delete or change anything, so a journal that does not take the
+//! entry leaves everything as it was.
 //!
 //! **A denial tells the caller its code and not the policy that decided.** The
 //! journal records the deciding `@id` or sentinel either way; the caller is
@@ -1538,8 +1543,8 @@ fn registered<E: Environment>(
             RefusalKind::Denied,
             ErrorCode::KernelOnlyAtTheTop,
             format!(
-                "`{name}` switches a setting, which only a person's own call may do, and it was \
-                 dispatched from inside a command"
+                "`{name}` switches a setting or keeps an agent, which only a person's own call \
+                 may do, and it was dispatched from inside a command"
             ),
         );
         return Err(Box::new(Turned::of(
@@ -2198,9 +2203,16 @@ async fn run<E: Environment>(
             Reason::Quarantined,
             asked.command.listed().mutating,
         );
-        return journaled(shared, tree, asked, authorized, Err(failure))
-            .await
-            .map_err(|(refusal, _)| refusal);
+        return journaled(
+            shared,
+            tree,
+            asked,
+            authorized,
+            Err(failure),
+            BTreeMap::new(),
+        )
+        .await
+        .map_err(|(refusal, _)| refusal);
     }
     // **A command that changes state where the tree holds no unit opens
     // one**: the top of a tree, and a dispatch from a timer's callback that
@@ -2350,11 +2362,15 @@ async fn executed<E: Environment>(
             ));
         }
     };
-    journaled(shared, tree, asked, authorized, ran).await
+    journaled(shared, tree, asked, authorized, ran, BTreeMap::new()).await
 }
 
 /// Step twelve: the entry of an authorized dispatch, and the answer it lets
 /// through.
+///
+/// Its resource names the command and the entity, and adds what `noted` holds
+/// of what the dispatch did beside them — an agent's change, what it made
+/// (`crate::agents`) — and what an undo or a redo stepped through.
 ///
 /// # Errors
 ///
@@ -2368,6 +2384,7 @@ async fn journaled<E: Environment>(
     asked: &Asked,
     authorized: &Authorized,
     ran: Result<String, Failure>,
+    noted: BTreeMap<String, Value>,
 ) -> Result<String, (Refusal, Cause)> {
     let failure = ran.as_ref().err().map(|failure| failure.word);
     let mut resource = resource_of(&asked.name, Some(&asked.resource), failure);
@@ -2381,6 +2398,9 @@ async fn journaled<E: Environment>(
     };
     if let (Some(reversed), Value::Object(fields)) = (reversed, &mut resource) {
         fields.extend(reversed);
+    }
+    if let Value::Object(fields) = &mut resource {
+        fields.extend(noted);
     }
     let record = Record {
         realm: shared.realm.clone(),
@@ -2526,8 +2546,9 @@ const QUOTED: usize = 256;
 /// Runs a command the kernel itself implements, in the tree's own unit:
 /// verifying the journal, pruning the local tables, the history's undo and
 /// redo, proposing and reading a file's name (`crate::builtin`), finding a
-/// command (`crate::find`), and reading and switching a setting
-/// (`crate::settings`).
+/// command (`crate::find`), reading and switching a setting
+/// (`crate::settings`), and making, listing, granting and ending a person's
+/// agents (`crate::agents`).
 ///
 /// **A command the registry gives the kernel has a handler**, which
 /// `crate::builtin`'s test holds both ways; one without would be answered as
@@ -2572,6 +2593,13 @@ async fn builtin<E: Environment>(
         }
         Some(Builtin::McpRead) => crate::settings::mcp_read(shared).await,
         Some(Builtin::McpSet) => crate::settings::mcp_set(shared, tree, &asked.json).await,
+        Some(Builtin::AgentsCreate | Builtin::AgentsGrant | Builtin::AgentsRevoke) => {
+            return changed_once_journaled(shared, tree, asked, authorized).await;
+        }
+        Some(Builtin::AgentsList) => {
+            let began = lock(tree).began();
+            crate::agents::listed(shared, asked.acting.principal(), began).await
+        }
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,
@@ -2606,8 +2634,47 @@ async fn pruned_once_journaled<E: Environment>(
         Err(failure) => Executed::Ran(Err(failure)),
         Ok(crate::builtin::Prune::Answered(answer)) => Executed::Ran(Ok(answer)),
         Ok(crate::builtin::Prune::Deletes(target, run)) => {
-            match journaled(shared, tree, asked, authorized, Ok(String::new())).await {
+            let entered = Ok(String::new());
+            match journaled(shared, tree, asked, authorized, entered, BTreeMap::new()).await {
                 Ok(_) => Executed::Entered(crate::builtin::deleted(target, run).await),
+                Err(refused) => Executed::Withheld(refused),
+            }
+        }
+    }
+}
+
+/// `agents.create`, `agents.grant` and `agents.revoke`, which change nothing
+/// until their entry has landed.
+///
+/// **What no unit can hold is journaled before it is done**, as a prune is: an
+/// agent's change is made in the profile's database outside every unit, so it
+/// is planned and rehearsed first (`crate::agents::planned`) — a refusal there
+/// journaled as failed — then journaled as allowed with what it makes, and made
+/// only then. A journal that does not take that entry leaves the directory as
+/// it was, the answer withheld; a change the directory then refuses is what
+/// the unit's close says did not finish.
+async fn changed_once_journaled<E: Environment>(
+    shared: &Arc<Shared<E>>,
+    tree: &Arc<Mutex<CallTree>>,
+    asked: &Asked,
+    authorized: &Authorized,
+) -> Executed {
+    let began = lock(tree).began();
+    let planned = crate::agents::planned(
+        shared,
+        asked.acting.principal(),
+        &asked.name,
+        &asked.json,
+        asked.waits,
+        began,
+    )
+    .await;
+    match planned {
+        Err(failure) => Executed::Ran(Err(failure)),
+        Ok(planned) => {
+            let noted = planned.noted();
+            match journaled(shared, tree, asked, authorized, Ok(String::new()), noted).await {
+                Ok(_) => Executed::Entered(crate::agents::made(shared, planned).await),
                 Err(refused) => Executed::Withheld(refused),
             }
         }

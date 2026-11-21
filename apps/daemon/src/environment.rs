@@ -1,12 +1,21 @@
 //! What the daemon's kernel runs on (`NOCTUA.md §11.1`): the local database
 //! and its journal, the blobs on disk, the system's clock, the world the
-//! profile decides as, the central log, and the transport a plugin's request
-//! is sent with.
+//! profile decides as with the agents its person made, the central log, and
+//! the transport a plugin's request is sent with.
 //!
 //! **Opened in the order a start needs**: the local database first, so the
 //! newest unit it keeps is read before the mark is waited on; then,
 //! once the minter is behind its ceiling, the journal over the same file and
 //! the kernel, which recovers what a stopped process left before it opens.
+//!
+//! **The directory is the world and the profile's agents**
+//! (`NOCTUA.md §14.6`): `nc_authz::LocalDirectory`, opened over the world
+//! file and what the profile's own database keeps of the agents its person
+//! made in the world's realm, bounded by `[tables.agents]` and
+//! `[tables.agent_grants]` as the catalog writes them, and keeping each change
+//! there through [`KeptLocally`] — never in the world file (`§5.13`). A
+//! database holding rows the directory would never have written is refused,
+//! and the daemon does not start over it.
 //!
 //! **The central log is the manifest's**, and the daemon writes its own events
 //! to the same sink the kernel writes to. An install naming no store has its
@@ -33,13 +42,138 @@ impl nc_kernel::Environment for Daemon {
     type Blobs = nc_kernel::blobs::DirectoryBlobs;
     type Journal = LocalJournal;
     type Clock = SystemClock;
-    type Directory = nc_authz::MemoryDirectory;
+    type Directory = nc_authz::LocalDirectory<KeptLocally>;
     type Log = Sink;
     type Transport = nc_kernel::net::UreqTransport;
 }
 
 /// The central log, shared by the kernel and the daemon's own events.
 pub type Sink = Arc<Mutex<nc_log::Log>>;
+
+/// Where the daemon's directory keeps the agents a person makes: the
+/// profile's own database (`nc_local::LocalAgents`).
+///
+/// Each change kept whole or not at all, in the database's own words and
+/// code; a table at its bound is `[NC-AI-0003]`, as the directory says it.
+#[derive(Debug)]
+pub struct KeptLocally(nc_local::LocalAgents);
+
+impl nc_authz::Keeper for KeptLocally {
+    async fn keep(&self, kept: &nc_authz::Kept) -> Result<(), nc_authz::Unkept> {
+        match kept {
+            nc_authz::Kept::Agent(record) => self
+                .0
+                .keep_agent(&nc_local::AgentRow {
+                    agent: record.agent,
+                    realm: record.realm.clone(),
+                    operator: record.operator.clone(),
+                    label: record.label.clone(),
+                    budget: record.budget,
+                })
+                .await
+                .map_err(|refused| unkept(&refused)),
+            // **The grant it replaces ended where it begins, by its
+            // giver**, in the transaction that keeps it.
+            nc_authz::Kept::Grant { record, ends } => self
+                .0
+                .keep_grant(
+                    &nc_local::GrantRow {
+                        grant: record.grant,
+                        agent: record.agent,
+                        realm: record.realm.clone(),
+                        scope_type: record.scope.type_name.clone(),
+                        scope_id: record.scope.id.clone(),
+                        granted_by: record.granted_by.clone(),
+                        reason: record.reason.clone(),
+                        valid_from_ms: record.valid_from_ms,
+                        valid_until_ms: record.valid_until_ms,
+                    },
+                    ends.map(|ended| (ended, record.valid_from_ms, &record.granted_by)),
+                )
+                .await
+                .map_err(|refused| unkept(&refused)),
+            nc_authz::Kept::Ended { grants, at_ms, by } => self
+                .0
+                .end_grants(grants, *at_ms, by)
+                .await
+                .map_err(|refused| nc_authz::Unkept {
+                    code: refused.code(),
+                    why: refused.to_string(),
+                }),
+        }
+    }
+}
+
+/// What the database's refusal to keep an agent or a grant is to the directory.
+///
+/// `[NC-AI-0003]` for a table at its bound, and the store's own code
+/// otherwise.
+fn unkept(refused: &nc_local::KeepError) -> nc_authz::Unkept {
+    nc_authz::Unkept {
+        code: match refused {
+            nc_local::KeepError::Full { .. } => nc_catalog::ErrorCode::AiAgentsFull,
+            nc_local::KeepError::Store(error) => error.code(),
+        },
+        why: refused.to_string(),
+    }
+}
+
+/// What the database keeps of a realm's agents, as the directory reads it.
+///
+/// A grant's scope is the type and the identifier the row holds, which the
+/// directory judges as it opens; nothing here judges a row.
+fn records(kept: nc_local::AgentsKept) -> nc_authz::Records {
+    nc_authz::Records {
+        agents: kept
+            .agents
+            .into_iter()
+            .map(|row| nc_authz::AgentRecord {
+                agent: row.agent,
+                realm: row.realm,
+                operator: row.operator,
+                label: row.label,
+                budget: row.budget,
+            })
+            .collect(),
+        live: kept
+            .live
+            .into_iter()
+            .map(|row| nc_authz::GrantRecord {
+                grant: row.grant,
+                agent: row.agent,
+                realm: row.realm,
+                scope: nc_authz::EntityRef {
+                    type_name: row.scope_type,
+                    id: row.scope_id,
+                },
+                granted_by: row.granted_by,
+                reason: row.reason,
+                valid_from_ms: row.valid_from_ms,
+                valid_until_ms: row.valid_until_ms,
+            })
+            .collect(),
+        grants_kept: kept.grants_kept,
+    }
+}
+
+/// How many agents and grants a profile keeps at most.
+///
+/// `max_rows` of `[tables.agents]` and `[tables.agent_grants]`, as the catalog
+/// writes them. **None, for a table the catalog bounds nowhere**, so a build that lost the
+/// entry refuses every new row rather than holding none to a bound.
+fn bounds() -> nc_authz::Bounds {
+    let max_rows = |table: &str| {
+        nc_catalog::TABLES
+            .iter()
+            .find(|declared| declared.name == table)
+            .and_then(|declared| declared.max_rows)
+            .unwrap_or(0)
+    };
+    nc_authz::Bounds {
+        agents: max_rows("agents"),
+        grants: max_rows("agent_grants"),
+    }
+}
 
 /// The version every line the daemon logs carries: this build's.
 struct Version;
@@ -130,7 +264,8 @@ pub struct Opening {
 }
 
 /// The kernel over `store`, opened with what `opening` holds: the journal
-/// over the same file, sharing the minter, and the blobs in the profile.
+/// over the same file, sharing the minter, the blobs in the profile, and the
+/// directory of the world and the agents the profile keeps.
 ///
 /// **Recovery runs before it answers** (`Kernel::open`): what a stopped
 /// process left committed in the store and open in the journal is reverted
@@ -139,8 +274,10 @@ pub struct Opening {
 /// # Errors
 ///
 /// [`Refused::Blobs`] for a blobs' directory that is refused,
-/// [`Refused::Engine`] for an engine wasmtime refuses, and
-/// [`Refused::Unrecovered`] for a unit left open that was not recovered.
+/// [`Refused::Store`] for agents the database could not read or holds as no
+/// change of this build's would have written them, [`Refused::Engine`] for an
+/// engine wasmtime refuses, and [`Refused::Unrecovered`] for a unit left open
+/// that was not recovered.
 pub async fn kernel(
     layout: &nc_channel::Layout,
     store: LocalStore,
@@ -155,13 +292,27 @@ pub async fn kernel(
     } = opening;
     let blobs = nc_kernel::blobs::DirectoryBlobs::open(&layout.blobs).map_err(Refused::Blobs)?;
     let realm = world.realm().clone();
+    let agents = store.agents();
+    let kept = agents.kept(&realm).await.map_err(Refused::Store)?;
+    let directory = nc_authz::LocalDirectory::open(
+        realm.clone(),
+        world.into_directory(),
+        records(kept),
+        KeptLocally(agents),
+        bounds(),
+    )
+    .map_err(|refused| {
+        Refused::Store(nc_local::LocalError::Unexpected(format!(
+            "the profile's agents are not ones this build keeps: {refused}"
+        )))
+    })?;
     let journal = nc_journal::Journal::sharing(store.journal(), realm, keeper, minter);
     let config = KernelConfig::<Daemon> {
         store,
         blobs,
         pdp: Ok(pdp),
         journal,
-        directory: world.into_directory(),
+        directory,
         clock: SystemClock,
         log,
         transport: nc_kernel::net::UreqTransport::new(),

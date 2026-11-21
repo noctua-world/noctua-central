@@ -52,6 +52,176 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | 12 | no install was found beside this executable, or its manifest was refused |
 | 13 | the picker was left without a choice, so nothing was changed |
 
+## `agents.create`
+
+In `en`:
+
+```text
+agents.create — Make an agent
+Make an agent that acts for you, with a budget of its own.
+
+Makes a new agent of yours: an identity of its own that an MCP client acts as, for you alone. You give it a label and a budget, which each of its sessions spends one at a time, and it can do nothing until you grant it a feature. Only you can make one, asking directly, never from inside another action. An agent is never deleted, so undo stops at the step that made it.
+
+Categories: noctua.settings
+Tags: agents, make an agent, new agent, mcp, assistant, delegate
+
+Usage:
+  noctua agents.create [arguments]
+  noctua agents.create -- '<one JSON object>'
+
+Arguments:
+  --label <text, from 1 to 64 characters>  required
+  --budget <whole number, from 1 to 100000>  required
+```
+
+In `pt-BR`:
+
+```text
+agents.create — Criar um agente
+Criar um agente que age por você, com um orçamento próprio.
+
+Cria um novo agente seu: uma identidade própria, com a qual um cliente MCP age só por você. Você lhe dá um nome e um orçamento, que cada sessão dele gasta uma unidade por vez, e ele não pode fazer nada até que você lhe dê acesso a um recurso. Só você pode criar um, pedindo diretamente, nunca de dentro de outra ação. Um agente nunca é apagado, então desfazer para no passo que o criou.
+
+Categories: noctua.settings
+Tags: agentes, criar agente, novo agente, mcp, assistente, delegar
+
+Usage:
+  noctua agents.create [arguments]
+  noctua agents.create -- '<one JSON object>'
+
+Arguments:
+  --label <text, from 1 to 64 characters>  required
+  --budget <whole number, from 1 to 100000>  required
+```
+
+## `agents.grant`
+
+In `en`:
+
+```text
+agents.grant — Grant an agent a feature
+Let one of your agents use a feature, for a reason and a time you give.
+
+Lets one of your agents, named by the identifier Noctua gave it, use one feature for as many minutes as you say, within the longest a grant may run, and keeps why. A new grant on the same feature ends the one before it, and the agent still does only what you yourself may do. Only you can grant it, asking directly, never from inside another action. To take it back, revoke it: undo stops at a grant.
+
+Categories: noctua.settings
+Tags: agents, grant, give access, allow, mcp, delegate
+
+Usage:
+  noctua agents.grant [arguments]
+  noctua agents.grant -- '<one JSON object>'
+
+Arguments:
+  --agent <text, from 12 to 13 characters>  required
+  --feature <text, from 1 to 64 characters>  required
+  --minutes <whole number, from 1 to 43200>  required
+  --reason <text, from 1 to 256 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+agents.grant — Dar a um agente acesso a um recurso
+Deixar um agente seu usar um recurso, por um motivo e um prazo que você dá.
+
+Deixa um agente seu, indicado pelo identificador que o Noctua lhe deu, usar um recurso por quantos minutos você disser, até o prazo mais longo que uma permissão pode ter, e guarda o motivo. Uma nova permissão no mesmo recurso encerra a anterior, e o agente continua fazendo só o que você mesmo pode fazer. Só você pode dar a permissão, pedindo diretamente, nunca de dentro de outra ação. Para retirá-la, revogue: desfazer para numa permissão dada.
+
+Categories: noctua.settings
+Tags: agentes, dar acesso, permissão, permitir, mcp, delegar
+
+Usage:
+  noctua agents.grant [arguments]
+  noctua agents.grant -- '<one JSON object>'
+
+Arguments:
+  --agent <text, from 12 to 13 characters>  required
+  --feature <text, from 1 to 64 characters>  required
+  --minutes <whole number, from 1 to 43200>  required
+  --reason <text, from 1 to 256 characters>  required
+```
+
+## `agents.list`
+
+In `en`:
+
+```text
+agents.list — List your agents
+Show the agents you made, each with what you granted it and until when.
+
+Answers every agent you made, in the order you made them, with its label, its budget and each feature it may reach now, with why you granted it and from when until when. It changes nothing.
+
+Categories: noctua.settings
+Tags: agents, my agents, list agents, grants, mcp
+
+Usage:
+  noctua agents.list [arguments]
+  noctua agents.list -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+agents.list — Listar seus agentes
+Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.
+
+Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada recurso que ele pode usar agora, com o motivo e de quando até quando. Não muda nada.
+
+Categories: noctua.settings
+Tags: agentes, meus agentes, listar agentes, permissões, mcp
+
+Usage:
+  noctua agents.list [arguments]
+  noctua agents.list -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `agents.revoke`
+
+In `en`:
+
+```text
+agents.revoke — Revoke an agent's access
+End what you granted one of your agents: one feature, or all of them.
+
+Ends the grant one of your agents holds on the feature you name, or every grant it holds when you name none, from its very next action. The agent itself is kept, with its budget, for you to grant again. Only you can revoke, asking directly, never from inside another action, and undo stops at a revocation.
+
+Categories: noctua.settings
+Tags: agents, revoke, take access away, end a grant, mcp
+
+Usage:
+  noctua agents.revoke [arguments]
+  noctua agents.revoke -- '<one JSON object>'
+
+Arguments:
+  --agent <text, from 12 to 13 characters>  required
+  --feature <text, from 1 to 64 characters>
+```
+
+In `pt-BR`:
+
+```text
+agents.revoke — Revogar o acesso de um agente
+Encerrar o que você deu a um agente seu: um recurso, ou todos.
+
+Encerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação.
+
+Categories: noctua.settings
+Tags: agentes, revogar, tirar acesso, encerrar permissão, mcp
+
+Usage:
+  noctua agents.revoke [arguments]
+  noctua agents.revoke -- '<one JSON object>'
+
+Arguments:
+  --agent <text, from 12 to 13 characters>  required
+  --feature <text, from 1 to 64 characters>
+```
+
 ## `journal.verify`
 
 In `en`:

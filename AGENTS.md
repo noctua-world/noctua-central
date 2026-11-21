@@ -302,7 +302,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   └── reference/                  the plugin the kernel is proven with, its entries beside its manifest
 │       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
-│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves (§11.1, §16.2)
+│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves over the world and the agents its person made (§11.1, §16.2)
 │   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, the installer, `noctua-dev` and the `checkouts` picker (§20.2, §17.1)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
@@ -466,8 +466,9 @@ fails a gate a minute or two later.
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm` or `Feature`, which `realm` and `feature:<id>` alone do; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md`, what help says of the command a block of `docs/cli.md` in each locale, and its tool, by `nc_schema::entry::as_tool`, a block of `docs/mcp-tools.md` |
 | a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads, the one grammar every reader of a binding is held to, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds, and `docs/keybindings.md` lists every binding by its table and key with the display names of the command it runs. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and raises `nc_channel::keys::FORMAT`, because an older reader of a person's configuration refuses a file naming it and another channel's reader must know it cannot judge one; a person's own choice overrides the catalog's in their channel's configuration directory, `<config>/keybindings.json`, which `nc_channel::keys` reads beside the other channels' and `noctua help keybindings` shows, each refusal with its `NC-CHAN` code; and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
-| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes — since nothing a journal refuses afterwards could put it back |
+| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes, and an agent's change is rehearsed by the directory, then journaled as allowed with what it makes by `changed_once_journaled`, and only then made — since nothing a journal refuses afterwards could put it back |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
+| an agent permit | `policy/packs/<profile>/features.cedar` — `principal is Agent`, one verb, `resource == Feature::"<id>"` — beside the person's permit on the same feature, with its cases in `policy/packs/<profile>/tests/features.toml` | it is half of what an agent is answered: the decision point asks the same request again as the agent's operator, so the person's permit on the feature is the other half, and an agent reaches the feature only once its person grants it that feature with `agents.grant` — a grant may name any feature of the realm, and one no agent permit names allows nothing. Its cases ask as an agent marked `via_agent`, one link from its person: its kind of principal is refused with a `Device` so marked (`the_principal_is_the_boundary`), since a person is let in by the person's permit and an unmarked agent is refused by the core; the other half is a case asked as the person so marked; and an outsider's agent pins Cedar's answer over the whole world, which moves the lists the *policy* row names. A feature whose commands change who may act for a person takes none: the person's permits on `agents` and `mcp` ask `principal is User`, and the `agents.*` that change and a setting's set run at the top of a call tree only (`only_at_the_top` in `crates/nc-kernel/src/registry.rs`), refused nested with `[NC-KERN-0025]` |
 | a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
 | a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
 | a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher is brought to in Stage 16 (`NOCTUA-PLAN.md`), so a rule changed without a row is one that implementation will not learn. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
@@ -746,8 +747,10 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     point, the directory and the journal are each asked before a plugin runs, and a
     refusal from any is a denial, never a default. A command that changes state is staged
     in a unit the journal opened first and committed in one transaction only after its
-    entry landed; the pruner's deletions, which no unit can stage, are journaled as
-    allowed — after a dry run was refused nothing — before anything is deleted; a close
+    entry landed; the pruner's deletions and a change to a person's agents, which no unit
+    can stage, are journaled as allowed — the prune once a dry run was refused nothing, the
+    change once the directory rehearsed it (`changed_once_journaled`) — before anything is
+    deleted or changed; a close
     the journal answers with an error is asked about, and the unit reversed at once unless
     it landed; a read the journal does not take is withheld.
 
@@ -770,7 +773,7 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     **Enforced by** `crates/nc-kernel/tests/the_decision_point.rs` — the journal refusing
     at the opening, at a top-level and a nested entry, at the close and at a read's entry,
     a close taken with its answer lost, the store refusing a reversal, a prune past a unit
-    left open, a journal whose store cannot name a unit it holds open, and a kernel stopped
+    left open, an agent's change whose entry the journal refused, a journal whose store cannot name a unit it holds open, and a kernel stopped
     in a child process between the store's commit and the journal's close and opened
     again, with the pruner run over the file meanwhile or not, over PostgreSQL and over the
     local journal — by
@@ -984,6 +987,7 @@ entry owns.
 | An agent obtaining or presenting a confirmation or an approval | a session with no slot for one, a tree acting for an agent binding none, none ever bound to an agent, and an agent named without a session deciding as itself, which the core refuses | the same entry |
 | A chain of agents deeper than the policy's two | the chain written by the kernel alone, bounded by its type above the policy and refused by `core.chain_depth_is_bounded`; its one longer constructor a test door no member turns on outside its tests | the same entry |
 | An agent past its budget, or acting on through what its tree put off — a timer, an event, a compensation — once its person's or its own authority is gone, or as its person alone | a session's count, spent under the kernel's bus for every call, firing and delivery and read by the core's budget rule; a timer and an event carrying the session, decided again for every link when due; a compensation refused in an agent's tree; its steps kept in its person's history | the same entry |
+| An agent made, granted or ended in a person's name by anything but their own call, or a change to it the audit never saw | four commands of the kernel's own decided by a person's own permit (`principal is User`), the three that change run only at the top of a call tree, and each change rehearsed, journaled as allowed with what it makes and only then made | "A person makes, grants and ends their agents by their own calls, each journaled before it is made" |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
 | A tool reached under a second spelling of its name, or marked as changing nothing when it can | a tool's name is its command's with each dot an underscore, read back to that one command by the command-name parser and never from a dotted name; its one hint from `mutating`, which the kernel holds a command to | "A tool is named as its command and read back to it alone, and its one hint is one the kernel holds" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
@@ -1026,7 +1030,7 @@ by a command that reads it, since a permit for a realm-wide change would authori
 plugin's, and never a feature of the platform — not by `feature:`, and not through an
 argument naming `Feature`, which the judge refuses in every declaration (`[NC-PLUG-0009]`)
 — whose permit is a person's for the kernel's own commands. Its name sits in the plugin's own namespace, never
-one the kernel keeps (`kernel.`, `journal.`, `limits.`, `naming.`, `settings.`), declared once, and
+one the kernel keeps (`agents.`, `kernel.`, `journal.`, `limits.`, `naming.`, `settings.`), declared once, and
 matches the catalog where the
 catalog describes it. Each of its own is shown by its entry, a row of the plugin's
 `commands.toml` under the name it has inside the namespace, judged as the next entry says
@@ -1358,6 +1362,52 @@ agent; a session opened again, which counts its budget from nothing; a command t
 its resource from an argument, which the probe and an agent's search leave out though its
 dispatch is decided as any; and the operator's grant in the entry, which names the agent's
 alone. See "What is deliberately not claimed".
+
+### A person makes, grants and ends their agents by their own calls, each journaled before it is made
+
+**Guaranteed.** `agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are
+commands of the kernel's own (`crates/nc-kernel/src/agents.rs`, whose header has the
+rules), decided on `Feature::"agents"` by `family.a_member_keeps_their_agents`, which lets
+every person of the realm keep their own and no agent or device: an agent's half of every
+question about the feature is refused, its own grants included. The operator of an agent
+and the giver of a grant are the asking person, written by the kernel and never an
+argument; an agent is named by the identifier `agents.create` answered, matched whole by
+the directory, and a name no agent of the asker's is held under is `[NC-AI-0001]`; only the
+agent's person grants it or ends its grants (`[NC-AI-0002]`); a grant runs for one to
+`[kernel] agent_grant_minutes_max` minutes from the kernel's clock, a budget is one to
+`[kernel] agent_budget_max`, and a label or a reason holding a character a reader cannot see
+is refused before anything is minted (`[NC-VAL-0002]`). **The three that change run only at
+the top of a call tree** — a plugin run as the person, a timer's or an event's callback, is
+refused with `[NC-KERN-0025]` before it is decided — and **each change is journaled before it
+is made**: rehearsed by the directory within what the call tree has left, a refusal journaled
+as failed with its word; journaled as allowed with what it makes — the agent, the grant, the
+feature as an entity, the window as integers, the grant it ends, the grants ended, and never
+the label or the reason; and made only once that entry has landed, so a journal that does not
+take it leaves the agents as they were. A step that changed them left the machine, so undo
+stops at it; the reverse of a grant is a revocation. A daemon opens its kernel over
+`nc_authz::LocalDirectory`, the world and what the profile's database keeps of the agents of
+the world's realm, bounded by the catalog's `max_rows`, keeping each change there through
+its keeper — a table at its bound `[NC-AI-0003]` — and refuses to start over rows the
+directory would never have written.
+
+**Enforced by** the unit tests in `crates/nc-kernel/src/agents.rs` — the declared commands
+both ways, the schemas' bounds held to the kernel's limits and to the profile's table, each
+refusal's kind, code and word, nothing minted for a text a reader cannot see, and the widest
+list of agents within a frame; `only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone`
+in `crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_point.rs`, where a
+person makes, grants and ends an agent, each entry read back, an agent and a plugin make,
+grant and end none, and a journal and a directory that do not take a change leave it unmade;
+`apps/daemon/tests/every_command_from_the_cli.rs` and `serves_its_kernel.rs`, where the CLI
+makes, grants, lists and ends an agent, names it by its identifier alone, and a daemon started
+again holds what was kept; the cases of `policy/packs/family/tests/features.toml` and
+`accounts.toml`; and the operators over `agents.rs` in `xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which runs the CLI as the person or
+writes the profile's database (the next entry's own); a change made once its entry landed
+that the database then refused to keep, which the unit's close says did not finish — a new
+agent or grant is held nowhere, and an ending holds until the kernel stops; and an agent of
+another realm the profile's file holds, which the directory leaves out of what it answers
+and counts against its bounds. See "What is deliberately not claimed".
 
 ### A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else
 
@@ -2077,8 +2127,9 @@ opaque identifiers, and a grant's scope is a type and an identifier as text.
 - **A row read back is judged, or the read is refused** (`NC-DB-0007`): an identifier no
   minter gives, a realm or a person that is not an opaque identifier, a budget no agent
   holds, a time below zero, or a window that ends where it begins or before. A label, a
-  reason and a scope are handed on as the file holds them, for whoever opens a directory
-  over the rows to judge.
+  reason and a scope are handed on as the file holds them, for `nc_authz::LocalDirectory`,
+  which a daemon opens over the rows, to judge — and it refuses to start over one it would
+  never have written.
 
 **Enforced by** the unit tests in `crates/nc-local/src/agents.rs` — the triggers driven
 around the store with the `CHECK`s on and off, a plain insert of an identifier held, an
@@ -4541,7 +4592,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   over the grants table (Stage 22). A world naming no grant is a person who holds none, every
   dispatch of whom is denied (`NC-POL-0003`). The suites' world names `g.by_policy`, the
   membership the family pack confers, which has begun and has no end: the kernel's suites'
-  `g.current` ends on 2027-01-01, and a daemon decides on the system's clock.
+  `g.current` ends on 2027-01-01, and a daemon decides on the system's clock. An agent's
+  grants are not the world file's: they are the profile's database's, given and ended by
+  the person's `agents.grant` and `agents.revoke` and seen at the agent's next decision.
 - **A daemon a suite started outlives a suite killed outright.** Each suite stops its
   daemons through the endpoint and kills them on the way out, and stops one the CLI's
   `start` spawned through the CLI's own `stop`, which reaches a daemon only once its PID
@@ -4781,6 +4834,18 @@ rather than anything decided for the project, and each is a maintainer's to reop
   was kept; the refusal says so with the keeper's code.
 - **No agent is ever deleted**, and a profile that made as many agents as its table's bound
   allows makes no more.
+- **Making, granting or ending an agent is a step undo stops at**: the change is the
+  profile's database's, outside every unit, so the step that made it left the machine, and
+  the reverse of a grant is `agents.revoke`. Not taken: an undo that ends a grant, which
+  would be a revocation under another name and bury every step before it.
+- **Delegating resists no process running as the person**: such a process makes, grants and
+  ends the person's agents through the CLI as the person would. Only a person's own call
+  reaches them otherwise: a plugin, a timer and an event run as the person are refused at
+  the top of the tree, and an agent by the permit.
+- **The widest list of a person's agents fits one frame for the features the shipped world
+  holds**: an agent holds one live grant per feature, so a realm of many more features can
+  make the list of every agent at its bound longer than a frame, which the daemon then
+  refuses whole (`NC-IPC-0016`) rather than send in part.
 - **An agent's `autonomy` is carried as `supervised` and read by nothing**: the schema
   requires one, and nothing in this repository defines what its values permit.
 - **The intersection binds what is dispatched through an agent's session, and nothing
