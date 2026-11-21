@@ -8506,6 +8506,21 @@ WEAKENINGS = [
     ("daemon_environment", "store", "a start reads the newest unit its journal holds",
      "        Ok(newest) => Ok((store, newest)),",
      "        Ok(_) => Ok((store, None)),"),
+    # The daemon's keeper of a person's agents: a table at its bound refused as
+    # the agents' own, a replaced grant ended as the new one is kept, what was
+    # kept read back as it was, and each table its own bound.
+    ("daemon_environment", "unkept", "a table at its bound is refused as the agents' own",
+     "            nc_local::KeepError::Full { .. } => nc_catalog::ErrorCode::AiAgentsFull,",
+     "            nc_local::KeepError::Full { .. } => nc_catalog::ErrorCode::DbLocalSchemaUnexpected,"),
+    ("daemon_environment", "KeptLocally", "a grant that replaces another ends it as it is kept",
+     "                    ends.map(|ended| (ended, record.valid_from_ms, &record.granted_by)),",
+     "                    None,"),
+    ("daemon_environment", "records", "an agent's budget is read back as it was kept",
+     "                budget: row.budget,",
+     "                budget: 1,"),
+    ("daemon_environment", "bounds", "the agents are bounded by their own table",
+     "        agents: max_rows(\"agents\"),",
+     "        agents: max_rows(\"agent_grants\"),"),
     # A clean stop settles the mark; the binary run with no argument is the
     # daemon; the plugins directory is part of the profile.
     ("daemon_mark", "settled", "a clean stop writes the exact high-water mark",

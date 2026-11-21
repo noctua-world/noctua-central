@@ -239,8 +239,9 @@ args_schema = """
 # kernel's own, `settings.<setting>.read` and `settings.<setting>.set`, each on
 # the platform's feature of the setting's name — `Read` and `Write` on
 # `Feature::"mcp"`, which the family pack gives every person of the realm and
-# no agent or device — and the settings are the commands of category
-# `noctua.settings`. Neither reads the realm's data. The value is the kernel's
+# no agent or device — and the settings are listed under category
+# `noctua.settings`, beside a person's agents' commands below. Neither reads the
+# realm's data. The value is the kernel's
 # own entry in the channel's local store, `{"on":false}` until a person writes
 # it, and the set writes it in its unit: a step the person's undo takes back,
 # never one that left the machine, and never irreversible, since nothing could

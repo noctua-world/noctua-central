@@ -502,6 +502,172 @@ mod tests {
         store.close().await;
     }
 
+    /// The world the policy cases are about, as a development install decides
+    /// as it.
+    fn the_world() -> nc_authz::MemoryDirectory {
+        let pack = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pack)
+            .expect("the world loads")
+    }
+
+    /// A directory over the world and what `store` keeps of `realm`'s agents,
+    /// keeping each change there, as a daemon opens one.
+    async fn kept_in(
+        store: &nc_local::LocalStore,
+        realm: &nc_ids::OpaqueId,
+    ) -> nc_authz::LocalDirectory<super::KeptLocally> {
+        let kept = store
+            .agents()
+            .kept(realm)
+            .await
+            .expect("the agents are read");
+        nc_authz::LocalDirectory::open(
+            realm.clone(),
+            the_world(),
+            super::records(kept),
+            super::KeptLocally(store.agents()),
+            super::bounds(),
+        )
+        .expect("a directory opens over what was kept")
+    }
+
+    /// What the daemon's keeper keeps is what a directory opened again holds.
+    ///
+    /// **Through the profile's own database**: an agent made, granted naming
+    /// and finding, its naming grant replaced by a new one and its finding
+    /// grant ended, each change kept through the daemon's keeper; a directory
+    /// opened again over what is read back answers the same agent, its budget
+    /// and its one live grant, and every grant given is counted, the ended
+    /// ones among them.
+    #[tokio::test]
+    async fn what_the_daemons_keeper_keeps_is_what_a_directory_opened_again_holds() {
+        use nc_authz::Directory as _;
+
+        let scratch = Scratch::new("agents");
+        let data = scratch.0.join("data");
+        nc_platform::create_private_directory(&data).expect("a data directory");
+        let store = nc_local::LocalStore::open(&data)
+            .await
+            .expect("the database opens");
+        let world = the_world();
+        let realm = world.realm_id("home").expect("home is a realm");
+        let ana = world
+            .principal(nc_authz::PrincipalKind::User, "ana")
+            .expect("ana is a person of the world");
+        let directory = kept_in(&store, &realm).await;
+        let mut minter = nc_ids::Minter::new(
+            nc_ids::MachineFlake::from_value(5).expect("a flake"),
+            nc_ids::SystemClock,
+        );
+        let agent = minter.mint().expect("an identifier");
+        let at = 1_787_702_400_000;
+        let feature = |id: &str| nc_authz::EntityRef {
+            type_name: "Feature".to_owned(),
+            id: id.to_owned(),
+        };
+        let mut granting = |scope: &str, reason: &str, from_ms: u64| nc_authz::Change::Grant {
+            grant: minter.mint().expect("an identifier"),
+            agent: agent.to_crockford(),
+            scope: feature(scope),
+            by: ana.clone(),
+            reason: reason.to_owned(),
+            from_ms,
+            until_ms: from_ms + 60_000,
+        };
+        let changes = [
+            nc_authz::Change::Make {
+                agent,
+                operator: ana.clone(),
+                label: "kept".to_owned(),
+                budget: 7,
+            },
+            granting("naming", "first", at),
+            granting("registry", "finding", at),
+            granting("naming", "second", at + 1),
+            nc_authz::Change::End {
+                agent: agent.to_crockford(),
+                scope: Some(feature("registry")),
+                by: ana.clone(),
+                at_ms: at + 2,
+            },
+        ];
+        for change in &changes {
+            directory
+                .change(realm.as_str(), change)
+                .await
+                .unwrap_or_else(|refused| panic!("{change:?}: {refused}"));
+        }
+        let held = directory
+            .agents(realm.as_str(), &ana.entity())
+            .await
+            .expect("the agents are listed");
+        assert_eq!(
+            held.iter()
+                .map(|one| (
+                    one.budget,
+                    one.grants
+                        .iter()
+                        .map(|grant| grant.reason.as_str())
+                        .collect::<Vec<_>>()
+                ))
+                .collect::<Vec<_>>(),
+            [(7, vec!["second"])]
+        );
+        let again = kept_in(&store, &realm).await;
+        assert_eq!(
+            again
+                .agents(realm.as_str(), &ana.entity())
+                .await
+                .expect("the agents are listed"),
+            held,
+            "a directory opened again holds another agent than the one kept"
+        );
+        assert_eq!(
+            store
+                .agents()
+                .kept(&realm)
+                .await
+                .expect("the agents are read")
+                .grants_kept,
+            3,
+            "every grant given is kept, the ended ones among them"
+        );
+        store.close().await;
+    }
+
+    /// A table at its bound is the agents' own refusal, and any other the
+    /// store's.
+    #[test]
+    fn a_table_at_its_bound_is_the_agents_refusal_and_any_other_the_stores() {
+        let full = super::unkept(&nc_local::KeepError::Full { table: "agents" });
+        assert_eq!(full.code, ErrorCode::AiAgentsFull);
+        let store = nc_local::LocalError::Unexpected("a row this build did not write".to_owned());
+        assert_eq!(
+            super::unkept(&nc_local::KeepError::Store(store.clone())).code,
+            store.code()
+        );
+    }
+
+    /// The directory is bounded by the catalog's tables, each by its own.
+    #[test]
+    fn the_directory_is_bounded_by_the_catalogs_tables() {
+        let bound_of = |table: &str| {
+            nc_catalog::TABLES
+                .iter()
+                .find(|declared| declared.name == table)
+                .and_then(|declared| declared.max_rows)
+                .unwrap_or_else(|| panic!("`{table}` is bounded"))
+        };
+        assert_eq!(
+            super::bounds(),
+            nc_authz::Bounds {
+                agents: bound_of("agents"),
+                grants: bound_of("agent_grants"),
+            }
+        );
+        assert_ne!(bound_of("agents"), bound_of("agent_grants"));
+    }
+
     /// The daemon's lines say they come from the daemon, at this build's
     /// version.
     #[test]
