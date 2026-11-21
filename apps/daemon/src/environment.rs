@@ -531,14 +531,37 @@ mod tests {
         .expect("a directory opens over what was kept")
     }
 
+    /// How many grants `store` keeps, and each ended one of `realm`.
+    ///
+    /// Each named by the reason it was given for, with when and by whom it
+    /// ended.
+    async fn ends_in(
+        store: &nc_local::LocalStore,
+        realm: &nc_ids::OpaqueId,
+    ) -> (u64, Vec<(String, u64, nc_ids::OpaqueId)>) {
+        let agents = store.agents();
+        let kept = agents.kept(realm).await.expect("the agents are read");
+        let ended = agents
+            .ended_grants(realm)
+            .await
+            .expect("the ended grants are read");
+        (
+            kept.grants_kept,
+            ended
+                .into_iter()
+                .map(|one| (one.grant.reason, one.ended_at_ms, one.ended_by))
+                .collect(),
+        )
+    }
+
     /// What the daemon's keeper keeps is what a directory opened again holds.
     ///
     /// **Through the profile's own database**: an agent made, granted naming
     /// and finding, its naming grant replaced by a new one and its finding
     /// grant ended, each change kept through the daemon's keeper; a directory
     /// opened again over what is read back answers the same agent, its budget
-    /// and its one live grant, and every grant given is counted, the ended
-    /// ones among them.
+    /// and its one live grant, every grant given is counted, the ended ones
+    /// among them, and each ended one ended where it was asked, by its asker.
     #[tokio::test]
     async fn what_the_daemons_keeper_keeps_is_what_a_directory_opened_again_holds() {
         use nc_authz::Directory as _;
@@ -623,14 +646,16 @@ mod tests {
             "a directory opened again holds another agent than the one kept"
         );
         assert_eq!(
-            store
-                .agents()
-                .kept(&realm)
-                .await
-                .expect("the agents are read")
-                .grants_kept,
-            3,
-            "every grant given is kept, the ended ones among them"
+            ends_in(&store, &realm).await,
+            (
+                3,
+                vec![
+                    ("first".to_owned(), at + 1, ana.id().clone()),
+                    ("finding".to_owned(), at + 2, ana.id().clone()),
+                ]
+            ),
+            "every grant given is kept, the ended ones among them, a replaced one ended where \
+             its replacement begins and an ending when it was asked, each by its asker"
         );
         store.close().await;
     }

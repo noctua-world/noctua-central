@@ -1399,11 +1399,14 @@ in `crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_poin
 person makes, grants and ends an agent, each entry read back, another person grants and ends
 nothing of it (`a_person_grants_and_ends_nothing_of_another_persons_agent`), an agent and a
 plugin make, grant and end none, and a journal and a directory that do not take a change
-leave it unmade;
+leave it unmade; the unit tests in `apps/daemon/src/environment.rs`, where what the daemon's
+keeper keeps is what a directory opened again holds, each ended grant read back as ended where
+it was asked and by its asker;
 `apps/daemon/tests/every_command_from_the_cli.rs` and `serves_its_kernel.rs`, where the CLI
 makes, grants, lists and ends an agent, names it by its identifier alone, and a daemon started
 again holds what was kept; the cases of `policy/packs/family/tests/features.toml` and
-`accounts.toml`; and the operators over `agents.rs` in `xtask/mutants.py`.
+`accounts.toml`; and the operators over `agents.rs` and the daemon's `environment.rs` in
+`xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which runs the CLI as the person or
 writes the profile's database, as "The agents a person made are kept as written: each row
@@ -2141,7 +2144,8 @@ around the store with the `CHECK`s on and off, a plain insert of an identifier h
 `INSERT OR REPLACE` and a `REPLACE` of an agent, of an ended grant, of a live one and on a
 live one's scope, a second live grant, a replacement refused half way and one naming a
 grant of another scope, agent or realm, an ended one or none, a trigger silencing each of
-the four writes, a temporary object, a full table, and rows planted with the checks off —
+the four writes, a temporary object, a full table, an ended grant read back with when and by
+whom it ended, and rows planted with the checks off —
 by the operators over `agents.rs` in `xtask/mutants.py`, each clause of the insert triggers
 among them, and by `nc_local::schema::EXPECTED`, to which every open and `cargo xtask check`
 hold the file's objects.

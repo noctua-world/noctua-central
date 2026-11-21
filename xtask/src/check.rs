@@ -19605,7 +19605,7 @@ mod the_frozen_path_rule {
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 23, 18),
+        ("daemon/environment.rs", 24, 18),
         ("daemon/every_command_from_the_cli.rs", 45, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
@@ -19755,7 +19755,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
-        ("nc-local/agents.rs", 38, 11),
+        ("nc-local/agents.rs", 42, 11),
         ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
@@ -25765,7 +25765,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21441;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21455;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25784,7 +25784,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5720;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5722;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25835,7 +25835,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 28389;
+    const THE_REARRANGEMENTS_JUDGED: usize = 28407;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25889,7 +25889,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 28,389 are accepted by the first-line
+    /// rules the gates apply: **513 of 28,407 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37924,7 +37924,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2734] = [
+    static OPERATORS: [(&str, &str, &str); 2741] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46667,6 +46667,26 @@ Options:
         ),
         (
             "local_agents",
+            "ended_grants",
+            "a realm's ended grants are read back alone",
+        ),
+        (
+            "local_agents",
+            "ended_grants",
+            "a live grant is not read back as ended",
+        ),
+        (
+            "local_agents",
+            "ended_row",
+            "an end read back below zero is refused",
+        ),
+        (
+            "local_agents",
+            "ended_row",
+            "an end is read back as by whom the file says",
+        ),
+        (
+            "local_agents",
             "keep_agent",
             "the file refuses an agent written twice, a replace included",
         ),
@@ -48547,6 +48567,21 @@ Options:
             "daemon_environment",
             "KeptLocally",
             "a grant that replaces another ends it as it is kept",
+        ),
+        (
+            "daemon_environment",
+            "KeptLocally",
+            "a replaced grant ends where its replacement begins",
+        ),
+        (
+            "daemon_environment",
+            "KeptLocally",
+            "a replaced grant is ended by its replacement's giver",
+        ),
+        (
+            "daemon_environment",
+            "KeptLocally",
+            "an ending is kept at the moment it was asked",
         ),
         (
             "daemon_environment",

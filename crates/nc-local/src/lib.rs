@@ -153,7 +153,7 @@ mod open;
 pub mod schema;
 mod store;
 
-pub use agents::{AgentRow, AgentsKept, GrantRow, KeepError, LocalAgents};
+pub use agents::{AgentRow, AgentsKept, EndedGrant, GrantRow, KeepError, LocalAgents};
 pub use journal::LocalJournal;
 pub use open::blob_directory;
 pub use store::{
