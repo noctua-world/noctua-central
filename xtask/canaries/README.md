@@ -580,7 +580,8 @@ manifest is read into — `capability.rs`, `limits.rs` and `manifest.rs` — and
 bytes of its blobs are, `blobs.rs`, the
 registry its commands are judged into, `registry.rs`, what it says of them,
 read from its directory, `entries.rs`, the decision point every
-command goes through, `dispatch.rs`, the units of work its writes are kept in,
+command goes through, `dispatch.rs`, who a call tree acts as, `session.rs`,
+the units of work its writes are kept in,
 `units.rs`, where its events go, `logging.rs`, what becomes of a plugin
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
@@ -589,8 +590,9 @@ the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `set
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
-`lib.rs`, `open.rs`, `schema.rs` and `store.rs` and the journal it keeps,
-`journal.rs`, what makes that database's
+`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, the journal it keeps,
+`journal.rs`, and the agents a person made with their grants, `agents.rs`,
+what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
 and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,

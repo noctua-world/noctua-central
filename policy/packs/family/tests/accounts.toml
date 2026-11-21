@@ -57,6 +57,19 @@ decision = "deny"
 because = "family.a_frozen_account_acts_on_nothing"
 
 [[case]]
+# **The operator half meets the floor.** An agent carries no `status`, so this
+# floor never refuses it as itself; the decision point asks every request of an
+# agent again as its operator, marked as an agent's, and that question is
+# refused here — which is how an agent stops with the account it acts for.
+name = "a suspended account lends an agent nothing, asked as its operator"
+principal = 'User::"dora"'
+action = "Read"
+resource = 'Feature::"naming"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
 # The finding permit lets every person of the house look a command up.
 name = "a suspended account finds no command"
 principal = 'User::"dora"'

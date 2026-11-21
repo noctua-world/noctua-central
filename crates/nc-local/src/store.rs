@@ -17,6 +17,12 @@
 //!
 //! These types are the kernel's too: its `StoreBackend` wraps this store, and
 //! a unit record is what its overlay becomes when the unit commits.
+//!
+//! **The file holds more than the plugin store**, each handed out over this
+//! store's own pool so the file is opened and judged once:
+//! [`LocalStore::journal`], the journal's store on the person's machine, and
+//! [`LocalStore::agents`], the agents the person made and what each was
+//! granted.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -494,6 +500,18 @@ impl LocalStore {
     #[must_use]
     pub fn journal(&self) -> crate::LocalJournal {
         crate::LocalJournal::over(self.pool.clone())
+    }
+
+    /// The agents the profile's person made, and their grants, in this same
+    /// file, over this store's pool (`crate::agents`).
+    ///
+    /// **One file, opened and judged once**, as the journal is: `agents` and
+    /// `agent_grants` are built by `local-migrations/` and held to
+    /// [`crate::schema::EXPECTED`] with every other object, and their bounds
+    /// are read from `catalog/limits.toml` here.
+    #[must_use]
+    pub fn agents(&self) -> crate::LocalAgents {
+        crate::LocalAgents::over(self.pool.clone())
     }
 
     /// Closes every connection, which checkpoints the WAL into the file.
@@ -1870,13 +1888,14 @@ fn unit_row(row: &SqliteRow) -> Result<UnitRow, LocalError> {
     })
 }
 
-/// A unit read back from its column.
+/// An identifier read back from its column: a unit's, an agent's or a grant's.
 ///
 /// **Through `from_crockford`, which is allowed here and nowhere the log is.**
 /// `Snowflake` has no constructor from a number, deliberately; the value is one
-/// this store wrote from a unit the kernel minted, and a value that does not
-/// fit the layout is refused rather than truncated.
-fn snowflake(value: i64) -> Result<Snowflake, LocalError> {
+/// this crate wrote from an identifier the machine's minter gave, and a value
+/// that does not fit the layout is refused rather than truncated. Its refusal
+/// says "not a unit", and the agents' reader words its own.
+pub(crate) fn snowflake(value: i64) -> Result<Snowflake, LocalError> {
     let value = u64::try_from(value)
         .map_err(|_| LocalError::Unexpected(format!("{value} is not a unit")))?;
     Snowflake::from_crockford(&nc_ids::base32::encode(value))
@@ -1884,14 +1903,14 @@ fn snowflake(value: i64) -> Result<Snowflake, LocalError> {
 }
 
 /// An unsigned number as SQLite's signed integer, or why it does not fit.
-fn as_signed(value: u64, what: &str) -> Result<i64, LocalError> {
+pub(crate) fn as_signed(value: u64, what: &str) -> Result<i64, LocalError> {
     i64::try_from(value).map_err(|_| {
         LocalError::Unexpected(format!("{what} of {value} does not fit a SQLite integer"))
     })
 }
 
 /// A SQLite integer as an unsigned number, or why it cannot be one.
-fn as_unsigned(value: i64, what: &str) -> Result<u64, LocalError> {
+pub(crate) fn as_unsigned(value: i64, what: &str) -> Result<u64, LocalError> {
     u64::try_from(value)
         .map_err(|_| LocalError::Unexpected(format!("{what} of {value} is below zero")))
 }

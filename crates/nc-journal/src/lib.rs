@@ -17,20 +17,20 @@
 //!
 //! An [`Entry`] records the realm, which policy decided, the pack version, the
 //! epoch, the grant used and the **actor chain**. The kernel's decision point
-//! fills four of the last five on every entry it writes, from what it
-//! asked `nc-authz` (`crates/nc-kernel/src/dispatch.rs`), and all five exist
-//! whether or not anything sets them, because adding a field to a chained
+//! fills them on every entry it writes, from what it asked `nc-authz` and from
+//! who the call tree acts as (`crates/nc-kernel/src/dispatch.rs`), and all five
+//! exist whether or not anything sets them, because adding a field to a chained
 //! structure later **invalidates every hash before it**. The cost of carrying
 //! an empty column is nothing; the cost of adding one afterwards is a chain
 //! that cannot be verified across the change.
 //!
-//! **`actor_chain` is the fifth, and it is still empty.** It is the one `§14.6`
+//! **`actor_chain` is the fifth, and it is an agent's.** It is the one `§14.6`
 //! calls load-bearing — *delegation, never impersonation: the log always shows
-//! both* — and `Record::new` sets it to an empty `Vec` on every entry, which
-//! the kernel passes on until agents act (`NOCTUA-PLAN.md`, Stage 15). Whoever
-//! wires that reads this paragraph to learn what is still empty: measured over
-//! a real history, `actor_chain lengths: [0, 0, 0, 0, 0, 0]`. The hash covers
-//! it, so the chain is not weaker for it; what matters is that anybody knows.
+//! both* — and the decision point writes it on every entry of a tree that acts
+//! for an agent, its refusals included: the person the agent acts for, then
+//! each agent between, outermost first, with the agent as the principal
+//! (`crates/nc-kernel/src/session.rs`). A person acting as themselves leaves
+//! it empty, as `Record::new` does. The hash covers it either way.
 //!
 //! # A history this code cannot read is not one to extend
 //!

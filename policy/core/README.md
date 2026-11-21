@@ -60,9 +60,11 @@ would decide for the agent with what the same request would decide for the
 operator, and a Cedar policy set evaluates one principal against one request —
 the second decision does not exist to be intersected with. It belongs to the
 decision point, which asks twice and takes the narrower answer: that is
-`commands.dispatch`, once agents act (`NOCTUA-PLAN.md`, Stage 15). Until then it
-decides every dispatch with `via_agent` false and an empty actor chain, so there
-is no second decision to take. The other half, *delegation never
+`commands.dispatch` (`crates/nc-kernel/src/dispatch.rs`), which asks a request
+of an agent's tree as the agent and again as each one it acts for, with the
+kernel's own `via_agent` and depth, at one moment and one epoch, and allows only
+what every one of them is allowed. A person acting as themselves is asked once,
+unmarked and with an empty actor chain. The other half, *delegation never
 impersonation*, is `core.an_agent_never_impersonates` in
 `agent_authority.cedar`; rule 5, budget as a permission, is
 `core.budget_is_a_permission` beside it.
@@ -83,8 +85,8 @@ paragraph that justifies why invariants 5 and 5b stop at `Delete`.
 |---|---|---|
 | 5 — destructive actions require quorum | `Delete` | `§14.7`'s status transitions: suspending, freezing, declaring an account deceased are a `Write` on a `User`, and are destructive in the sense that matters |
 | 5b — an irreversible action needs a human | `Delete` | by a policy, anything else a command declares `irreversible` — which the decision point holds instead, for every command, below |
-| `reference/identity-and-authorization.md §3` — every entity belongs to exactly one realm | no policy here. In the `family` pack, the permits in `realm.cedar`, whose resource is the `Realm` itself, each require `principal in resource`, so a member of another realm reads, prunes and undoes nothing realm-wide. **The decision point enforces it for everything else**, by what it hands Cedar: `nc-authz`'s `Directory::slice` holds only the realm's entities, and `Pdp::decide` denies a principal or a resource the slice does not hold | nothing in the policies alone, which are what the gate decides every case with, over the whole world. `reference/identity-and-authorization.md §3` is unqualified: "Cross-realm access requires an explicit federation tuple; there is no implicit inheritance." Measured with a second realm added: an outsider reads the family's `realm` and `public` content, and a family member reads the other realm's, all by `family.a_member_reads_shared_content` — which constrains the *resource* and never the principal. And `family.a_guardian_administers_the_realm` constrains neither the resource nor membership, so a guardian of one realm is allowed `Grant` and `Revoke` on another `Realm` (`ana Revoke Realm::"office"` answers `Allow` to the gate, and a case in `policy/packs/family/tests/permissions.toml` pins it). `family.a_member_names_files`, `family.a_member_finds_commands` and `family.a_member_switches_mcp` ask no membership either, so a person of another realm is allowed the `naming`, `registry` and `mcp` features, which cases in `policy/packs/family/tests/features.toml` pin |
-| `§14.7` — a frozen account is frozen | nothing here. In the `family` pack, `family.a_frozen_account_acts_on_nothing` refuses everything to a `User` whose `status` is not `active`, `dormant` or `presumed_inactive` — `suspended`, `deceased`, and any value it does not know | a pack's floor and not the core's, so a realm whose profile selects another pack holds nothing — `org` and `collective` carry no policy yet. A `Device` or an `Agent` acting for a frozen account is not refused. And the invariant 5 row records the other half — that *making* the transition escapes the quorum rule |
+| `reference/identity-and-authorization.md §3` — every entity belongs to exactly one realm | no policy here. In the `family` pack, the permits in `realm.cedar`, whose resource is the `Realm` itself, each require `principal in resource`, so a member of another realm reads, prunes and undoes nothing realm-wide. **The decision point enforces it for everything else**, by what it hands Cedar: `nc-authz`'s `Directory::slice` holds only the realm's entities, and `Pdp::decide` denies a principal or a resource the slice does not hold | nothing in the policies alone, which are what the gate decides every case with, over the whole world. `reference/identity-and-authorization.md §3` is unqualified: "Cross-realm access requires an explicit federation tuple; there is no implicit inheritance." Measured with a second realm added: an outsider reads the family's `realm` and `public` content, and a family member reads the other realm's, all by `family.a_member_reads_shared_content` — which constrains the *resource* and never the principal. And `family.a_guardian_administers_the_realm` constrains neither the resource nor membership, so a guardian of one realm is allowed `Grant` and `Revoke` on another `Realm` (`ana Revoke Realm::"office"` answers `Allow` to the gate, and a case in `policy/packs/family/tests/permissions.toml` pins it). `family.a_member_names_files`, `family.a_member_finds_commands` and `family.a_member_switches_mcp` ask no membership either, so a person of another realm is allowed the `naming`, `registry` and `mcp` features, and so do the agent permits `family.an_agent_names_files` and `family.an_agent_finds_commands`, so an agent of another realm is allowed `naming` and `registry` — which cases in `policy/packs/family/tests/features.toml` pin |
+| `§14.7` — a frozen account is frozen | nothing here. In the `family` pack, `family.a_frozen_account_acts_on_nothing` refuses everything to a `User` whose `status` is not `active`, `dormant` or `presumed_inactive` — `suspended`, `deceased`, and any value it does not know | a pack's floor and not the core's, so a realm whose profile selects another pack holds nothing — `org` and `collective` carry no policy yet. A `Device` acting for a frozen account is not refused. An `Agent` acting for one is, by the decision point's question asked as its operator, which meets the floor. And the invariant 5 row records the other half — that *making* the transition escapes the quorum rule |
 
 **Realm isolation has no floor, and what stands behind it is the decision
 point.** The pack's read permit argues it deliberately — a policy that re-derived
@@ -155,8 +157,9 @@ the mechanism the invariant exists to implement — measured against the cases �
 so the core carries none, and this paragraph says why before somebody writes
 one.
 
-What §14.6, 2 *does* leave to the decision point, and so to the stage in which
-agents act: asking twice and taking the narrower answer.
+What §14.6, 2 *does* leave to the decision point: asking twice and taking the
+narrower answer, which `commands.dispatch` does for every decision of an agent's
+tree.
 A Cedar policy set evaluates one principal against one request, so the second
 decision does not exist to be intersected with — the paragraph at the top of this
 file says so, and this is the same boundary from the other end.

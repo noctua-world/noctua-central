@@ -3056,8 +3056,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.kernel.unconfirmed",
         [
-            "That cannot be undone, so it needs your confirmation in the Noctua window first. Nothing was done.",
-            "Isso não pode ser desfeito, então precisa primeiro da sua confirmação na janela do Noctua. Nada foi feito.",
+            "That cannot be undone, so a person must first confirm it in the Noctua window. Nothing was done.",
+            "Isso não pode ser desfeito, então uma pessoa precisa primeiro confirmar na janela do Noctua. Nada foi feito.",
         ],
     ),
     (

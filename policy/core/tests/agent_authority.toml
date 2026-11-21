@@ -29,6 +29,17 @@ decision = "deny"
 because = "core.budget_is_a_permission"
 
 [[case]]
+# **The floor under an agent's own permits.** `family.an_agent_names_files`
+# would give the spent agent a file's name; the budget refuses it first, so the
+# commands an agent reaches stop when its budget does.
+name = "an agent that has spent its budget has no file named either"
+principal = 'Agent::"ana-assistant-spent"'
+action = "Read"
+resource = 'Feature::"naming"'
+decision = "deny"
+because = "core.budget_is_a_permission"
+
+[[case]]
 # The same agent, the same request, one context flag different — so what this
 # proves is the flag and not the agent.
 name = "an agent acting unmarked is impersonating and is refused"
