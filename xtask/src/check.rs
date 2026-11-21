@@ -19778,10 +19778,10 @@ mod the_frozen_path_rule {
         ("nc-prune/postgres.rs", 21, 10),
         ("nc-prune/sqlite.rs", 20, 6),
         ("nc-schema/descriptor.rs", 14, 17),
-        ("nc-schema/entry.rs", 49, 42),
+        ("nc-schema/entry.rs", 53, 42),
         ("nc-schema/keys.rs", 93, 21),
         ("nc-schema/lib.rs", 92, 67),
-        ("nc-schema/properties.rs", 31, 2),
+        ("nc-schema/properties.rs", 36, 2),
         ("nc-schema/selector.rs", 22, 20),
         ("reference/adapter.rs", 18, 28),
         ("reference/behaviour.rs", 134, 60),
@@ -25754,7 +25754,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21139;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21156;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25773,7 +25773,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5625;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5628;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25790,7 +25790,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1898;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1899;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25824,7 +25824,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 27907;
+    const THE_REARRANGEMENTS_JUDGED: usize = 27948;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25878,7 +25878,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **514 of 27,907 are accepted by the first-line
+    /// rules the gates apply: **514 of 27,948 are accepted by the first-line
     /// rule alone, and 274 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25911,7 +25911,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1898 of
+    /// this tree offers, **1899 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37913,7 +37913,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2685] = [
+    static OPERATORS: [(&str, &str, &str); 2689] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49993,6 +49993,26 @@ Options:
             "schema_entry",
             "as_tool",
             "a schema the kernel refuses is never a tool",
+        ),
+        (
+            "schema_entry",
+            "as_tool",
+            "a command that changes something is no read-only tool",
+        ),
+        (
+            "schema_entry",
+            "tool_name",
+            "a tool's name writes each dot of its command's as an underscore",
+        ),
+        (
+            "schema_entry",
+            "command_of_tool",
+            "a dotted name is no tool's",
+        ),
+        (
+            "schema_entry",
+            "command_of_tool",
+            "a tool's name is a command only as the command-name parser reads it",
         ),
         (
             "generator",

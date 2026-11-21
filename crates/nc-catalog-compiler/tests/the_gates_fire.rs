@@ -6907,6 +6907,7 @@ fn the_mcp_page_holds_every_command_as_its_tool_in_every_locale() {
                     categories: &entry.categories,
                 },
                 &entry.args_schema,
+                entry.mutating,
             )
             .expect("a schema the catalog compiled");
             let written = format!("In `{}`:\n\n```json\n{tool}\n```\n", locale.meta.bcp47);

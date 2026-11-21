@@ -731,8 +731,8 @@ mod tests {
         );
         let tools = page("mcp-tools.md");
         for said in [
-            "{\"name\":\"kernel.rehearse\",\"description\":\"Run a step as a rehearsal and change nothing.\\n\\nWalks through",
-            "\"inputSchema\":{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"integer\",\"minimum\":1}},\"additionalProperties\":false}}",
+            "{\"name\":\"kernel_rehearse\",\"description\":\"Run a step as a rehearsal and change nothing.\\n\\nWalks through",
+            "\"inputSchema\":{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"integer\",\"minimum\":1}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
         ] {
             assert!(
                 tools.contains(said),

@@ -900,12 +900,16 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     links neither of, and every command a page shows is the catalog being compiled. Help on
     a command and `docs/cli.md` are laid out by one function, `nc_cli::help::described`, which
     reads only what it is handed, and a command's MCP tool is projected by one,
-    `nc_schema::entry::as_tool`. **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
+    `nc_schema::entry::as_tool` — its name `nc_schema::entry::tool_name`'s, each dot an
+    underscore, read back to the command by `nc_schema::entry::command_of_tool` alone, and
+    its one annotation, `readOnlyHint`, from whether the command is `mutating`.
+    **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
     in `xtask/src/check.rs`, over every page the compiler emits and every page committed;
     `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` in
     `xtask/src/build.rs`; and `the_cli_page_says_what_help_says` and
     `the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees` in
-    `xtask/tests/the_pages_reach_the_catalog.rs`. **Not held**: a table a function in a
+    `xtask/tests/the_pages_reach_the_catalog.rs`, which reads every tool's name back to its
+    command. **Not held**: a table a function in a
     `Surfaces` reads of its own beyond the catalog that test changes, which a review sees
     and no gate does.
 
@@ -975,6 +979,7 @@ entry owns.
 | An agent obtaining or presenting a confirmation or an approval | a session with no slot for one, a tree acting for an agent binding none, none ever bound to an agent, and an agent named without a session deciding as itself, which the core refuses | the same entry |
 | A chain of agents deeper than the policy's two | the chain written by the kernel alone, bounded by its type above the policy and refused by `core.chain_depth_is_bounded`; its one longer constructor a test door no member turns on outside its tests | the same entry |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
+| A tool reached under a second spelling of its name, or marked as changing nothing when it can | a tool's name is its command's with each dot an underscore, read back to that one command by the command-name parser and never from a dotted name; its one hint from `mutating`, which the kernel holds a command to | "A tool is named as its command and read back to it alone, and its one hint is one the kernel holds" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
@@ -1713,6 +1718,42 @@ install is on in that one alone.
 
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
 the person's undo of a switch-off, and what being on lets in, which nothing reads yet.
+
+### A tool is named as its command and read back to it alone, and its one hint is one the kernel holds
+
+**Guaranteed.** A command's MCP tool is what `nc_schema::entry::as_tool` projects, and
+nothing else maps a tool's name (invariant 27):
+
+- **One spelling per tool, read back to one command.** `nc_schema::entry::tool_name`
+  writes the command's name with each dot an underscore, the characters a model API takes
+  in a tool's name where a dot is refused, at the command's own length. No command's name
+  holds an underscore, so no two commands share a tool's name, and
+  `nc_schema::entry::command_of_tool` reads a name back through the one command-name
+  parser, `command_name_is_well_formed`: a dotted name — the command's own among them —
+  two underscores in a row, one at either end, a capital letter, one word, and a name past
+  the bound are no tool's, and whatever it reads back, `tool_name` writes as the text it
+  read. So a call naming a tool reaches the command its name was made from, or nothing.
+- **One hint, and one the kernel holds.** A tool's annotations are `readOnlyHint` alone,
+  true exactly when the command is not `mutating`, and the kernel holds a command that
+  does not mutate to writing nothing: no write to a store or to the blobs, no nested
+  dispatch of a command that changes state, and no request but `GET` and `HEAD`. No
+  `title`, which would be a display name, a person's words; and no other hint, which
+  nothing the registry holds a command to could make true, so the protocol's defaults
+  stand.
+
+**Enforced by** the unit tests beside `as_tool` in `crates/nc-schema/src/entry.rs` — the
+whole tool written out, every refusal of a name, and the hint both ways — with the
+`schema_entry` operators of `xtask/mutants.py` over each clause; the two name laws in
+`crates/nc-schema/tests/properties.rs`, over every name the grammar writes, at the bound
+among them, and over texts made near a tool's name, held to be read and refused often;
+and `the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees` in
+`xtask/tests/the_pages_reach_the_catalog.rs`, which reads every published name back to its
+command and every hint against the catalog's `mutating`.
+
+**Not answered:** a tool's name keeps its command's length, up to `nc_schema::NAME_MAX`
+characters, which a host or a model API that bounds a name shorter cuts or refuses; and a
+hint is a hint — `readOnlyHint` confirms nothing, and what a host does with it is the
+host's.
 
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
@@ -3449,8 +3490,9 @@ tool that compiles it was built with; a surface with no verb, no exit code or no
 Leader is refused rather than published as a page that says nothing. What help says of a
 command and what `docs/cli.md` says are one layout's, which escapes every text it is
 handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-tools.md` is
-the command's own name, its line and paragraph and its argument schema as written, once it
-compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
+the command's own name with each dot an underscore, its line and paragraph, its argument
+schema as written, once it compiles inside the subset the kernel holds a dispatch to, and
+`readOnlyHint` exactly when the command is not `mutating` — a display name and tags are a
 person's words, and no tool carries them. Every cell goes through `cell`, so no value ends
 its cell or its row. A person's words — a locale's sentence or tag, on every page that
 shows one, a bound command's display name on the keybindings page included — have each
@@ -3473,7 +3515,7 @@ committed ones in both directions;
 another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 `the_cli_page_lays_each_command_out_with_the_layout_it_was_handed` in
 `crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
-`crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
+`crates/nc-schema/src/entry.rs`, which hold a tool to its four fields and refuse a schema
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
 `crates/nc-catalog-compiler/src/docs.rs`, with
 `a_value_written_as_code_is_shown_as_its_system_writes_it` beside it, and
@@ -4769,11 +4811,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 - **`docs/mcp-tools.md` is no session's tool list.** It is every command the catalog
   declares, projected by the function the MCP server lists a session's tools with; which
-  of them a session sees is decided when it asks, for the principal it is, and a plugin's
-  tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage 15). A
-  tool is named as its command is, dotted, which some MCP clients refuse, and each locale
-  has its own definition: mapping the names and choosing the language a session is handed
-  are Stage 15's, and the page moves with `nc_schema::entry::as_tool` when they are made.
+  of them a session sees is decided when it asks, for the principal it is — only those
+  whose resource is known without their arguments and that need no confirmation — and a
+  plugin's tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage
+  15). Each tool is named as its command with each dot an underscore and marked
+  `readOnlyHint` when the command changes nothing; each locale has its own definition,
+  and which one a session is handed is `noctua mcp`'s to choose.
 - **`docs/cli.md` writes production's CLI**, `noctua`; every other channel's is the same
   but for its name (`NOCTUA.md §17.1`). Its commands are the catalog's alone: a plugin's
   are what `noctua help` lists while its daemon runs.
