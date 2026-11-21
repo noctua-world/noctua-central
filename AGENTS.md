@@ -1403,7 +1403,9 @@ again holds what was kept; the cases of `policy/packs/family/tests/features.toml
 `accounts.toml`; and the operators over `agents.rs` in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which runs the CLI as the person or
-writes the profile's database (the next entry's own); a change made once its entry landed
+writes the profile's database, as "The agents a person made are kept as written: each row
+written once, an agent never changed and a grant ended once" says; a change made once its
+entry landed
 that the database then refused to keep, which the unit's close says did not finish — a new
 agent or grant is held nowhere, and an ending holds until the kernel stops; and an agent of
 another realm the profile's file holds, which the directory leaves out of what it answers
