@@ -43,7 +43,7 @@
 //! asked, written by the kernel and never an argument, and only the agent's
 //! operator grants it or ends a grant (`[NC-AI-0002]`); an agent is named by
 //! the identifier `agents.create` answered, matched whole and never parsed, and
-//! one no agent of the asker's is held under is `[NC-AI-0001]`; each table is
+//! an identifier no agent is held under is `[NC-AI-0001]`; each table is
 //! refused past its bound (`[NC-AI-0003]`). Every refusal of the directory's
 //! reaches the caller as its own kind, code and word ([`refused`]). A grant
 //! runs for the window it was given and no longer, which the decision point

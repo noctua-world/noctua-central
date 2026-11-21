@@ -1372,23 +1372,23 @@ every person of the realm keep their own and no agent or device: an agent's half
 question about the feature is refused, its own grants included. The operator of an agent
 and the giver of a grant are the asking person, written by the kernel and never an
 argument; an agent is named by the identifier `agents.create` answered, matched whole by
-the directory, and a name no agent of the asker's is held under is `[NC-AI-0001]`; only the
-agent's person grants it or ends its grants (`[NC-AI-0002]`); a grant runs for one to
-`[kernel] agent_grant_minutes_max` minutes from the kernel's clock, a budget is one to
-`[kernel] agent_budget_max`, and a label or a reason holding a character a reader cannot see
-is refused before anything is minted (`[NC-VAL-0002]`). **The three that change run only at
-the top of a call tree** — a plugin run as the person, a timer's or an event's callback, is
-refused with `[NC-KERN-0025]` before it is decided — and **each change is journaled before it
-is made**: rehearsed by the directory within what the call tree has left, a refusal journaled
-as failed with its word; journaled as allowed with what it makes — the agent, the grant, the
-feature as an entity, the window as integers, the grant it ends, the grants ended, and never
-the label or the reason; and made only once that entry has landed, so a journal that does not
-take it leaves the agents as they were. A step that changed them left the machine, so undo
-stops at it; the reverse of a grant is a revocation. A daemon opens its kernel over
-`nc_authz::LocalDirectory`, the world and what the profile's database keeps of the agents of
-the world's realm, bounded by the catalog's `max_rows`, keeping each change there through
-its keeper — a table at its bound `[NC-AI-0003]` — and refuses to start over rows the
-directory would never have written.
+the directory, and an identifier no agent is held under is `[NC-AI-0001]`; only the agent's
+person grants it or ends its grants, so another person's agent is `[NC-AI-0002]`; a grant
+runs for one to `[kernel] agent_grant_minutes_max` minutes from the kernel's clock, a budget
+is one to `[kernel] agent_budget_max`, and a label or a reason holding a character a reader
+cannot see is refused before anything is minted (`[NC-VAL-0002]`). **The three that change
+run only at the top of a call tree** — a plugin run as the person, a timer's or an event's
+callback, is refused with `[NC-KERN-0025]` before it is decided — and **each change is
+journaled before it is made**: rehearsed by the directory within what the call tree has
+left, a refusal journaled as failed with its word; journaled as allowed with what it makes —
+the agent, the grant, the feature as an entity, the window as integers, the grant it ends,
+the grants ended, and never the label or the reason; and made only once that entry has
+landed, so a journal that does not take it leaves the agents as they were. A step that
+changed them left the machine, so undo stops at it; the reverse of a grant is a revocation.
+A daemon opens its kernel over `nc_authz::LocalDirectory`, the world and what the profile's
+database keeps of the agents of the world's realm, bounded by the catalog's `max_rows`,
+keeping each change there through its keeper — a table at its bound `[NC-AI-0003]` — and
+refuses to start over rows the directory would never have written.
 
 **Enforced by** the unit tests in `crates/nc-kernel/src/agents.rs` — the declared commands
 both ways, the schemas' bounds held to the kernel's limits and to the profile's table, each
@@ -2801,7 +2801,9 @@ header gives, the endpoint served, and a stop.
   `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
   nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
   and kind — the journal holds each, whoever asked. The directory the kernel decides with is
-  the world's, holding the grant and the epoch the world file names and nothing else.
+  `nc_authz::LocalDirectory`: the world's, holding the grant and the epoch the world file
+  names, and what the profile's database keeps of the agents its person made in the world's
+  realm, each change to them kept there (`apps/daemon/src/environment.rs`).
 - **The token is fresh at each start, and the record names a process, not a number.** The
   token is drawn from the system's generator and the PID record holds the process as the
   system knows it — its boot, its start, its executable — and the instance the start drew,
