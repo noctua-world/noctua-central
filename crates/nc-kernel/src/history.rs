@@ -185,7 +185,8 @@ pub(crate) enum Note {
     /// Something the unit did left the machine.
     ///
     /// A request that asks its host to change something, or a command that
-    /// cannot be undone or that the kernel runs on the realm itself.
+    /// cannot be undone or that the kernel runs outside every unit — on the
+    /// realm itself, or on a person's agents.
     LeftTheMachine,
     /// A blob the unit made, and whether a committed unit pinned it before.
     BlobCreated {
@@ -1423,9 +1424,10 @@ mod tests {
 
     /// A command that cannot be undone leaves the machine.
     ///
-    /// So does one the kernel owns that changes state — `limits.prune` — but
-    /// not undo and redo, a setting's switch, a read, or a plugin's command
-    /// that can be undone.
+    /// So does one the kernel owns that changes state — `limits.prune`, and
+    /// each of the three that change a person's agents — but not undo and
+    /// redo, a setting's switch, a read, the list of agents among them, or a
+    /// plugin's command that can be undone.
     #[test]
     fn what_leaves_the_machine_is_what_cannot_be_undone_or_the_kernels_own_change() {
         let listed = crate::registry::Registry::from_catalog().listed();
@@ -1436,13 +1438,21 @@ mod tests {
                 .cloned()
                 .unwrap_or_else(|| panic!("`{name}` is registered"))
         };
-        assert!(leaves_the_machine(&of("limits.prune")));
+        for name in [
+            "limits.prune",
+            "agents.create",
+            "agents.grant",
+            "agents.revoke",
+        ] {
+            assert!(leaves_the_machine(&of(name)), "`{name}`");
+        }
         for name in [
             "journal.verify",
             "kernel.undo",
             "kernel.redo",
             "settings.mcp.set",
             "settings.mcp.read",
+            "agents.list",
         ] {
             assert!(!leaves_the_machine(&of(name)), "`{name}`");
         }
