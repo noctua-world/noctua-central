@@ -148,7 +148,7 @@ In `en`:
 agents.list — List your agents
 Show the agents you made, each with what you granted it and until when.
 
-Answers every agent you made, in the order you made them, with its label, its budget and each feature it may reach now, with why you granted it and from when until when. It changes nothing.
+Answers every agent you made, in the order you made them, with its label, its budget and each grant you gave it and have not ended, even one whose time is up: its feature, why you gave it, and from when until when. It changes nothing.
 
 Categories: noctua.settings
 Tags: agents, my agents, list agents, grants, mcp
@@ -167,7 +167,7 @@ In `pt-BR`:
 agents.list — Listar seus agentes
 Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.
 
-Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada recurso que ele pode usar agora, com o motivo e de quando até quando. Não muda nada.
+Responde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada permissão que você lhe deu e não encerrou, mesmo a que já venceu: o recurso, o motivo e de quando até quando. Não muda nada.
 
 Categories: noctua.settings
 Tags: agentes, meus agentes, listar agentes, permissões, mcp

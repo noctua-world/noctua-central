@@ -40,13 +40,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"agents_list","description":"Show the agents you made, each with what you granted it and until when.\n\nAnswers every agent you made, in the order you made them, with its label, its budget and each feature it may reach now, with why you granted it and from when until when. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"agents_list","description":"Show the agents you made, each with what you granted it and until when.\n\nAnswers every agent you made, in the order you made them, with its label, its budget and each grant you gave it and have not ended, even one whose time is up: its feature, why you gave it, and from when until when. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"agents_list","description":"Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.\n\nResponde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada recurso que ele pode usar agora, com o motivo e de quando até quando. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"agents_list","description":"Mostrar os agentes que você criou, cada um com o que lhe deu e até quando.\n\nResponde cada agente que você criou, na ordem em que os criou, com o nome, o orçamento e cada permissão que você lhe deu e não encerrou, mesmo a que já venceu: o recurso, o motivo e de quando até quando. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `agents.revoke`
