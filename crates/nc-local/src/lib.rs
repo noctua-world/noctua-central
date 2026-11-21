@@ -7,7 +7,9 @@
 //! (`store_units`, `store_writes`, `store_notes`), and which blobs this machine
 //! holds (`blobs`) — and, through [`LocalStore::journal`], the journal's store
 //! on the person's machine, [`LocalJournal`], in the same file
-//! (`local_journal_entries`). The schema is `local-migrations/`, applied by the same
+//! (`local_journal_entries`), and through [`LocalStore::agents`] the agents the
+//! person made and what each was granted, [`LocalAgents`] (`agents`,
+//! `agent_grants`). The schema is `local-migrations/`, applied by the same
 //! `sqlx` migrator the server uses, and it is never mixed with `migrations/`.
 //! The bytes of those blobs are not in the file: they are files of their own,
 //! in a directory [`blob_directory`] holds to the rule this crate's own
@@ -114,7 +116,11 @@
 //! kernels of two realms on one machine never read or write each other's,
 //! their units numbered by the one minter their journals share
 //! (`nc_journal::Journal::sharing`). An image or a journal entry rewritten after
-//! the fact: the append-only triggers, which hold under `trusted_schema = OFF`.
+//! the fact: the append-only triggers, which hold under `trusted_schema = OFF`;
+//! and an agent written twice, edited or deleted, or a grant written twice,
+//! ended twice, edited or deleted, by the agents' own triggers under the same
+//! pragma — an `INSERT OR REPLACE` among them, refused before it deletes the
+//! row it meets.
 //! A half-written unit: one `BEGIN IMMEDIATE` transaction per commit, proved by
 //! a child process that aborts between two of its statements.
 //!
@@ -122,7 +128,11 @@
 //!
 //! **A process running as the same user.** SQLite has no roles: whoever can
 //! open the file can `DROP TRIGGER` and then `DELETE`, and can race the checks
-//! above between the check and the open. Nor an administrator, nor a disk read
+//! above between the check and the open. A trigger it dropped is a schema the
+//! next open refuses, and one it put back before then is not seen; an agent's
+//! or a grant's text column no index holds, rewritten in place at the same
+//! length through SQLite's incremental BLOB I/O, needs no trigger dropped and
+//! is not seen at all. Nor an administrator, nor a disk read
 //! offline without full-disk encryption — the file is not encrypted. An
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`
@@ -137,11 +147,13 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+mod agents;
 mod journal;
 mod open;
 pub mod schema;
 mod store;
 
+pub use agents::{AgentRow, AgentsKept, GrantRow, KeepError, LocalAgents};
 pub use journal::LocalJournal;
 pub use open::blob_directory;
 pub use store::{
@@ -251,8 +263,11 @@ pub fn is_a_trigger_refusal(error: &sqlx::Error) -> bool {
 /// `SQLITE_CANTOPEN` (14) are the database not answering. Every other code —
 /// `SQLITE_CORRUPT` (11), `SQLITE_NOTADB` (26), a constraint no statement here
 /// should meet — is a file that is not what this build expects; a trigger's
-/// refusal is too, because no statement here is one a trigger this crate
-/// installed refuses. Anything that is not a database error at all — a pool
+/// refusal is too, because a trigger this crate installed refuses a statement
+/// here only for an identifier the file holds already or a second live grant
+/// on one scope, which the minter and the caller never ask of it, and any
+/// other trigger is not one it installed. Anything that is not a database
+/// error at all — a pool
 /// timeout, a worker that went away — is the database not answering.
 ///
 /// **`SQLITE_READONLY` is a file this process may not write**, which is a
@@ -271,8 +286,9 @@ pub(crate) fn said(doing: &str, error: &sqlx::Error) -> LocalError {
     }
     if is_a_trigger_refusal(error) {
         return LocalError::Unexpected(format!(
-            "{why} — a trigger refused a statement this crate writes, and no trigger the \
-             schema declares refuses one of those"
+            "{why} — a trigger refused a statement this crate writes, which the schema's own \
+             do only for an identifier the file holds already or a second live grant on one \
+             scope"
         ));
     }
     let primary = database

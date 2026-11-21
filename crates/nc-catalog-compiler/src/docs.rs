@@ -743,7 +743,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      and the daemon and the IPC channel it is reached through hold to every bound \
      under **Daemon**. \
      A `local` table is held by `crates/nc-local`, which refuses a unit at a \
-     `refuse-at-limit` bound as it commits, and by the pruner, which \
+     `refuse-at-limit` bound as it commits and an agent or a grant as it keeps \
+     one, and by the pruner, which \
      `Kernel::pump` and the `limits.prune` command run over the local database — \
      and nothing in this tree calls either on a timer yet. Nothing here prunes a \
      `server` table, and there is no rate limiter and no key derivation, as their \
@@ -758,7 +759,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file \
      on the user's own machine, built by `local-migrations/`. A table whose \
      strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to \
-     take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images \
+     take — user state, what a plugin keeps, a blob a unit pinned or the agents a \
+     person made and every grant they gave them, or a unit's images \
      and notes, which an undo needs whole and which leave with their unit — so nothing \
      prunes it by its own count: its `Maximum rows` is where its writer refuses a new \
      row, and the refusal is the bound. `Counted over` says whose rows that number \
@@ -1514,23 +1516,29 @@ fn code(text: &str) -> String {
 ///
 /// **Projected by [`nc_schema::entry::as_tool`]**, the one function the MCP
 /// server lists a session's tools with, so the page is what a session is
-/// handed and not a second account of it.
+/// handed and not a second account of it: the name, read back by
+/// [`nc_schema::entry::command_of_tool`], and the read-only hint, from whether
+/// the command is `mutating`, are that function's and never this page's.
 fn mcp_tools(catalog: &Catalog) -> String {
     let mut out = header(
         "MCP tools",
         "catalog/commands.toml and catalog/i18n/",
         "Every command the catalog declares, as the tool definition an MCP session is \
-         handed (`NOCTUA.md §20.3`): the tool's name is the command's, dotted, the name it \
-         is dispatched by; its description is the command's line and paragraph; and its \
-         input schema is the command's argument schema, as the kernel holds a dispatch to \
-         it. Each is written once for each locale, by the one function the MCP server lists \
-         its tools with.\n\n\
-         **A session sees only the tools it may dispatch**: which of these a session lists \
-         is decided when it asks, for the principal it is, as each of its calls is decided \
-         (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares \
-         its commands at `activate`, so no page lists them, and the daemon's registry holds \
-         them while the plugin is loaded (`§15.3`). **Nothing serves these yet**: the MCP \
-         server arrives in Stage 15 (`NOCTUA-PLAN.md`).",
+         handed (`NOCTUA.md §20.3`): the tool's name is the command's with each dot written \
+         as an underscore, because model APIs refuse a dot in a tool's name, and a call \
+         naming it is read back to the command through the one parser of a command's name; \
+         its description is the command's line and paragraph; its input schema is the \
+         command's argument schema, as the kernel holds a dispatch to it; and its one \
+         annotation, `readOnlyHint`, is true exactly when the command changes nothing. Each \
+         is written once for each locale, by the one function the MCP server lists its tools \
+         with.\n\n\
+         **A session sees only the tools it may dispatch**: a session lists those of these \
+         whose resource is known without their arguments, that need no confirmation, and \
+         that it may dispatch now, decided when it asks, for the principal it is, as each of \
+         its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: \
+         a plugin declares its commands at `activate`, so no page lists them, and the \
+         daemon's registry holds them while the plugin is loaded (`§15.3`). **Nothing serves \
+         these yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).",
     );
     // **Sorted, like the generated crate**, as every page's sections are.
     let mut in_order: Vec<_> = catalog.commands.iter().collect();
@@ -1543,7 +1551,8 @@ fn mcp_tools(catalog: &Catalog) -> String {
             };
             // `load` compiled every schema it accepted, so a schema refused
             // here is a catalog this function is never handed.
-            let Ok(tool) = nc_schema::entry::as_tool(&shown, &entry.args_schema) else {
+            let Ok(tool) = nc_schema::entry::as_tool(&shown, &entry.args_schema, entry.mutating)
+            else {
                 continue;
             };
             let _ = writeln!(out, "In `{tag}`:\n\n{}", fenced("json", &tool.to_string()));

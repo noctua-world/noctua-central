@@ -97,14 +97,40 @@ order_by = "recorded"
 # --- The local database: SQLite, on the user's machine (`local-migrations/`) ---
 #
 # Its tables are the plugin store (NOCTUA.md §11.4, §11.5): what each plugin
-# keeps, the units that wrote it, and the blobs this machine holds. Two of them
-# are **user state**, and `refuse-at-limit` is how a bound applies to user
-# state without the pruner deleting anybody's data: nothing prunes them, and
-# the writer refuses a new row at `max_rows`. A unit's images and notes take
-# the same strategy for another reason: each row belongs to one unit, an undo
-# of that unit needs all of them, and they leave with it by the cascade when
-# `store_units` is pruned — so they are counted per unit, and the commit
-# refuses a unit that would record more.
+# keeps, the units that wrote it, and the blobs this machine holds — and the
+# journal on the person's machine, and the agents the person made with what
+# each was granted (§14.6). Four of them are **user state**, and
+# `refuse-at-limit` is how a bound applies to user state without the pruner
+# deleting anybody's data: nothing prunes them, and the writer refuses a new
+# row at `max_rows`. A unit's images and notes take the same strategy for
+# another reason: each row belongs to one unit, an undo of that unit needs all
+# of them, and they leave with it by the cascade when `store_units` is pruned —
+# so they are counted per unit, and the commit refuses a unit that would record
+# more.
+
+[tables.agent_grants]
+# Every grant a person gave an agent, live or ended, one row each: ended rows
+# stay, and the table's own trigger refuses every `DELETE`, so whatever names a
+# grant still finds it. **The count is the whole table**, every realm's rows and
+# every ended grant included: at the bound `crates/nc-local` refuses the grant
+# that would add one more, in the transaction that would add it, and a grant
+# ended to make room frees none.
+database = "local"
+strategy = "refuse-at-limit"
+# The grant's own identifier, a Snowflake: creation order by construction.
+order_by = "grant_id"
+max_rows = 65_536
+
+[tables.agents]
+# The agents a person made, one row each: user state, which nothing prunes and
+# the table's own trigger refuses to delete. **The count is the whole table**,
+# every realm's agents included: at the bound `crates/nc-local` refuses the agent
+# that would add one more, in the transaction that would add it.
+database = "local"
+strategy = "refuse-at-limit"
+# The agent's own identifier, a Snowflake: creation order by construction.
+order_by = "agent"
+max_rows = 256
 
 [tables.blobs]
 # One row per blob the bytes directory holds, pinned while a committed unit

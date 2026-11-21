@@ -1215,11 +1215,11 @@ static PROSE: [(&str, &str); 565] = [
     ),
     (
         "limits.md",
-        "**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**, and the daemon and the IPC channel it is reached through hold to every bound under **Daemon**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.",
+        "**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**, and the daemon and the IPC channel it is reached through hold to every bound under **Daemon**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits and an agent or a grant as it keeps one, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.",
     ),
     (
         "limits.md",
-        "**A table is in one of two databases**, and its `Database` column says which: `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file on the user's own machine, built by `local-migrations/`. A table whose strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images and notes, which an undo needs whole and which leave with their unit — so nothing prunes it by its own count: its `Maximum rows` is where its writer refuses a new row, and the refusal is the bound. `Counted over` says whose rows that number counts: a table counted over each plugin's rows in each realm holds that many for every plugin installed in every realm the machine serves, and one counted over each unit's rows that many for every unit the store holds, so its own size is the number times its owners, not the number.",
+        "**A table is in one of two databases**, and its `Database` column says which: `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file on the user's own machine, built by `local-migrations/`. A table whose strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to take — user state, what a plugin keeps, a blob a unit pinned or the agents a person made and every grant they gave them, or a unit's images and notes, which an undo needs whole and which leave with their unit — so nothing prunes it by its own count: its `Maximum rows` is where its writer refuses a new row, and the refusal is the bound. `Counted over` says whose rows that number counts: a table counted over each plugin's rows in each realm holds that many for every plugin installed in every realm the machine serves, and one counted over each unit's rows that many for every unit the store holds, so its own size is the number times its owners, not the number.",
     ),
     (
         "limits.md",
@@ -1452,25 +1452,25 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "# MCP tools"),
     (
         "mcp-tools.md",
-        "Every command the catalog declares, as the tool definition an MCP session is handed (`NOCTUA.md §20.3`): the tool's name is the command's, dotted, the name it is dispatched by; its description is the command's line and paragraph; and its input schema is the command's argument schema, as the kernel holds a dispatch to it. Each is written once for each locale, by the one function the MCP server lists its tools with.",
+        "Every command the catalog declares, as the tool definition an MCP session is handed (`NOCTUA.md §20.3`): the tool's name is the command's with each dot written as an underscore, because model APIs refuse a dot in a tool's name, and a call naming it is read back to the command through the one parser of a command's name; its description is the command's line and paragraph; its input schema is the command's argument schema, as the kernel holds a dispatch to it; and its one annotation, `readOnlyHint`, is true exactly when the command changes nothing. Each is written once for each locale, by the one function the MCP server lists its tools with.",
     ),
     (
         "mcp-tools.md",
-        "**A session sees only the tools it may dispatch**: which of these a session lists is decided when it asks, for the principal it is, as each of its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares its commands at `activate`, so no page lists them, and the daemon's registry holds them while the plugin is loaded (`§15.3`). **Nothing serves these yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).",
+        "**A session sees only the tools it may dispatch**: a session lists those of these whose resource is known without their arguments, that need no confirmation, and that it may dispatch now, decided when it asks, for the principal it is, as each of its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares its commands at `activate`, so no page lists them, and the daemon's registry holds them while the plugin is loaded (`§15.3`). **Nothing serves these yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).",
     ),
     ("mcp-tools.md", "## `journal.verify`"),
     ("mcp-tools.md", "In `en`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"journal.verify\",\"description\":\"Check that every recorded action is intact and in order.\\n\\nReads the activity history from its start, or from the entry you name, and checks that each recorded action is still linked to the one before it. It changes nothing, and answers how many entries it checked, or the first one that does not hold and why.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"from\":{\"type\":\"integer\",\"minimum\":0}},\"additionalProperties\":false}}",
+        "{\"name\":\"journal_verify\",\"description\":\"Check that every recorded action is intact and in order.\\n\\nReads the activity history from its start, or from the entry you name, and checks that each recorded action is still linked to the one before it. It changes nothing, and answers how many entries it checked, or the first one that does not hold and why.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"from\":{\"type\":\"integer\",\"minimum\":0}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"journal.verify\",\"description\":\"Conferir que toda ação registrada está intacta e em ordem.\\n\\nLê o histórico de atividades desde o início, ou desde a entrada que você indicar, e confere se cada ação registrada continua ligada à anterior. Não muda nada, e responde quantas entradas conferiu, ou a primeira que não confere e por quê.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"from\":{\"type\":\"integer\",\"minimum\":0}},\"additionalProperties\":false}}",
+        "{\"name\":\"journal_verify\",\"description\":\"Conferir que toda ação registrada está intacta e em ordem.\\n\\nLê o histórico de atividades desde o início, ou desde a entrada que você indicar, e confere se cada ação registrada continua ligada à anterior. Não muda nada, e responde quantas entradas conferiu, ou a primeira que não confere e por quê.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"from\":{\"type\":\"integer\",\"minimum\":0}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `kernel.find`"),
@@ -1478,14 +1478,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.find\",\"description\":\"Find commands by any word of their names or tags, in English or Portuguese.\\n\\nLooks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"maxLength\":64},\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":32}},\"required\":[\"query\"],\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_find\",\"description\":\"Find commands by any word of their names or tags, in English or Portuguese.\\n\\nLooks through every command Noctua can run, its own and every plugin's, for those whose names and tags, in English and in Portuguese, hold every word you type, each as letters in order, with accents and capitals ignored. It answers the best matches first, at most as many as you ask for, with where each word was found, and how many were found in all. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"maxLength\":64},\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":32}},\"required\":[\"query\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.find\",\"description\":\"Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas.\\n\\nProcura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"maxLength\":64},\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":32}},\"required\":[\"query\"],\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_find\",\"description\":\"Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas.\\n\\nProcura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"maxLength\":64},\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":32}},\"required\":[\"query\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `kernel.redo`"),
@@ -1493,14 +1493,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.redo\",\"description\":\"Make again the last step you took back.\\n\\nPuts back the newest step you took back, as long as you have done nothing new since, after checking again that you may do each thing it did. A step whose undo needed corrections of its own cannot be redone.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_redo\",\"description\":\"Make again the last step you took back.\\n\\nPuts back the newest step you took back, as long as you have done nothing new since, after checking again that you may do each thing it did. A step whose undo needed corrections of its own cannot be redone.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.redo\",\"description\":\"Fazer de novo o último passo que você desfez.\\n\\nRefaz o passo mais recente que você desfez, desde que você não tenha feito nada novo depois, conferindo de novo que você pode fazer cada coisa que ele fez. Um passo cujo desfazer precisou de correções próprias não pode ser refeito.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_redo\",\"description\":\"Fazer de novo o último passo que você desfez.\\n\\nRefaz o passo mais recente que você desfez, desde que você não tenha feito nada novo depois, conferindo de novo que você pode fazer cada coisa que ele fez. Um passo cujo desfazer precisou de correções próprias não pode ser refeito.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `kernel.undo`"),
@@ -1508,14 +1508,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.undo\",\"description\":\"Take back your last step: what it changed in Noctua, and the files it made.\\n\\nFinds your newest step that can still be taken back and puts back every value it changed and the files it made, after checking again that you may do each thing it did. It stops at a step whose effects left this device, and at one whose values changed since.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_undo\",\"description\":\"Take back your last step: what it changed in Noctua, and the files it made.\\n\\nFinds your newest step that can still be taken back and puts back every value it changed and the files it made, after checking again that you may do each thing it did. It stops at a step whose effects left this device, and at one whose values changed since.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"kernel.undo\",\"description\":\"Desfazer o seu último passo: o que ele mudou no Noctua e os arquivos que criou.\\n\\nEncontra o seu passo mais recente que ainda pode ser desfeito e devolve cada valor que ele mudou e os arquivos que criou, depois de conferir de novo que você pode fazer cada coisa que ele fez. Para em um passo cujos efeitos saíram deste aparelho, e em um cujos valores mudaram desde então.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"kernel_undo\",\"description\":\"Desfazer o seu último passo: o que ele mudou no Noctua e os arquivos que criou.\\n\\nEncontra o seu passo mais recente que ainda pode ser desfeito e devolve cada valor que ele mudou e os arquivos que criou, depois de conferir de novo que você pode fazer cada coisa que ele fez. Para em um passo cujos efeitos saíram deste aparelho, e em um cujos valores mudaram desde então.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `limits.prune`"),
@@ -1523,14 +1523,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"limits.prune\",\"description\":\"Remove the oldest records from any table that has passed its limit.\\n\\nDeletes the oldest records from each table of this device's database that has passed its declared limit, or only from the table you name. A dry run counts what it would remove and removes nothing. What it removes cannot be brought back, so undo stops at the step that ran it.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"table\":{\"type\":\"string\"},\"dry_run\":{\"type\":\"boolean\"}},\"additionalProperties\":false}}",
+        "{\"name\":\"limits_prune\",\"description\":\"Remove the oldest records from any table that has passed its limit.\\n\\nDeletes the oldest records from each table of this device's database that has passed its declared limit, or only from the table you name. A dry run counts what it would remove and removes nothing. What it removes cannot be brought back, so undo stops at the step that ran it.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"table\":{\"type\":\"string\"},\"dry_run\":{\"type\":\"boolean\"}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"limits.prune\",\"description\":\"Remover os registros mais antigos de qualquer tabela que passou do limite.\\n\\nApaga os registros mais antigos de cada tabela do banco de dados deste aparelho que passou do limite declarado, ou só da tabela que você indicar. Um ensaio conta o que removeria e não remove nada. O que ele remove não pode ser recuperado, então desfazer para no passo que o executou.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"table\":{\"type\":\"string\"},\"dry_run\":{\"type\":\"boolean\"}},\"additionalProperties\":false}}",
+        "{\"name\":\"limits_prune\",\"description\":\"Remover os registros mais antigos de qualquer tabela que passou do limite.\\n\\nApaga os registros mais antigos de cada tabela do banco de dados deste aparelho que passou do limite declarado, ou só da tabela que você indicar. Um ensaio conta o que removeria e não remove nada. O que ele remove não pode ser recuperado, então desfazer para no passo que o executou.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"table\":{\"type\":\"string\"},\"dry_run\":{\"type\":\"boolean\"}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `naming.propose`"),
@@ -1538,14 +1538,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"naming.propose\",\"description\":\"Build a file name from a title, signature, keywords and extension.\\n\\nWrites the name Noctua gives a saved file: its signature, title, keywords, identifier and extension, each cleaned of what a file name cannot hold. A file being renamed keeps the identifier you give, so it stays the same file; without one, a new identifier is made. It saves nothing and changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":1024},\"signature\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"keywords\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"extension\":{\"type\":\"string\",\"maxLength\":255},\"id\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":13}},\"additionalProperties\":false}}",
+        "{\"name\":\"naming_propose\",\"description\":\"Build a file name from a title, signature, keywords and extension.\\n\\nWrites the name Noctua gives a saved file: its signature, title, keywords, identifier and extension, each cleaned of what a file name cannot hold. A file being renamed keeps the identifier you give, so it stays the same file; without one, a new identifier is made. It saves nothing and changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":1024},\"signature\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"keywords\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"extension\":{\"type\":\"string\",\"maxLength\":255},\"id\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":13}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"naming.propose\",\"description\":\"Montar o nome de um arquivo com título, assinatura, palavras-chave e extensão.\\n\\nEscreve o nome que o Noctua dá a um arquivo salvo: a assinatura, o título, as palavras-chave, o identificador e a extensão, cada um limpo do que um nome de arquivo não comporta. Um arquivo renomeado mantém o identificador que você informar e continua sendo o mesmo arquivo; sem ele, um identificador novo é criado. Não salva nada e não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":1024},\"signature\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"keywords\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"extension\":{\"type\":\"string\",\"maxLength\":255},\"id\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":13}},\"additionalProperties\":false}}",
+        "{\"name\":\"naming_propose\",\"description\":\"Montar o nome de um arquivo com título, assinatura, palavras-chave e extensão.\\n\\nEscreve o nome que o Noctua dá a um arquivo salvo: a assinatura, o título, as palavras-chave, o identificador e a extensão, cada um limpo do que um nome de arquivo não comporta. Um arquivo renomeado mantém o identificador que você informar e continua sendo o mesmo arquivo; sem ele, um identificador novo é criado. Não salva nada e não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":1024},\"signature\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"keywords\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"maxLength\":255},\"maxItems\":128},\"extension\":{\"type\":\"string\",\"maxLength\":255},\"id\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":13}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `naming.read`"),
@@ -1553,14 +1553,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"naming.read\",\"description\":\"Read a file name back into its identifier, signature, title and keywords.\\n\\nReads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":255}},\"required\":[\"name\"],\"additionalProperties\":false}}",
+        "{\"name\":\"naming_read\",\"description\":\"Read a file name back into its identifier, signature, title and keywords.\\n\\nReads a name written in Noctua's file-naming scheme and answers what it holds: the identifier, the signature, the title, the keywords and the extension. It also says whether the name is already written exactly as Noctua writes it, and gives the spelling Noctua would use. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":255}},\"required\":[\"name\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"naming.read\",\"description\":\"Ler um nome de arquivo: identificador, assinatura, título e palavras-chave.\\n\\nLê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":255}},\"required\":[\"name\"],\"additionalProperties\":false}}",
+        "{\"name\":\"naming_read\",\"description\":\"Ler um nome de arquivo: identificador, assinatura, título e palavras-chave.\\n\\nLê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":255}},\"required\":[\"name\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.mcp.read`"),
@@ -1568,14 +1568,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings.mcp.read\",\"description\":\"Show whether this installation of Noctua lets MCP clients in.\\n\\nAnswers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"settings_mcp_read\",\"description\":\"Show whether this installation of Noctua lets MCP clients in.\\n\\nAnswers whether MCP is on in this installation of Noctua. It is off until a person turns it on, and turning it on here turns it on nowhere else. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings.mcp.read\",\"description\":\"Mostrar se esta instalação do Noctua deixa clientes MCP entrarem.\\n\\nResponde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}",
+        "{\"name\":\"settings_mcp_read\",\"description\":\"Mostrar se esta instalação do Noctua deixa clientes MCP entrarem.\\n\\nResponde se o MCP está ligado nesta instalação do Noctua. Ele fica desligado até que uma pessoa o ligue, e ligá-lo aqui não o liga em nenhuma outra. Não muda nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.mcp.set`"),
@@ -1583,14 +1583,14 @@ static PROSE: [(&str, &str); 565] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings.mcp.set\",\"description\":\"Let MCP clients act here as agents, or stop them.\\n\\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false}}",
+        "{\"name\":\"settings_mcp_set\",\"description\":\"Let MCP clients act here as agents, or stop them.\\n\\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings.mcp.set\",\"description\":\"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\\n\\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false}}",
+        "{\"name\":\"settings_mcp_set\",\"description\":\"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\\n\\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     (
@@ -2860,19 +2860,32 @@ fn the_cli_page_says_what_help_says() {
 /// The MCP page projects every command as a tool, in every locale, and says
 /// what a session sees.
 ///
-/// A tool is the command's name, its line and paragraph with a blank line
-/// between, and its argument schema as written — in that order, and nothing
-/// else; and the page says that a session sees only what it may dispatch, and
-/// that a plugin's tools come from the daemon.
+/// A tool is the command's name with each dot an underscore, which reads back
+/// to that command, its line and paragraph with a blank line between, its
+/// argument schema as written, and `readOnlyHint` exactly when it changes
+/// nothing — in that order, and nothing else; and the page's lead, held whole,
+/// says how a name reads back, which commands a session lists, and that a
+/// plugin's tools come from the daemon.
 #[test]
 fn the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees() {
     let catalog = catalog();
     let text = page("mcp-tools.md");
     for said in [
-        "**A session sees only the tools it may dispatch**: which of these a session lists is \
-         decided when it asks",
-        "**A plugin's tools come from the daemon**: a plugin declares its commands at \
-         `activate`, so no page lists them",
+        "Every command the catalog declares, as the tool definition an MCP session is handed \
+         (`NOCTUA.md §20.3`): the tool's name is the command's with each dot written as an \
+         underscore, because model APIs refuse a dot in a tool's name, and a call naming it is \
+         read back to the command through the one parser of a command's name; its description \
+         is the command's line and paragraph; its input schema is the command's argument \
+         schema, as the kernel holds a dispatch to it; and its one annotation, `readOnlyHint`, \
+         is true exactly when the command changes nothing. Each is written once for each \
+         locale, by the one function the MCP server lists its tools with.\n\n",
+        "\n\n**A session sees only the tools it may dispatch**: a session lists those of these \
+         whose resource is known without their arguments, that need no confirmation, and that \
+         it may dispatch now, decided when it asks, for the principal it is, as each of its \
+         calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a \
+         plugin declares its commands at `activate`, so no page lists them, and the daemon's \
+         registry holds them while the plugin is loaded (`§15.3`). **Nothing serves these \
+         yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).\n\n",
     ] {
         assert!(
             text.contains(said),
@@ -2904,14 +2917,25 @@ fn the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees() 
                 .collect();
             assert_eq!(
                 fields,
-                ["name", "description", "inputSchema"],
+                ["name", "description", "inputSchema", "annotations"],
                 "`{}`'s tool in `{tag}`",
                 entry.name
             );
+            let name = tool["name"].as_str().unwrap_or_default();
             counted.same(
-                tool["name"].as_str().unwrap_or_default(),
-                &entry.name,
+                name,
+                &nc_schema::entry::tool_name(&entry.name),
                 &format!("`{}`'s tool name in `{tag}`", entry.name),
+            );
+            counted.same(
+                &nc_schema::entry::command_of_tool(name).unwrap_or_default(),
+                &entry.name,
+                &format!("`{}`'s tool name read back in `{tag}`", entry.name),
+            );
+            counted.same(
+                &tool["annotations"].to_string(),
+                &serde_json::json!({ "readOnlyHint": !entry.mutating }).to_string(),
+                &format!("`{}`'s annotations in `{tag}`", entry.name),
             );
             counted.same(
                 tool["description"].as_str().unwrap_or_default(),
@@ -2926,9 +2950,18 @@ fn the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees() 
         }
     }
     counted.floor(
-        catalog.commands.len() * catalog.locales.len() * 3,
+        catalog.commands.len() * catalog.locales.len() * 5,
         "mcp-tools.md's tools",
     );
+    // **Both answers of the hint are published**, so a page that wrote one of
+    // them for every command is refused even if the catalog's flags agreed.
+    for read_only in [true, false] {
+        let hint = format!("\"annotations\":{{\"readOnlyHint\":{read_only}}}");
+        assert!(
+            text.contains(&hint),
+            "no tool on docs/mcp-tools.md is marked `{hint}`"
+        );
+    }
 }
 
 /// The keybindings page holds each channel's Leader on each keyboard, and

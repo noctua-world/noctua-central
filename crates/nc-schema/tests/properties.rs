@@ -5,15 +5,18 @@
 //! to the shape somebody thought of; these generate the shapes nobody did — an
 //! instance built to fit any schema of the subset is accepted and any single
 //! change to it is refused, and the judge never refuses with nothing to say;
-//! a binding is read back only as it is written, and no Leader settled from a
-//! configuration meets another channel's.
+//! a binding is read back only as it is written, a tool's name only as the
+//! one command it was made from, and no Leader settled from a configuration
+//! meets another channel's.
 
-use nc_schema::entry::{Entry, EntryProblem, InLocale, Rules, Text, Texts};
+use nc_schema::entry::{
+    Entry, EntryProblem, InLocale, Rules, Text, Texts, command_of_tool, tool_name,
+};
 use nc_schema::keys::{
     Binding, Chord, Claim, Key, Leader, LeaderPart, LeaderRule, Modifier, Modifiers, Settled,
     Table, Verdict, apart, intra, settle,
 };
-use nc_schema::{Declared, Reversibility, Schema, judge};
+use nc_schema::{Declared, NAME_MAX, Reversibility, Schema, command_name_is_well_formed, judge};
 use proptest::prelude::*;
 use proptest::strategy::ValueTree as _;
 use proptest::test_runner::TestRunner;
@@ -451,6 +454,116 @@ proptest! {
             "emptying the {} {} was not reported missing: {:?}", locale, text, problems
         );
     }
+}
+
+/// A command's name as the grammar writes one: short segments, or one long
+/// segment that reaches [`NAME_MAX`].
+///
+/// **Both lengths**, because a name at the bound is where a reader that
+/// counted a tool's characters differently from a command's would part from
+/// it.
+fn command_names() -> impl Strategy<Value = String> {
+    prop_oneof![
+        "[a-z][a-z0-9-]{0,11}(\\.[a-z][a-z0-9-]{0,11}){1,6}",
+        "[a-z]\\.[a-z][a-z0-9-]{0,93}",
+    ]
+}
+
+/// A text built from the parts a tool's name is made of, put together right
+/// and wrong: near enough to a tool's name that a good share of them is one.
+///
+/// **Arbitrary text is almost never a tool's name**, and a law that only ever
+/// sees refusals cannot tell an exact reader from one that forgives a dot or a
+/// doubled underscore; so the parts are drawn from words that are right and
+/// the ones a client writes by mistake, and
+/// `the_texts_read_as_tool_names_are_read_often_and_refused_often` holds the
+/// share.
+fn tool_texts() -> impl Strategy<Value = String> {
+    // Each part is right eight times in nine, so about two texts in five are a
+    // tool's name and the rest are each wrong in one or two places.
+    let word = prop_oneof![
+        8 => prop::sample::select(vec!["naming", "propose", "mcp", "b-2", "c3", "verify"]),
+        1 => prop::sample::select(vec!["Naming", "1st", "-x", "", "x y", "é"]),
+    ];
+    let joint = prop_oneof![
+        8 => Just("_"),
+        1 => prop::sample::select(vec!["__", ".", "-", ""]),
+    ];
+    let end = prop_oneof![8 => Just(""), 1 => prop::sample::select(vec!["_", "."])];
+    prop_oneof![
+        6 => (end.clone(), word.clone(), proptest::collection::vec((joint, word), 1..4), end)
+            .prop_map(|(opening, first, rest, closing)| {
+                let mut text = format!("{opening}{first}");
+                for (joint, word) in rest {
+                    text.push_str(joint);
+                    text.push_str(word);
+                }
+                text.push_str(closing);
+                text
+            }),
+        1 => ".{0,24}",
+    ]
+}
+
+proptest! {
+    /// Every command's name is a tool's name that reads back to it.
+    ///
+    /// **The name a session lists is the one it calls**, so a call naming a
+    /// listed tool always reaches the command that was listed, as acceptance 7
+    /// of Stage 15 asks.
+    #[test]
+    fn every_command_name_is_a_tool_name_that_reads_back_to_it(command in command_names()) {
+        prop_assert!(command_name_is_well_formed(&command), "`{}` is no command", command);
+        let tool = tool_name(&command);
+        prop_assert!(!tool.contains('.'), "`{}` keeps a dot", tool);
+        prop_assert_eq!(tool.len(), command.len());
+        prop_assert_eq!(command_of_tool(&tool), Some(command));
+    }
+
+    /// A tool's name reads back to one command at most: whatever text is read
+    /// back is a command, and the very name that command's tool is written as.
+    ///
+    /// **One spelling per tool**: a reader that forgave a dot, a doubled
+    /// underscore or a capital would read two texts as one command, and a list
+    /// could then hold a tool under one name and a call reach it by another.
+    /// Swapping underscores for dots is undone exactly on any text without a
+    /// dot, so only the parser can say the text was a tool's name at all.
+    #[test]
+    fn a_tool_name_reads_back_to_one_command_at_most(text in tool_texts()) {
+        if let Some(command) = command_of_tool(&text) {
+            prop_assert!(command_name_is_well_formed(&command), "`{}` is no command", command);
+            prop_assert_eq!(tool_name(&command), text);
+        }
+    }
+}
+
+/// The texts the second law above is judged over are read and refused often.
+///
+/// So that law is not a law about refusals alone; and the names the first law
+/// draws reach the bound.
+#[test]
+fn the_texts_read_as_tool_names_are_read_often_and_refused_often() {
+    let mut runner = TestRunner::deterministic();
+    let (texts, commands) = (tool_texts(), command_names());
+    let (mut read, mut refused, mut longest) = (0_usize, 0_usize, 0_usize);
+    for _ in 0..256 {
+        let text = texts.new_tree(&mut runner).expect("a text").current();
+        if command_of_tool(&text).is_some() {
+            read += 1;
+        } else {
+            refused += 1;
+        }
+        let command = commands.new_tree(&mut runner).expect("a name").current();
+        longest = longest.max(command.len());
+    }
+    assert!(
+        read >= 32 && refused >= 32,
+        "{read} texts read as a tool's name and {refused} refused, of 256"
+    );
+    assert!(
+        longest > NAME_MAX - 8,
+        "the longest command name drawn is {longest} characters, far from the bound"
+    );
 }
 
 /// Every binding and every chord the grammar can write is read back as itself.

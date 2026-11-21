@@ -294,7 +294,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
-│   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
+│   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine and the agents a person made in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
 │   └── nc-schema/                  a command's schema subset, selector and judge (§11.4), the tool an MCP session is handed of it (§20.3), and the Leader's grammar (§12.8)
@@ -793,8 +793,8 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     success.** A trigger can answer success for a statement it silenced — a temporary
     `BEFORE INSERT … RAISE(IGNORE)`, or the same trigger added to `main` by another
     connection after the store opened, which neither schema check sees. So every statement
-    `crates/nc-local/src/store.rs` and `crates/nc-local/src/journal.rs` write with goes
-    through `write_exactly`, which refuses any count but the one the statement had to
+    `crates/nc-local/src/store.rs`, `crates/nc-local/src/journal.rs` and
+    `crates/nc-local/src/agents.rs` write with goes through `write_exactly`, which refuses any count but the one the statement had to
     change (`NC-DB-0007`, and the journal's `NC-JRNL-0009`), every transaction first checks
     that no temporary object sits on its connection, and the pruner's SQLite target refuses
     a `DELETE` that removed more than its batch (`crates/nc-prune/src/sqlite.rs`). **Gated
@@ -803,7 +803,9 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     `crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` silences each of the store's
     in turn and requires the write refused with nothing left, and
     `an_append_a_trigger_silences_is_refused_and_lands_nothing` in
-    `crates/nc-local/tests/the_local_journal.rs` the journal's. Each list is its own, so a new write that
+    `crates/nc-local/tests/the_local_journal.rs` the journal's, and
+    `a_write_to_the_agents_a_trigger_silences_is_refused_and_leaves_nothing` in
+    `crates/nc-local/src/agents.rs` each of the four the agents are written with. Each list is its own, so a new write that
     skips `write_exactly` and is not added there is refused by nothing — no gate reads the
     store's source for an `execute` outside it.
 
@@ -898,12 +900,16 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     links neither of, and every command a page shows is the catalog being compiled. Help on
     a command and `docs/cli.md` are laid out by one function, `nc_cli::help::described`, which
     reads only what it is handed, and a command's MCP tool is projected by one,
-    `nc_schema::entry::as_tool`. **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
+    `nc_schema::entry::as_tool` — its name `nc_schema::entry::tool_name`'s, each dot an
+    underscore, read back to the command by `nc_schema::entry::command_of_tool` alone, and
+    its one annotation, `readOnlyHint`, from whether the command is `mutating`.
+    **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
     in `xtask/src/check.rs`, over every page the compiler emits and every page committed;
     `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` in
     `xtask/src/build.rs`; and `the_cli_page_says_what_help_says` and
     `the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees` in
-    `xtask/tests/the_pages_reach_the_catalog.rs`. **Not held**: a table a function in a
+    `xtask/tests/the_pages_reach_the_catalog.rs`, which reads every tool's name back to its
+    command. **Not held**: a table a function in a
     `Surfaces` reads of its own beyond the catalog that test changes, which a review sees
     and no gate does.
 
@@ -979,6 +985,7 @@ entry owns.
 | A chain of agents deeper than the policy's two | the chain written by the kernel alone, bounded by its type above the policy and refused by `core.chain_depth_is_bounded`; its one longer constructor a test door no member turns on outside its tests | the same entry |
 | An agent past its budget, or acting on through what its tree put off — a timer, an event, a compensation — once its person's or its own authority is gone, or as its person alone | a session's count, spent under the kernel's bus for every call, firing and delivery and read by the core's budget rule; a timer and an event carrying the session, decided again for every link when due; a compensation refused in an agent's tree; its steps kept in its person's history | the same entry |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
+| A tool reached under a second spelling of its name, or marked as changing nothing when it can | a tool's name is its command's with each dot an underscore, read back to that one command by the command-name parser and never from a dotted name; its one hint from `mutating`, which the kernel holds a command to | "A tool is named as its command and read back to it alone, and its one hint is one the kernel holds" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
@@ -1761,6 +1768,42 @@ install is on in that one alone.
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
 the person's undo of a switch-off, and what being on lets in, which nothing reads yet.
 
+### A tool is named as its command and read back to it alone, and its one hint is one the kernel holds
+
+**Guaranteed.** A command's MCP tool is what `nc_schema::entry::as_tool` projects, and
+nothing else maps a tool's name (invariant 27):
+
+- **One spelling per tool, read back to one command.** `nc_schema::entry::tool_name`
+  writes the command's name with each dot an underscore, the characters a model API takes
+  in a tool's name where a dot is refused, at the command's own length. No command's name
+  holds an underscore, so no two commands share a tool's name, and
+  `nc_schema::entry::command_of_tool` reads a name back through the one command-name
+  parser, `command_name_is_well_formed`: a dotted name — the command's own among them —
+  two underscores in a row, one at either end, a capital letter, one word, and a name past
+  the bound are no tool's, and whatever it reads back, `tool_name` writes as the text it
+  read. So a call naming a tool reaches the command its name was made from, or nothing.
+- **One hint, and one the kernel holds.** A tool's annotations are `readOnlyHint` alone,
+  true exactly when the command is not `mutating`, and the kernel holds a command that
+  does not mutate to writing nothing: no write to a store or to the blobs, no nested
+  dispatch of a command that changes state, and no request but `GET` and `HEAD`. No
+  `title`, which would be a display name, a person's words; and no other hint, which
+  nothing the registry holds a command to could make true, so the protocol's defaults
+  stand.
+
+**Enforced by** the unit tests beside `as_tool` in `crates/nc-schema/src/entry.rs` — the
+whole tool written out, every refusal of a name, and the hint both ways — with the
+`schema_entry` operators of `xtask/mutants.py` over each clause; the two name laws in
+`crates/nc-schema/tests/properties.rs`, over every name the grammar writes, at the bound
+among them, and over texts made near a tool's name, held to be read and refused often;
+and `the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees` in
+`xtask/tests/the_pages_reach_the_catalog.rs`, which reads every published name back to its
+command and every hint against the catalog's `mutating`.
+
+**Not answered:** a tool's name keeps its command's length, up to `nc_schema::NAME_MAX`
+characters, which a host or a model API that bounds a name shorter cuts or refuses; and a
+hint is a hint — `readOnlyHint` confirms nothing, and what a host does with it is the
+host's.
+
 ### What a plugin puts off runs only under an authority decided again when it comes due
 
 **Guaranteed** — the pump's order is `crates/nc-kernel/src/pump.rs`'s header:
@@ -1996,6 +2039,66 @@ never writes, which keeps every kernel of that realm from opening until somebody
 the file by hand — refused rather than skipped, because skipped it might be the unit a
 stopped process left; and retention, which is the realm's pack's to state and nothing
 applies yet (`catalog/limits.toml`, `policy-pack`).
+
+### The agents a person made are kept as written: each row written once, an agent never changed and a grant ended once
+
+`nc_local::LocalAgents` (`crates/nc-local/src/agents.rs`, whose header has the rules) keeps
+the agents a profile's person made, and every grant they gave one, in the local file beside
+the plugin store and the journal: `agents` and `agent_grants`, built by
+`local-migrations/0005_agents.sql`, and never the world file a daemon starts from
+(`NOCTUA.md §5.13`). It learns no type of the decision point's: an operator and a giver are
+opaque identifiers, and a grant's scope is a type and an identifier as text.
+
+**Guaranteed:**
+
+- **An agent is written once and never edited or deleted, and a grant is written once,
+  ended once and never deleted**, by triggers that refuse the statement whoever runs it,
+  under `trusted_schema = OFF`: `BEFORE UPDATE` and `BEFORE DELETE` ones, and
+  `BEFORE INSERT` ones that refuse an identifier the file holds before SQLite resolves the
+  conflict — so an `INSERT OR REPLACE`, or a `REPLACE`, which would delete the row it meets
+  and fire no delete trigger, is refused as a plain `INSERT` is. The end's trigger holds
+  every other column of a grant as it was and an end to both when and by whom, so a
+  connection that switches the `CHECK`s off with `PRAGMA ignore_check_constraints` still
+  ends no grant without saying who ended it.
+- **One live grant per agent and scope**, whatever statement writes it and whoever runs
+  it: the grants' `BEFORE INSERT` trigger refuses a second live one before SQLite
+  resolves a conflict, a plain `INSERT` and a replace alike (a replace would otherwise
+  delete the live one to make room), and the file's partial unique index states the same
+  rule beneath it. A grant that replaces the live one on its scope ends it in the
+  transaction that writes it, and only that one: a replacement naming a grant of another
+  scope, agent or realm, or one ended already, is refused with the new grant, and the old
+  one stays live.
+- **Every write is counted** through `write_exactly`, in a `BEGIN IMMEDIATE` that first
+  checks no temporary object sits on its connection (invariant 22), and **each table
+  refuses a new row at its bound**, `catalog/limits.toml`'s `max_rows`, counted over the
+  whole table in the transaction that would add the row (`nc_local::KeepError::Full`): every
+  realm's rows and every ended grant count, and a bound the catalog does not hold refuses
+  every row rather than none.
+- **A row read back is judged, or the read is refused** (`NC-DB-0007`): an identifier no
+  minter gives, a realm or a person that is not an opaque identifier, a budget no agent
+  holds, a time below zero, or a window that ends where it begins or before. A label, a
+  reason and a scope are handed on as the file holds them, for whoever opens a directory
+  over the rows to judge.
+
+**Enforced by** the unit tests in `crates/nc-local/src/agents.rs` — the triggers driven
+around the store with the `CHECK`s on and off, a plain insert of an identifier held, an
+`INSERT OR REPLACE` and a `REPLACE` of an agent, of an ended grant, of a live one and on a
+live one's scope, a second live grant, a replacement refused half way and one naming a
+grant of another scope, agent or realm, an ended one or none, a trigger silencing each of
+the four writes, a temporary object, a full table, and rows planted with the checks off —
+by the operators over `agents.rs` in `xtask/mutants.py`, each clause of the insert triggers
+among them, and by `nc_local::schema::EXPECTED`, to which every open and `cargo xtask check`
+hold the file's objects.
+
+**Not answered:** a process running as the same user, which can drop the triggers and then
+write, edit or delete any row — SQLite has no roles, and no row is signed: a trigger
+dropped is a schema the next open refuses, and one put back before it is not seen — and
+which can also rewrite in place, at the same length, a text column no index holds, such as
+an agent's operator or a grant's realm (so its own realm no longer reads it), through
+SQLite's incremental BLOB I/O, which runs no statement, fires no trigger and changes no
+schema; who may make an agent, or give or end a grant, which this crate does not decide —
+it keeps what it is handed; and the bounds being the profile's, under
+**What is deliberately not claimed**.
 
 ### The central log cannot contain user data
 
@@ -3441,8 +3544,9 @@ tool that compiles it was built with; a surface with no verb, no exit code or no
 Leader is refused rather than published as a page that says nothing. What help says of a
 command and what `docs/cli.md` says are one layout's, which escapes every text it is
 handed, so a page can show nothing help would not; and an MCP tool on `docs/mcp-tools.md` is
-the command's own name, its line and paragraph and its argument schema as written, once it
-compiles inside the subset the kernel holds a dispatch to — a display name and tags are a
+the command's own name with each dot an underscore, its line and paragraph, its argument
+schema as written, once it compiles inside the subset the kernel holds a dispatch to, and
+`readOnlyHint` exactly when the command is not `mutating` — a display name and tags are a
 person's words, and no tool carries them. Every cell goes through `cell`, so no value ends
 its cell or its row. A person's words — a locale's sentence or tag, on every page that
 shows one, a bound command's display name on the keybindings page included — have each
@@ -3465,7 +3569,7 @@ committed ones in both directions;
 another; `a_surface_with_no_verb_no_exit_code_or_no_leader_fails` and
 `the_cli_page_lays_each_command_out_with_the_layout_it_was_handed` in
 `crates/nc-catalog-compiler/tests/the_gates_fire.rs`; the unit tests of
-`crates/nc-schema/src/entry.rs`, which hold a tool to its three fields and refuse a schema
+`crates/nc-schema/src/entry.rs`, which hold a tool to its four fields and refuse a schema
 outside the subset; `a_fenced_block_is_closed_by_no_run_of_backticks_inside_it` in
 `crates/nc-catalog-compiler/src/docs.rs`, with
 `a_value_written_as_code_is_shown_as_its_system_writes_it` beside it, and
@@ -4163,6 +4267,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   plugin's namespace redeems none issued before. A person's history is read by identifier
   alone, so the directory is what keeps two principals of different kinds from sharing
   one.
+- **The agents' bounds are the profile's, not a realm's or a person's.** `agents` and
+  `agent_grants` are each counted whole, every realm's rows together and every grant ever
+  given, ended ones included, and nothing in either is ever deleted: a person in one realm
+  can fill them for every realm the profile serves, and a profile that has kept as many
+  grants as `[tables.agent_grants]` allows keeps no more. Not taken: a bound per realm or
+  per person, which `per` in `catalog/limits.toml` cannot say — it counts each plugin's
+  rows or each unit's.
 - **Plugins can time one another**: they share one process, one machine and one bus, one
   top-level call tree at a time, and nothing pads, batches or randomises a wait — the
   reason the kernel's crate header names timing between plugins as unanswered.
@@ -4212,7 +4323,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The local database stops other accounts, not the account it belongs to.** SQLite has no
   roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
   race the owner and mode checks between check and open, and the next open's refusal of a
-  changed schema is detection, not prevention. An administrator, and a disk read offline
+  changed schema is detection, not prevention. Through a statement, undoing an agent or a
+  grant takes such a change first, since the triggers refuse a replace before it deletes
+  the row it meets; a trigger put back before the next open is not seen. Nor is what runs
+  no statement: SQLite's incremental BLOB I/O, which fires no trigger and rewrites in place,
+  at the same length, an agent's or a grant's text column no index holds — its realm, so
+  its own realm no longer reads it, or an agent's operator — and the file's bytes written
+  directly. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
   `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
   runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,
@@ -4758,11 +4875,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 - **`docs/mcp-tools.md` is no session's tool list.** It is every command the catalog
   declares, projected by the function the MCP server lists a session's tools with; which
-  of them a session sees is decided when it asks, for the principal it is, and a plugin's
-  tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage 15). A
-  tool is named as its command is, dotted, which some MCP clients refuse, and each locale
-  has its own definition: mapping the names and choosing the language a session is handed
-  are Stage 15's, and the page moves with `nc_schema::entry::as_tool` when they are made.
+  of them a session sees is decided when it asks, for the principal it is — only those
+  whose resource is known without their arguments and that need no confirmation — and a
+  plugin's tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage
+  15). Each tool is named as its command with each dot an underscore and marked
+  `readOnlyHint` when the command changes nothing; each locale has its own definition,
+  and which one a session is handed is `noctua mcp`'s to choose.
 - **`docs/cli.md` writes production's CLI**, `noctua`; every other channel's is the same
   but for its name (`NOCTUA.md §17.1`). Its commands are the catalog's alone: a plugin's
   are what `noctua help` lists while its daemon runs.
