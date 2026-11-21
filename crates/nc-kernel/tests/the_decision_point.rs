@@ -1126,12 +1126,18 @@ impl<J: nc_journal::Store + Debug + Send + Sync + 'static> Fixture<J> {
     /// A new agent of the person called `person`: the entity a session names
     /// it by.
     async fn agent_of(&self, person: &str) -> EntityRef {
+        self.agent_holding(person, 1_000).await
+    }
+
+    /// A new agent of the person called `person`, given a budget of `budget`:
+    /// the entity a session names it by.
+    async fn agent_holding(&self, person: &str, budget: u32) -> EntityRef {
         let agent = self.minted();
         self.changed(&nc_authz::Change::Make {
             agent,
             operator: self.principal(person),
             label: format!("{person}'s assistant"),
-            budget: 1_000,
+            budget,
         })
         .await;
         EntityRef {
@@ -1213,6 +1219,32 @@ fn entity(type_name: &str, id: &str) -> EntityRef {
 /// The core and the family pack as they are on disk, with `extra` beside them:
 /// a decision point the tree does not ship, built through the same compiler.
 fn family_and(extra: &[(&str, &str)]) -> Pdp {
+    compiled(&the_family_on_disk(), extra)
+}
+
+/// The core and the family pack as they are on disk, less one policy.
+///
+/// The policy is the one whose `@id` is `id`: a decision point the tree does
+/// not ship, built through the same compiler.
+fn family_less(id: &str) -> Pdp {
+    let mut texts = the_family_on_disk();
+    let opening = format!("@id(\"{id}\")");
+    let holding: Vec<&mut (String, String)> = texts
+        .iter_mut()
+        .filter(|(_, text)| text.contains(&opening))
+        .collect();
+    assert_eq!(holding.len(), 1, "one file holds `{id}`");
+    for (_, text) in holding {
+        let at = text.find(&opening).expect("held");
+        let ends = text[at..].find(';').expect("a policy ends") + at + 1;
+        text.replace_range(at..ends, "");
+    }
+    compiled(&texts, &[])
+}
+
+/// Every policy file of the core and the family pack, by its path under the
+/// repository's root, beside its text.
+fn the_family_on_disk() -> Vec<(String, String)> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut texts: Vec<(String, String)> = Vec::new();
     for directory in ["policy/core", "policy/packs/family"] {
@@ -1230,6 +1262,11 @@ fn family_and(extra: &[(&str, &str)]) -> Pdp {
             ));
         }
     }
+    texts
+}
+
+/// The decision point `texts` and `extra` compile to, for the family profile.
+fn compiled(texts: &[(String, String)], extra: &[(&str, &str)]) -> Pdp {
     let mut files: Vec<(&str, &str)> = texts
         .iter()
         .map(|(path, text)| (path.as_str(), text.as_str()))
@@ -8829,4 +8866,664 @@ async fn an_agents_delete_is_refused_by_the_core_without_a_human_and_a_quorum() 
         Some("core.destructive_needs_quorum,core.irreversible_needs_a_human")
     );
     assert!(photo_in(&fixture.store).await.is_some(), "the photo went");
+}
+
+/// What decides an agent's proposal: its own permit, then its person's.
+const NAMED_FOR_BOTH: &str = "family.an_agent_names_files;family.a_member_names_files";
+
+/// The names of `commands`, in their order.
+fn names(commands: Vec<nc_kernel::registry::RegisteredCommand>) -> Vec<String> {
+    commands.into_iter().map(|command| command.name).collect()
+}
+
+/// A session spent to its budget is refused by the core and journaled with
+/// the rule.
+///
+/// **The budget is a permission** (`NOCTUA.md §14.6`, rule 5): ana's agent,
+/// given a budget of two and granted naming, has two names proposed, and its
+/// third call is refused on its own half by `core.budget_is_a_permission` —
+/// told `[NC-POL-0003]` like any denial, journaled as the agent's for ana,
+/// resting on the agent's grant.
+#[tokio::test]
+async fn a_session_spent_to_its_budget_is_refused_by_the_core_and_journaled_with_the_rule() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_holding("ana", 2).await;
+    let grant = fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    for _ in 0..2 {
+        fixture
+            .by(&session, PROPOSE, r#"{"title":"t"}"#)
+            .await
+            .expect("within the budget");
+    }
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    assert_eq!(session.spent(), 3);
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(Outcome, Who, Option<&str>)> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(|entry| (entry.record.result, who(entry), deciding(entry)))
+        .collect();
+    let theirs = (agent.id.as_str(), vec!["ana"]);
+    assert_eq!(
+        decided,
+        [
+            (Outcome::Allowed, theirs.clone(), Some(NAMED_FOR_BOTH)),
+            (Outcome::Allowed, theirs.clone(), Some(NAMED_FOR_BOTH)),
+            (Outcome::Denied, theirs, Some("core.budget_is_a_permission")),
+        ]
+    );
+    assert_eq!(
+        entries_of(&entries, PROPOSE)[2]
+            .record
+            .grant_used
+            .as_ref()
+            .map(OpaqueId::as_str),
+        Some(grant.as_str())
+    );
+}
+
+/// A session spends one for each call, and nothing for what the call
+/// dispatches.
+///
+/// **Nested work is the call's**: ana's assistant relays three proposals from
+/// inside one read of the photo, and its session has spent one; every nested
+/// proposal was decided for both halves.
+#[tokio::test]
+async fn a_session_spends_one_for_each_call_and_nothing_for_what_the_call_dispatches() {
+    let (fixture, _) = reference().await;
+    let assistant = fixture.the_assistant().await;
+    let relayed = fixture
+        .by(
+            &assistant,
+            "reference.relay.read",
+            &relay(PROPOSE, r#"{"title":"t"}"#, Some(3)),
+        )
+        .await
+        .expect("the assistant reads the photo the house shares");
+    assert_eq!(field(&relayed, "answered"), Value::Integer(3), "{relayed}");
+    assert_eq!(assistant.spent(), 1, "one call, three nested in it");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let nested: Vec<(Outcome, Who, Option<&str>)> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(|entry| (entry.record.result, who(entry), deciding(entry)))
+        .collect();
+    assert_eq!(
+        nested,
+        vec![
+            (
+                Outcome::Allowed,
+                ("ana-assistant", vec!["ana"]),
+                Some(NAMED_FOR_BOTH)
+            );
+            3
+        ]
+    );
+    fixture
+        .by(&assistant, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("a call of its own");
+    assert_eq!(assistant.spent(), 2);
+}
+
+/// A refused call spends as an allowed one does.
+///
+/// **Whatever refused it**: ana's agent, given a budget of three, names a
+/// command no one registered and then gives a proposal arguments its schema
+/// refuses — each spending one — so its one proposal is allowed and the next
+/// is refused by the budget rule.
+#[tokio::test]
+async fn a_refused_call_spends_as_an_allowed_one_does() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_holding("ana", 3).await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let unknown = fixture.by(&session, "naming.nothing", "{}").await;
+    assert!(
+        is(
+            &unknown,
+            RefusalKind::NotFound,
+            ErrorCode::KernelUnknownCommand
+        ),
+        "{unknown:?}"
+    );
+    let malformed = fixture.by(&session, PROPOSE, r#"{"title":1}"#).await;
+    assert!(
+        is(
+            &malformed,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid
+        ),
+        "{malformed:?}"
+    );
+    assert_eq!(session.spent(), 2, "each refusal spent one");
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("the last unit of the budget");
+    let refused = fixture.by(&session, PROPOSE, r#"{"title":"t"}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    let last = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .last()
+        .expect("the proposal refused");
+    assert_eq!(deciding(last), Some("core.budget_is_a_permission"));
+}
+
+/// Each session counts its own budget.
+///
+/// **A session is the unit of the budget**: ana's agent, given a budget of
+/// one, spends it in one session, and a clone of that session is spent too;
+/// a second session of the same agent has its own.
+#[tokio::test]
+async fn each_session_counts_its_own_budget() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_holding("ana", 1).await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let first = fixture.session(&agent, "ana").await;
+    let args = r#"{"title":"t"}"#;
+    fixture
+        .by(&first, PROPOSE, args)
+        .await
+        .expect("the first session's one call");
+    for spent in [first.clone(), first.clone()] {
+        let refused = fixture.by(&spent, PROPOSE, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "a clone spends from the same count: {refused:?}"
+        );
+    }
+    let second = fixture.session(&agent, "ana").await;
+    fixture
+        .by(&second, PROPOSE, args)
+        .await
+        .expect("a second session counts from nothing");
+    let refused = fixture.by(&second, PROPOSE, args).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+    assert_eq!((first.spent(), second.spent()), (3, 2));
+}
+
+/// Without the budget rule nothing else refuses a spent agent.
+///
+/// **Not separate middleware** (`NOCTUA.md §14.6`, rule 5): the pack less
+/// `core.budget_is_a_permission` lets ana's agent, given a budget of two,
+/// have a third name proposed, decided by the two permits as the first two
+/// were — so the core's rule is what refused it, and nothing before it.
+#[tokio::test]
+async fn without_the_budget_rule_nothing_else_refuses_a_spent_agent() {
+    let pdp = family_less("core.budget_is_a_permission");
+    let ids = pdp.ids();
+    assert!(!ids.iter().any(|id| id == "core.budget_is_a_permission"));
+    assert!(
+        ids.iter()
+            .any(|id| id == "core.an_agent_never_impersonates"),
+        "the rest of the core is there: {ids:?}"
+    );
+    let journal = Failing {
+        inner: nc_journal::InMemory::default(),
+        told: Arc::new(Mutex::new(Told::default())),
+    };
+    let fixture = opened(journal, Ok(pdp), &[("noctua:reference", "reference")], "").await;
+    let agent = fixture.agent_holding("ana", 2).await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    for _ in 0..3 {
+        fixture
+            .by(&session, PROPOSE, r#"{"title":"t"}"#)
+            .await
+            .expect("nothing refuses the call past the budget");
+    }
+    assert_eq!(session.spent(), 3);
+    let entries = fixture.entries().await;
+    let decided: Vec<Option<&str>> = entries_of(&entries, PROPOSE)
+        .into_iter()
+        .map(deciding)
+        .collect();
+    assert_eq!(decided, [Some(NAMED_FOR_BOTH); 3]);
+}
+
+/// An exhausted session may dispatch nothing.
+///
+/// **The probe reads what the session spent**: ana's agent, given a budget of
+/// one and granted naming and finding, may dispatch three commands; once its
+/// one call is spent, it may dispatch none, as its next call is refused.
+#[tokio::test]
+async fn an_exhausted_session_may_dispatch_nothing() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_holding("ana", 1).await;
+    for feature in ["naming", "registry"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let session = fixture.session(&agent, "ana").await;
+    assert_eq!(
+        names(fixture.kernel.dispatchable(&session).await),
+        [FIND, PROPOSE, READ_NAME]
+    );
+    fixture
+        .by(&session, PROPOSE, r#"{"title":"t"}"#)
+        .await
+        .expect("its one call");
+    assert_eq!(
+        names(fixture.kernel.dispatchable(&session).await),
+        [] as [&str; 0]
+    );
+    let refused = fixture.by(&session, FIND, r#"{"query":""}"#).await;
+    assert!(
+        is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{refused:?}"
+    );
+}
+
+/// Every command whose resource is known without its arguments, beside the
+/// simplest arguments its schema accepts.
+///
+/// **Held both ways to the registry** by
+/// `a_session_may_dispatch_exactly_the_commands_decided_for_it_and_its_operator`:
+/// a command registered with the realm's or a feature's selector and no row
+/// here fails it, and so does a row no such command has.
+const FITTING: &[(&str, &str)] = &[
+    ("journal.verify", r#"{"from":0}"#),
+    ("kernel.find", r#"{"query":"a"}"#),
+    ("kernel.redo", "{}"),
+    ("kernel.undo", "{}"),
+    ("limits.prune", r#"{"dry_run":true}"#),
+    ("naming.propose", r#"{"title":"a"}"#),
+    ("naming.read", r#"{"name":"a"}"#),
+    ("settings.mcp.read", "{}"),
+    ("settings.mcp.set", r#"{"on":true}"#),
+];
+
+/// A session may dispatch exactly the commands decided for it and its
+/// operator.
+///
+/// **Never vacuous**: with the reference plugin loaded, ana's agent, granted
+/// naming and finding, dispatches every command of [`FITTING`] — each with
+/// arguments its schema accepts, none refused for them — and a command is
+/// what the probe listed exactly when its entry says the decision allowed it
+/// (`allowed`, or `failed` once allowed). Every entry names ana as whom the
+/// agent acts for; the commands that change state are each refused on the
+/// agent's own half; and no command of the plugin, whose every resource is an
+/// argument's, is listed.
+#[tokio::test]
+async fn a_session_may_dispatch_exactly_the_commands_decided_for_it_and_its_operator() {
+    let (fixture, _) = reference().await;
+    let fitting: std::collections::BTreeSet<&str> = FITTING.iter().map(|(name, _)| *name).collect();
+    let registry = fixture.kernel.registry();
+    let selected: std::collections::BTreeSet<&str> = registry
+        .iter()
+        .filter(|command| {
+            command.resource_selector == "realm"
+                || command.resource_selector.starts_with("feature:")
+        })
+        .map(|command| command.name.as_str())
+        .collect();
+    assert_eq!(fitting, selected, "`FITTING` is the registry's, both ways");
+    assert!(
+        registry
+            .iter()
+            .any(|command| command.name.starts_with("reference.")),
+        "the reference plugin is loaded"
+    );
+    let agent = fixture.agent_of("ana").await;
+    for feature in ["naming", "registry"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let session = fixture.session(&agent, "ana").await;
+    let listed = names(fixture.kernel.dispatchable(&session).await);
+    assert!(
+        listed.iter().all(|name| fitting.contains(name.as_str())),
+        "only a command whose resource is known without arguments: {listed:?}"
+    );
+    for (name, args) in FITTING {
+        let _decided_and_journaled = fixture.by(&session, name, args).await;
+    }
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for (name, _) in FITTING {
+        let entry = only(&entries, name);
+        assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]), "{name}");
+        let allowed = matches!(entry.record.result, Outcome::Allowed | Outcome::Failed);
+        assert_eq!(
+            listed.iter().any(|listed| listed == name),
+            allowed,
+            "{name}: {entry:?}"
+        );
+        let changes = registry
+            .iter()
+            .find(|command| command.name == *name)
+            .is_some_and(|command| command.mutating);
+        if changes {
+            assert!(
+                !allowed && deciding(entry).is_some_and(|decided| !decided.contains(';')),
+                "{name} is refused on the agent's half: {entry:?}"
+            );
+        }
+    }
+    assert_eq!(listed, [FIND, PROPOSE, READ_NAME]);
+}
+
+/// A grant given adds its tools, and one revoked takes them away.
+///
+/// **What the person grants is what the agent may list**: ana's agent may
+/// dispatch nothing until she grants it naming, then its two commands, then
+/// finding beside them; once she ends the naming grant, finding alone.
+#[tokio::test]
+async fn a_grant_given_adds_its_tools_and_one_revoked_takes_them_away() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    let session = fixture.session(&agent, "ana").await;
+    let listed = || async { names(fixture.kernel.dispatchable(&session).await) };
+    assert_eq!(listed().await, [] as [&str; 0]);
+    fixture.granted("ana", &agent, "naming", 60).await;
+    assert_eq!(listed().await, [PROPOSE, READ_NAME]);
+    fixture.granted("ana", &agent, "registry", 60).await;
+    assert_eq!(listed().await, [FIND, PROPOSE, READ_NAME]);
+    fixture.revoked("ana", &agent, "naming").await;
+    assert_eq!(listed().await, [FIND]);
+    assert_eq!(session.spent(), 0, "listing spends nothing");
+}
+
+/// A permit added to the pack adds its command to the list.
+///
+/// **The list is the pack's decision, and nothing written beside it**: ana's
+/// agent, granted finding and the `mcp` feature, may read MCP's switch only
+/// with a pack that lets an agent read that feature — and switch it with
+/// neither, the permit naming the read alone.
+#[tokio::test]
+async fn a_permit_added_to_the_pack_adds_its_command_to_the_list() {
+    /// The permit the test adds: an agent reads whether MCP is on.
+    const AN_AGENT_READS_MCP: (&str, &str) = (
+        "policy/packs/family/agents_for_tests.cedar",
+        "@id(\"family.an_agent_reads_whether_mcp_is_on\")\n\
+         permit (principal is Agent, action == Action::\"Read\", resource == Feature::\"mcp\");\n",
+    );
+    for (pdp, expected) in [
+        (family(), vec![FIND]),
+        (family_and(&[AN_AGENT_READS_MCP]), vec![FIND, MCP_READ]),
+    ] {
+        let journal = Failing {
+            inner: nc_journal::InMemory::default(),
+            told: Arc::new(Mutex::new(Told::default())),
+        };
+        let fixture = opened(journal, Ok(pdp), &[("noctua:reference", "reference")], "").await;
+        let agent = fixture.agent_of("ana").await;
+        for feature in ["registry", "mcp"] {
+            fixture.granted("ana", &agent, feature, 60).await;
+        }
+        let session = fixture.session(&agent, "ana").await;
+        assert_eq!(names(fixture.kernel.dispatchable(&session).await), expected);
+    }
+}
+
+/// An agent's search finds exactly what its session may dispatch.
+///
+/// **One rule, read twice**: ana's agent, granted naming and finding, searches
+/// with an empty query, which matches every command it is handed, and finds
+/// what the probe lists, in its order, and counts them; ana's own search finds
+/// every registered command.
+#[tokio::test]
+async fn an_agents_search_finds_exactly_what_its_session_may_dispatch() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    for feature in ["naming", "registry"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let session = fixture.session(&agent, "ana").await;
+    let probed = names(fixture.kernel.dispatchable(&session).await);
+    let everything = r#"{"limit":32,"query":""}"#;
+    let found_by = |answer: &str| -> (Vec<String>, Value) {
+        let found = field(answer, "found")
+            .into_array()
+            .unwrap_or_else(|| panic!("a list: {answer}"))
+            .into_iter()
+            .map(|command| {
+                command
+                    .into_object()
+                    .and_then(|mut fields| fields.remove("name"))
+                    .and_then(Value::into_text)
+                    .expect("each command found is named")
+            })
+            .collect();
+        (found, field(answer, "total"))
+    };
+    let theirs = fixture
+        .by(&session, FIND, everything)
+        .await
+        .expect("the agent finds commands");
+    assert_eq!(
+        found_by(&theirs),
+        (
+            probed.clone(),
+            Value::Integer(i64::try_from(probed.len()).expect("a count"))
+        )
+    );
+    let anas = fixture
+        .as_("ana", FIND, everything)
+        .await
+        .expect("ana finds commands");
+    assert_eq!(
+        found_by(&anas).1,
+        Value::Integer(i64::try_from(fixture.kernel.registry().len()).expect("a count")),
+        "a person finds every registered command"
+    );
+}
+
+/// A probe is never journaled.
+///
+/// **A probe decides nothing that happened**: listing what ana's agent and
+/// what ana may dispatch leaves the journal as it was, and the agent's search,
+/// cut to its list, journals its own one entry and nothing for the cut.
+#[tokio::test]
+async fn a_probe_is_never_journaled() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    for feature in ["naming", "registry"] {
+        fixture.granted("ana", &agent, feature, 60).await;
+    }
+    let session = fixture.session(&agent, "ana").await;
+    let before = fixture.entries().await;
+    assert_eq!(
+        names(fixture.kernel.dispatchable(&session).await),
+        [FIND, PROPOSE, READ_NAME]
+    );
+    let ana = Caller::new(fixture.principal("ana"));
+    let anas = names(fixture.kernel.dispatchable(&ana).await);
+    assert!(anas.iter().any(|name| name == "kernel.undo"), "{anas:?}");
+    assert_eq!(fixture.entries().await, before);
+    fixture
+        .by(&session, FIND, r#"{"query":""}"#)
+        .await
+        .expect("the agent finds commands");
+    let after = fixture.entries().await;
+    assert_eq!(after.len(), before.len() + 1, "{after:#?}");
+    assert_eq!(command_of(&after[before.len()]).as_deref(), Some(FIND));
+}
+
+/// A command a session was not listed is decided and journaled all the same.
+///
+/// **The list is advisory, and every call is decided**: ana's agent, granted
+/// naming alone, is not listed `journal.verify` or `kernel.find`, and its
+/// call of each is decided and refused on its half, journaled as the agent's
+/// for ana.
+#[tokio::test]
+async fn a_command_a_session_was_not_listed_is_decided_and_journaled_all_the_same() {
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "naming", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    let listed = names(fixture.kernel.dispatchable(&session).await);
+    assert_eq!(listed, [PROPOSE, READ_NAME]);
+    for (name, args) in [
+        ("journal.verify", r#"{"from":0}"#),
+        (FIND, r#"{"query":"a"}"#),
+    ] {
+        let refused = fixture.by(&session, name, args).await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{name}: {refused:?}"
+        );
+    }
+    assert_eq!(session.spent(), 2, "each spent one");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    for name in ["journal.verify", FIND] {
+        let entry = only(&entries, name);
+        assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]), "{name}");
+        assert_eq!(deciding(entry), Some("core.provenance"), "{name}");
+    }
+}
+
+/// Every refusal of an agent's call is journaled with its operator.
+///
+/// **Whatever refused it, and wherever**: with a pack that lets ana's
+/// assistant write what she owns, nine relays deep, an agent's call is refused
+/// for a malformed name, an unknown command, malformed arguments, a tree too
+/// deep, no permit, a frozen operator, a spent budget and a command that
+/// cannot be undone — and each entry names the agent's person in its actor
+/// chain. The chain over them verifies, as ana asks it.
+#[tokio::test]
+async fn every_refusal_of_an_agents_call_is_journaled_with_its_operator() {
+    let depth = usize::try_from(KERNEL.dispatch_depth).expect("fits");
+    let ids: Vec<(String, String)> = (0..=depth)
+        .map(|at| (format!("noctua:depth-{at}"), format!("depth{at}")))
+        .collect();
+    let plugins: Vec<(&str, &str)> = ids
+        .iter()
+        .map(|(id, namespace)| (id.as_str(), namespace.as_str()))
+        .collect();
+    let journal = Failing {
+        inner: nc_journal::InMemory::default(),
+        told: Arc::new(Mutex::new(Told::default())),
+    };
+    let fixture = opened(journal, Ok(family_and(&[AN_AGENT_WRITES])), &plugins, "").await;
+    let assistant = fixture.the_assistant().await;
+    let (mut deep, mut deep_args) = ("journal.verify".to_owned(), "{}".to_owned());
+    for (_, namespace) in ids.iter().rev() {
+        deep_args = relay(&deep, &deep_args, None);
+        deep = format!("{namespace}.relay.read");
+    }
+    let doras = fixture.agent_of("dora").await;
+    fixture.granted("dora", &doras, "naming", 60).await;
+    let frozen = fixture.session(&doras, "dora").await;
+    let anas = fixture.agent_holding("ana", 1).await;
+    fixture.granted("ana", &anas, "naming", 60).await;
+    let spending = fixture.session(&anas, "ana").await;
+    let the_photo = note("photo", None);
+    let refusals: [(&Session, &str, &str, &str); 9] = [
+        (&assistant, "Not A Name", "{}", "kernel.malformed_name"),
+        (&assistant, "naming.nothing", "{}", "kernel.unknown_command"),
+        (
+            &assistant,
+            PROPOSE,
+            r#"{"title":1}"#,
+            "kernel.malformed_arguments",
+        ),
+        (
+            &assistant,
+            deep.as_str(),
+            deep_args.as_str(),
+            "kernel.too_deep",
+        ),
+        (
+            &assistant,
+            "journal.verify",
+            "{}",
+            "kernel.no_permit_matched",
+        ),
+        (
+            &frozen,
+            PROPOSE,
+            r#"{"title":"t"}"#,
+            "family.an_agent_names_files;family.a_frozen_account_acts_on_nothing",
+        ),
+        (&spending, PROPOSE, r#"{"title":"t"}"#, NAMED_FOR_BOTH),
+        (
+            &spending,
+            PROPOSE,
+            r#"{"title":"t"}"#,
+            "core.budget_is_a_permission",
+        ),
+        (
+            &assistant,
+            "depth0.irreversible.do",
+            the_photo.as_str(),
+            "kernel.irreversible_needs_confirmation",
+        ),
+    ];
+    for (session, name, args, _) in refusals {
+        let _decided_and_journaled = fixture.by(session, name, args).await;
+    }
+    let entries = fixture.entries().await;
+    let operator_of =
+        |principal: &str| -> &str { if principal == doras.id { "dora" } else { "ana" } };
+    for (_, _, _, decided) in refusals {
+        let entry = dispatched(&entries)
+            .into_iter()
+            .find(|entry| deciding(entry) == Some(decided))
+            .unwrap_or_else(|| panic!("an entry decided by {decided}: {entries:#?}"));
+        let (principal, chain) = who(entry);
+        assert_eq!(chain, [operator_of(principal)], "{decided}: {entry:?}");
+    }
+    for entry in dispatched(&entries) {
+        let (principal, chain) = who(entry);
+        assert_eq!(chain, [operator_of(principal)], "{entry:?}");
+    }
+    let verified = fixture
+        .as_("ana", "journal.verify", "{}")
+        .await
+        .expect("ana verifies the chain");
+    assert_eq!(
+        field(&verified, "verified"),
+        Value::Integer(i64::try_from(entries.len()).expect("a count")),
+        "{verified}"
+    );
+}
+
+/// Probing what a session may dispatch spends no confirmation, no budget, and
+/// writes nothing.
+///
+/// **Nothing is presented and nothing is decided that happened**: ana holds a
+/// confirmation of a command that cannot be undone, and listing what she may
+/// dispatch with it in hand redeems none of it — the probe leaves out what
+/// needs one, as it leaves out the prune a quorum must approve — and her
+/// assistant's probe spends nothing of its session; the journal is as it was,
+/// and ana's confirmation is redeemed when she dispatches it.
+#[tokio::test]
+async fn probing_what_a_session_may_dispatch_spends_no_confirmation_no_budget_and_writes_nothing() {
+    let fixture = reference_an_agent_writes_in().await;
+    let ana = fixture.principal("ana");
+    let (command, args) = ("reference.irreversible.do", note("photo", None));
+    let confirmed = Caller::new(ana.clone())
+        .confirmed(fixture.kernel.confirmation_for_tests(&ana, command, &args));
+    let assistant = fixture.the_assistant().await;
+    let before = fixture.entries().await;
+    let anas = names(fixture.kernel.dispatchable(&confirmed).await);
+    assert!(
+        anas.iter().any(|name| name == "kernel.undo")
+            && !anas.iter().any(|name| name == PRUNE || name == command),
+        "{anas:?}"
+    );
+    assert_eq!(
+        names(fixture.kernel.dispatchable(&assistant).await),
+        [FIND, PROPOSE, READ_NAME]
+    );
+    assert_eq!(assistant.spent(), 0);
+    assert_eq!(fixture.entries().await, before);
+    fixture
+        .kernel
+        .dispatch(&confirmed, command, &args)
+        .await
+        .expect("the confirmation is still ana's to redeem");
 }

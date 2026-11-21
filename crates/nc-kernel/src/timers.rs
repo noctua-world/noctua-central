@@ -1,5 +1,5 @@
-//! Timers: a plugin woken after a while, or at an interval, as the person it
-//! was set for.
+//! Timers: a plugin woken after a while, or at an interval, as the call tree
+//! that set it acted.
 //!
 //! **Set within bounds, by a plugin that holds few.** `timers.after` waits at
 //! least a millisecond and `timers.every` at least `timer_min_interval_ms`,
@@ -27,8 +27,10 @@
 //! before it delivers events: a one-shot is taken out and a repeating one moved
 //! on by its interval from now, before its callback runs, and the decision
 //! point decides the authority it was set under again, now — refused, the
-//! timer is cancelled. Its `on-timer` runs in a call tree of its own for the
-//! principal that set it, never confirmed (`crate::pump`).
+//! timer is cancelled. Its `on-timer` runs in a call tree of its own acting as
+//! the tree that set it — a person, or an agent's session for every one it
+//! acts for, which spends one unit of its budget for each firing — never
+//! confirmed (`crate::pump`).
 //!
 //! **Fired where it was set, as far as a change goes.** A timer set where only
 //! reading is allowed — in a command that only reads, beneath one, or in an
@@ -53,10 +55,10 @@
 
 use std::collections::BTreeMap;
 
-use nc_authz::Principal;
 use nc_catalog::{ErrorCode, KERNEL};
 
 use crate::dispatch::{Authority, Frame, Refusal, RefusalKind, lock};
+use crate::session::Acting;
 use crate::{Environment, PluginSlot, Shared};
 
 /// How many bytes of text a timer's tag may be: what the plugin is handed back
@@ -74,8 +76,8 @@ pub(crate) struct Timer {
     pub(crate) due_ms: u64,
     /// The interval it repeats at, when it repeats.
     pub(crate) every_ms: Option<u64>,
-    /// Who the setting call tree ran for, whom it fires for.
-    pub(crate) principal: Principal,
+    /// Who the setting call tree acted as, which it fires as.
+    pub(crate) acting: Acting,
     /// What the setting frame ran under, which is decided again when it fires.
     pub(crate) authority: Authority,
     /// Whether the setting frame let a change run beneath it, which its
@@ -143,8 +145,8 @@ pub(crate) fn no_room() -> Refusal {
 }
 
 /// Sets a timer from `frame`, of `ms`, repeating when `every`, tagged `tag`,
-/// for the principal its tree runs for and under the authority it runs under,
-/// answering its identifier.
+/// acting as its tree acts and under the authority it runs under, answering
+/// its identifier.
 ///
 /// Held by the tree's unit when it holds one, and by the tree until it ends
 /// when it does not; and where the tree only reads, it is a timer whose
@@ -178,7 +180,7 @@ pub(crate) fn set<E: Environment>(
         tag,
         due_ms: now_ms.saturating_add(ms),
         every_ms: every.then_some(ms),
-        principal: tree.principal().clone(),
+        acting: tree.acting().clone(),
         authority: frame.authority().clone(),
         may_change: !tree.reading(),
     };
@@ -312,9 +314,11 @@ mod tests {
             tag: "tag".to_owned(),
             due_ms,
             every_ms,
-            principal: world
-                .principal(nc_authz::PrincipalKind::User, "ana")
-                .expect("ana is a user"),
+            acting: crate::session::Acting::Itself(
+                world
+                    .principal(nc_authz::PrincipalKind::User, "ana")
+                    .expect("ana is a user"),
+            ),
             authority: Authority {
                 command: "reference.timer.set".to_owned(),
                 action: "Write".to_owned(),

@@ -137,6 +137,7 @@ dir   = "ltr"
 "error.kernel.compensation-moved" = "That step cannot be undone, because what it named to set things right now belongs to another part of Noctua, or to none. Nothing was undone."
 "error.kernel.compensation-ungranted" = "That step cannot be undone, because the part of Noctua that named how to set it right may no longer ask another part to do so. Nothing was undone."
 "error.kernel.only-at-the-top" = "Switching a setting and keeping agents can only be asked for directly, not from inside another action."
+"error.kernel.compensation-for-an-agent" = "An action an agent asked for cannot leave anything to be done later in your name, so nothing was set up."
 
 # --- The plugin host ---
 "error.plugin.capability-denied" = "A part of Noctua asked for something it is not allowed to use, and was refused."

@@ -3,13 +3,16 @@
 //! Gated by the `context` capability. Every function asks it first and answers
 //! `denied` to a plugin not granted it; to one that is, it answers what the
 //! frame of the call running now says — the principal as its opaque
-//! identifier, never a name; an actor chain that is empty, whoever the tree
-//! acts as, an agent's chain being the journal's and not told to a plugin; and
-//! whether a person confirmed the call, which is true only for the dispatch at
-//! the top of a call tree that redeemed a confirmation the kernel issued for
-//! it, and never for one nested beneath it or for a callback
-//! (`crate::dispatch`). Where no call tree runs — `activate` — each is refused
-//! with `[NC-PLUG-0025]`.
+//! identifier, never a name: in a tree acting for an agent, the agent; the
+//! actor chain, on whose behalf the tree acts, outermost first, each link's
+//! opaque identifier — the person an agent acts for, then each agent between
+//! — which is the chain every entry of the tree records, and empty for a
+//! principal acting as itself; and whether a person confirmed the call, which
+//! is true only for the dispatch at the top of a call tree that redeemed a
+//! confirmation the kernel issued for it, never for one nested beneath it or
+//! for a callback (`crate::dispatch`), and never in a tree acting for an
+//! agent, whatever its frame holds. Where no call tree runs — `activate` —
+//! each is refused with `[NC-PLUG-0025]`.
 //!
 //! **There is no setter in the world, and none here**: the kernel alone writes
 //! what a plugin reads (`NOCTUA.md §11.7`).
@@ -35,13 +38,20 @@ impl<E: Environment> world::Host for HostState<E> {
 
     fn actor_chain(&mut self) -> Result<Vec<String>, KernelError> {
         self.require(Capability::Context, "actor-chain")?;
-        self.in_a_tree("context#actor-chain")?;
-        Ok(Vec::new())
+        let frame = self.in_a_tree("context#actor-chain")?;
+        Ok(frame
+            .chain()
+            .iter()
+            .map(|link| link.as_str().to_owned())
+            .collect())
     }
 
     fn confirmed_by_human(&mut self) -> Result<bool, KernelError> {
         self.require(Capability::Context, "confirmed-by-human")?;
-        Ok(self.in_a_tree("context#confirmed-by-human")?.confirmed())
+        let frame = self.in_a_tree("context#confirmed-by-human")?;
+        // **Never in an agent's tree**, whatever its frame was handed: no agent
+        // holds what the kernel issues, and none is told it was confirmed.
+        Ok(frame.confirmed() && frame.acting().may_hold_tokens())
     }
 }
 
@@ -98,5 +108,41 @@ mod tests {
             ana,
             "a callback runs for its tree's principal too"
         );
+    }
+
+    /// A plugin in an agent's tree reads no confirmation.
+    ///
+    /// **Whatever its frame holds**: the frame of a tree acting for ana's
+    /// assistant is marked confirmed, as no dispatch of an agent's ever makes
+    /// one, and the plugin is still told no person confirmed it — beside the
+    /// agent as the principal and ana as the one link of its actor chain, in a
+    /// command and in a callback alike.
+    #[test]
+    fn a_plugin_in_an_agents_tree_reads_no_confirmation() {
+        let mut state = HostState::in_memory(GrantSet::of([Capability::Context]));
+        let person = Frame::<crate::InMemory>::for_tests(false, None).principal();
+        for frame in [
+            Frame::for_agent_tests(true, None).confirmed_for_tests(),
+            Frame::for_agent_tests(false, None).calling_for_tests(Call::Timer { may_change: true }),
+        ] {
+            let agent = frame.principal();
+            state.enter(frame);
+            assert_eq!(
+                state.principal().expect("in a call tree"),
+                agent.id().as_str(),
+                "the agent acts"
+            );
+            assert_ne!(agent.id(), person.id());
+            assert_eq!(
+                state.actor_chain().expect("in a call tree"),
+                [person.id().as_str().to_owned()],
+                "on ana's behalf"
+            );
+            assert!(
+                !state.confirmed_by_human().expect("in a call tree"),
+                "an agent's tree read a confirmation"
+            );
+            state.leave();
+        }
     }
 }

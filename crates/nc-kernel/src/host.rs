@@ -444,8 +444,8 @@ impl<E: Environment> HostState<E> {
     }
 
     /// The frame of the call running now, and the kernel it runs under, for a
-    /// host function that acts for the person the call tree runs for:
-    /// `function`, as the world names it.
+    /// host function that acts as the call tree acts — for a person, or for an
+    /// agent and whom it acts for: `function`, as the world names it.
     ///
     /// # Errors
     ///
@@ -476,14 +476,17 @@ impl<E: Environment> HostState<E> {
     /// a test door.
     pub(crate) fn in_a_tree(&self, function: &'static str) -> Result<&Frame<E>, KernelError> {
         self.frame().ok_or_else(|| {
-            self.refused_here(function, &Refusal::new(
-                RefusalKind::Denied,
-                ErrorCode::PluginOutsideACallTree,
-                format!(
-                    "`{function}` acts for the person a call tree runs for, and none runs here: \
+            self.refused_here(
+                function,
+                &Refusal::new(
+                    RefusalKind::Denied,
+                    ErrorCode::PluginOutsideACallTree,
+                    format!(
+                        "`{function}` acts for whom a call tree runs for, and none runs here: \
                      `activate` runs in no call tree"
+                    ),
                 ),
-            ))
+            )
         })
     }
 
@@ -973,7 +976,7 @@ pub(crate) mod tests {
         ("blobs", "[method]writer.finish"),
     ];
 
-    /// The functions that act for the person a call tree runs for.
+    /// The functions that act for whom a call tree runs for.
     ///
     /// Called with no call tree running, as every test here calls them, each
     /// refuses with `[NC-PLUG-0025]` as a value: there is nobody to act for.

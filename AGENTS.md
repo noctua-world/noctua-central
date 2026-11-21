@@ -909,16 +909,21 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
 
 28. **An agent is decided as itself and as each one it acts for, at the moment of each
     decision, and is never confirmed.** Every dispatch of a call tree that acts for an
-    agent, at its top and nested, is asked of the decision point once for each link of its
-    chain — the agent first, then its person — with one moment, one epoch and the kernel's
-    own `via_agent` and depth, and runs only if every link allows. The chain is the
+    agent, at its top and nested — and every authority its tree put off, a timer or an
+    event, decided again when it comes due — is asked of the decision point once for each
+    link of its chain — the agent first, then its person — with one moment, one epoch,
+    what its session has spent and the kernel's own `via_agent` and depth, and runs only if
+    every link allows. The chain is the
     directory's answer when the kernel opens the session (`Kernel::session`), for the
     person who made the agent alone, and never a caller's. Every entry of the tree names
     the agent and, in its actor chain, whom it acts for, with one segment of what decided
     for each link reached, joined by `;`; a person's entry is what a one-principal decision
-    writes. No confirmation or approval is redeemed in an agent's tree, whatever it holds.
-    **Enforced by** the agent tests of `crates/nc-kernel/tests/the_decision_point.rs`, the
-    unit tests of `crates/nc-kernel/src/session.rs` and `crates/nc-kernel/src/dispatch.rs`,
+    writes. No confirmation or approval is redeemed in an agent's tree, whatever it holds,
+    and no compensation is registered there.
+    **Enforced by** the agent tests of `crates/nc-kernel/tests/the_decision_point.rs` and
+    `crates/nc-kernel/tests/the_rest_of_the_world.rs`, the unit tests of
+    `crates/nc-kernel/src/session.rs`, `crates/nc-kernel/src/dispatch.rs`,
+    `crates/nc-kernel/src/host/context.rs` and `crates/nc-kernel/src/host/commands.rs`,
     `an_operator_frozen_mid_session_freezes_their_agent_at_its_next_call` in
     `crates/nc-kernel/tests/units_and_history.rs`, and
     `no_member_turns_a_test_door_on_outside_its_tests` in `xtask/src/gates.rs`. **Not
@@ -972,6 +977,7 @@ entry owns.
 | An agent doing what its person may not or what it may not itself, or acting for someone the directory did not name | the session opened by the kernel from the directory's answer, for the asking person alone; every decision of its tree asked once for each link at one moment and one epoch, the first denial the answer; each entry naming the agent and whom it acts for | "An agent acts as itself and as the person it acts for, and is never confirmed" |
 | An agent obtaining or presenting a confirmation or an approval | a session with no slot for one, a tree acting for an agent binding none, none ever bound to an agent, and an agent named without a session deciding as itself, which the core refuses | the same entry |
 | A chain of agents deeper than the policy's two | the chain written by the kernel alone, bounded by its type above the policy and refused by `core.chain_depth_is_bounded`; its one longer constructor a test door no member turns on outside its tests | the same entry |
+| An agent past its budget, or acting on through what its tree put off — a timer, an event, a compensation — once its person's or its own authority is gone, or as its person alone | a session's count, spent under the kernel's bus for every call, firing and delivery and read by the core's budget rule; a timer and an event carrying the session, decided again for every link when due; a compensation refused in an agent's tree; its steps kept in its person's history | the same entry |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
@@ -1157,8 +1163,6 @@ over the journal in memory and the local journal alike.
 - a confirmation or an approval issued for real — only a test door issues one, so a
   shipped kernel denies every command that cannot be undone and every one a quorum must
   approve;
-- a timer set or an event published in an agent's tree, which is decided again as the agent
-  acting alone and refused when it comes due (`crates/nc-kernel/src/session.rs`);
 - a store that refuses the reversal of a unit whose close the journal did not take: the
   unit stays committed and readable, open in the journal until the next prune or kernel
   opening reverts it, the caller told and `kernel.revert_failed` logged, the units table
@@ -1287,6 +1291,26 @@ undone is refused with `[NC-KERN-0006]`, and its delete by the core's two floors
 past the policy's two links is refused by `core.chain_depth_is_bounded` and recorded whole;
 the type holds at most four, and nothing but a test door builds one past a single link.
 
+**A session spends its agent's budget, and the core refuses what is past it**: one unit for
+each call it sends — refused or not, counted under the kernel's bus before anything is
+asked of the call — one for each timer its tree set that fires, and one for each event its
+tree published that is delivered, whatever its subscribers; what a call dispatches nested
+spends nothing, and each session, a clone of one included, counts its own. Every decision of
+a tree is told what its session had spent when the tree began, which `nc-authz` takes off
+the agent's `budget_remaining`, so `core.budget_is_a_permission` refuses a spent session's
+call, firing or delivery, and the entry names the rule. **What its tree puts off acts as its
+tree did**: a timer it sets and an event it publishes carry the session, are decided again
+for every link when they come due — its person's authority withdrawn or ended cancels the
+timer or drops the event — and call back as the agent for its person, never confirmed.
+**Its steps are its person's**: a step its tree keeps, its timer's callback's included, is
+in its person's history, whose undo takes it back, and an agent's own undo finds no step.
+**Nothing it arranges runs later as its person alone**: a compensation registered in its
+tree is refused (`[NC-KERN-0026]`), so its step is undone by its images or is a barrier.
+**It may list what it may dispatch**: `Kernel::dispatchable` is the decision point's probe —
+each command whose resource is known without arguments and that can be undone, decided for
+every link on what the session has spent, never journaled, spending nothing and redeeming
+nothing — and its search finds that set.
+
 **Enforced by** `crates/nc-kernel/src/session.rs` and its unit tests — what a chain holds,
 how deep it is, and that only a principal acting as itself holds what the kernel issues;
 `crates/nc-kernel/src/dispatch.rs`, whose unit tests hold that no token issued to an agent
@@ -1300,9 +1324,20 @@ a chain of two and one of three, and every token path — the operator's confirm
 approval, the agent's own presented without a session, which the core refuses whatever it
 holds, an argument named as one, a serial carried in an argument the schema takes, a nested
 irreversible command, a delete;
-`crates/nc-kernel/tests/units_and_history.rs`, where the person is frozen mid-session;
-`crates/nc-kernel/tests/the_rest_of_the_world.rs`, where an agent's timer is refused when
-it comes due; `crates/nc-authz/tests/the_embedded_pack_decides.rs`, which holds the commands
+`crates/nc-kernel/tests/the_decision_point.rs` too for the budget — spent to its end,
+refused calls spending, nested ones not, each session its own and nothing but the core's
+rule refusing — and for the probe, held both ways to every command whose resource is known
+without arguments, to each grant and permit, to the agent's search and to what each
+dispatch decided, and journaling nothing;
+`crates/nc-kernel/tests/units_and_history.rs`, where the person is frozen mid-session, an
+agent's step is undone by its person, its own undo finds nothing, and a compensation its
+tree names is refused; `crates/nc-kernel/tests/the_rest_of_the_world.rs`, where an agent's
+timers and events are decided for it and for its person when they come due, spend from its
+session's budget and are never confirmed, its timer's step joins its person's history, and
+the chain a plugin reads is the one the journal records; the unit tests of
+`crates/nc-kernel/src/host/context.rs` and `crates/nc-kernel/src/host/commands.rs`, where an
+agent's tree reads no confirmation and registers no compensation;
+`crates/nc-authz/tests/the_embedded_pack_decides.rs`, which holds the commands
 an agent reaches in the pack to naming and finding and refuses an agent of another realm by
 the slice; the cases of `policy/packs/family/tests/features.toml`, `accounts.toml` and
 `policy/core/tests/`; and `no_member_turns_a_test_door_on_outside_its_tests` in
@@ -1310,10 +1345,10 @@ the slice; the cases of `policy/packs/family/tests/features.toml`, `accounts.tom
 ships.
 
 **Not answered:** a same-user process, which dispatches as the person without naming an
-agent; what an agent's tree puts off — a timer it sets, an event it publishes — which is
-decided again as the agent acting alone, and refused; which commands an agent finds, a
-search listing every registered command as a person's does; and the operator's grant in
-the entry, which names the agent's alone. See "What is deliberately not claimed".
+agent; a session opened again, which counts its budget from nothing; a command that takes
+its resource from an argument, which the probe and an agent's search leave out though its
+dispatch is decided as any; and the operator's grant in the entry, which names the agent's
+alone. See "What is deliberately not claimed".
 
 ### A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else
 
@@ -1506,7 +1541,9 @@ at the deadline.
   decided as `Write` on the realm, journaled, run in a unit of their own, at the top of a
   tree only (`[NC-KERN-0017]`). Undo takes the person's newest committed step among their
   newest `undo_history` steps of the realm (undos and redos push none out of reach); redo,
-  their newest undo among their newest `undo_history` units.
+  their newest undo among their newest `undo_history` units. A step an agent's call tree
+  kept is in the history of the person it acts for, who undoes it; an agent's own undo
+  looks for steps of its own and finds none.
 - **It puts back what the kernel keeps**: every key the step wrote, refused when one
   changed since (`[NC-KERN-0011]`), and the pin of every blob the step made that no other
   committed unit holds — a unit the pruner took holds what it made for good, and a blob
@@ -1529,7 +1566,8 @@ at the deadline.
   the core holds to no confirmation and no quorum, and that is not the kernel's own, its
   arguments held to its schema (`[NC-KERN-0021]`); at most one fewer than
   `dispatches_per_tree` per unit (`[NC-PLUG-0017]`), and a step keeps two of
-  `store_notes`' notes free for its undo.
+  `store_notes`' notes free for its undo. None is registered in a call tree acting for an
+  agent (`[NC-KERN-0026]`): the undo would dispatch it as the person alone.
 - **Redo** puts back the newest undo unless a step came after it, the undo dispatched
   compensations (`[NC-KERN-0013]`) or the pruner took the step, re-pinning its blobs
   unless the sweep took one (`[NC-KERN-0019]`). A reversal the kernel commits itself is
@@ -1543,7 +1581,8 @@ at the deadline.
 `crates/nc-kernel/src/host/commands.rs` with their unit tests;
 `crates/nc-kernel/tests/units_and_history.rs`, which steps the reference plugin's notes
 back and forward across two plugins, over the database in memory and in a file opened
-again; `crates/nc-kernel/tests/the_decision_point.rs`, where the journal does not take an
+again, and where an agent's step is undone by its person, its own undo finds nothing and a
+compensation its tree names is refused; `crates/nc-kernel/tests/the_decision_point.rs`, where the journal does not take an
 undo's or a redo's close or cannot say how a step closed, and a unit not kept names its
 compensations; `crates/nc-kernel/tests/isolation.rs`, where a unit a kill let go names
 them; and `crates/nc-kernel/tests/both_stores_answer_alike.rs`, for which units hold a
@@ -1640,6 +1679,12 @@ what it reads and answers):
   slice; an agent is allowed by a permit of its own, `family.an_agent_finds_commands`, only
   once its person granted it the feature, and only while its person may. It opens no unit,
   and its entry names the command and the feature, never the query.
+- **An agent finds what its session may dispatch now.** In a call tree acting for an agent
+  the registry is cut, before anything is matched, to the decision point's probe
+  (`Kernel::dispatchable`): each command whose resource is known without arguments, that
+  can be undone, and that the agent and its person may be allowed, on what its session has
+  spent — so an agent's search and its tool list are one set. A person's finds every
+  registered command.
 - **Bounded work, whatever is typed.** The schema refuses a query past
   `nc_fuzzy::QUERY_CHARS_MAX` characters before the handler runs — its `maxLength`, which a
   test beside the handler holds equal to the core's bound — and the handler refuses one
@@ -1661,14 +1706,16 @@ bound held to the schema's, every registry bound within the core's, the widest a
 limit and the count, the registry's order among equal scores, and both languages' texts
 over the catalog's own registry — `crates/nc-kernel/tests/the_decision_point.rs` over the
 real pack and world — every person answered, a frozen account, a device and an agent named
-without a session refused, an agent's session refused a feature it was not granted, and a
-plugin's command found by its own entry — `policy/packs/family/tests/features.toml`,
+without a session refused, an agent's session refused a feature it was not granted, its
+search finding exactly what its session may dispatch, and a plugin's command found by its
+own entry — `policy/packs/family/tests/features.toml`,
 and `apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
 daemon.
 
 **Not answered:** see "What is deliberately not claimed": how many commands the registry
-holds, and which commands the asker may dispatch — an agent's search lists every
-registered command, as a person's does.
+holds; which commands a person may dispatch, a person's search listing every registered
+command; and an agent's command that takes its resource from an argument, which its search
+does not find though its dispatch is decided as any.
 
 ### A setting is switched by a person's own call, and MCP is off until one switches it on
 
@@ -1729,9 +1776,11 @@ the person's undo of a switch-off, and what being on lets in, which nothing read
   with no unit lets them go if the journal refused any of its entries.
 - **Decided again when due**: `Kernel::pump` fires due timers, then the events queued when
   it began, each once, oldest first, each only after the decision point decides again —
-  for the principal it was set or published for — the authority it was set or published
-  under; a denial is journaled and cancels the timer or drops the event.
-- **A callback is a call tree of its own** for that principal, never confirmed, every
+  as the call tree that set or published it acted, for an agent's once for each link of
+  its session's chain, the session spending one unit of its budget for a timer fired and
+  one for an event delivered, whatever its subscribers — the authority it was set or
+  published under; a denial is journaled and cancels the timer or drops the event.
+- **A callback is a call tree of its own**, acting as that tree did, never confirmed, every
   command beneath it nested and never undo or redo; an event's callback, and a timer's set
   where only reading was allowed, change nothing and begin no unit, so putting a change
   off escapes no frame that would refuse it.
@@ -1739,9 +1788,11 @@ the person's undo of a switch-off, and what being on lets in, which nothing read
   quarantined plugin's due timers wait and its events are dropped and counted; an unloaded
   plugin's timers are cancelled, its surfaces closed and its unheard events let go.
 - **Who a call runs for is the kernel's to say**: `context` answers the principal's opaque
-  identifier, an empty actor chain, and whether a person confirmed the dispatch at the top
-  of the tree — never nested, never in a callback — and nothing a plugin writes changes
-  them; in `activate`, the context, events, timers and surfaces are refused
+  identifier — in an agent's tree, the agent's — the actor chain every entry of the tree
+  records, on whose behalf it acts, outermost first, and empty for a principal acting as
+  itself, and whether a person confirmed the dispatch at the top of the tree — never
+  nested, never in a callback, never in an agent's tree — and nothing a plugin writes
+  changes them; in `activate`, the context, events, timers and surfaces are refused
   (`[NC-PLUG-0025]`).
 
 **Enforced by** `crates/nc-kernel/src/events.rs`, `crates/nc-kernel/src/timers.rs`,
@@ -1750,7 +1801,8 @@ over them, with their unit tests, and `crates/nc-kernel/tests/the_rest_of_the_wo
 which publishes, sets and pumps the reference plugin beside its peer — authority withdrawn
 in between, a unit let go, a nested command that put something off and failed beneath a
 caller that went on, a timer set by a read or an event's callback, a plugin quarantined,
-killed or unloaded.
+killed or unloaded, and an agent's timers and events decided for it and its person, spent
+from its budget, the chain a plugin reads held to the one the journal records.
 
 **Not answered:** what a callback does with what it is told, which is its plugin's code; a
 callback changing its own plugin's state, which it cannot — a command of that plugin
@@ -4212,7 +4264,7 @@ rather than anything decided for the project, and each is a maintainer's to reop
   claim another file's identity, exactly as renaming by hand can; whether a file of that
   name exists, or would collide on disk, is the saving feature's question.
 - **A plugin may mint as many identifiers as its tree's dispatch count allows**, a person's
-  or an agent's, and no budget counts an agent's calls.
+  or an agent's: an agent's budget counts its session's calls, not what each mints.
 - **Whether Denote removes an `=` inside a signature part** is open
   (`crates/nc-ids/src/naming.rs`), and the commands answer what the builder does today.
 
@@ -4623,8 +4675,18 @@ rather than anything decided for the project, and each is a maintainer's to reop
   caller is told one sentence and the code.
 - **No chain longer than one link exists outside the test door**: an agent another agent
   calls is a session of its own, of its person, one link deep.
-- **What an agent's tree puts off does not run**: a timer it sets or an event it publishes
-  is decided again as the agent acting alone, which the core refuses.
+- **What an agent's tree set going keeps going until something refuses it**: a repeating
+  timer it set fires as the agent for its person, decided again at each firing, until its
+  session's budget, its grants or their end stop it; nothing ends it when the session ends.
+- **The budget is a session's, and a count**: a session opened again counts from nothing,
+  and the budget counts calls, firings and events, not their cost, and bounds no rate.
+- **An agent's steps are in its person's history**: they can push the person's own steps
+  past `undo_history`, end their way back to redo, and the person's next undo may take back
+  their agent's newest step rather than their own — unreachable in the family pack, where
+  an agent changes nothing.
+- **What an agent may list is a snapshot of what its session may dispatch**: a command that
+  takes its resource from an argument is not listed and not found, though a dispatch of it
+  is decided as any, and every call is decided again whatever the list said.
 - **An agent's command that cannot be undone is refused, never waited on**: no interface
   confirms one yet, and nothing an agent holds or sends confirms it.
 
@@ -4654,9 +4716,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The ranking reads text alone.** Whoever writes an item's names and tags decides what
   finds it and how high, within the bounds its registry holds those texts to; `kernel.find`
   says of each command it found whether a plugin wrote it.
-- **`kernel.find` finds every registered command, not what the asker may dispatch.** Its
-  answer is the registry `Request::Registry` already lists to the same person, and an agent
-  granted the feature finds the same: nothing cuts its answer to what it may run.
+- **A person's `kernel.find` finds every registered command, not what they may
+  dispatch.** Its answer is the registry `Request::Registry` already lists to the same
+  person; an agent's is cut to what its session may dispatch now.
 - **A search does not bound the registry it reads.** Its work grows with the commands
   registered — the kernel's, and each plugin's a person installed, each held to
   `commands_per_plugin` — and nothing caps how many plugins are installed; a search is

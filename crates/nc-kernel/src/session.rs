@@ -29,22 +29,50 @@
 //! kernel still decides and journals whole. Nothing in this build makes a
 //! chain longer than one link but the test door.
 //!
+//! **A session counts what it spends, and the core refuses what is past its
+//! budget** (`NOCTUA.md §14.6`, rule 5). One unit for each call the session
+//! sends — refused or not, counted under the kernel's bus before anything is
+//! asked of it — one for each timer its tree set that fires, and one for each
+//! event its tree published that is delivered, whatever its subscribers; a
+//! dispatch nested in a tree spends nothing, and every decision of the tree
+//! is told what the session had spent when it began (`Facts::budget_spent`),
+//! which `nc-authz` takes off the agent's `budget_remaining`. A clone of a
+//! session is the same session and spends from its count.
+//!
+//! **What an agent's tree puts off acts as the tree did.** A timer it sets and
+//! an event it publishes carry the session, so each is decided again for every
+//! link when it comes due, spends from the session's count, and runs its
+//! callback in a tree acting for the agent. An agent's steps join its person's
+//! history ([`Acting::whose_history`]), which the person undoes; and an
+//! agent's undo looks for steps of its own, of which there are none.
+//!
+//! **What a session may dispatch is a probe of the decision point**
+//! ([`dispatchable`]): a command whose resource is known without arguments,
+//! that is not one that cannot be undone, and that every link may be allowed
+//! now — never journaled, spending nothing and binding no serial. A search
+//! an agent runs finds that set (`crate::find`).
+//!
 //! # What it does not answer
 //!
 //! Whether an agent's rights are within its operator's, which the decision
-//! point asks of each link at each decision; and how much a session spends.
-//! What an agent's tree puts off — a timer it sets, an event it publishes —
-//! is put off as the agent acting alone, which the core refuses when it comes
-//! due.
+//! point asks of each link at each decision; a command that takes its
+//! resource from an argument, which the probe leaves out though a dispatch of
+//! it is decided as any; and what a session spent before it was opened: a
+//! session's count is its own, and a session opened again counts from
+//! nothing.
 
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use nc_authz::{Directory as _, EntityRef, Principal, PrincipalKind};
 use nc_catalog::ErrorCode;
 use nc_ids::OpaqueId;
+use nc_schema::Selector;
+use nc_schema::descriptor::Reversibility;
 
 use crate::dispatch::{Refusal, RefusalKind, within};
+use crate::registry::RegisteredCommand;
 use crate::{Environment, Shared};
 
 /// How many links an actor chain holds at most: its operator and every agent
@@ -118,22 +146,25 @@ impl ActorChain {
     }
 }
 
-/// One agent's session: the agent the directory vouched for, and the chain
-/// the kernel wrote for it. Opened by [`crate::Kernel::session`] alone.
+/// One agent's session: the agent the directory vouched for, the chain the
+/// kernel wrote for it, and what it has spent. Opened by
+/// [`crate::Kernel::session`] alone.
 ///
 /// **It holds nothing the kernel issues, and has nowhere to hold it**: there is
 /// no confirmation and no approval here, so no agent presents either. A clone
-/// is the same session.
+/// is the same session, and spends from the same count.
 #[derive(Debug, Clone)]
 pub struct Session(Arc<Opened>);
 
-/// What a session is: its agent and the chain it acts for.
+/// What a session is: its agent, the chain it acts for and what it spent.
 #[derive(Debug)]
 struct Opened {
     /// The agent, as the directory minted it.
     agent: Principal,
     /// Whom it acts for, outermost first.
     chain: ActorChain,
+    /// How many units of its agent's budget the session has spent.
+    spent: Mutex<u64>,
 }
 
 impl Session {
@@ -149,6 +180,30 @@ impl Session {
         &self.0.chain.operator
     }
 
+    /// How many units of its agent's budget the session has spent: one for
+    /// each call it sent, each timer of its tree fired and each event of its
+    /// tree delivered.
+    ///
+    /// Counted under the kernel's bus, so it is exact between call trees; read
+    /// anywhere else it is what was spent by then, and every call is decided
+    /// again on the count at its own start.
+    #[must_use]
+    pub fn spent(&self) -> u64 {
+        *crate::dispatch::lock(&self.0.spent)
+    }
+
+    /// Spends one unit of the agent's budget, answering what the session had
+    /// spent before it, which the call tree it is spent for is decided on.
+    ///
+    /// Saturating: a count at its end stays there, and the core refuses
+    /// every call past a budget long before.
+    pub(crate) fn spend(&self) -> u64 {
+        let mut spent = crate::dispatch::lock(&self.0.spent);
+        let before = *spent;
+        *spent = before.saturating_add(1);
+        before
+    }
+
     /// The session of `agent` acting for `operator` alone, whatever each is.
     ///
     /// What a unit test of a guard builds, so that only the guard stands
@@ -161,11 +216,12 @@ impl Session {
                 operator,
                 through: Vec::new(),
             },
+            spent: Mutex::new(0),
         }))
     }
 
     /// The same agent, acting through `agents` too, after its operator and
-    /// outermost first. **For tests only.**
+    /// outermost first, with a count of its own. **For tests only.**
     ///
     /// Nothing in this build makes an agent act through another — a later
     /// stage's attenuated tokens are the first that will — and this is how
@@ -182,6 +238,7 @@ impl Session {
         Some(Self(Arc::new(Opened {
             agent: self.0.agent.clone(),
             chain,
+            spent: Mutex::new(0),
         })))
     }
 }
@@ -245,6 +302,113 @@ impl Acting {
     pub(crate) fn may_hold_tokens(&self) -> bool {
         matches!(self, Self::Itself(principal) if principal.kind() != PrincipalKind::Agent)
     }
+
+    /// Whose history the tree's steps join: the principal's own, and for an
+    /// agent the person it acts for, who undoes them.
+    ///
+    /// An undo looks for steps of the principal asking, so an agent finds
+    /// none of its own and never reaches its person's.
+    pub(crate) fn whose_history(&self) -> &Principal {
+        match self {
+            Self::Itself(principal) => principal,
+            Self::Agent(session) => session.operator(),
+        }
+    }
+
+    /// What the tree's session has spent so far: none for a principal acting
+    /// as itself, which holds no budget.
+    pub(crate) fn spent(&self) -> u64 {
+        match self {
+            Self::Itself(_) => 0,
+            Self::Agent(session) => session.spent(),
+        }
+    }
+
+    /// Spends one unit for a tree run on the session's behalf.
+    ///
+    /// It answers what the session had spent before: nothing, and none spent,
+    /// for a principal acting as itself.
+    pub(crate) fn spend(&self) -> u64 {
+        match self {
+            Self::Itself(_) => 0,
+            Self::Agent(session) => session.spend(),
+        }
+    }
+}
+
+/// Whether `acting`, its session having spent `spent`, may be allowed `action`
+/// on `resource` now, within what the tree that began at `began` has left.
+///
+/// The decision a dispatch meets, once for each link — and nothing else of
+/// one: never journaled, spending no budget and binding no serial, since
+/// nothing is presented. A directory that does not answer in time is a no.
+pub(crate) async fn may<E: Environment>(
+    shared: &Shared<E>,
+    began: Instant,
+    acting: &Acting,
+    spent: u64,
+    action: &str,
+    resource: &EntityRef,
+) -> bool {
+    crate::dispatch::decision(shared, began, (acting, spent), action, resource, || {
+        (crate::history::Held::default(), Vec::new())
+    })
+    .await
+    .is_ok()
+}
+
+/// The commands of `listed` that `acting` may dispatch now, its session
+/// having spent `spent`, in the order they are listed: the probe.
+///
+/// **A command is listed when all three hold**: its resource is known without
+/// arguments — its selector is the realm or a feature, which reads none — it
+/// is not one that cannot be undone, which no session may dispatch until a
+/// person can confirm it, and [`may`] allows its action on that resource for
+/// every link, asked once for each action and resource within what the tree
+/// that began at `began` has left. A command the registry no longer holds by
+/// that name is left out.
+pub(crate) async fn dispatchable<E: Environment>(
+    shared: &Shared<E>,
+    acting: &Acting,
+    spent: u64,
+    began: Instant,
+    listed: Vec<RegisteredCommand>,
+) -> Vec<RegisteredCommand> {
+    let mut decided: BTreeMap<(String, EntityRef), bool> = BTreeMap::new();
+    let mut dispatchable = Vec::new();
+    for command in listed {
+        if command.reversibility == Reversibility::Irreversible {
+            continue;
+        }
+        let Some(resource) = known_without_arguments(shared, &command.name) else {
+            continue;
+        };
+        let asked = (command.action.clone(), resource);
+        let allowed = if let Some(allowed) = decided.get(&asked) {
+            *allowed
+        } else {
+            let allowed = may(shared, began, acting, spent, &asked.0, &asked.1).await;
+            decided.insert(asked, allowed);
+            allowed
+        };
+        if allowed {
+            dispatchable.push(command);
+        }
+    }
+    dispatchable
+}
+
+/// The resource the command registered as `name` is decided on, when its
+/// selector reads no argument: the realm, or a feature.
+fn known_without_arguments<E: Environment>(shared: &Shared<E>, name: &str) -> Option<EntityRef> {
+    let command = shared.command(name)?;
+    let selector = &command.judged().selector;
+    match selector {
+        Selector::Realm | Selector::Feature { .. } => selector
+            .extract(shared.realm.as_str(), &serde_json::Value::Null)
+            .ok(),
+        Selector::Argument { .. } => None,
+    }
 }
 
 /// Opens the session of `agent` for `person`: the agent and the person it acts
@@ -294,6 +458,7 @@ pub(crate) async fn opened<E: Environment>(
     Ok(Session(Arc::new(Opened {
         agent: delegation.agent,
         chain,
+        spent: Mutex::new(0),
     })))
 }
 
@@ -432,5 +597,48 @@ mod tests {
             unreachable!("built as an agent's session")
         };
         assert_eq!(session.operator(), &ana);
+    }
+
+    /// A session counts what it spends one at a time, from nothing, and a
+    /// clone spends from the same count.
+    ///
+    /// **Each spend answers the count before it**, which is what the tree it
+    /// is spent for is decided on; a session another chain makes counts on
+    /// its own; and a principal acting as itself holds no count at all.
+    #[test]
+    fn a_session_counts_what_it_spends_and_its_clone_spends_from_the_same_count() {
+        let world = world_with(&["a1"]);
+        let ana = of(&world, PrincipalKind::User, "ana");
+        let assistant = of(&world, PrincipalKind::Agent, "ana-assistant");
+        let a1 = of(&world, PrincipalKind::Agent, "a1");
+        let session = Session::opened_for(assistant, ana.clone());
+        assert_eq!(session.spent(), 0);
+        assert_eq!([session.spend(), session.spend()], [0, 1]);
+        let acting = Acting::Agent(session.clone());
+        assert_eq!((acting.spend(), acting.spent()), (2, 3), "the same count");
+        assert_eq!(session.spent(), 3);
+        let deeper = session.through_for_tests(vec![a1]).expect("an agent joins");
+        assert_eq!(deeper.spent(), 0, "a count of its own");
+        let person = Acting::Itself(ana);
+        assert_eq!([person.spend(), person.spend(), person.spent()], [0, 0, 0]);
+    }
+
+    /// An agent's steps join the history of the person it acts for.
+    ///
+    /// **And nobody else's**: a person's and an agent acting alone are their
+    /// own, and the session's is its operator's, not its agent's.
+    #[test]
+    fn an_agents_steps_join_the_history_of_the_person_it_acts_for() {
+        let world = world_with(&[]);
+        let ana = of(&world, PrincipalKind::User, "ana");
+        let assistant = of(&world, PrincipalKind::Agent, "ana-assistant");
+        let session = Acting::Agent(Session::opened_for(assistant.clone(), ana.clone()));
+        assert_eq!(session.whose_history(), &ana);
+        assert_eq!(session.principal(), &assistant, "though the agent acts");
+        assert_eq!(Acting::Itself(ana.clone()).whose_history(), &ana);
+        assert_eq!(
+            Acting::Itself(assistant.clone()).whose_history(),
+            &assistant
+        );
     }
 }

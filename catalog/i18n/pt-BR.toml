@@ -125,6 +125,7 @@ dir   = "ltr"
 "error.kernel.compensation-moved" = "Esse passo não pode ser desfeito, porque o que ele indicou para corrigir as coisas agora pertence a outra parte do Noctua, ou a nenhuma. Nada foi desfeito."
 "error.kernel.compensation-ungranted" = "Esse passo não pode ser desfeito, porque a parte do Noctua que indicou como corrigi-lo não pode mais pedir isso a outra parte. Nada foi desfeito."
 "error.kernel.only-at-the-top" = "Mudar uma configuração e cuidar de agentes só pode ser pedido diretamente, não de dentro de outra ação."
+"error.kernel.compensation-for-an-agent" = "Uma ação pedida por um agente não pode deixar nada para ser feito depois em seu nome, então nada foi preparado."
 
 # --- The plugin host ---
 "error.plugin.capability-denied" = "Uma parte do Noctua pediu algo que não tem permissão de usar e foi recusada."

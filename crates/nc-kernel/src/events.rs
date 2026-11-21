@@ -31,10 +31,12 @@
 //!
 //! **Delivered once, in order, and decided again.** The pump takes the events
 //! queued when it starts, oldest first, each once: the decision point decides
-//! the authority its publisher ran under again, and each plugin that
-//! subscribed hears it in a call tree of its own, run for the publisher's
-//! principal, never confirmed, which only reads (`crate::pump`) — and so does
-//! the callback of a timer set there (`crate::timers`).
+//! the authority its publisher ran under again — for an agent's tree, once for
+//! each link, its session spending one unit for the event whatever its
+//! subscribers — and each plugin that subscribed hears it in a call tree of
+//! its own, acting as the publishing tree did, never confirmed, which only
+//! reads (`crate::pump`) — and so does the callback of a timer set there
+//! (`crate::timers`).
 //!
 //! What this answers (`NOCTUA.md §2.4`): a plugin announcing what another did,
 //! a subscriber told of a change that was not kept, a queue that grows the
@@ -48,10 +50,10 @@
 
 use std::collections::VecDeque;
 
-use nc_authz::Principal;
 use nc_catalog::{ErrorCode, KERNEL};
 
 use crate::dispatch::{Authority, CallTree, Refusal, RefusalKind};
+use crate::session::Acting;
 use crate::{Environment, PluginSlot, Shared};
 
 /// How long a topic may be, in characters: as long as a command's name.
@@ -60,7 +62,7 @@ pub(crate) const TOPIC_MAX: usize = nc_schema::descriptor::NAME_MAX;
 /// One event, as it waits for delivery.
 ///
 /// Its topic and data, the plugin that published it, and who the publishing
-/// call tree ran for under what authority — which its delivery runs for, and
+/// call tree acted as under what authority — which its delivery acts as, and
 /// decides again.
 #[derive(Debug, Clone)]
 pub(crate) struct Published {
@@ -70,8 +72,8 @@ pub(crate) struct Published {
     pub(crate) data: String,
     /// The plugin that published it.
     pub(crate) publisher: PluginSlot,
-    /// Who the publishing call tree ran for.
-    pub(crate) principal: Principal,
+    /// Who the publishing call tree acted as.
+    pub(crate) acting: Acting,
     /// What the publishing frame ran under.
     pub(crate) authority: Authority,
 }
@@ -288,7 +290,7 @@ mod tests {
             topic: topic.to_owned(),
             data: data.to_owned(),
             publisher: PluginSlot(slot),
-            principal: principal.clone(),
+            acting: crate::session::Acting::Itself(principal.clone()),
             authority: Authority {
                 command: "reference.event.publish".to_owned(),
                 action: "Write".to_owned(),

@@ -2927,6 +2927,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.kernel.compensation-for-an-agent",
+        [
+            "An action an agent asked for cannot leave anything to be done later in your name, so nothing was set up.",
+            "Uma ação pedida por um agente não pode deixar nada para ser feito depois em seu nome, então nada foi preparado.",
+        ],
+    ),
+    (
         "error.kernel.compensation-moved",
         [
             "That step cannot be undone, because what it named to set things right now belongs to another part of Noctua, or to none. Nothing was undone.",
@@ -3970,6 +3977,7 @@ pub const KEYS: &[&str] = &[
     "error.journal.unit-never-opened",
     "error.journal.unstorable",
     "error.kernel.compensation-failed",
+    "error.kernel.compensation-for-an-agent",
     "error.kernel.compensation-moved",
     "error.kernel.compensation-refused",
     "error.kernel.compensation-ungranted",

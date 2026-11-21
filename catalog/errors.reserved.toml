@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "e9c4294908546c9ff74095e6ef0bcdae1be5f15a738c83dad3bdf57915df5f5f"
-count = 166
+checksum = "c6fbd7e17c0c3853642ea0be5f24b55abce02377363d96abc16af3ff9c6284e0"
+count = 167
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -148,6 +148,7 @@ count = 166
 "NC-KERN-0023" = "error.kernel.compensation-moved — warning — retryable:false — params:[] — An undo was refused because a command its step registered as a compensation is no longer held by the plugin that held it then"
 "NC-KERN-0024" = "error.kernel.compensation-ungranted — warning — retryable:false — params:[] — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
 "NC-KERN-0025" = "error.kernel.only-at-the-top — warning — retryable:false — params:[] — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
+"NC-KERN-0026" = "error.kernel.compensation-for-an-agent — warning — retryable:false — params:[] — A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
 "NC-LOG-0001" = "error.log.unreachable — warning — retryable:true — params:[] — The central log store did not accept a batch"
 "NC-LOG-0002" = "error.log.dropped — warning — retryable:false — params:[] — Log events were dropped because the queue was full"
 "NC-PLUG-0001" = "error.plugin.capability-denied — warning — retryable:false — params:[] — A plugin called a host function of a capability its manifest was not granted"
