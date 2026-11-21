@@ -60,6 +60,69 @@ impl Event for DaemonPruneStuck {
     }
 }
 
+/// `daemon.session_ended` — An agent's session ended with its connection, which the daemon or its client closed, or which was lost
+#[derive(Debug, Clone)]
+pub struct DaemonSessionEnded {
+    /// A Snowflake, written as its Crockford base32 text.
+    pub agent: nc_ids::Snowflake,
+}
+
+impl crate::sealed::Sealed for DaemonSessionEnded {}
+
+impl Event for DaemonSessionEnded {
+    fn name(&self) -> &'static str {
+        "daemon.session_ended"
+    }
+    fn level(&self) -> Level {
+        Level::Info
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("agent", self.agent.to_field())]
+    }
+}
+
+/// `daemon.session_opened` — A connection opened the session of an agent the profile's person made: from then on each dispatch on it is decided as that agent, for that person
+#[derive(Debug, Clone)]
+pub struct DaemonSessionOpened {
+    /// A Snowflake, written as its Crockford base32 text.
+    pub agent: nc_ids::Snowflake,
+}
+
+impl crate::sealed::Sealed for DaemonSessionOpened {}
+
+impl Event for DaemonSessionOpened {
+    fn name(&self) -> &'static str {
+        "daemon.session_opened"
+    }
+    fn level(&self) -> Level {
+        Level::Info
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("agent", self.agent.to_field())]
+    }
+}
+
+/// `daemon.session_refused` — A session was not opened, or a request of an open one was refused, before the kernel decided anything — MCP off, past `sessions_max`, an agent the person did not make, or a request no session is answered — by its code; nothing of it is journaled
+#[derive(Debug, Clone)]
+pub struct DaemonSessionRefused {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for DaemonSessionRefused {}
+
+impl Event for DaemonSessionRefused {
+    fn name(&self) -> &'static str {
+        "daemon.session_refused"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
+    }
+}
+
 /// `daemon.started` — The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun
 #[derive(Debug, Clone)]
 pub struct DaemonStarted {

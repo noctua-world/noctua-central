@@ -377,6 +377,24 @@ fields = [
   { name = "pumps", type = "u32" },
 ]
 
+[[event]]
+name = "daemon.session_opened"
+description = "A connection opened the session of an agent the profile's person made: from then on each dispatch on it is decided as that agent, for that person"
+level = "info"
+fields = [{ name = "agent", type = "snowflake" }]
+
+[[event]]
+name = "daemon.session_ended"
+description = "An agent's session ended with its connection, which the daemon or its client closed, or which was lost"
+level = "info"
+fields = [{ name = "agent", type = "snowflake" }]
+
+[[event]]
+name = "daemon.session_refused"
+description = "A session was not opened, or a request of an open one was refused, before the kernel decided anything — MCP off, past `sessions_max`, an agent the person did not make, or a request no session is answered — by its code; nothing of it is journaled"
+level = "warn"
+fields = [{ name = "code", type = "error_code" }]
+
 # --- The IPC channel a daemon is reached through (§11.1) ---
 
 [[event]]

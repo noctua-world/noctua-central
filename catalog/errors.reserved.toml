@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "c6fbd7e17c0c3853642ea0be5f24b55abce02377363d96abc16af3ff9c6284e0"
-count = 167
+checksum = "e88a1399e98d66ebea656963c95b688bc2de05cc375768a53d5d123d7d182ede"
+count = 170
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -87,6 +87,9 @@ count = 167
 "NC-DMN-0011" = "error.daemon.no-central-log — error — retryable:false — params:[] — The install names no central log the daemon can speak to, so the daemon did not start"
 "NC-DMN-0012" = "error.daemon.engine-refused — critical — retryable:false — params:[] — The kernel's engine refused its configuration, so the daemon did not start"
 "NC-DMN-0013" = "error.daemon.pid-record-unreadable — error — retryable:false — params:[] — The daemon's PID record is not one this build wrote: malformed, or naming no process"
+"NC-DMN-0014" = "error.daemon.mcp-off — warning — retryable:false — params:[] — MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended"
+"NC-DMN-0015" = "error.daemon.not-for-a-session — warning — retryable:false — params:[] — A session asked for something other than its tools or a dispatch, which no session is answered"
+"NC-DMN-0016" = "error.daemon.too-many-sessions — warning — retryable:true — params:[] — The daemon holds as many sessions as `sessions_max` allows, so it opened no other"
 "NC-IDS-0001" = "error.ids.clock-backwards — error — retryable:true — params:[] — The clock moved backwards, so minting would repeat an identifier it has issued"
 "NC-IDS-0002" = "error.ids.sequence-exhausted — info — retryable:false — params:[] — This millisecond's sequence was exhausted and minting waited"
 "NC-IDS-0003" = "error.ids.flake-exhausted — critical — retryable:false — params:[] — Every machine-flake candidate in the sequence was already taken"

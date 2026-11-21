@@ -441,6 +441,103 @@ impl Running {
             .await
     }
 
+    /// A connection to the daemon acting as `agent`: the session opened on it.
+    ///
+    /// # Panics
+    ///
+    /// When the daemon does not answer within [`PATIENCE`], or answers the
+    /// session with anything but that it opened.
+    pub async fn session(&mut self, agent: nc_ids::Snowflake) -> nc_ipc::Client {
+        let (mut client, _) = self.connected().await;
+        match asked(&mut client, nc_ipc::Request::Session { agent }).await {
+            nc_ipc::Answer::Session => client,
+            other => panic!("the session of {agent} was answered with {other:?}"),
+        }
+    }
+
+    /// MCP switched `on` in the daemon's channel by its person, over a
+    /// connection of its own: `settings.mcp.set`, answered as it now stands.
+    ///
+    /// # Panics
+    ///
+    /// When the daemon does not answer within [`PATIENCE`], or refuses the
+    /// switch.
+    pub async fn switch_mcp(&mut self, on: bool) {
+        let answered = self
+            .dispatched(
+                "settings.mcp.set",
+                nc_canon::Value::object([("on", nc_canon::Value::Bool(on))]),
+            )
+            .await;
+        assert_eq!(
+            answered,
+            nc_canon::Value::object([("on", nc_canon::Value::Bool(on))]),
+            "the switch was answered with what it was not asked"
+        );
+    }
+
+    /// An agent the daemon's person made with `label` and `budget`, over a
+    /// connection of its own: `agents.create`, by the identifier the daemon's
+    /// minter gave it.
+    ///
+    /// # Panics
+    ///
+    /// When the daemon does not answer, refuses, or answers no identifier as
+    /// one is written.
+    pub async fn agent(&mut self, label: &str, budget: u32) -> nc_ids::Snowflake {
+        let answered = self
+            .dispatched(
+                "agents.create",
+                nc_canon::Value::object([
+                    ("budget", nc_canon::Value::Integer(i64::from(budget))),
+                    ("label", nc_canon::Value::text(label)),
+                ]),
+            )
+            .await;
+        the_agent_made(&answered)
+    }
+
+    /// `agent` granted `feature` for `minutes` by the daemon's person, over a
+    /// connection of its own: `agents.grant`, answered with the grant's own
+    /// identifier.
+    ///
+    /// # Panics
+    ///
+    /// When the daemon does not answer within [`PATIENCE`], or refuses the
+    /// grant.
+    pub async fn grant(&mut self, agent: nc_ids::Snowflake, feature: &str, minutes: u32) -> String {
+        let answered = self
+            .dispatched(
+                "agents.grant",
+                nc_canon::Value::object([
+                    ("agent", nc_canon::Value::text(agent.to_crockford())),
+                    ("feature", nc_canon::Value::text(feature)),
+                    ("minutes", nc_canon::Value::Integer(i64::from(minutes))),
+                    ("reason", nc_canon::Value::text("a suite's agent")),
+                ]),
+            )
+            .await;
+        answered
+            .into_object()
+            .and_then(|mut fields| fields.remove("grant"))
+            .and_then(nc_canon::Value::into_text)
+            .expect("a grant is answered with its identifier")
+    }
+
+    /// What `command` with `args` answered, dispatched by the daemon's person
+    /// over a connection of its own.
+    async fn dispatched(&mut self, command: &str, args: nc_canon::Value) -> nc_canon::Value {
+        let (mut client, _) = self.connected().await;
+        let request = nc_ipc::Request::Dispatch {
+            command: command.to_owned(),
+            args,
+        };
+        match asked(&mut client, request).await {
+            nc_ipc::Answer::Result(answered) => answered,
+            other => panic!("{command} was answered with {other:?}"),
+        }
+    }
+
     /// Waits for the daemon to end, [`PATIENCE`] at most, and answers its
     /// exit code.
     ///
@@ -460,6 +557,47 @@ impl Running {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
+}
+
+/// `request`, answered within [`PATIENCE`].
+///
+/// # Panics
+///
+/// When it is not answered within [`PATIENCE`], or the connection it is
+/// asked on fails.
+async fn asked(client: &mut nc_ipc::Client, request: nc_ipc::Request) -> nc_ipc::Answer {
+    tokio::time::timeout(PATIENCE, client.ask(&request))
+        .await
+        .expect("answered in time")
+        .expect("answered")
+}
+
+/// The agent an `agents.create` answer names, as the daemon's minter gave it.
+///
+/// **The one place a suite turns text into an identifier**, and only the text
+/// the daemon wrote: an answer naming no agent, or naming one in any spelling
+/// but the one `to_crockford` writes, fails the suite rather than being read
+/// as some other agent.
+///
+/// # Panics
+///
+/// When `answered` names no agent, or names one in a spelling other than
+/// the one `to_crockford` writes.
+#[must_use]
+pub fn the_agent_made(answered: &nc_canon::Value) -> nc_ids::Snowflake {
+    let text = answered
+        .clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove("agent"))
+        .and_then(nc_canon::Value::into_text)
+        .expect("an agent is answered with its identifier");
+    let agent = nc_ids::Snowflake::from_crockford(&text).expect("an identifier"); // allow-logging: from_crockford of the identifier the daemon minted and answered
+    assert_eq!(
+        agent.to_crockford(),
+        text,
+        "the agent is not named as its identifier is written"
+    );
+    agent
 }
 
 /// What a client needs to reach an install's daemon.

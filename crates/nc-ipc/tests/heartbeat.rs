@@ -507,6 +507,103 @@ async fn a_registry_request_crosses_in_its_locale_and_one_naming_none_this_build
     }
 }
 
+/// A session request and its tools cross in order, each answered as asked,
+/// and one written in a spelling the protocol does not read is refused by the
+/// end that reads it.
+///
+/// **Through a real `serve` and `connect`**: the session asked naming its
+/// agent, answered that it opened, then the tools asked in a locale and
+/// answered with their list. **By hand through the relay**: a session request
+/// naming its agent in lower case and a tools request naming no locale are
+/// each refused by the daemon's reader, and the client is left with a
+/// connection lost; a session answer naming an agent is refused by the
+/// client's.
+#[tokio::test(start_paused = true)]
+async fn a_session_and_its_tools_cross_in_order() {
+    let flake = nc_ids::MachineFlake::from_value(2).expect("a flake");
+    let agent = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+        .mint()
+        .expect("minted");
+    let session = Request::Session { agent };
+    let tools = Request::Tools {
+        locale: nc_catalog::Locale::PtBR,
+    };
+    let listed = vec![Value::object([("name", Value::text("naming.read"))])];
+    let (mut served, mut client) = directly().await;
+    let (asked, ()) = within("a session and its tools", async {
+        tokio::join!(
+            async {
+                let opened = client.ask(&session).await;
+                let listed = client.ask(&tools).await;
+                (opened, listed)
+            },
+            async {
+                assert_eq!(served.next().await.expect("read"), Some(session.clone()));
+                served.answer(&Answer::Session).await.expect("answered");
+                assert_eq!(served.next().await.expect("read"), Some(tools.clone()));
+                served
+                    .answer(&Answer::Tools(listed.clone()))
+                    .await
+                    .expect("answered");
+            }
+        )
+    })
+    .await;
+    assert_eq!(asked.0.expect("the session is answered"), Answer::Session);
+    assert_eq!(
+        asked.1.expect("the tools are answered"),
+        Answer::Tools(listed)
+    );
+    // Written by hand, and not as an identifier is: lower case, which a
+    // Crockford decoder reads and the protocol refuses.
+    for (text, says) in [
+        (
+            r#"{"agent":"01jc0000000a","type":"session"}"#,
+            "which is not an identifier as one is written",
+        ),
+        (r#"{"type":"tools"}"#, "a `tools` message with no `locale`"),
+    ] {
+        let (mut served, mut client, relay) = through_a_relay().await;
+        relay.to_daemon.set(Rule::WriteTheNextAs(text));
+        let (asked, ()) = within("a request written by hand", async {
+            tokio::join!(client.ask(&session), async move {
+                match served.next().await {
+                    Err(refused @ IpcError::Malformed(_)) => {
+                        assert!(refused.to_string().contains(says), "{text}: {refused}");
+                    }
+                    other => panic!("{text} was read as {other:?}"),
+                }
+                served.close().await;
+            })
+        })
+        .await;
+        assert!(
+            matches!(asked, Err(IpcError::Lost(_))),
+            "the client of a request refused as malformed was {asked:?}"
+        );
+    }
+    let (mut served, mut client, relay) = through_a_relay().await;
+    relay
+        .to_client
+        .set(Rule::WriteTheNextAs(r#"{"agent":"ana","type":"session"}"#));
+    let (asked, ()) = within("a session answer written by hand", async {
+        tokio::join!(client.ask(&session), async {
+            served.next().await.expect("read").expect("a request");
+            served.answer(&Answer::Session).await.expect("answered");
+        })
+    })
+    .await;
+    match asked {
+        Err(refused @ IpcError::Malformed(_)) => assert!(
+            refused
+                .to_string()
+                .contains("a field the protocol does not read, `agent`"),
+            "{refused}"
+        ),
+        other => panic!("a session answer naming an agent was read as {other:?}"),
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn an_answer_nobody_asked_for_is_refused() {
     let (mut served, mut client, relay) = through_a_relay().await;

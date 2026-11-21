@@ -2631,6 +2631,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.daemon.mcp-off",
+        [
+            "MCP is off in this Noctua installation, so the MCP client was not let in. A person switches it on in Noctua's settings.",
+            "O MCP está desligado nesta instalação do Noctua, então o cliente MCP não foi admitido. Uma pessoa o liga nas configurações do Noctua.",
+        ],
+    ),
+    (
         "error.daemon.no-central-log",
         [
             "This installation names a place for Noctua's own log that Noctua cannot write to, so Noctua did not start. Install Noctua again.",
@@ -2649,6 +2656,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua does not know whose it is on this computer yet, so it did not start.",
             "O Noctua ainda não sabe de quem é neste computador, então não iniciou.",
+        ],
+    ),
+    (
+        "error.daemon.not-for-a-session",
+        [
+            "An MCP client only lists its tools and calls them, so Noctua did not do what it asked.",
+            "Um cliente MCP só lista suas ferramentas e as chama, então o Noctua não fez o que ele pediu.",
         ],
     ),
     (
@@ -2684,6 +2698,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua is stopping, so it did not do that. Nothing was done.",
             "O Noctua está parando, então não fez isso. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.daemon.too-many-sessions",
+        [
+            "Noctua already has as many MCP clients connected as it allows, so this one was not let in. Try again once another has closed.",
+            "O Noctua já tem conectados todos os clientes MCP que permite, então este não foi admitido. Tente de novo quando outro tiver fechado.",
         ],
     ),
     (
@@ -4011,14 +4032,17 @@ pub const KEYS: &[&str] = &[
     "error.daemon.engine-refused",
     "error.daemon.instance-held",
     "error.daemon.mark-unreadable",
+    "error.daemon.mcp-off",
     "error.daemon.no-central-log",
     "error.daemon.no-device",
     "error.daemon.no-world",
+    "error.daemon.not-for-a-session",
     "error.daemon.not-running",
     "error.daemon.pid-record-unreadable",
     "error.daemon.profile-not-private",
     "error.daemon.profile-unavailable",
     "error.daemon.stopping",
+    "error.daemon.too-many-sessions",
     "error.daemon.world-unreadable",
     "error.db.local-open-refused",
     "error.db.local-schema-unexpected",

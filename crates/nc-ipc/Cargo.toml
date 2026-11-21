@@ -16,6 +16,10 @@ nc-catalog.workspace = true
 nc-canon.workspace = true
 # The channel the daemon's welcome names, spelled as the manifest spells it.
 nc-channel.workspace = true
+# The agent a session request names: the Snowflake the profile's minter gave
+# it, read back only as `to_crockford` writes it, so one agent has one spelling
+# on the wire. In-house; it adds nothing to the lock.
+nc-ids.workspace = true
 # The system's random bytes a token and every nonce are drawn from, and the
 # endpoint a listener is bound on.
 nc-platform.workspace = true

@@ -12,15 +12,17 @@
 //!    of either step is logged as `ipc.refused` with its code, and nothing of
 //!    the connection reaches the kernel.
 //! 3. **Answered**: a dispatch is the kernel's ([`nc_kernel::Kernel::dispatch`])
-//!    as the person the profile's world names, and every decision is the
-//!    kernel's — this asks nothing on its own. A dispatch or the registry asked
-//!    before the kernel runs is refused as not running yet (`NC-DMN-0009`), and
-//!    one asked once a stop began as stopping (`NC-DMN-0010`); the status and a
-//!    stop are answered from the first moment. A dispatch is counted as
-//!    running before the state is read, so a stop either refuses it or waits
-//!    for it. A connection that then breaks the protocol, falls silent, takes
-//!    nothing or is lost is closed and logged as `ipc.refused` with its code;
-//!    one its client closes between requests ends well.
+//!    as the connection's principal — the person the profile's world names,
+//!    or the agent of the session the connection opened — and every decision
+//!    is the kernel's: this asks nothing on its own. A dispatch, the registry,
+//!    the tools or a session asked before the kernel runs is refused as not
+//!    running yet (`NC-DMN-0009`), and one asked once a stop began as stopping
+//!    (`NC-DMN-0010`); the status and a stop are answered from the first
+//!    moment. A dispatch is counted as running before the state is read, so a
+//!    stop either refuses it or waits for it, a session's as the person's. A
+//!    connection that then breaks the protocol, falls silent, takes nothing or
+//!    is lost is closed and logged as `ipc.refused` with its code; one its
+//!    client closes between requests ends well.
 //! 4. **Closed once its last answer is written**: a stop asked for closes
 //!    each connection between two requests, its own after the answer to it,
 //!    and the daemon ends only once every connection has written its last
@@ -32,13 +34,43 @@
 //!    finds the daemon answering and waits for it rather than signalling a
 //!    process nothing answers for.
 //!
+//! # An agent's session (`§20.3`)
+//!
+//! **A connection is the person's until it opens a session, and that
+//! session's agent's from then on, never back** (`Bound`): only the person's
+//! answerer opens one, and the binding is made once. A session opens, the
+//! first refusal the answer, only while the kernel runs, within
+//! `sessions_max` — counted before anything else is read, `NC-DMN-0016` past
+//! it — while MCP is on (`NC-DMN-0014`, or the store's own refusal when the
+//! switch could not be read: never read as on), and for an agent the
+//! profile's person made, which the kernel opens from its directory's answer
+//! (`NC-AI-0001`). **A refused session closes its connection** once the
+//! refusal is written, so no client that was refused goes on as the person.
+//!
+//! **A session asks for its tools and dispatches commands, and nothing
+//! else**: the registry, the status, a stop and a second session are refused
+//! (`NC-DMN-0015`) and the session stands. Before each of its requests MCP is
+//! read again, and off — however it came to be, the person's set, undo or
+//! redo — or unreadable ends the session with its connection once the refusal
+//! is written. Its tools are the kernel's probe of what its agent may
+//! dispatch ([`nc_kernel::Kernel::dispatchable`]), which spends and journals
+//! nothing; its dispatches are the kernel's, decided for the agent and its
+//! person and journaled with both.
+//!
+//! **What is refused here is logged and never journaled**: each refusal of a
+//! session's opening, each request no session is answered and each ending for
+//! MCP off is logged as `daemon.session_refused` by its code, since no command
+//! was dispatched; a session opened is logged as `daemon.session_opened`, and
+//! its end, with its connection, as `daemon.session_ended`.
+//!
 //! # What each answer holds
 //!
-//! - **A command of the registry** is one object: `name`; its entry's texts
-//!   in the locale the request names — `display_name`, `line`, `paragraph`
-//!   and `tags` — the catalog's for a command it writes and the plugin's own
-//!   for one it does not, `categories` by name and `glyph` as `U+XXXX` or
-//!   `null`; `args_schema` as the text it was declared in, `mutating`,
+//! - **A command of the registry**, and each of the tools, is one object:
+//!   `name`; its entry's texts in the locale the request names —
+//!   `display_name`, `line`, `paragraph` and `tags` — the catalog's for a
+//!   command it writes and the plugin's own for one it does not, `categories`
+//!   by name and `glyph` as `U+XXXX` or `null`; `args_schema` as the text it
+//!   was declared in, `mutating`,
 //!   `action`, `resource_selector`, `reversibility` (`read`, `write` or
 //!   `irreversible`) and `owner` (`kernel` or `plugin`). **Every text is
 //!   resolved here**, the catalog's as much as a plugin's, so a client links
@@ -59,10 +91,11 @@ use core::time::Duration;
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, Locale};
 use nc_ids::Clock as _;
+use nc_ids::Snowflake;
 use nc_ipc::{Answer, Refusal, RefusalKind, Request, State, Welcome};
 use nc_kernel::logging::LogSink;
 use nc_kernel::registry::{Owner, RegisteredCommand};
-use nc_kernel::{Caller, Kernel};
+use nc_kernel::{Asker, Caller, Kernel};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::environment::{Daemon, Sink};
@@ -80,7 +113,8 @@ pub struct Named {
     pub channel: nc_channel::Channel,
     /// The realm the profile decides in.
     pub realm: String,
-    /// The person every dispatch is decided as.
+    /// The person every dispatch on a connection with no session is decided
+    /// as, and the one whose agents a session may act as.
     pub person: nc_authz::Principal,
     /// When it started, in milliseconds since the Unix epoch.
     pub since: u64,
@@ -103,6 +137,9 @@ pub struct Server {
     /// until it is closed.
     connections: AtomicUsize,
     all_closed: tokio::sync::Notify,
+    /// How many agents' sessions are open: each counted before it opens, and
+    /// until its connection ends.
+    sessions: AtomicUsize,
     log: Sink,
 }
 
@@ -123,6 +160,7 @@ impl Server {
             finished: tokio::sync::Notify::new(),
             connections: AtomicUsize::new(0),
             all_closed: tokio::sync::Notify::new(),
+            sessions: AtomicUsize::new(0),
             log,
         }
     }
@@ -264,6 +302,7 @@ impl Server {
         // again, a status — is told the daemon is stopping, rather than closed
         // unanswered and read as a daemon that does not answer.
         let mut owed = true;
+        let mut bound = Bound::Person;
         let ended = loop {
             // A request that already arrived is answered first; between two
             // requests, a stop asked for ends the connection.
@@ -281,10 +320,13 @@ impl Server {
                 Ok(None) => break None,
                 Err(broken) => break Some(broken),
             };
-            let answer = self.answer(request).await;
+            let answered = match &bound {
+                Bound::Person => self.answer(request).await,
+                Bound::Session(opened) => self.answer_in_session(opened, request).await,
+            };
             let slow = answering();
             slow.await;
-            let sent = match served.answer(&answer).await {
+            let sent = match served.answer(&answered.answer).await {
                 Err(unsendable @ nc_ipc::IpcError::Unsendable { .. }) => {
                     served
                         .answer(&Answer::Refused(Refusal {
@@ -299,6 +341,16 @@ impl Server {
             if let Err(lost) = sent {
                 break Some(lost);
             }
+            // The one assignment: from the person to the session the answer
+            // opened, and never from a session, whatever it sent.
+            if let (Bound::Person, Some(opened)) = (&bound, answered.opened) {
+                bound = Bound::Session(opened);
+            }
+            // A refusal that ends the connection was logged as a session's;
+            // it closes as a client's close does.
+            if answered.ends {
+                break None;
+            }
         };
         // A client that closed the connection between requests ended it
         // well; one that broke the protocol, fell silent, took nothing or was
@@ -311,12 +363,16 @@ impl Server {
         // for: dropped instead, an answer still on its way would go with the
         // runtime once the run is over.
         served.close().await;
+        // The session ends with its connection, and gives its place back
+        // before the connection's.
+        drop(bound);
         drop(open);
     }
 
-    /// The answer to `request`.
-    async fn answer(&self, request: Request) -> Answer {
-        match request {
+    /// The answer to `request`, on a connection that is the person's.
+    async fn answer(self: &Arc<Self>, request: Request) -> Answered {
+        let person = Caller::new(self.named.person.clone());
+        let answer = match request {
             Request::Status => Answer::Status(self.status()),
             Request::Stop => {
                 self.stop();
@@ -332,14 +388,148 @@ impl Server {
                 ),
                 Err(refusal) => Answer::Refused(refusal),
             },
-            Request::Dispatch { command, args } => match self.admitted() {
-                Ok((kernel, admitted)) => {
-                    let answer = self.dispatched(&kernel, &command, &args).await;
-                    drop(admitted);
-                    answer
-                }
+            Request::Tools { locale } => match self.kernel_if_running() {
+                Ok(kernel) => tools(&kernel, &person, locale).await,
                 Err(refusal) => Answer::Refused(refusal),
             },
+            Request::Session { agent } => {
+                return match self.session(agent).await {
+                    Ok(opened) => Answered {
+                        answer: Answer::Session,
+                        opened: Some(opened),
+                        ends: false,
+                    },
+                    Err(refusal) => Answered::ending(refusal),
+                };
+            }
+            Request::Dispatch { command, args } => {
+                self.admitted_dispatch(&person, &command, &args).await
+            }
+        };
+        Answered::going_on(answer)
+    }
+
+    /// The answer to `request`, on a connection bound to the session it
+    /// opened, `opened`.
+    ///
+    /// **In order**: what no session asks is refused (`NC-DMN-0015`) and the
+    /// session stands; the kernel must run; MCP must be on — off, or a switch
+    /// the store could not read, ends the session with its connection once the
+    /// refusal is written; then a dispatch is admitted as the person's is, so
+    /// a stop drains it, and decided as the session's agent, or the tools are
+    /// the agent's. Every refusal of this answerer's own is logged as
+    /// `daemon.session_refused` by its code, and none of them reaches the
+    /// journal.
+    async fn answer_in_session(&self, opened: &Opened, request: Request) -> Answered {
+        let asked = match a_sessions(request) {
+            Ok(asked) => asked,
+            Err(refusal) => {
+                self.refused_session(&refusal);
+                return Answered::going_on(Answer::Refused(refusal));
+            }
+        };
+        let kernel = match self.kernel_if_running() {
+            Ok(kernel) => kernel,
+            Err(refusal) => return Answered::going_on(Answer::Refused(refusal)),
+        };
+        if let Err(refusal) = mcp_is_on(&kernel).await {
+            self.refused_session(&refusal);
+            return Answered::ending(refusal);
+        }
+        Answered::going_on(match asked {
+            InSession::Dispatch { command, args } => {
+                self.admitted_dispatch(&opened.session, &command, &args)
+                    .await
+            }
+            InSession::Tools { locale } => tools(&kernel, &opened.session, locale).await,
+        })
+    }
+
+    /// The session of the agent `agent` names, opened for the profile's
+    /// person, logged as `daemon.session_opened`, or the refusal logged as
+    /// `daemon.session_refused` by its code.
+    ///
+    /// **In order, the first refusal the answer**: the kernel must run
+    /// (`NC-DMN-0009`, `NC-DMN-0010`); the session is counted before anything
+    /// else is read, and one past `sessions_max` refused (`NC-DMN-0016`); MCP
+    /// must be on (`NC-DMN-0014`, or the store's own refusal when the switch
+    /// could not be read); and the kernel opens the session from its
+    /// directory's answer, for an agent the person made alone (`NC-AI-0001`).
+    /// A refusal ends the connection it was asked on, so no refused client
+    /// goes on as the person.
+    async fn session(self: &Arc<Self>, agent: Snowflake) -> Result<Opened, Refusal> {
+        let opened = self.opened(agent).await;
+        match &opened {
+            Ok(_) => self
+                .log
+                .record(&nc_log::events::DaemonSessionOpened { agent }),
+            Err(refusal) => self.refused_session(refusal),
+        }
+        opened
+    }
+
+    /// What [`Server::session`] opens, before it is logged.
+    async fn opened(self: &Arc<Self>, agent: Snowflake) -> Result<Opened, Refusal> {
+        let kernel = self.kernel_if_running()?;
+        let counted = self.counted_session()?;
+        mcp_is_on(&kernel).await?;
+        let named = nc_authz::EntityRef {
+            type_name: "Agent".to_owned(),
+            id: agent.to_crockford(),
+        };
+        let session = kernel
+            .session(&named, &self.named.person)
+            .await
+            .map_err(|refusal| refused_by_kernel(&refusal))?;
+        Ok(Opened {
+            agent,
+            session,
+            counted,
+        })
+    }
+
+    /// A place among `sessions_max`, counted before the bound is read, so two
+    /// sessions racing for the last place cannot both have it.
+    fn counted_session(self: &Arc<Self>) -> Result<Counted, Refusal> {
+        let before = self.sessions.fetch_add(1, Ordering::SeqCst);
+        let counted = Counted(Arc::clone(self));
+        let most = usize::try_from(nc_catalog::DAEMON.sessions_max).unwrap_or(0);
+        if before < most {
+            Ok(counted)
+        } else {
+            Err(Refusal {
+                code: ErrorCode::DaemonTooManySessions,
+                kind: RefusalKind::Unavailable,
+                sentence: format!(
+                    "the daemon holds {most} sessions, as many as `sessions_max` allows, so it \
+                     opened no other; one opens once another's connection ends"
+                ),
+            })
+        }
+    }
+
+    /// Logs `refusal` as a session's: refused before the kernel decided
+    /// anything, so nothing of it is journaled.
+    fn refused_session(&self, refusal: &Refusal) {
+        self.log
+            .record(&nc_log::events::DaemonSessionRefused { code: refusal.code });
+    }
+
+    /// `command` with `args`, admitted as running until it is answered, and
+    /// dispatched by the kernel for `asker`.
+    async fn admitted_dispatch<'a>(
+        &self,
+        asker: impl Into<Asker<'a>>,
+        command: &str,
+        args: &Value,
+    ) -> Answer {
+        match self.admitted() {
+            Ok((kernel, admitted)) => {
+                let answer = dispatched(&kernel, asker, command, args).await;
+                drop(admitted);
+                answer
+            }
+            Err(refusal) => Answer::Refused(refusal),
         }
     }
 
@@ -385,32 +575,6 @@ impl Server {
                     "the daemon is {} and does not run its kernel yet; ask again once it runs",
                     state.word()
                 ),
-            }),
-        }
-    }
-
-    /// `command` with `args`, dispatched by the kernel as the profile's
-    /// person.
-    async fn dispatched(&self, kernel: &Kernel<Daemon>, command: &str, args: &Value) -> Answer {
-        let caller = Caller::new(self.named.person.clone());
-        let answered = kernel
-            .dispatch(&caller, command, &args.to_canonical())
-            .await;
-        match answered {
-            Ok(payload) => nc_canon::parse(&payload).map_or_else(
-                |error| {
-                    Answer::Refused(Refusal {
-                        code: ErrorCode::IpcMalformed,
-                        kind: RefusalKind::Internal,
-                        sentence: format!("the kernel answered what is not one value: {error}"),
-                    })
-                },
-                Answer::Result,
-            ),
-            Err(refusal) => Answer::Refused(Refusal {
-                code: refusal.code(),
-                kind: kind_of(refusal.kind()),
-                sentence: refusal.sentence().to_owned(),
             }),
         }
     }
@@ -536,6 +700,207 @@ impl Server {
             ));
         }
         Value::object(fields)
+    }
+}
+
+/// Who a connection's requests are answered as.
+///
+/// **The person until the connection opens a session, and that session's
+/// agent from then on, never back**: only the person's answerer opens one, and
+/// the loop binds a connection only while it is the person's, so a connection
+/// is bound once and nothing it sends rebinds it.
+#[derive(Debug)]
+enum Bound {
+    /// The profile's person.
+    Person,
+    /// The agent of the session the connection opened.
+    Session(Opened),
+}
+
+/// A session open on one connection: its agent, the kernel's session, and its
+/// place among `sessions_max`.
+///
+/// Dropping it ends the session: `daemon.session_ended` is logged, the
+/// kernel's session goes, and its place is given back after it, in the order
+/// the fields are written.
+#[derive(Debug)]
+struct Opened {
+    /// The agent, as the request named it and the kernel holds it.
+    agent: Snowflake,
+    /// The kernel's session, which every dispatch on the connection is
+    /// decided for.
+    session: nc_kernel::Session,
+    /// Its place among `sessions_max`.
+    counted: Counted,
+}
+
+impl Drop for Opened {
+    fn drop(&mut self) {
+        self.counted
+            .0
+            .log
+            .record(&nc_log::events::DaemonSessionEnded { agent: self.agent });
+    }
+}
+
+/// A session counted among `sessions_max` until it is dropped.
+#[derive(Debug)]
+struct Counted(Arc<Server>);
+
+impl Drop for Counted {
+    fn drop(&mut self) {
+        self.0.sessions.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// What one request comes to: the answer, the session it opened, and whether
+/// the connection closes once the answer is written.
+#[derive(Debug)]
+struct Answered {
+    /// What the client is answered.
+    answer: Answer,
+    /// The session the request opened, which the connection is bound to.
+    opened: Option<Opened>,
+    /// Whether the connection closes once the answer is written.
+    ends: bool,
+}
+
+impl Answered {
+    /// `answer`, the connection going on as it was.
+    const fn going_on(answer: Answer) -> Self {
+        Self {
+            answer,
+            opened: None,
+            ends: false,
+        }
+    }
+
+    /// `refusal`, the connection closed once it is written.
+    const fn ending(refusal: Refusal) -> Self {
+        Self {
+            answer: Answer::Refused(refusal),
+            opened: None,
+            ends: true,
+        }
+    }
+}
+
+/// What a session may ask: a dispatch, or its tools.
+#[derive(Debug)]
+enum InSession {
+    /// A command with its arguments, decided as the session's agent.
+    Dispatch {
+        /// The command's registered name.
+        command: String,
+        /// Its arguments.
+        args: Value,
+    },
+    /// The commands the session's agent may dispatch now.
+    Tools {
+        /// The locale their texts are resolved in.
+        locale: Locale,
+    },
+}
+
+/// `request`, when a session may ask it, or `NC-DMN-0015`.
+///
+/// **A session asks for its tools and dispatches commands, and nothing
+/// else**: the registry lists what its agent may not dispatch, the status
+/// holds the person's identifier, a stop is the person's, and a second
+/// session would rebind what is bound once. The session that asked stands.
+fn a_sessions(request: Request) -> Result<InSession, Refusal> {
+    let what = match request {
+        Request::Dispatch { command, args } => return Ok(InSession::Dispatch { command, args }),
+        Request::Tools { locale } => return Ok(InSession::Tools { locale }),
+        Request::Registry { .. } => "the registry",
+        Request::Session { .. } => "another session",
+        Request::Status => "the status",
+        Request::Stop => "a stop",
+    };
+    Err(Refusal {
+        code: ErrorCode::DaemonNotForASession,
+        kind: RefusalKind::Denied,
+        sentence: format!(
+            "a session asks for its tools and dispatches commands, and {what} is neither; the \
+             session stands as it was"
+        ),
+    })
+}
+
+/// Whether MCP is on, as the kernel's store holds the switch now, and the
+/// refusal that ends a session when it is not.
+async fn mcp_is_on(kernel: &Kernel<Daemon>) -> Result<(), Refusal> {
+    switch_holds(
+        kernel
+            .settings()
+            .await
+            .map(|settings| settings.mcp)
+            .map_err(|refusal| refused_by_kernel(&refusal)),
+    )
+}
+
+/// A switch read as `read`: on admits, off is `NC-DMN-0014`, and one the
+/// store could not read is the store's refusal — never read as on.
+fn switch_holds(read: Result<bool, Refusal>) -> Result<(), Refusal> {
+    if read? {
+        Ok(())
+    } else {
+        Err(Refusal {
+            code: ErrorCode::DaemonMcpOff,
+            kind: RefusalKind::Denied,
+            sentence: "MCP is off in this channel, so no session opens and an open one ends; a \
+                       person switches it on with `settings.mcp.set`"
+                .to_owned(),
+        })
+    }
+}
+
+/// The commands `asker` may dispatch now, their texts in `locale`.
+///
+/// Each as the registry lists it: the kernel's probe, which decides nothing
+/// it journals and spends nothing.
+async fn tools<'a>(kernel: &Kernel<Daemon>, asker: impl Into<Asker<'a>>, locale: Locale) -> Answer {
+    Answer::Tools(
+        kernel
+            .dispatchable(asker)
+            .await
+            .iter()
+            .map(|command| listed(command, locale))
+            .collect(),
+    )
+}
+
+/// `command` with `args`, dispatched by the kernel for `asker`: the person,
+/// or a session's agent.
+async fn dispatched<'a>(
+    kernel: &Kernel<Daemon>,
+    asker: impl Into<Asker<'a>>,
+    command: &str,
+    args: &Value,
+) -> Answer {
+    let answered = kernel.dispatch(asker, command, &args.to_canonical()).await;
+    match answered {
+        Ok(payload) => nc_canon::parse(&payload).map_or_else(
+            |error| {
+                Answer::Refused(Refusal {
+                    code: ErrorCode::IpcMalformed,
+                    kind: RefusalKind::Internal,
+                    sentence: format!("the kernel answered what is not one value: {error}"),
+                })
+            },
+            Answer::Result,
+        ),
+        Err(refusal) => Answer::Refused(refused_by_kernel(&refusal)),
+    }
+}
+
+/// The kernel's refusal as the protocol carries it: its code, its kind by
+/// the kernel's own word, and its sentence.
+fn refused_by_kernel(refusal: &nc_kernel::Refusal) -> Refusal {
+    Refusal {
+        code: refusal.code(),
+        kind: kind_of(refusal.kind()),
+        sentence: refusal.sentence().to_owned(),
     }
 }
 
@@ -720,11 +1085,605 @@ mod tests {
     }
 
     /// The refusal `request` is answered with.
-    async fn refused(server: &Server, request: Request) -> Refusal {
-        match server.answer(request).await {
+    async fn refused(server: &Arc<Server>, request: Request) -> Refusal {
+        match server.answer(request).await.answer {
             Answer::Refused(refusal) => refusal,
             other => panic!("answered {other:?}"),
         }
+    }
+
+    /// An agent's identifier as the profile's minter gives one, of no agent
+    /// a person made.
+    fn minted() -> nc_ids::Snowflake {
+        let flake = nc_ids::MachineFlake::from_value(5).expect("a flake");
+        nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+    }
+
+    /// `request`, answered over `client` within a drain's bound.
+    async fn over(
+        client: &mut nc_ipc::Client,
+        request: Request,
+    ) -> Result<Answer, nc_ipc::IpcError> {
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        tokio::time::timeout(bound, client.ask(&request))
+            .await
+            .expect("answered in time")
+    }
+
+    /// A client of `server` over a connection it serves in memory, proven by
+    /// the server's own token.
+    async fn a_client_of(server: &Arc<Server>) -> nc_ipc::Client {
+        let (daemon_end, client_end) = tokio::io::duplex(1 << 16);
+        server.serve_one(daemon_end);
+        let token =
+            nc_ipc::Token::from_text(&server.token.to_text()).expect("the token reads back");
+        nc_ipc::connect(client_end, &token)
+            .await
+            .expect("connected")
+            .0
+    }
+
+    /// A kernel served as the daemon serves one.
+    ///
+    /// Opened over a scratch install's profile and served by a running
+    /// server, with MCP switched on by the profile's person and an agent of
+    /// theirs granted naming.
+    struct Serving {
+        // Fields drop in the order written: the server and the kernel go
+        // before the install they were opened over.
+        server: Arc<Server>,
+        kernel: Arc<nc_kernel::Kernel<crate::environment::Daemon>>,
+        agent: nc_ids::Snowflake,
+        store: nc_local::LocalStore,
+        installed: crate::testing::Installed,
+    }
+
+    impl Serving {
+        /// The kernel opened and served, MCP on and the agent granted naming.
+        async fn new() -> Self {
+            let installed =
+                crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
+            let (layout, user) = (&installed.layout, &installed.user);
+            let (store, _) = crate::environment::store(layout).await.expect("opened");
+            let (world, pdp) =
+                crate::profile::world_and_pack(layout, user).expect("the world reads");
+            let named = Named {
+                pid: 4242,
+                instance: [9; 16],
+                channel: nc_channel::Channel::Staging,
+                realm: world.realm().as_str().to_owned(),
+                person: world.person().clone(),
+                since: 1_767_225_600_000,
+            };
+            let log = Arc::new(std::sync::Mutex::new(
+                nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
+                    .expect("a store on this machine"),
+            ));
+            let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
+            let opening = crate::environment::Opening {
+                world,
+                pdp,
+                keeper: nc_ids::OpaqueId::of_device_key(&[7; 32]),
+                minter: Arc::new(std::sync::Mutex::new(nc_ids::Minter::new(
+                    flake,
+                    nc_ids::SystemClock,
+                ))),
+                log: Arc::clone(&log),
+            };
+            let kernel = Arc::new(
+                crate::environment::kernel(layout, store.clone(), opening)
+                    .await
+                    .expect("the kernel opens"),
+            );
+            let server = Arc::new(Server::new(
+                named,
+                nc_ipc::Token::fresh().expect("a token"),
+                log,
+            ));
+            server.serving(Arc::clone(&kernel), Vec::new());
+            let mut serving = Self {
+                server,
+                kernel,
+                agent: minted(),
+                store,
+                installed,
+            };
+            serving.switched(true).await;
+            let made = serving
+                .as_the_person("agents.create", r#"{"budget":100,"label":"a"}"#)
+                .await;
+            serving.agent = crate::testing::the_agent_made(&made);
+            serving
+                .as_the_person(
+                    "agents.grant",
+                    &format!(
+                        r#"{{"agent":"{}","feature":"naming","minutes":60,"reason":"a"}}"#,
+                        serving.agent.to_crockford()
+                    ),
+                )
+                .await;
+            serving
+        }
+
+        /// What `command` with `args` answered, dispatched by the profile's
+        /// person on the kernel.
+        async fn as_the_person(&self, command: &str, args: &str) -> Value {
+            let person = nc_kernel::Caller::new(self.server.named.person.clone());
+            let answered = self
+                .kernel
+                .dispatch(&person, command, args)
+                .await
+                .unwrap_or_else(|refusal| panic!("{command} was refused: {refusal:?}"));
+            nc_canon::parse(&answered).expect("one value")
+        }
+
+        /// MCP switched `on` by the profile's person.
+        async fn switched(&self, on: bool) {
+            self.as_the_person("settings.mcp.set", &format!(r#"{{"on":{on}}}"#))
+                .await;
+        }
+
+        /// The entries of `command` the journal holds, each by whom it names
+        /// and whom it acts for.
+        async fn decided(&self, command: &str) -> Vec<(String, Vec<String>)> {
+            self.kernel
+                .journal_for_tests()
+                .await
+                .expect("the journal reads")
+                .into_iter()
+                .map(|entry| entry.record)
+                .filter(|record| {
+                    record
+                        .resource
+                        .clone()
+                        .into_object()
+                        .and_then(|mut fields| fields.remove("command"))
+                        .and_then(Value::into_text)
+                        .as_deref()
+                        == Some(command)
+                })
+                .map(|record| {
+                    (
+                        record.principal.as_str().to_owned(),
+                        record
+                            .actor_chain
+                            .iter()
+                            .map(|link| link.as_str().to_owned())
+                            .collect(),
+                    )
+                })
+                .collect()
+        }
+
+        /// Everything let go: the server and its kernel, then the database.
+        async fn closed(self) {
+            let Self {
+                server,
+                kernel,
+                store,
+                installed,
+                ..
+            } = self;
+            drop(server);
+            drop(kernel);
+            store.close().await;
+            drop(installed);
+        }
+    }
+
+    /// A session asks for its tools and dispatches commands, and is refused
+    /// the rest.
+    ///
+    /// **Over every request the wire reads**, through a match with no
+    /// wildcard: a dispatch and the tools pass as they were asked, and the
+    /// registry, the status, a stop and a second session are each refused
+    /// with `NC-DMN-0015`, denied, saying the session stands.
+    #[test]
+    fn a_session_asks_for_its_tools_and_dispatches_and_is_refused_the_rest() {
+        let dispatch = Request::Dispatch {
+            command: "naming.read".to_owned(),
+            args: Value::object([("name", Value::text("a"))]),
+        };
+        for request in [
+            dispatch,
+            REGISTRY,
+            Request::Tools {
+                locale: Locale::PtBR,
+            },
+            Request::Session { agent: minted() },
+            Request::Status,
+            Request::Stop,
+        ] {
+            let a_sessions_own = match &request {
+                Request::Dispatch { .. } | Request::Tools { .. } => true,
+                Request::Registry { .. }
+                | Request::Session { .. }
+                | Request::Status
+                | Request::Stop => false,
+            };
+            match (super::a_sessions(request.clone()), request) {
+                (
+                    Ok(super::InSession::Dispatch { command, args }),
+                    Request::Dispatch {
+                        command: asked,
+                        args: with,
+                    },
+                ) => assert_eq!((command, args), (asked, with)),
+                (Ok(super::InSession::Tools { locale }), Request::Tools { locale: asked }) => {
+                    assert_eq!(locale, asked);
+                }
+                (Err(refusal), request) => {
+                    assert!(!a_sessions_own, "{request:?} was refused: {refusal:?}");
+                    assert_eq!(
+                        (refusal.code, refusal.kind),
+                        (ErrorCode::DaemonNotForASession, RefusalKind::Denied),
+                        "{request:?}"
+                    );
+                    assert!(refusal.sentence.contains("stands"), "{refusal:?}");
+                }
+                (passed, request) => panic!("{request:?} passed as {passed:?}"),
+            }
+        }
+    }
+
+    /// No session opens before the kernel runs or once a stop began, and each
+    /// refusal ends the connection that asked.
+    #[tokio::test]
+    async fn no_session_opens_before_the_kernel_runs_or_once_a_stop_began() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let session = Request::Session { agent: minted() };
+        // `Running` with no kernel open is a start that has not opened one.
+        for state in [
+            State::Starting,
+            State::WaitingForClock,
+            State::Recovering,
+            State::Running,
+        ] {
+            server.reach(state);
+            let answered = server.answer(session.clone()).await;
+            assert!(
+                answered.ends && answered.opened.is_none(),
+                "{state:?}: {answered:?}"
+            );
+            assert!(
+                matches!(&answered.answer, Answer::Refused(refusal)
+                    if refusal.code == ErrorCode::DaemonNotRunning),
+                "{state:?}: {answered:?}"
+            );
+        }
+        server.stop();
+        let answered = server.answer(session).await;
+        assert!(answered.ends && answered.opened.is_none(), "{answered:?}");
+        assert!(
+            matches!(&answered.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonStopping),
+            "{answered:?}"
+        );
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+    }
+
+    /// A refused session closes its connection and leaves no person behind.
+    ///
+    /// **Through a connection the server serves**: a session asked of a
+    /// daemon whose kernel does not run yet is refused, and the client's next
+    /// request on that connection is lost — while a person's registry refused
+    /// the same way leaves the connection going, its status answered.
+    #[tokio::test]
+    async fn a_refused_session_closes_its_connection_and_leaves_no_person_behind() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        server.reach(State::Recovering);
+        let mut person = a_client_of(&server).await;
+        match over(&mut person, REGISTRY).await {
+            Ok(Answer::Refused(refusal)) => {
+                assert_eq!(refusal.code, ErrorCode::DaemonNotRunning);
+            }
+            other => panic!("the registry was answered with {other:?}"),
+        }
+        assert!(matches!(
+            over(&mut person, Request::Status).await,
+            Ok(Answer::Status(_))
+        ));
+        let mut refused = a_client_of(&server).await;
+        match over(&mut refused, Request::Session { agent: minted() }).await {
+            Ok(Answer::Refused(refusal)) => {
+                assert_eq!(refusal.code, ErrorCode::DaemonNotRunning);
+            }
+            other => panic!("the session was answered with {other:?}"),
+        }
+        let next = over(&mut refused, Request::Status).await;
+        assert!(
+            matches!(next, Err(nc_ipc::IpcError::Lost(_))),
+            "a connection whose session was refused went on: {next:?}"
+        );
+        drop((person, refused));
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        assert_eq!(server.closed(tokio::time::Instant::now() + bound).await, 0);
+    }
+
+    /// A switch off or one the store could not read refuses, and one on
+    /// admits; each refusal ends the session that asked.
+    ///
+    /// **The switch never read as on but by its own word**: on admits, off is
+    /// `NC-DMN-0014`, and a read the store refused is that refusal, as it is.
+    /// Then over a kernel the daemon opens: an open session's request once its
+    /// person switched MCP off is refused and ends the session, and once on
+    /// again its next is answered.
+    #[tokio::test]
+    async fn a_switch_off_or_unreadable_refuses_and_an_on_one_admits() {
+        assert_eq!(super::switch_holds(Ok(true)), Ok(()));
+        let off = super::switch_holds(Ok(false)).expect_err("off is refused");
+        assert_eq!(
+            (off.code, off.kind),
+            (ErrorCode::DaemonMcpOff, RefusalKind::Denied)
+        );
+        assert!(off.sentence.contains("`settings.mcp.set`"), "{off:?}");
+        let unreadable = Refusal {
+            code: nc_local::LocalError::Unexpected(String::new()).code(),
+            kind: RefusalKind::Internal,
+            sentence: "the entry is not one the kernel wrote".to_owned(),
+        };
+        assert_eq!(
+            super::switch_holds(Err(unreadable.clone())),
+            Err(unreadable)
+        );
+        let serving = Serving::new().await;
+        let opened = serving
+            .server
+            .session(serving.agent)
+            .await
+            .expect("the session opens");
+        let tools = || Request::Tools { locale: Locale::En };
+        serving.switched(false).await;
+        let answered = serving.server.answer_in_session(&opened, tools()).await;
+        assert!(answered.ends, "MCP off left the session open: {answered:?}");
+        assert!(
+            matches!(&answered.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonMcpOff),
+            "{answered:?}"
+        );
+        serving.switched(true).await;
+        let answered = serving.server.answer_in_session(&opened, tools()).await;
+        assert!(
+            !answered.ends && matches!(answered.answer, Answer::Tools(_)),
+            "{answered:?}"
+        );
+        drop(opened);
+        serving.closed().await;
+    }
+
+    /// A session's dispatch is counted as running until it answers, so a
+    /// stop's drain waits for it as it waits for the person's.
+    ///
+    /// **Caught while the kernel runs it**: the dispatch is counted as running
+    /// before it is answered, a drain meanwhile gives up on it, and once it is
+    /// answered it is counted no more.
+    #[tokio::test]
+    async fn a_sessions_dispatch_is_counted_as_running_until_it_answers() {
+        use core::task::Poll;
+
+        let serving = Serving::new().await;
+        let opened = serving
+            .server
+            .session(serving.agent)
+            .await
+            .expect("the session opens");
+        let dispatch = Request::Dispatch {
+            command: "naming.propose".to_owned(),
+            args: Value::object([("title", Value::text("a"))]),
+        };
+        let answered = {
+            let mut answering =
+                core::pin::pin!(serving.server.answer_in_session(&opened, dispatch));
+            let running = &serving.server.running;
+            let early = core::future::poll_fn(|context| match answering.as_mut().poll(context) {
+                Poll::Ready(answered) => Poll::Ready(Some(answered)),
+                Poll::Pending if running.load(Ordering::SeqCst) == 1 => Poll::Ready(None),
+                Poll::Pending => Poll::Pending,
+            })
+            .await;
+            assert!(
+                early.is_none(),
+                "the session's dispatch was answered and never counted as running: {early:?}"
+            );
+            let soon = tokio::time::Instant::now() + Duration::from_millis(200);
+            assert_eq!(
+                serving.server.drained(soon).await,
+                1,
+                "a drain did not wait for the session's dispatch"
+            );
+            answering.await
+        };
+        assert!(
+            !answered.ends && matches!(answered.answer, Answer::Result(_)),
+            "{answered:?}"
+        );
+        let bound = tokio::time::Instant::now() + Duration::from_secs(5);
+        assert_eq!(serving.server.drained(bound).await, 0);
+        drop(opened);
+        serving.closed().await;
+    }
+
+    /// Sessions are counted before they open, and one past the bound is
+    /// refused.
+    ///
+    /// `sessions_max` places are given out and the next is `NC-DMN-0016`,
+    /// unavailable, saying the bound, its count given back as it is refused;
+    /// a place dropped lets one more in, and once every one is dropped none is
+    /// counted.
+    #[test]
+    fn sessions_are_counted_before_they_open_and_refused_past_their_bound() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let most = usize::try_from(nc_catalog::DAEMON.sessions_max).expect("a count");
+        let mut held: Vec<super::Counted> = (0..most)
+            .map(|_| server.counted_session().expect("a place within the bound"))
+            .collect();
+        assert_eq!(server.sessions.load(Ordering::SeqCst), most);
+        let refused = server.counted_session().expect_err("one past the bound");
+        assert_eq!(
+            (refused.code, refused.kind),
+            (ErrorCode::DaemonTooManySessions, RefusalKind::Unavailable)
+        );
+        assert!(refused.sentence.contains(&most.to_string()), "{refused:?}");
+        assert_eq!(
+            server.sessions.load(Ordering::SeqCst),
+            most,
+            "a session refused is still counted"
+        );
+        drop(held.pop());
+        held.push(server.counted_session().expect("the place given back"));
+        drop(held);
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+    }
+
+    /// A session is opened only while MCP is on and for an agent of the
+    /// profile's person, and a refusal of either ends the connection.
+    ///
+    /// **Over a kernel the daemon opens**: an agent no person made is
+    /// `NC-AI-0001`; with MCP off the person's own agent is `NC-DMN-0014`;
+    /// with it on, the session opens, counted until it is dropped. The
+    /// person's own tools are what the person may dispatch, MCP's switch among
+    /// them.
+    #[tokio::test]
+    async fn a_session_is_opened_only_while_mcp_is_on_and_for_an_agent_of_the_persons() {
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        let refused = |answered: &super::Answered, code: ErrorCode| {
+            assert!(
+                answered.ends && answered.opened.is_none(),
+                "{code:?}: {answered:?}"
+            );
+            assert!(
+                matches!(&answered.answer, Answer::Refused(refusal) if refusal.code == code),
+                "{code:?}: {answered:?}"
+            );
+        };
+        let stranger = server.answer(Request::Session { agent: minted() }).await;
+        refused(&stranger, ErrorCode::AiNoSuchAgent);
+        serving.switched(false).await;
+        let off = server
+            .answer(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        refused(&off, ErrorCode::DaemonMcpOff);
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+        serving.switched(true).await;
+        let opened = server
+            .answer(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        assert!(
+            !opened.ends && opened.opened.is_some() && opened.answer == Answer::Session,
+            "{opened:?}"
+        );
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 1);
+        drop(opened);
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+        match server
+            .answer(Request::Tools { locale: Locale::En })
+            .await
+            .answer
+        {
+            Answer::Tools(tools) => assert!(
+                tools.iter().any(|tool| tool
+                    .to_canonical()
+                    .contains("\"name\":\"settings.mcp.set\"")),
+                "{tools:?}"
+            ),
+            other => panic!("the person's tools were answered with {other:?}"),
+        }
+        serving.closed().await;
+    }
+
+    /// A connection that opened a session is its agent's until it ends, and
+    /// its person switching MCP off ends it.
+    ///
+    /// **Through a connection the server serves**: the session opens, its
+    /// tools are its agent's — naming's two, and nothing of what the person
+    /// may do — and its dispatches are journaled as the agent acting for the
+    /// person; a second session, the registry, the status and a stop are each
+    /// `NC-DMN-0015`, the daemon still running and the next dispatch still the
+    /// agent's; once the person switches MCP off, the next request is
+    /// `NC-DMN-0014`, the connection is lost after it, and its place is given
+    /// back.
+    #[tokio::test]
+    async fn a_connection_is_its_sessions_agents_until_mcp_is_switched_off() {
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        let mut client = a_client_of(server).await;
+        let agent = serving.agent;
+        assert!(matches!(
+            over(&mut client, Request::Session { agent }).await,
+            Ok(Answer::Session)
+        ));
+        match over(&mut client, Request::Tools { locale: Locale::En }).await {
+            Ok(Answer::Tools(tools)) => {
+                let names: Vec<String> = tools
+                    .iter()
+                    .filter_map(|tool| {
+                        tool.clone()
+                            .into_object()
+                            .and_then(|mut fields| fields.remove("name"))
+                            .and_then(Value::into_text)
+                    })
+                    .collect();
+                assert_eq!(names, ["naming.propose", "naming.read"]);
+            }
+            other => panic!("the tools were answered with {other:?}"),
+        }
+        let propose = || Request::Dispatch {
+            command: "naming.propose".to_owned(),
+            args: Value::object([("title", Value::text("a"))]),
+        };
+        assert!(matches!(
+            over(&mut client, propose()).await,
+            Ok(Answer::Result(_))
+        ));
+        for request in [
+            Request::Session { agent: minted() },
+            REGISTRY,
+            Request::Status,
+            Request::Stop,
+        ] {
+            match over(&mut client, request.clone()).await {
+                Ok(Answer::Refused(refusal)) => {
+                    assert_eq!(refusal.code, ErrorCode::DaemonNotForASession, "{request:?}");
+                }
+                other => panic!("{request:?} was answered with {other:?}"),
+            }
+        }
+        assert_eq!(
+            server.state(),
+            State::Running,
+            "a session stopped the daemon"
+        );
+        assert!(matches!(
+            over(&mut client, propose()).await,
+            Ok(Answer::Result(_))
+        ));
+        let acting = (agent.to_crockford(), vec!["ana".to_owned()]);
+        assert_eq!(
+            serving.decided("naming.propose").await,
+            [acting.clone(), acting]
+        );
+        serving.switched(false).await;
+        match over(&mut client, Request::Tools { locale: Locale::En }).await {
+            Ok(Answer::Refused(refusal)) => assert_eq!(refusal.code, ErrorCode::DaemonMcpOff),
+            other => panic!("a request once MCP was off was answered with {other:?}"),
+        }
+        let next = over(&mut client, propose()).await;
+        assert!(
+            matches!(next, Err(nc_ipc::IpcError::Lost(_))),
+            "a session went on once MCP was off: {next:?}"
+        );
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        assert_eq!(server.closed(tokio::time::Instant::now() + bound).await, 0);
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+        drop(client);
+        serving.closed().await;
     }
 
     /// A kernel's refusal is told by the kernel's own word, for every kind.
@@ -974,7 +1933,7 @@ mod tests {
     /// or once a stop began; the status and a stop are answered all along.
     #[tokio::test]
     async fn nothing_is_dispatched_before_the_kernel_runs_or_once_a_stop_began() {
-        let server = a_server(nc_channel::Channel::Staging);
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
         let dispatch = || Request::Dispatch {
             command: "journal.verify".to_owned(),
             args: Value::object([("from", Value::Integer(0))]),
@@ -988,11 +1947,11 @@ mod tests {
                 assert!(refusal.sentence.contains(state.word()), "{refusal:?}");
             }
             assert!(matches!(
-                server.answer(Request::Status).await,
+                server.answer(Request::Status).await.answer,
                 Answer::Status(_)
             ));
         }
-        assert_eq!(server.answer(Request::Stop).await, Answer::Stopping);
+        assert_eq!(server.answer(Request::Stop).await.answer, Answer::Stopping);
         assert_eq!(server.state(), State::Stopping);
         for request in [dispatch(), REGISTRY] {
             let refusal = refused(&server, request).await;

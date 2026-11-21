@@ -5,7 +5,7 @@
 
 Every event the central log can receive. **No field here can be written as free text at a logging call**: the kinds below are the only ones the registry has, `type = "id"` is refused outright, and a `String` cannot be made into a `LogValue` (`§15.4`). What that closes is a sentence a caller composed; what it does not close is a caller who encodes something into a value of a kind the registry does allow — `Snowflake` is written as its Crockford base32 text, and twelve of its characters are the caller’s. The source gate refuses the conversion at a logging call site, which is where it is visible; `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.
 
-**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, `daemon.started`, `daemon.stopped`, `daemon.plugin_refused` and `daemon.prune_stuck`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.
+**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, `daemon.started`, `daemon.stopped`, `daemon.plugin_refused`, `daemon.prune_stuck`, `daemon.session_opened`, `daemon.session_ended` and `daemon.session_refused`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.
 
 ## `daemon.plugin_refused`
 
@@ -27,6 +27,36 @@ Level: `error`
 |---|---|---|
 | `code` | code from the error registry | no |
 | `pumps` | whole number, at most 32 bits wide | no |
+
+## `daemon.session_ended`
+
+An agent's session ended with its connection, which the daemon or its client closed, or which was lost
+
+Level: `info`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `agent` | Snowflake, written as its Crockford base32 text | no |
+
+## `daemon.session_opened`
+
+A connection opened the session of an agent the profile's person made: from then on each dispatch on it is decided as that agent, for that person
+
+Level: `info`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `agent` | Snowflake, written as its Crockford base32 text | no |
+
+## `daemon.session_refused`
+
+A session was not opened, or a request of an open one was refused, before the kernel decided anything — MCP off, past `sessions_max`, an agent the person did not make, or a request no session is answered — by its code; nothing of it is journaled
+
+Level: `warn`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
 
 ## `daemon.started`
 

@@ -1,6 +1,6 @@
 //! What the daemon's kernel runs on (`NOCTUA.md §11.1`): the local database
 //! and its journal, the blobs on disk, the system's clock, the world the
-//! profile decides as with the agents its person made, the central log, and
+//! profile decides as with the agents its database keeps, the central log, and
 //! the transport a plugin's request is sent with.
 //!
 //! **Opened in the order a start needs**: the local database first, so the
@@ -10,8 +10,8 @@
 //!
 //! **The directory is the world and the profile's agents**
 //! (`NOCTUA.md §14.6`): `nc_authz::LocalDirectory`, opened over the world
-//! file and what the profile's own database keeps of the agents its person
-//! made in the world's realm, bounded by `[tables.agents]` and
+//! file and what the profile's database keeps of the agents of the world's
+//! realm, bounded by `[tables.agents]` and
 //! `[tables.agent_grants]` as the catalog writes them, and keeping each change
 //! there through [`KeptLocally`] — never in the world file (`§5.13`). A
 //! database holding rows the directory would never have written is refused,

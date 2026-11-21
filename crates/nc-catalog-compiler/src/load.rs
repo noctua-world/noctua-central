@@ -822,7 +822,9 @@ const PIPE_INSTANCES: u64 = 254;
 /// there; and **the connections fit a pipe's instances** with two more — the
 /// one always waiting for the next client, and the connection past the bound,
 /// held until the next is waiting — or a daemon on Windows could not take the
-/// connection its own bound allows.
+/// connection its own bound allows; and **the sessions stay below the
+/// connections**, or MCP clients could hold every connection and leave the
+/// person's own CLI none.
 ///
 /// **And one plugin's texts take at most half a frame**: every command it may
 /// declare, at `[kernel] entry_bytes` in the one locale the registry is asked
@@ -908,6 +910,21 @@ fn check_daemon_ipc(
              until the next is waiting, so a bound a pipe cannot hold is one the daemon \
              cannot keep there. Make `ipc_connections_max` at most 252",
             "ipc-connections-past-a-pipe",
+        );
+    }
+    if daemon.sessions_max >= daemon.ipc_connections_max {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("sessions_max"),
+            format!(
+                "`[daemon] sessions_max` is {}, which is not below `ipc_connections_max`, {}",
+                daemon.sessions_max, daemon.ipc_connections_max
+            ),
+            "each agent's session holds a connection of its own, so sessions as many as the \
+             connections could take every one, and the person's own CLI and interface would \
+             find none. Make `sessions_max` below `ipc_connections_max`",
+            "sessions-take-every-connection",
         );
     }
 }

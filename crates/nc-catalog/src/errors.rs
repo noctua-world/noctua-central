@@ -185,6 +185,12 @@ pub enum ErrorCode {
     DaemonEngineRefused,
     /// NC-DMN-0013 — The daemon's PID record is not one this build wrote: malformed, or naming no process
     DaemonPidRecordUnreadable,
+    /// NC-DMN-0014 — MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended
+    DaemonMcpOff,
+    /// NC-DMN-0015 — A session asked for something other than its tools or a dispatch, which no session is answered
+    DaemonNotForASession,
+    /// NC-DMN-0016 — The daemon holds as many sessions as `sessions_max` allows, so it opened no other
+    DaemonTooManySessions,
     /// NC-IDS-0001 — The clock moved backwards, so minting would repeat an identifier it has issued
     IdsClockBackwards,
     /// NC-IDS-0002 — This millisecond's sequence was exhausted and minting waited
@@ -460,6 +466,9 @@ impl ErrorCode {
         Self::DaemonNoCentralLog,
         Self::DaemonEngineRefused,
         Self::DaemonPidRecordUnreadable,
+        Self::DaemonMcpOff,
+        Self::DaemonNotForASession,
+        Self::DaemonTooManySessions,
         Self::IdsClockBackwards,
         Self::IdsSequenceExhausted,
         Self::IdsFlakeExhausted,
@@ -633,6 +642,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => "NC-DMN-0011",
             Self::DaemonEngineRefused => "NC-DMN-0012",
             Self::DaemonPidRecordUnreadable => "NC-DMN-0013",
+            Self::DaemonMcpOff => "NC-DMN-0014",
+            Self::DaemonNotForASession => "NC-DMN-0015",
+            Self::DaemonTooManySessions => "NC-DMN-0016",
             Self::IdsClockBackwards => "NC-IDS-0001",
             Self::IdsSequenceExhausted => "NC-IDS-0002",
             Self::IdsFlakeExhausted => "NC-IDS-0003",
@@ -807,6 +819,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => "DMN",
             Self::DaemonEngineRefused => "DMN",
             Self::DaemonPidRecordUnreadable => "DMN",
+            Self::DaemonMcpOff => "DMN",
+            Self::DaemonNotForASession => "DMN",
+            Self::DaemonTooManySessions => "DMN",
             Self::IdsClockBackwards => "IDS",
             Self::IdsSequenceExhausted => "IDS",
             Self::IdsFlakeExhausted => "IDS",
@@ -1082,6 +1097,15 @@ impl ErrorCode {
             }
             Self::DaemonPidRecordUnreadable => {
                 "The daemon's PID record is not one this build wrote: malformed, or naming no process"
+            }
+            Self::DaemonMcpOff => {
+                "MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended"
+            }
+            Self::DaemonNotForASession => {
+                "A session asked for something other than its tools or a dispatch, which no session is answered"
+            }
+            Self::DaemonTooManySessions => {
+                "The daemon holds as many sessions as `sessions_max` allows, so it opened no other"
             }
             Self::IdsClockBackwards => {
                 "The clock moved backwards, so minting would repeat an identifier it has issued"
@@ -1421,6 +1445,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => "error.daemon.no-central-log",
             Self::DaemonEngineRefused => "error.daemon.engine-refused",
             Self::DaemonPidRecordUnreadable => "error.daemon.pid-record-unreadable",
+            Self::DaemonMcpOff => "error.daemon.mcp-off",
+            Self::DaemonNotForASession => "error.daemon.not-for-a-session",
+            Self::DaemonTooManySessions => "error.daemon.too-many-sessions",
             Self::IdsClockBackwards => "error.ids.clock-backwards",
             Self::IdsSequenceExhausted => "error.ids.sequence-exhausted",
             Self::IdsFlakeExhausted => "error.ids.flake-exhausted",
@@ -1595,6 +1622,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => Severity::Error,
             Self::DaemonEngineRefused => Severity::Critical,
             Self::DaemonPidRecordUnreadable => Severity::Error,
+            Self::DaemonMcpOff => Severity::Warning,
+            Self::DaemonNotForASession => Severity::Warning,
+            Self::DaemonTooManySessions => Severity::Warning,
             Self::IdsClockBackwards => Severity::Error,
             Self::IdsSequenceExhausted => Severity::Info,
             Self::IdsFlakeExhausted => Severity::Critical,
@@ -1769,6 +1799,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => false,
             Self::DaemonEngineRefused => false,
             Self::DaemonPidRecordUnreadable => false,
+            Self::DaemonMcpOff => false,
+            Self::DaemonNotForASession => false,
+            Self::DaemonTooManySessions => true,
             Self::IdsClockBackwards => true,
             Self::IdsSequenceExhausted => false,
             Self::IdsFlakeExhausted => false,
@@ -1943,6 +1976,9 @@ impl ErrorCode {
             Self::DaemonNoCentralLog => &[],
             Self::DaemonEngineRefused => &[],
             Self::DaemonPidRecordUnreadable => &[],
+            Self::DaemonMcpOff => &[],
+            Self::DaemonNotForASession => &[],
+            Self::DaemonTooManySessions => &[],
             Self::IdsClockBackwards => &[],
             Self::IdsSequenceExhausted => &[],
             Self::IdsFlakeExhausted => &[],
