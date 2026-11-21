@@ -1112,6 +1112,15 @@ mod tests {
             .expect("answered in time")
     }
 
+    /// `request`, answered over `client` within the suites' patience: a
+    /// daemon in another process, which a loaded machine may keep waiting.
+    async fn asked(client: &mut nc_ipc::Client, request: Request) -> Answer {
+        tokio::time::timeout(crate::testing::PATIENCE, client.ask(&request))
+            .await
+            .expect("answered in time")
+            .expect("answered")
+    }
+
     /// A client of `server` over a connection it serves in memory, proven by
     /// the server's own token.
     async fn a_client_of(server: &Arc<Server>) -> nc_ipc::Client {
@@ -1684,6 +1693,122 @@ mod tests {
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
         drop(client);
         serving.closed().await;
+    }
+
+    /// What tells a child of this test binary to serve an install.
+    ///
+    /// The install beside the path it holds, as the daemon's binary serves the
+    /// one beside itself and as the run's own tests tell one.
+    const SERVES: &str = "NC_DAEMON_SERVER_SERVES";
+
+    /// A session is logged as it opens and as it ends, with its agent, and
+    /// each refusal of it by its code.
+    ///
+    /// **Over a daemon a child of this test binary serves**, its lines written
+    /// to its standard error alone: a session asked for an agent no person
+    /// made, then the person's own agent's session, refused the registry and
+    /// ended once its person switches MCP off under it. The daemon logs, in
+    /// order, `NC-AI-0001` refused, the agent's session opened, `NC-DMN-0015`
+    /// and `NC-DMN-0014` refused, and the agent's session ended, and no line
+    /// of it names the stranger.
+    #[test]
+    fn a_session_is_logged_as_it_opens_and_ends_with_its_agent_and_each_refusal_by_its_code() {
+        if let Some(executable) = std::env::var_os(SERVES) {
+            crate::run::serve(std::path::Path::new(&executable)).expect("the daemon ran");
+            return;
+        }
+        let this = std::env::current_exe().expect("this test binary");
+        let installed = crate::testing::Installed::new(&this);
+        installed.without_a_central_log();
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let mut daemon = installed.spawn_as(
+            &this,
+            &[
+                "--exact",
+                "server::tests::a_session_is_logged_as_it_opens_and_ends_with_its_agent_and_each_refusal_by_its_code",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            &[(SERVES, installed.executable.as_os_str())],
+        );
+        let refused = |answer: &Answer, code: ErrorCode| {
+            assert!(
+                matches!(answer, Answer::Refused(refusal) if refusal.code == code),
+                "{code:?}: {answer:?}"
+            );
+        };
+        let (agent, stranger) = runtime.block_on(async {
+            let (mut person, _) = daemon.connected().await;
+            let running = format!("\"state\":\"{}\"", State::Running.word());
+            let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+            loop {
+                match asked(&mut person, Request::Status).await {
+                    Answer::Status(status) if status.to_canonical().contains(&running) => break,
+                    _ => assert!(tokio::time::Instant::now() < deadline, "it never ran"),
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            daemon.switch_mcp(true).await;
+            let agent = daemon.agent("a", 100).await;
+            let stranger = minted();
+            let (mut unknown, _) = daemon.connected().await;
+            refused(
+                &asked(&mut unknown, Request::Session { agent: stranger }).await,
+                ErrorCode::AiNoSuchAgent,
+            );
+            let mut session = daemon.session(agent).await;
+            refused(
+                &asked(&mut session, REGISTRY).await,
+                ErrorCode::DaemonNotForASession,
+            );
+            daemon.switch_mcp(false).await;
+            refused(
+                &asked(&mut session, Request::Tools { locale: Locale::En }).await,
+                ErrorCode::DaemonMcpOff,
+            );
+            drop((unknown, session));
+            assert_eq!(asked(&mut person, Request::Stop).await, Answer::Stopping);
+            assert_eq!(
+                daemon.ended().await,
+                Some(0),
+                "{}",
+                installed.standard_error()
+            );
+            (agent.to_crockford(), stranger.to_crockford())
+        });
+        let said = installed.standard_error();
+        let sessions: Vec<(String, String)> = said
+            .lines()
+            .filter_map(|line| {
+                let mut fields = nc_canon::parse(line.trim_start_matches("nc-log: "))
+                    .ok()?
+                    .into_object()?;
+                let event = fields.remove("_msg")?.into_text()?;
+                let named = fields.remove("agent").or_else(|| fields.remove("code"))?;
+                event
+                    .starts_with("daemon.session_")
+                    .then(|| named.into_text().map(|named| (event, named)))?
+            })
+            .collect();
+        let line = |event: &str, named: &str| (format!("daemon.session_{event}"), named.to_owned());
+        assert_eq!(
+            sessions,
+            [
+                line("refused", ErrorCode::AiNoSuchAgent.code()),
+                line("opened", &agent),
+                line("refused", ErrorCode::DaemonNotForASession.code()),
+                line("refused", ErrorCode::DaemonMcpOff.code()),
+                line("ended", &agent),
+            ],
+            "{said}"
+        );
+        assert!(
+            !said.contains(&stranger),
+            "a line names the agent no person made: {said}"
+        );
     }
 
     /// A kernel's refusal is told by the kernel's own word, for every kind.

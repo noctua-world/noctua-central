@@ -213,20 +213,26 @@ fn of_the_agent<'a>(
         .collect()
 }
 
-/// The codes of every `daemon.session_refused` the daemon wrote, in order.
-fn session_refusals(installed: &Installed) -> Vec<String> {
+/// The `field` of every `event` the daemon wrote, in order.
+fn logged(installed: &Installed, event: &str, field: &str) -> Vec<String> {
+    let named = format!("\"_msg\":\"{event}\"");
     installed
         .standard_error()
         .lines()
-        .filter(|line| line.contains("\"_msg\":\"daemon.session_refused\""))
+        .filter(|line| line.contains(&named))
         .filter_map(|line| {
             let value = nc_canon::parse(line.trim_start_matches("nc-log: ")).ok()?;
             value
                 .into_object()?
-                .remove("code")
+                .remove(field)
                 .and_then(Value::into_text)
         })
         .collect()
+}
+
+/// The codes of every `daemon.session_refused` the daemon wrote, in order.
+fn session_refusals(installed: &Installed) -> Vec<String> {
+    logged(installed, "daemon.session_refused", "code")
 }
 
 /// Each tool's name, as the daemon listed it.
@@ -332,7 +338,9 @@ async fn mcp_is_off_until_the_person_switches_it_on_and_a_session_ends_once_it_i
 /// person made, the registry asked on a session, and a session's request once
 /// MCP was switched off under it — each logged as `daemon.session_refused`
 /// with its code, in order, while the journal moves by the person's own two
-/// switches alone and names no agent.
+/// switches alone and names no agent. The one session that opened is logged
+/// once as opened and once as ended, naming its agent, and the stranger's is
+/// never logged as opened.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_request_refused_before_the_kernel_is_logged_with_its_code_and_journals_nothing() {
     let installed = Installed::new(Path::new(BINARY));
@@ -347,9 +355,10 @@ async fn a_request_refused_before_the_kernel_is_logged_with_its_code_and_journal
         ErrorCode::DaemonMcpOff,
     );
     daemon.switch_mcp(true).await;
+    let unknown = minted();
     let (mut stranger, _) = daemon.connected().await;
     refused_with(
-        &asked(&mut stranger, Request::Session { agent: minted() }).await,
+        &asked(&mut stranger, Request::Session { agent: unknown }).await,
         ErrorCode::AiNoSuchAgent,
     );
     let mut session = daemon.session(agent).await;
@@ -377,6 +386,14 @@ async fn a_request_refused_before_the_kernel_is_logged_with_its_code_and_journal
             ErrorCode::DaemonNotForASession.code(),
             ErrorCode::DaemonMcpOff.code(),
         ]
+    );
+    let agent = agent.to_crockford();
+    let opened = logged(&installed, "daemon.session_opened", "agent");
+    assert!(!opened.contains(&unknown.to_crockford()), "{opened:?}");
+    assert_eq!(opened, [agent.as_str()]);
+    assert_eq!(
+        logged(&installed, "daemon.session_ended", "agent"),
+        [agent.as_str()]
     );
 }
 

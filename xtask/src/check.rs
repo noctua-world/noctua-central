@@ -19607,7 +19607,7 @@ mod the_frozen_path_rule {
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
-        ("daemon/agent_sessions.rs", 37, 0),
+        ("daemon/agent_sessions.rs", 38, 0),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 24, 18),
@@ -19622,7 +19622,7 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 86, 12),
+        ("daemon/server.rs", 89, 12),
         ("daemon/serves_its_kernel.rs", 24, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
@@ -25770,7 +25770,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21638;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21644;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25789,7 +25789,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5807;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5810;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25806,7 +25806,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1960;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1961;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25840,7 +25840,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 28663;
+    const THE_REARRANGEMENTS_JUDGED: usize = 28674;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25894,7 +25894,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 28,663 are accepted by the first-line
+    /// rules the gates apply: **513 of 28,674 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25927,7 +25927,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1960 of
+    /// this tree offers, **1961 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37942,7 +37942,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2765] = [
+    static OPERATORS: [(&str, &str, &str); 2771] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48670,6 +48670,36 @@ Options:
             "daemon_server",
             "switch_holds",
             "MCP off is refused as MCP off",
+        ),
+        (
+            "daemon_server",
+            "session",
+            "a session opened is logged with its agent",
+        ),
+        (
+            "daemon_server",
+            "session",
+            "a session refused as it opens is logged",
+        ),
+        (
+            "daemon_server",
+            "refused_session",
+            "a session's refusal is logged by its code",
+        ),
+        (
+            "daemon_server",
+            "Drop for Opened",
+            "a session's end is logged with its agent",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
+            "a request no session is answered is logged",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
+            "a session ended for MCP off is logged",
         ),
         (
             "daemon_environment",

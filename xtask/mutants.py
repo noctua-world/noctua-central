@@ -8584,6 +8584,26 @@ WEAKENINGS = [
     ("daemon_server", "switch_holds", "MCP off is refused as MCP off",
      "            code: ErrorCode::DaemonMcpOff,",
      "            code: ErrorCode::DaemonNotForASession,"),
+    # A session is logged as it opens and as it ends, with its agent, and each
+    # refusal of it by its code, at each place a session is refused.
+    ("daemon_server", "session", "a session opened is logged with its agent",
+     "            Ok(_) => self\n                .log\n                .record(&nc_log::events::DaemonSessionOpened { agent }),\n",
+     "            Ok(_) => {}\n"),
+    ("daemon_server", "session", "a session refused as it opens is logged",
+     "            Err(refusal) => self.refused_session(refusal),",
+     "            Err(_) => {}"),
+    ("daemon_server", "refused_session", "a session's refusal is logged by its code",
+     "        self.log\n            .record(&nc_log::events::DaemonSessionRefused { code: refusal.code });\n",
+     "        let _ = (&self.log, refusal);\n"),
+    ("daemon_server", "Drop for Opened", "a session's end is logged with its agent",
+     "        self.counted\n            .0\n            .log\n            .record(&nc_log::events::DaemonSessionEnded { agent: self.agent });\n",
+     "        let _ = (&self.counted, &self.agent);\n"),
+    ("daemon_server", "answer_in_session", "a request no session is answered is logged",
+     "                self.refused_session(&refusal);\n                return Answered::going_on(Answer::Refused(refusal));",
+     "                return Answered::going_on(Answer::Refused(refusal));"),
+    ("daemon_server", "answer_in_session", "a session ended for MCP off is logged",
+     "            self.refused_session(&refusal);\n            return Answered::ending(refusal);",
+     "            return Answered::ending(refusal);"),
     # The environment: no central log named is the standard error alone, one
     # `nc_log` refuses is a refusal, and a start reads the newest unit its
     # journal holds.

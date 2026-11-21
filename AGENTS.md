@@ -2988,15 +2988,19 @@ through a match with no wildcard; a session refused before the kernel runs and o
 began, each ending its connection; a refused session's next request lost on a connection
 the server serves, while a person's refused registry leaves theirs going; the switch on,
 off and unreadable; a session's dispatch counted as running until it answers; the bound
-and its places given back; and, over a kernel opened as the daemon opens one, a session
-refused for an agent no person made and while MCP is off, and a connection bound to its
-agent until MCP is switched off — by `apps/daemon/tests/agent_sessions.rs` against a real
-daemon — off until switched on and ended once off again, every refusal before the kernel
-logged and nothing of it journaled, every dispatch journaled with the agent and the
-person, an agent written in another spelling refused by the reader, a revocation through
-the CLI seen at the next call, the agent held to its own rights, its tools exactly what it
-may dispatch, its budget its own, the bound, a restart, and a plain connection that is the
-person — by `an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again` in
+and its places given back; over a kernel opened as the daemon opens one, a session refused
+for an agent no person made and while MCP is off, and a connection bound to its agent
+until MCP is switched off; and, over a daemon a child of the test binary serves, a
+session's opening, each refusal of it and its end logged in order, by its agent or its
+code — by `apps/daemon/tests/agent_sessions.rs` against a real daemon — off until switched
+on and ended once off again, every refusal before the kernel logged and nothing of it
+journaled, the session that opened logged once as opened and once as ended with its agent
+and the agent no person made never as opened, every dispatch journaled with the agent and
+the person, an agent written in another spelling refused by the reader, a revocation
+through the CLI seen at the next call, the agent held to its own rights, its tools exactly
+what it may dispatch, its budget its own, the bound, a restart, and a plain connection
+that is the person — by
+`an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again` in
 `serves_its_kernel.rs`, and by the operators over `server.rs` in `xtask/mutants.py`.
 
 **Not answered:** a connection that opens no session, which is the person: a process
