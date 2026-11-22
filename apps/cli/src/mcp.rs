@@ -13,7 +13,7 @@
 //! `-32603` answer carrying the refusal's code, the same refusal on standard
 //! error, and the run ended in the refusal's own exit code.
 //!
-//! **The legacy era, and tools alone** ([`Engine`]): `initialize` is answered
+//! **The legacy era, and tools alone** (`Engine`): `initialize` is answered
 //! in the revision asked when it is one of [`REVISIONS`], and in the newest
 //! otherwise, which the client may decline; server/discover and every
 //! method not offered are `-32601`; the capabilities are

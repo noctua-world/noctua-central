@@ -24,7 +24,7 @@
 //! session of the agent it names, and confirms nothing either.
 //!
 //! **A refusal of a line that names `mcp` is said on standard error**, under
-//! `--json` too ([`renders_json`]): standard output is what an MCP client
+//! `--json` too (`renders_json`): standard output is what an MCP client
 //! reads, and carries the protocol's messages alone.
 
 use std::ffi::OsString;
