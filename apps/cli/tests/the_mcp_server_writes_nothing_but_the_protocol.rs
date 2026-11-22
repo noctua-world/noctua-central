@@ -27,8 +27,11 @@ impl Drop for Scratch {
 impl Scratch {
     /// A private directory under the temporary one, named for this process
     /// and `tag`.
+    ///
+    /// **Short**, because macOS holds a socket's path to 103 bytes, and the
+    /// socket is four directories below it.
     fn new(tag: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("nc-mcp-suite-{}-{tag}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("nc-mcp-{}-{tag}", std::process::id()));
         let _ = nc_platform::testing::make_private(&root);
         let _ = std::fs::remove_dir_all(&root);
         nc_platform::create_private_directory(&root).expect("a scratch directory");
@@ -58,7 +61,7 @@ fn installed_in(scratch: &Scratch, tag: u8) -> PathBuf {
         nc_platform::create_private_directory(&base).expect("a base");
         base
     };
-    let namespace = format!("m{:x}x{tag}", std::process::id() % 0xff_ffff);
+    let namespace = format!("m{tag}{}", in_base_36(std::process::id()));
     let install = nc_channel::Install {
         channel: nc_channel::Channel::Staging,
         bases: nc_channel::Bases::new(base("d"), base("c"), base("k"), base("s"))
@@ -75,6 +78,21 @@ fn installed_in(scratch: &Scratch, tag: u8) -> PathBuf {
         nc_platform::create_private_directory(directory).expect("a directory");
     }
     cli
+}
+
+/// `number` written in base 36, lower case: this process's id kept short in
+/// a namespace.
+fn in_base_36(number: u32) -> String {
+    let mut written = Vec::new();
+    let mut left = number;
+    loop {
+        written.push(char::from_digit(left % 36, 36).unwrap_or('0'));
+        left /= 36;
+        if left == 0 {
+            break;
+        }
+    }
+    written.iter().rev().collect()
 }
 
 /// An agent's identifier, as a minter gives one.
@@ -144,7 +162,7 @@ fn frames(written: &[u8]) -> Vec<serde_json::Value> {
 /// — and closing its input ends it in 0 with nothing on standard error.
 #[test]
 fn the_binary_answers_each_request_on_one_line_and_ends_when_its_input_ends() {
-    let scratch = Scratch::new("lines");
+    let scratch = Scratch::new("ln");
     let cli = installed_in(&scratch, 1);
     let input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\r\n\
                  {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"server/discover\"}\n";
@@ -168,7 +186,7 @@ fn the_binary_answers_each_request_on_one_line_and_ends_when_its_input_ends() {
 /// standard error, and exit 9.
 #[test]
 fn with_no_daemon_initialize_is_answered_with_the_reason_and_the_binary_ends_in_nine() {
-    let scratch = Scratch::new("down");
+    let scratch = Scratch::new("dn");
     let cli = installed_in(&scratch, 2);
     let input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\
                  {\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\
@@ -192,7 +210,7 @@ fn with_no_daemon_initialize_is_answered_with_the_reason_and_the_binary_ends_in_
 /// nothing on standard output, whatever the options asked.
 #[test]
 fn a_line_refused_by_the_cli_is_said_on_standard_error_alone() {
-    let scratch = Scratch::new("refused");
+    let scratch = Scratch::new("rf");
     let cli = installed_in(&scratch, 3);
     let agent = agent();
     let code = nc_catalog::ErrorCode::CliCommandLineUnreadable.code();
@@ -221,7 +239,7 @@ fn a_line_refused_by_the_cli_is_said_on_standard_error_alone() {
 /// while `--json help` beside them is one document on standard output.
 #[test]
 fn with_no_install_nothing_is_written_on_standard_output_whatever_the_options_ask() {
-    let scratch = Scratch::new("bare");
+    let scratch = Scratch::new("br");
     let cli = copied_into(&scratch.0);
     let agent = agent();
     let code = nc_catalog::ErrorCode::ChannelNoManifest.code();

@@ -19614,7 +19614,7 @@ mod the_frozen_path_rule {
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         (
             "cli/the_mcp_server_writes_nothing_but_the_protocol.rs",
-            11,
+            12,
             3,
         ),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
@@ -25787,7 +25787,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21921;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21923;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25857,7 +25857,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29073;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29078;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25911,7 +25911,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 29,073 are accepted by the first-line
+    /// rules the gates apply: **513 of 29,078 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
