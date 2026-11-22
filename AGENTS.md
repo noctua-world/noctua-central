@@ -5105,9 +5105,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A session's language is its environment's, read once.** The protocol carries none,
   so a host that hands its child no `LANG` gets English, and a change of the environment
   reaches the next session only.
-- **The shipped binary's standard streams against a live daemon are proven by a recorded
-  run of a third-party client, not by the gate**: the binary's suite meets no daemon, and
-  the in-house client drives the same run in process, over pipes the system makes.
+- **The shipped binary's standard streams against a live daemon are not proven by the
+  gate**: the binary's suite meets no daemon, and the in-house client drives the same run
+  in process, over pipes the system makes.
 
 **The fuzzy core**
 
