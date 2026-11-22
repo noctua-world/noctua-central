@@ -2652,7 +2652,10 @@ async fn pruned_once_journaled<E: Environment>(
 /// journaled as failed — then journaled as allowed with what it makes, and made
 /// only then. A journal that does not take that entry leaves the directory as
 /// it was, the answer withheld; a change the directory then refuses is what
-/// the unit's close says did not finish.
+/// the unit's close says did not finish. The plan and the change see the same
+/// agents and grants, so the ending an entry names is the one made: the tree
+/// holds the kernel's bus from its top to its end (`top`), and these three run
+/// only at a tree's top, so no other change lands between them.
 async fn changed_once_journaled<E: Environment>(
     shared: &Arc<Shared<E>>,
     tree: &Arc<Mutex<CallTree>>,

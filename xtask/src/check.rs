@@ -19606,7 +19606,7 @@ mod the_frozen_path_rule {
         ("cli/launcher.rs", 14, 6),
         ("cli/lib.rs", 1, 14),
         ("cli/main.rs", 8, 5),
-        ("cli/mcp.rs", 110, 15),
+        ("cli/mcp.rs", 111, 15),
         ("cli/picker.rs", 33, 5),
         ("cli/render.rs", 25, 4),
         ("cli/run.rs", 35, 5),
@@ -19621,7 +19621,7 @@ mod the_frozen_path_rule {
         ("daemon/agent_sessions.rs", 65, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 24, 18),
+        ("daemon/environment.rs", 25, 18),
         ("daemon/every_command_from_the_cli.rs", 45, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
@@ -19633,7 +19633,7 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 89, 12),
+        ("daemon/server.rs", 90, 12),
         ("daemon/serves_its_kernel.rs", 24, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
@@ -19647,7 +19647,7 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 38, 15),
+        ("nc-catalog-compiler/docs.rs", 39, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
@@ -19737,7 +19737,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/find.rs", 35, 2),
-        ("nc-kernel/history.rs", 48, 7),
+        ("nc-kernel/history.rs", 49, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
         ("nc-kernel/host/commands.rs", 35, 15),
@@ -19761,7 +19761,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 285, 86),
+        ("nc-kernel/the_decision_point.rs", 286, 86),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 71, 64),
         ("nc-kernel/timers.rs", 18, 5),
@@ -19834,7 +19834,7 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 57, 20),
+        ("xtask/the_pages_reach_the_catalog.rs", 58, 20),
         ("xtask/the_registry_reaches_the_code.rs", 42, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
@@ -22622,8 +22622,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 892 scratches this tree
-    /// builds, 804 of the 892 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 893 scratches this tree
+    /// builds, 805 of the 893 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22706,7 +22706,7 @@ mod the_frozen_path_rule {
         ),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
-        ("daemon/environment.rs", 3, 3),
+        ("daemon/environment.rs", 4, 4),
         ("daemon/main.rs", 5, 5),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
@@ -25787,7 +25787,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21925;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21942;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25806,7 +25806,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5919;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5939;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25823,7 +25823,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1998;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2005;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25857,7 +25857,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29083;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29121;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25875,7 +25875,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 513;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 512;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25911,7 +25911,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 29,083 are accepted by the first-line
+    /// rules the gates apply: **512 of 29,121 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25944,7 +25944,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1998 of
+    /// this tree offers, **2005 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37974,7 +37974,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2807] = [
+    static OPERATORS: [(&str, &str, &str); 2815] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42265,6 +42265,16 @@ Options:
         (
             "authz_agents",
             "open",
+            "what was kept counts every agent it holds",
+        ),
+        (
+            "authz_agents",
+            "open",
+            "the agents' bound counts every realm's agents kept",
+        ),
+        (
+            "authz_agents",
+            "open",
             "a kept agent's label is one it can hold",
         ),
         (
@@ -45870,6 +45880,11 @@ Options:
             "a write command the kernel runs on the realm is published as one undo stops at",
         ),
         (
+            "pages",
+            "what_undoing_costs",
+            "a write command whose one effect is its own value is published as one undo takes back",
+        ),
+        (
             "loader",
             "check_kernel",
             "a unit holds one write over the largest value, both values counted",
@@ -46646,6 +46661,11 @@ Options:
         ),
         (
             "local_agents",
+            "kept",
+            "every agent the file holds is counted, another realm's included",
+        ),
+        (
+            "local_agents",
             "keep_agent",
             "a temporary object on the connection stops an agent's keeping",
         ),
@@ -47044,6 +47064,16 @@ Options:
             "kernel_session",
             "opened",
             "a session is opened only for the agent's own person",
+        ),
+        (
+            "kernel_session",
+            "opened",
+            "a session is opened only from an answer that is an agent",
+        ),
+        (
+            "kernel_session",
+            "opened",
+            "a session is opened only from an answer for the agent asked",
         ),
         (
             "kernel_dispatch",
@@ -48738,6 +48768,11 @@ Options:
             "a session ended for MCP off is logged",
         ),
         (
+            "daemon_server",
+            "answer_in_session",
+            "MCP is read before a request no session is answered",
+        ),
+        (
             "daemon_environment",
             "log",
             "an install naming no central log writes to standard error",
@@ -48781,6 +48816,11 @@ Options:
             "daemon_environment",
             "records",
             "an agent's budget is read back as it was kept",
+        ),
+        (
+            "daemon_environment",
+            "records",
+            "the agents are counted as the database counts them, every realm's included",
         ),
         (
             "daemon_environment",

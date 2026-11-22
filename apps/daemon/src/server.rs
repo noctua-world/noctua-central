@@ -49,11 +49,12 @@
 //! refusal is written, so no client that was refused goes on as the person.
 //!
 //! **A session asks for its tools and dispatches commands, and nothing
-//! else**: the registry, the status, a stop and a second session are refused
-//! (`NC-DMN-0015`) and the session stands. Before each of its requests MCP is
-//! read again, and off — however it came to be, the person's set, undo or
-//! redo — or unreadable ends the session with its connection once the refusal
-//! is written. Its tools are the kernel's probe of what its agent may
+//! else**: before each of its requests, once the kernel runs, MCP is read
+//! again, and off — however it came to be, the person's set, undo or redo —
+//! or unreadable ends the session with its connection once the refusal is
+//! written, whatever it asked; while MCP is on, the registry, the status, a
+//! stop and a second session are refused (`NC-DMN-0015`) and the session
+//! stands. Its tools are the kernel's probe of what its agent may
 //! dispatch ([`nc_kernel::Kernel::dispatchable`]), which spends and journals
 //! nothing; its dispatches are the kernel's, decided for the agent and its
 //! person and journaled with both.
@@ -414,24 +415,18 @@ impl Server {
     /// The answer to `request`, on a connection bound to the session it
     /// opened, `opened`.
     ///
-    /// **In order**: what no session asks is refused (`NC-DMN-0015`) and the
-    /// session stands; the kernel must run; MCP must be on — off, or a switch
+    /// **In order**: the kernel must run; MCP must be on — off, or a switch
     /// the store could not read, ends the session with its connection once the
-    /// refusal is written; then a dispatch is admitted as the person's is, so
-    /// a stop drains it, and decided as the session's agent, or the tools are
-    /// the agent's. What no session asks, and MCP off or unreadable, are logged
-    /// as `daemon.session_refused` by their code; a kernel not running yet or
-    /// stopping (`NC-DMN-0009`, `NC-DMN-0010`, here or when a dispatch is
-    /// admitted) is answered as the person's is, and logged by nothing. None
-    /// of these refusals reaches the journal.
+    /// refusal is written, whatever the request; what no session asks is
+    /// refused (`NC-DMN-0015`) and the session stands; then a dispatch is
+    /// admitted as the person's is, so a stop drains it, and decided as the
+    /// session's agent, or the tools are the agent's. MCP off or unreadable,
+    /// and what no session asks, are logged as `daemon.session_refused` by
+    /// their code; a kernel not running yet or stopping (`NC-DMN-0009`,
+    /// `NC-DMN-0010`, here or when a dispatch is admitted) is answered as the
+    /// person's is, the session standing, and logged by nothing. None of these
+    /// refusals reaches the journal.
     async fn answer_in_session(&self, opened: &Opened, request: Request) -> Answered {
-        let asked = match a_sessions(request) {
-            Ok(asked) => asked,
-            Err(refusal) => {
-                self.refused_session(&refusal);
-                return Answered::going_on(Answer::Refused(refusal));
-            }
-        };
         let kernel = match self.kernel_if_running() {
             Ok(kernel) => kernel,
             Err(refusal) => return Answered::going_on(Answer::Refused(refusal)),
@@ -440,6 +435,13 @@ impl Server {
             self.refused_session(&refusal);
             return Answered::ending(refusal);
         }
+        let asked = match a_sessions(request) {
+            Ok(asked) => asked,
+            Err(refusal) => {
+                self.refused_session(&refusal);
+                return Answered::going_on(Answer::Refused(refusal));
+            }
+        };
         Answered::going_on(match asked {
             InSession::Dispatch { command, args } => {
                 self.admitted_dispatch(&opened.session, &command, &args)
@@ -1689,6 +1691,57 @@ mod tests {
             other => panic!("a request once MCP was off was answered with {other:?}"),
         }
         let next = over(&mut client, propose()).await;
+        assert!(
+            matches!(next, Err(nc_ipc::IpcError::Lost(_))),
+            "a session went on once MCP was off: {next:?}"
+        );
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        assert_eq!(server.closed(tokio::time::Instant::now() + bound).await, 0);
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+        drop(client);
+        serving.closed().await;
+    }
+
+    /// Once MCP is off, a session's next request ends it, whatever it asks.
+    ///
+    /// **Through a connection the server serves**: while MCP is on, the status
+    /// is `NC-DMN-0015` and the session stands, its next request answered;
+    /// once its person switches MCP off, the status is `NC-DMN-0014`, the
+    /// connection is lost after it, and its place is given back.
+    #[tokio::test]
+    async fn once_mcp_is_off_a_sessions_next_request_ends_it_whatever_it_asks() {
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        let mut client = a_client_of(server).await;
+        let agent = serving.agent;
+        assert!(matches!(
+            over(&mut client, Request::Session { agent }).await,
+            Ok(Answer::Session)
+        ));
+        let refused = |answered: Result<Answer, nc_ipc::IpcError>, code: ErrorCode| {
+            assert!(
+                matches!(&answered, Ok(Answer::Refused(refusal)) if refusal.code == code),
+                "{code:?}: the status was answered with {answered:?}"
+            );
+        };
+        refused(
+            over(&mut client, Request::Status).await,
+            ErrorCode::DaemonNotForASession,
+        );
+        assert!(
+            matches!(
+                over(&mut client, Request::Tools { locale: Locale::En }).await,
+                Ok(Answer::Tools(_))
+            ),
+            "the session did not stand once the status was refused"
+        );
+        assert_eq!(server.sessions.load(Ordering::SeqCst), 1);
+        serving.switched(false).await;
+        refused(
+            over(&mut client, Request::Status).await,
+            ErrorCode::DaemonMcpOff,
+        );
+        let next = over(&mut client, Request::Tools { locale: Locale::En }).await;
         assert!(
             matches!(next, Err(nc_ipc::IpcError::Lost(_))),
             "a session went on once MCP was off: {next:?}"

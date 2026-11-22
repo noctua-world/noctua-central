@@ -1470,6 +1470,30 @@ mod tests {
         );
     }
 
+    /// Of the kernel's own commands that change state, undo takes back a step
+    /// of undo, redo and MCP's switch alone.
+    ///
+    /// **What `docs/commands.md` publishes, held from the kernel's side**: the
+    /// page answers "yes" for these three by name (`THE_HISTORY` and
+    /// `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs`) and "no"
+    /// for every other one, so one more here, or one fewer, is a page that
+    /// says less or more than undo does.
+    #[test]
+    fn of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone() {
+        let taken_back: Vec<String> = crate::registry::Registry::from_catalog()
+            .listed()
+            .into_iter()
+            .filter(|command| command.owner == crate::registry::Owner::Kernel && command.mutating)
+            .filter(|command| !leaves_the_machine(command))
+            .map(|command| command.name)
+            .collect();
+        assert_eq!(
+            taken_back,
+            ["kernel.redo", "kernel.undo", "settings.mcp.set"],
+            "the kernel's own changes undo takes back"
+        );
+    }
+
     #[test]
     fn the_pins_a_unit_moved_are_read_from_its_notes() {
         let notes = [

@@ -442,7 +442,7 @@ impl<E: Environment> Kernel<E> {
     }
 
     /// The commands `asker` may dispatch now whose resource is known without
-    /// arguments and that need no confirmation, in the registry's order.
+    /// arguments and that are not irreversible, in the registry's order.
     ///
     /// **A probe of the decision point, and nothing else of a dispatch**: each
     /// command whose selector is the realm or a feature and that is not one

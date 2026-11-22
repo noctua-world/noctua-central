@@ -39,9 +39,14 @@
 //! **How it ends**: its input ending is exit 0; an input that cannot be read is
 //! exit 1 (`NC-CLI-0015`), and an output that takes nothing exit 1
 //! (`NC-CLI-0006`); the daemon's connection lost, or MCP switched off under
-//! the session, ends it in the exit that refusal gives. Its outcome's
-//! standard output is always empty: the protocol's answers are the only lines
-//! written there, and why the session ended is said once, on standard error.
+//! the session, ends it in the exit that refusal gives. The daemon also ends
+//! a session whose switch it could not read, with the store's own code, which
+//! a dispatch's refusal can carry while its session stands; this cannot tell
+//! the two apart, so it learns of that ending at its next request to the
+//! daemon, as the connection lost (`NC-IPC-0003`, exit 9), or not at all when
+//! its input ends first (exit 0). Its outcome's standard output is always
+//! empty: the protocol's answers are the only lines written there, and why
+//! the session ended is said once, on standard error.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -271,9 +276,12 @@ fn ended_by(unasked: Option<&Unasked>) -> Result<(), Failure> {
 
 /// Whether `unasked` ends the session.
 ///
-/// **The connection is gone or poisoned**, or the daemon closed it after its
-/// refusal: a value too long to send, an answer of another kind and any other
-/// refusal leave it as it was.
+/// **The connection is gone or poisoned**, or the daemon closed it after
+/// refusing for MCP off: a value too long to send, an answer of another kind
+/// and any other refusal leave it as it was. A switch the daemon could not
+/// read ends the session too, with the store's own code, which this reads as
+/// a refusal that leaves it: that ending is seen at the next request, as the
+/// connection gone.
 fn ends(unasked: &Unasked) -> bool {
     match unasked {
         Unasked::Asking(IpcError::Unsendable { .. }) | Unasked::Unread(_) => false,
@@ -283,10 +291,15 @@ fn ends(unasked: &Unasked) -> bool {
 }
 
 /// Whether the daemon closes a session's connection once `refusal` is
-/// written.
+/// written, as far as its code tells.
 ///
 /// **MCP switched off**, which it reads again before every request a session
-/// makes.
+/// makes. The daemon also closes it after refusing with the store's own code
+/// when it could not read the switch, a code a dispatch's refusal can carry
+/// with the session left open; this cannot tell the two apart, so it learns
+/// of that ending only at its next request to the daemon, as the connection
+/// lost (`NC-IPC-0003`, exit 9), or not at all when its input ends first
+/// (exit 0).
 fn closes(refusal: &Refusal) -> bool {
     refusal.code == ErrorCode::DaemonMcpOff
 }
@@ -2386,6 +2399,61 @@ mod tests {
                 Request::Tools { locale: Locale::En },
             ]
         );
+    }
+
+    /// A switch the daemon could not read ends the session at its next
+    /// request to the daemon, as the connection lost.
+    ///
+    /// **The store's own code reads as a dispatch's refusal**: the call it
+    /// answers is a tool error with that code, the session goes on and a ping
+    /// is answered here, and the next request, the daemon having closed the
+    /// connection after its refusal, is `-32603` with `NC-IPC-0003`, the
+    /// session ending in 9 and the ping after it never read.
+    #[test]
+    fn a_switch_the_daemon_could_not_read_ends_the_session_at_its_next_request_as_the_connection_lost()
+     {
+        let unreadable = refusal(
+            ErrorCode::DbLocalSchemaUnexpected,
+            RefusalKind::Internal,
+            "the entry is not one the kernel wrote",
+        );
+        let (installed, daemon) = daemon(
+            "switch",
+            vec![Answer::Tools(entries()), Answer::Refused(unreadable)],
+        );
+        let input = lines(&[
+            INITIALIZE,
+            LIST,
+            &call(3, r#"{"name":"naming_read","arguments":{"name":"a"}}"#),
+            PING,
+            r#"{"jsonrpc":"2.0","id":4,"method":"tools/list"}"#,
+            PING,
+        ]);
+        let (outcome, kept) = served_on(&installed, &english(), input);
+        assert_eq!(outcome.exit, Exit::Unreachable, "{outcome:?}");
+        let lost = ErrorCode::IpcLost.code();
+        assert!(
+            outcome.stderr.starts_with(&format!("error[{lost}]")),
+            "{outcome:?}"
+        );
+        let frames = kept.frames();
+        assert_eq!(frames.len(), 5, "{frames:?}");
+        let store = ErrorCode::DbLocalSchemaUnexpected.code();
+        assert_eq!(frames[2]["id"], 3);
+        assert_eq!(frames[2]["result"]["isError"], true);
+        assert!(
+            frames[2]["result"]["content"][0]["text"]
+                .as_str()
+                .is_some_and(|text| text.starts_with(&format!("error[{store}]"))),
+            "{}",
+            frames[2]
+        );
+        assert_eq!(frames[3], json!({"jsonrpc":"2.0","id":"p","result":{}}));
+        assert_eq!(frames[4]["id"], 4);
+        assert_eq!(code_of(&frames[4]), Some(-32_603));
+        assert_eq!(frames[4]["error"]["data"]["code"], lost);
+        assert_eq!(frames[4]["error"]["data"]["exit"], 9);
+        assert_eq!(daemon.heard().len(), 3);
     }
 
     /// What ends a session, and what leaves it standing.

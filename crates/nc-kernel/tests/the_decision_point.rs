@@ -297,6 +297,9 @@ enum Mode {
     /// It answers that the principal of this identifier holds no grant: their
     /// authority withdrawn, and every other question as the world says.
     Withholds(String),
+    /// It answers every agent a session names with this delegation, whatever
+    /// the session asked for.
+    Delegates(nc_authz::Delegation),
 }
 
 /// Which of the questions a decision or a session asks a [`Flaky`] directory
@@ -378,7 +381,11 @@ async fn as_told<T>(
     answer: impl Future<Output = Result<T, DirectoryError>>,
 ) -> Result<T, DirectoryError> {
     match mode {
-        Mode::Answers | Mode::Repins { .. } | Mode::Epoch(_) | Mode::Withholds(_) => answer.await,
+        Mode::Answers
+        | Mode::Repins { .. }
+        | Mode::Epoch(_)
+        | Mode::Withholds(_)
+        | Mode::Delegates(_) => answer.await,
         Mode::Fails => Err(DirectoryError::Unavailable(
             "down, as the test made it".to_owned(),
         )),
@@ -436,10 +443,14 @@ impl Directory for Flaky {
         realm: &str,
         agent: &EntityRef,
     ) -> impl Future<Output = Result<Option<nc_authz::Delegation>, DirectoryError>> + Send {
-        as_told(
-            self.mode_of(Call::Delegation),
-            self.inner.delegation(realm, agent),
-        )
+        let mode = self.mode_of(Call::Delegation);
+        let answer = self.inner.delegation(realm, agent);
+        async move {
+            match mode {
+                Mode::Delegates(delegation) => Ok(Some(delegation)),
+                other => as_told(other, answer).await,
+            }
+        }
     }
 
     fn agents(
@@ -8483,6 +8494,52 @@ async fn a_session_is_opened_only_for_an_agent_its_person_made() {
         );
     }
     tokio::time::resume();
+    assert_eq!(
+        fixture.entries().await,
+        [],
+        "opening a session journals nothing"
+    );
+}
+
+/// A session is opened only from an answer for the agent it asked for.
+///
+/// **The directory's answer is held to the question**: a directory that
+/// answers ana's own agent with another agent of hers, or answers a session
+/// asked under ana's own entity with ana herself, each with ana as the
+/// operator, is refused with `[NC-AI-0001]` in the one sentence, as an agent
+/// she did not make is; nothing is opened and nothing is journaled.
+#[tokio::test]
+async fn a_session_is_opened_only_from_an_answer_for_the_agent_it_asked_for() {
+    let (fixture, _) = reference().await;
+    let anas = fixture.agent_of("ana").await;
+    let other = fixture.agent_of("ana").await;
+    assert_ne!(anas, other, "two agents of ana's");
+    let ana = fixture.principal("ana");
+    let another_agent = fixture.session(&other, "ana").await.agent().clone();
+    *fixture.call.lock().expect("nothing panics holding it") = Call::Delegation;
+    for (asked, answered) in [(anas, another_agent), (ana.entity(), ana.clone())] {
+        *fixture.mode.lock().expect("nothing panics holding it") =
+            Mode::Delegates(nc_authz::Delegation {
+                agent: answered.clone(),
+                operator: ana.clone(),
+            });
+        let refused = fixture
+            .kernel
+            .session(&asked, &ana)
+            .await
+            .expect_err("an answer for something else opens nothing");
+        assert_eq!(
+            (refused.kind(), refused.code()),
+            (RefusalKind::NotFound, ErrorCode::AiNoSuchAgent),
+            "{asked:?} answered as {answered:?}"
+        );
+        assert_eq!(
+            refused.sentence(),
+            "no session was opened: no agent the asking person made is held under that \
+             identifier",
+            "{asked:?} answered as {answered:?}"
+        );
+    }
     assert_eq!(
         fixture.entries().await,
         [],

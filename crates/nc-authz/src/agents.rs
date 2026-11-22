@@ -135,11 +135,17 @@ pub struct Unkept {
 /// What a keeper kept, which a directory is opened over.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Records {
-    /// Every agent kept.
+    /// The agents kept: the directory's realm's, and any other realm's, which
+    /// it leaves out.
     pub agents: Vec<AgentRecord>,
-    /// Every grant kept and not ended.
+    /// How many agents are kept, of every realm: what the agents' bound
+    /// counts.
+    pub agents_kept: u64,
+    /// The grants kept and not ended: the directory's realm's, and any other
+    /// realm's, which it leaves out.
     pub live: Vec<GrantRecord>,
-    /// How many grants are kept, ended ones included.
+    /// How many grants are kept, of every realm, ended ones included: what the
+    /// grants' bound counts.
     pub grants_kept: u64,
 }
 
@@ -510,15 +516,17 @@ impl<K: Keeper> LocalDirectory<K> {
     /// The directory over `world` in `realm`, holding what `kept` says was kept.
     ///
     /// Rows of another realm are left out of what it holds, and still count
-    /// against its bounds: the tables are the profile's.
+    /// against its bounds, which are held to the counts `kept` carries of the
+    /// whole tables: the tables are the profile's.
     ///
     /// # Errors
     ///
     /// [`DirectoryError::Malformed`] for what this directory would never have
-    /// written: more rows than its bounds, an agent twice or one it would have
-    /// refused, a grant of an agent `kept` does not hold, one not given by its
-    /// agent's operator, on a scope that is not a feature, with no time to run
-    /// or a reason it would have refused, and two live grants on one scope.
+    /// written: more rows than its bounds, a count below the agents or the
+    /// live grants `kept` holds, an agent twice or one it would have refused,
+    /// a grant of an agent `kept` does not hold, one not given by its agent's
+    /// operator, on a scope that is not a feature, with no time to run or a
+    /// reason it would have refused, and two live grants on one scope.
     pub fn open(
         realm: OpaqueId,
         world: MemoryDirectory,
@@ -527,10 +535,14 @@ impl<K: Keeper> LocalDirectory<K> {
         bounds: Bounds,
     ) -> Result<Self, DirectoryError> {
         let refused = |why: &str| DirectoryError::Malformed(format!("what was kept {why}"));
-        let agents_kept = u64::try_from(kept.agents.len()).unwrap_or(u64::MAX);
+        let agents_kept = kept.agents_kept;
+        let held = u64::try_from(kept.agents.len()).unwrap_or(u64::MAX);
         let live = u64::try_from(kept.live.len()).unwrap_or(u64::MAX);
         if agents_kept > bounds.agents || kept.grants_kept > bounds.grants {
             return Err(refused("holds more rows than its bounds"));
+        }
+        if held > agents_kept {
+            return Err(refused("counts fewer agents than it holds"));
         }
         if live > kept.grants_kept {
             return Err(refused("counts fewer grants than it holds live"));
@@ -1467,6 +1479,7 @@ mod tests {
                 record(for_none, "nobody-the-world-holds"),
                 record(for_ana, "ana"),
             ],
+            agents_kept: 3,
             live: Vec::new(),
             grants_kept: 0,
         };
@@ -2163,7 +2176,10 @@ mod tests {
         let mut records = Records::default();
         for each in kept {
             match each {
-                Kept::Agent(agent) => records.agents.push(agent.clone()),
+                Kept::Agent(agent) => {
+                    records.agents.push(agent.clone());
+                    records.agents_kept += 1;
+                }
                 Kept::Grant { record, ends } => {
                     records.live.retain(|live| Some(live.grant) != *ends);
                     records.live.push(record.clone());
@@ -2210,6 +2226,7 @@ mod tests {
             label: "elsewhere".to_owned(),
             budget: 5,
         });
+        kept.agents_kept += 1;
         (directory, kept, [anas, carlas, elsewhere])
     }
 
@@ -2298,7 +2315,7 @@ mod tests {
             )
             .is_ok()
         );
-        let shapes: [(&str, Shape); 14] = [
+        let shapes: [(&str, Shape); 15] = [
             ("a grant of an agent it does not hold", |records, live| {
                 let mut orphan = live.clone();
                 orphan.agent = orphan.grant;
@@ -2347,6 +2364,10 @@ mod tests {
             ("an agent kept twice", |records, _| {
                 let twice = records.agents[0].clone();
                 records.agents.push(twice);
+                records.agents_kept += 1;
+            }),
+            ("fewer agents counted than are held", |records, _| {
+                records.agents_kept = 0;
             }),
             ("fewer grants counted than are live", |records, _| {
                 records.grants_kept = 0;
@@ -2429,6 +2450,28 @@ mod tests {
                 "{under:?}"
             );
         }
+        // **The count is the keeper's, not the rows it hands over**: one that
+        // reads back its own realm's agents alone, as the profile's database
+        // does, still counts the other realm's against the bound.
+        let mut its_realms = kept.clone();
+        its_realms.agents.retain(|record| record.realm == home);
+        assert_eq!(
+            its_realms.agents.len(),
+            2,
+            "the other realm's agent is left"
+        );
+        let counted = LocalDirectory::open(
+            home.clone(),
+            world(&pdp),
+            its_realms,
+            Recording::default(),
+            at,
+        )
+        .expect("at its bounds");
+        assert_eq!(
+            make(&counted, fourth, &ana).await,
+            Err(ChangeRefused::Full { table: "agents" })
+        );
     }
 
     #[test]

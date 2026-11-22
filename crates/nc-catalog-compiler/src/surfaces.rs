@@ -114,9 +114,9 @@ pub(crate) fn cli(catalog: &Catalog, surfaces: &Surfaces) -> String {
              **A verb is one word and every command's name is dotted**, so the two never \
              meet: a verb is what the CLI does itself rather than a command it dispatches — \
              help, its own channel's daemon started, stopped and asked how it is, the \
-             development checkouts, and `mcp`, which serves an MCP client and dispatches for \
-             it only what its session may — while a command is dispatched by the daemon, \
-             decided and journaled. **Each command \
+             development checkouts, and `mcp`, which serves an MCP client and sends each \
+             call it makes to be decided as its session's agent — while a command is \
+             dispatched by the daemon, decided and journaled. **Each command \
              below is what help prints of it**, in each language the environment can name, \
              laid out by the one function help lays it out with: the CLI's own words in \
              English, the command's texts from its entry. A plugin's commands are not on \

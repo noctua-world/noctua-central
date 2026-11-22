@@ -2632,10 +2632,11 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
 /// agent acting openly as one. The pairing rule cannot pin it — a denial for a
 /// device pairs only with an `allow` for a device, which that permit never
 /// gives — so a case may say `the_principal_is_the_boundary`, and two of them
-/// pin the type test. The naming, finding and switch permits' `principal is
-/// User` is pinned the same way, each beside its verb and the one feature it
-/// names, and so is the agent permits' `principal is Agent`, by a device marked
-/// as acting through an agent.
+/// pin the type test. The `principal is User` of the naming, finding and
+/// switch permits, and of `family.a_member_keeps_their_agents`, is pinned the
+/// same way, each beside its verbs and the one feature it names, and so is the
+/// agent permits' `principal is Agent`, by a device marked as acting through
+/// an agent.
 ///
 /// **The family pack's rules for the decision point.** Their clauses are one
 /// row each in [`PINNED_BY_POLICY`]: the realm's permits pin their verb, their
