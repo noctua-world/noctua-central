@@ -537,10 +537,17 @@ retryable = false
 
 # --- Agent identity (§14.6) ---
 #
-# **Raised by the profile's directory, `nc_authz::LocalDirectory`**, which
-# holds the agents a person makes and refuses, when a change is written, what
-# its data must never hold. Each is the answer to a person's own request, so a
-# `warning`: the platform worked, and nothing retried changes the answer.
+# **Raised where a session opens and where a person's agents change**: the
+# kernel's `session::opened` answers `NC-AI-0001` when a session opens, over
+# whatever directory the kernel holds, and nothing is written then; the
+# profile's directory, `nc_authz::LocalDirectory`, answers each of the three
+# when a change is rehearsed or made, refusing what its data must never hold,
+# and passes on `NC-AI-0003` from its keeper (the daemon's, over the profile's
+# database) as `Unkept` when the table is found at its bound as the row is
+# kept.
+#
+# Each is the answer to a person's own request, so a `warning`: the platform
+# worked, and nothing retried changes the answer.
 
 [[error]]
 # **One code for every agent the asking person did not make, when a session

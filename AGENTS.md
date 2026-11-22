@@ -1357,8 +1357,9 @@ dispatch decided, and journaling nothing;
 agent's step is undone by its person, its own undo finds nothing, and a compensation its
 tree names is refused; `crates/nc-kernel/tests/the_rest_of_the_world.rs`, where an agent's
 timers and events are decided for it and for its person when they come due, spend from its
-session's budget and are never confirmed, its timer's step joins its person's history, and
-the chain a plugin reads is the one the journal records; the unit tests of
+session's budget and are never confirmed, a timer's firing and an event's delivery past
+that budget are each refused by the core's budget rule, its timer's step joins its person's
+history, and the chain a plugin reads is the one the journal records; the unit tests of
 `crates/nc-kernel/src/host/context.rs` and `crates/nc-kernel/src/host/commands.rs`, where an
 agent's tree reads no confirmation and registers no compensation;
 `crates/nc-authz/tests/the_embedded_pack_decides.rs`, which holds the commands
@@ -3061,15 +3062,16 @@ standard input and output as the session of the agent its command line names
   reading of the whole line, so a key written twice or a fraction is a tool error with
   the reader's code, never sent; and arguments that are not one object are a tool error
   (`NC-VAL-0002`), never sent, since the wire closes a connection on them.
-- **Every call that names a command is sent, listed or not.** A name that
-  `nc_schema::entry::command_of_tool` reads back to no command is `-32602 Unknown tool`
-  and never sent; every other call is the agent's dispatch, decided, spent and journaled
-  with the agent and its person. A refusal of a tool the session's last list did not
-  hold, or of a command gone from the registry since, is `-32602 Unknown tool` with no
-  code and no detail, so a denied command and an absent one read alike; a refusal of a
-  listed tool is a tool error with its code, the catalog's message in the session's
-  language and its detail; and the daemon's own refusals are shown as they are, MCP
-  switched off ending the session in its code.
+- **Every call that names a command with object arguments is sent, listed or not.** A
+  name that `nc_schema::entry::command_of_tool` reads back to no command is
+  `-32602 Unknown tool` and never sent; every other call whose line `nc_canon` reads and
+  whose arguments are one object (absent or `null` read as `{}`) is the agent's
+  dispatch, decided, spent and journaled with the agent and its person. A refusal of a
+  tool the session's last list did not hold, or of a command gone from the registry
+  since, is `-32602 Unknown tool` with no code and no detail, so a denied command and an
+  absent one read alike; a refusal of a listed tool is a tool error with its code, the
+  catalog's message in the session's language and its detail; and the daemon's own
+  refusals are shown as they are, MCP switched off ending the session in its code.
 - **What a person cannot see is escaped.** Every answer's canonical text, every
   refusal's detail and every tool's line and paragraph are written with each character
   `nc_schema::unseen` answers for as `\u{…}`, as the CLI prints them; a tool's schema is
@@ -4594,12 +4596,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
   written only by the account the process runs as, the one this bullet does not answer:
   every database the shipped code opens goes through `nc_local`, which holds the directory,
   the file and each companion to this user's alone before SQLite reads them, and the gate's
-- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
-  extension, which the packs use for a grant's validity and the request's `now`.
-  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
-  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
-  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
-  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
   own scratch is a directory `xtask/src/local.rs` makes private and refuses to find.
   `deny.toml` leaves RUSTSEC-2026-0459 out of the audit on that ground until the lock can
   reach `libsqlite3-sys` 0.39. A test suite's scratch directory is one it made itself, with
@@ -4610,6 +4606,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   missing and a companion is then refused, and on Windows the profile's lock file
   (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without bound
   for another open of the profile, so a process stopped mid-open holds every other.
+- **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
+  extension, which the packs use for a grant's validity and the request's `now`.
+  RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit
+  until `cedar-policy-core` moves off `chrono`: what `chrono` parses is what this tree's packs,
+  its world and the kernel's clock give Cedar, and a defect found in it is an advisory of its
+  own id, which the audit still fails on. Not taken: a datetime extension of this tree's own.
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list

@@ -2568,6 +2568,58 @@ async fn an_event_delivered_for_a_session_spends_one_whatever_its_subscribers() 
     );
 }
 
+/// An event delivered past a session's budget is refused by the core, and
+/// heard by nobody.
+///
+/// **The delivery is decided on what the session had spent**: ana's
+/// assistant, holding one, announces an event a plugin subscribed to — its
+/// call is that one — and the delivery, spending one more, is refused by
+/// `core.budget_is_a_permission`, journaled as the agent's for ana, and no
+/// subscriber hears it.
+#[tokio::test]
+async fn an_event_delivered_past_a_sessions_budget_is_refused_by_the_core_and_heard_by_nobody() {
+    let fixture = opened_in(
+        &a_world_where_the_assistant_holds(1),
+        family(),
+        &["ana-assistant"],
+    )
+    .await;
+    let session = fixture.the_assistant().await;
+    fixture
+        .by(
+            &session,
+            "reference.event.announce",
+            &event("reference.counted", &[]),
+        )
+        .await;
+    assert_eq!(session.spent(), 1, "the call that announced it");
+    let pumped = fixture.pump().await;
+    assert_eq!((pumped.delivered, pumped.refused), (0, 1), "{pumped:?}");
+    assert_eq!(session.spent(), 2, "the delivery refused spent too");
+    assert_eq!(
+        fixture.lines_opening(fixture.peer, "heard"),
+        [] as [String; 0]
+    );
+    let entries = fixture.entries().await;
+    assert_eq!(
+        decided(&entries, "reference.event.announce"),
+        [
+            (
+                Outcome::Allowed,
+                "ana-assistant",
+                vec!["ana"],
+                Some(READ_FOR_BOTH)
+            ),
+            (
+                Outcome::Denied,
+                "ana-assistant",
+                vec!["ana"],
+                Some("core.budget_is_a_permission")
+            ),
+        ]
+    );
+}
+
 /// An agent's timer whose operator lost the authority is cancelled, and
 /// journaled with both.
 ///
