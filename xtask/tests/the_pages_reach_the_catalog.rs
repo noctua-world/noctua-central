@@ -430,15 +430,25 @@ const fn counted_over_word(max_rows: Option<u64>, per: Option<Owner>) -> &'stati
 /// `limits.prune` can be undone while the kernel makes every step that ran it a
 /// barrier, and a set with one `write` answer accepts that sentence for every
 /// `write` command alike.
-const REFUSALS: [&str; 3] = [
+///
+/// **And the answer of a `write` command undo takes back whole**, one whose
+/// one effect is the value it writes in its own unit: without it the page
+/// tells a reader that undo stops at MCP's switch, while the person's undo
+/// puts it back as it was.
+const REFUSALS: [&str; 4] = [
     "yes, for what the kernel keeps — its `store` writes and the blobs it made — through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot be undone, with no compensation registered for it, is one undo stops at, and a timer it armed or an event it published stays as it is (§11.5)",
     "no — a step that ran it is one undo stops at (§11.5)",
     "**no**, and a human confirms it each time (§14.6)",
+    "yes — its one effect is the value it writes, which `kernel.undo` puts back as it was and `kernel.redo` writes again (§11.5)",
 ];
 
-/// The two commands a person steps through their history with, which are the
-/// only `write` commands whose step the page may say undo takes back.
+/// The two commands a person steps through their history with, whose step
+/// the page says undo takes back for what the kernel keeps.
 const THE_HISTORY: [&str; 2] = ["kernel.undo", "kernel.redo"];
+
+/// The `write` commands of the kernel's own whose step the page says undo
+/// takes back whole, since their one effect is the value they write.
+const TAKEN_BACK_WHOLE: [&str; 1] = ["settings.mcp.set"];
 
 /// What one command's block on `docs/commands.md` answers to "can it be undone".
 ///
@@ -476,8 +486,12 @@ fn the_undo_answer(block: &str, name: &str) -> String {
 }
 
 /// The word a reversibility is published as, for a command of the history
-/// when `the_history`.
-const fn reversibility_word(reversibility: Reversibility, the_history: bool) -> &'static str {
+/// when `the_history` and for one undo takes back whole when `taken_back_whole`.
+const fn reversibility_word(
+    reversibility: Reversibility,
+    the_history: bool,
+    taken_back_whole: bool,
+) -> &'static str {
     // **The answer, not the registry's word.** The column asks "can it be
     // undone", and `read` / `write` is a permission, not an answer.
     //
@@ -494,6 +508,10 @@ const fn reversibility_word(reversibility: Reversibility, the_history: bool) -> 
              through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot \
              be undone, with no compensation registered for it, is one undo stops at, and a \
              timer it armed or an event it published stays as it is (§11.5)"
+        }
+        Reversibility::Write if taken_back_whole => {
+            "yes — its one effect is the value it writes, which `kernel.undo` puts back as it \
+             was and `kernel.redo` writes again (§11.5)"
         }
         Reversibility::Write => "no — a step that ran it is one undo stops at (§11.5)",
         Reversibility::Irreversible => "**no**, and a human confirms it each time (§14.6)",
@@ -557,7 +575,7 @@ static PROSE: [(&str, &str); 745] = [
     ),
     (
         "cli.md",
-        "**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and dispatches for it only what its session may — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.",
+        "**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.",
     ),
     ("cli.md", "## Usage"),
     ("cli.md", "```text"),
@@ -1738,7 +1756,7 @@ static PROSE: [(&str, &str); 745] = [
     ),
     (
         "mcp-tools.md",
-        "**A session sees only the tools it may dispatch**: a session lists those of these whose resource is known without their arguments, that need no confirmation, and that it may dispatch now, decided when it asks, for the principal it is, as each of its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares its commands at `activate`, so no page lists them, and the daemon's registry holds them while the plugin is loaded (`§15.3`). **`noctua mcp <agent>` serves them**: to an MCP client on its standard input and output, as the agent it names, in the language its environment names, once MCP is switched on in its channel (`§20.3`).",
+        "**A session sees only the tools it may dispatch**: a session lists those of these whose resource is known without their arguments, that are not irreversible, and that it may dispatch now, decided when it asks, for the principal it is, as each of its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a plugin declares its commands at `activate`, so no page lists them, and the daemon's registry holds them while the plugin is loaded (`§15.3`). **`noctua mcp <agent>` serves them**: to an MCP client on its standard input and output, as the agent it names, in the language its environment names, once MCP is switched on in its channel (`§20.3`).",
     ),
     ("mcp-tools.md", "## `agents.create`"),
     ("mcp-tools.md", "In `en`:"),
@@ -2301,6 +2319,7 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
                 nc_catalog::Reversibility::Irreversible => Reversibility::Irreversible,
             },
             THE_HISTORY.contains(&entry.name),
+            TAKEN_BACK_WHOLE.contains(&entry.name),
         );
         assert_eq!(
             published, mirrored,
@@ -2312,14 +2331,31 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
     // The floor: a registry with no mutating command would satisfy the loop by
     // never entering it, and `limits.prune` is one.
     assert!(mutating > 0, "no command in the registry changes state");
-    // **And the command undo stops at, by name, on the page.** The kernel makes
-    // a step that pruned a table a barrier (`leaves_the_machine` in
-    // `crates/nc-kernel/src/history.rs`), and a row saying "yes" there is a
-    // sentence in the set, answered for the wrong command.
-    let pruned = the_undo_answer(section(&page, "limits.prune"), "limits.prune");
+    // **And the commands undo stops at, by name, on the page.** The kernel
+    // makes a step that pruned a table or changed a person's agents a barrier
+    // (`leaves_the_machine` in `crates/nc-kernel/src/history.rs`), and a row
+    // saying "yes" there is a sentence in the set, answered for the wrong
+    // command.
+    for name in [
+        "limits.prune",
+        "agents.create",
+        "agents.grant",
+        "agents.revoke",
+    ] {
+        let stopped_at = the_undo_answer(section(&page, name), name);
+        assert_eq!(
+            stopped_at, REFUSALS[1],
+            "`{name}` is a step undo stops at, and the page answers `{stopped_at}`"
+        );
+    }
+    // **And the switch undo takes back, by name**: the kernel leaves
+    // `settings.mcp.set` out of what leaves the machine, so the person's undo
+    // puts the value back, and a row saying undo stops at it tells a reader
+    // the opposite of what pressing undo does.
+    let switched = the_undo_answer(section(&page, "settings.mcp.set"), "settings.mcp.set");
     assert_eq!(
-        pruned, REFUSALS[1],
-        "`limits.prune` is a step undo stops at, and the page answers `{pruned}`"
+        switched, REFUSALS[3],
+        "`settings.mcp.set` is a step undo takes back, and the page answers `{switched}`"
     );
     for name in THE_HISTORY {
         let answered = the_undo_answer(section(&page, name), name);
@@ -2790,6 +2826,7 @@ fn every_command_is_published_with_what_a_dispatcher_decides_on() {
                 reversibility_word(
                     entry.reversibility,
                     THE_HISTORY.contains(&entry.name.as_str()),
+                    TAKEN_BACK_WHOLE.contains(&entry.name.as_str()),
                 )
                 .to_owned(),
             ),
@@ -3223,7 +3260,7 @@ fn the_mcp_page_projects_every_command_as_a_tool_and_says_what_a_session_sees() 
          is true exactly when the command changes nothing. Each is written once for each \
          locale, by the one function the MCP server lists its tools with.\n\n",
         "\n\n**A session sees only the tools it may dispatch**: a session lists those of these \
-         whose resource is known without their arguments, that need no confirmation, and that \
+         whose resource is known without their arguments, that are not irreversible, and that \
          it may dispatch now, decided when it asks, for the principal it is, as each of its \
          calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: a \
          plugin declares its commands at `activate`, so no page lists them, and the daemon's \
@@ -4783,7 +4820,7 @@ fn every_variant_is_published_as_the_word_it_names() {
         Reversibility::Write,
         Reversibility::Irreversible,
     ] {
-        for the_history in [false, true] {
+        for (the_history, taken_back_whole) in [(false, false), (true, false), (false, true)] {
             let meant = match reversibility {
                 Reversibility::Read => "nothing to undo — it changes nothing",
                 Reversibility::Write if the_history => {
@@ -4792,14 +4829,18 @@ fn every_variant_is_published_as_the_word_it_names() {
                      cannot be undone, with no compensation registered for it, is one undo stops \
                      at, and a timer it armed or an event it published stays as it is (§11.5)"
                 }
+                Reversibility::Write if taken_back_whole => {
+                    "yes — its one effect is the value it writes, which `kernel.undo` puts back \
+                     as it was and `kernel.redo` writes again (§11.5)"
+                }
                 Reversibility::Write => "no — a step that ran it is one undo stops at (§11.5)",
                 Reversibility::Irreversible => "**no**, and a human confirms it each time (§14.6)",
             };
             assert_eq!(
-                reversibility_word(reversibility, the_history),
+                reversibility_word(reversibility, the_history, taken_back_whole),
                 meant,
                 "`{reversibility:?}` is published as `{}`",
-                reversibility_word(reversibility, the_history)
+                reversibility_word(reversibility, the_history, taken_back_whole)
             );
         }
     }
@@ -4844,7 +4885,7 @@ fn every_variant_is_published_as_the_word_it_names() {
     // *declared* command, which is what leaves the third variant out. A command
     // a human must confirm each time is not one this repository can undo,
     // whether or not the registry declares one today.
-    let published = reversibility_word(Reversibility::Irreversible, false);
+    let published = reversibility_word(Reversibility::Irreversible, false, false);
     assert!(
         REFUSALS.contains(&published),
         "an irreversible command would be published as `{published}`, which is not one \

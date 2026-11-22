@@ -479,9 +479,10 @@ mark_lease_ms = 2_000
 # much at once. At least the kernel's `payload_bytes` and 64 KiB more, which
 # the compiler holds it to: a dispatch's arguments and its answer are each one
 # payload (`agents.list`'s answer apart, which a test in
-# `crates/nc-kernel/src/agents.rs` holds within one frame), carried inside a
-# frame with its type, a command's name or a refusal's code and sentence around
-# it, so a payload the kernel accepts always fits one frame.
+# `crates/nc-kernel/src/agents.rs` holds within one frame for the features the
+# shipped world holds), carried inside a frame with its type, a command's name
+# or a refusal's code and sentence around it, so a payload the kernel accepts
+# always fits one frame.
 ipc_frame_max_bytes = 2_097_152
 # How long a connection has to prove it holds the channel's token, from the
 # daemon's challenge to its welcome; one that has not finished by then is

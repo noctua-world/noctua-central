@@ -543,10 +543,13 @@ retryable = false
 # `warning`: the platform worked, and nothing retried changes the answer.
 
 [[error]]
-# **One code for every agent the asking person did not make**, so a caller
-# cannot tell another person's agent from none: each sentence reads true for
-# an identifier nothing holds, for another person's agent, and for one whose
-# operator is not a person, and never says whether the agent exists.
+# **One code for every agent the asking person did not make, when a session
+# opens**: opening one answers it, in one sentence, for an identifier nothing
+# holds, for another person's agent and for one whose operator is not a
+# person, so the opening cannot tell them apart, and each sentence reads true
+# for all three and never says whether the agent exists. `agents.grant` and
+# `agents.revoke` answer it only for an identifier no agent is held under;
+# another person's agent there is `NC-AI-0002`.
 code = "NC-AI-0001"
 description = "An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
 message = "error.ai.no-such-agent"
@@ -1467,8 +1470,8 @@ retryable = false
 
 [[error]]
 # Off until a person switches it on (`settings.mcp.set`), read when a session
-# opens and before each of its requests; a session that finds it off is ended
-# with its connection.
+# opens and, while the kernel runs, before each of its requests, whatever it
+# asks; a session that finds it off is ended with its connection.
 code = "NC-DMN-0014"
 description = "MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended"
 message = "error.daemon.mcp-off"

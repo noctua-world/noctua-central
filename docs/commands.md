@@ -281,7 +281,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Write` |
 | Resource selector | `feature:mcp` |
 | Mutating | yes |
-| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Can it be undone | yes — its one effect is the value it writes, which `kernel.undo` puts back as it was and `kernel.redo` writes again (§11.5) |
 | Categories | `noctua.settings` |
 | Glyph | `U+F205` |
 

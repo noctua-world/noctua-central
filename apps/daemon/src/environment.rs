@@ -121,7 +121,9 @@ fn unkept(refused: &nc_local::KeepError) -> nc_authz::Unkept {
 /// What the database keeps of a realm's agents, as the directory reads it.
 ///
 /// A grant's scope is the type and the identifier the row holds, which the
-/// directory judges as it opens; nothing here judges a row.
+/// directory judges as it opens; nothing here judges a row. The counts are
+/// the whole tables', every realm's rows among them, which is what each bound
+/// counts.
 fn records(kept: nc_local::AgentsKept) -> nc_authz::Records {
     nc_authz::Records {
         agents: kept
@@ -135,6 +137,7 @@ fn records(kept: nc_local::AgentsKept) -> nc_authz::Records {
                 budget: row.budget,
             })
             .collect(),
+        agents_kept: kept.agents_kept,
         live: kept
             .live
             .into_iter()
@@ -657,6 +660,62 @@ mod tests {
             "every grant given is kept, the ended ones among them, a replaced one ended where \
              its replacement begins and an ending when it was asked, each by its asker"
         );
+        store.close().await;
+    }
+
+    /// Another realm's agents count against the agents' bound.
+    ///
+    /// **The bound is the whole table's**: with as many agents kept in another
+    /// realm as `[tables.agents]` allows, a directory opened over this realm
+    /// refuses one more agent as it rehearses the change, before anything
+    /// could be journaled, refuses it again as it would make it, and the
+    /// database keeps nothing more.
+    #[tokio::test]
+    async fn another_realms_agents_count_against_the_agents_bound() {
+        use nc_authz::Directory as _;
+
+        let scratch = Scratch::new("bound");
+        let data = scratch.0.join("data");
+        nc_platform::create_private_directory(&data).expect("a data directory");
+        let store = nc_local::LocalStore::open(&data)
+            .await
+            .expect("the database opens");
+        let world = the_world();
+        let home = world.realm_id("home").expect("home is a realm");
+        let elsewhere = nc_ids::OpaqueId::of_device_key(&[9; 32]);
+        let ana = world
+            .principal(nc_authz::PrincipalKind::User, "ana")
+            .expect("ana is a person of the world");
+        let mut minter = nc_ids::Minter::new(
+            nc_ids::MachineFlake::from_value(5).expect("a flake"),
+            nc_ids::SystemClock,
+        );
+        let agents = store.agents();
+        let bound = super::bounds().agents;
+        for _ in 0..bound {
+            agents
+                .keep_agent(&nc_local::AgentRow {
+                    agent: minter.mint().expect("an identifier"),
+                    realm: elsewhere.clone(),
+                    operator: ana.id().clone(),
+                    label: "elsewhere".to_owned(),
+                    budget: 1,
+                })
+                .await
+                .expect("kept");
+        }
+        let directory = kept_in(&store, &home).await;
+        let one_more = nc_authz::Change::Make {
+            agent: minter.mint().expect("an identifier"),
+            operator: ana.clone(),
+            label: "one more".to_owned(),
+            budget: 1,
+        };
+        let full = Err(nc_authz::ChangeRefused::Full { table: "agents" });
+        assert_eq!(directory.rehearse(home.as_str(), &one_more).await, full);
+        assert_eq!(directory.change(home.as_str(), &one_more).await, full);
+        let kept = agents.kept(&home).await.expect("the agents are read");
+        assert_eq!((kept.agents.len(), kept.agents_kept), (0, bound));
         store.close().await;
     }
 

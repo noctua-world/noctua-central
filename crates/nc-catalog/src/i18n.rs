@@ -2640,8 +2640,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.daemon.mcp-off",
         [
-            "MCP is off in this Noctua installation, so the MCP client was not let in. A person switches it on in Noctua's settings.",
-            "O MCP está desligado nesta instalação do Noctua, então o cliente MCP não foi admitido. Uma pessoa o liga nas configurações do Noctua.",
+            "MCP is off in this Noctua installation, so the MCP client was not let in, or was let go. A person switches it on in Noctua's settings.",
+            "O MCP está desligado nesta instalação do Noctua, então o cliente MCP não foi admitido, ou foi desconectado. Uma pessoa o liga nas configurações do Noctua.",
         ],
     ),
     (

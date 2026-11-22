@@ -271,13 +271,16 @@ const fn what_a_lockout_does(
 /// `write` command is published as one undo takes back, `limits.prune` with
 /// them, while the kernel makes a step that ran it one undo stops at: `the_history` — whether
 /// the command is one of [`THE_HISTORY`] — is what tells a step undo takes
-/// back from one it does not.
+/// back from one it does not, and `taken_back_whole` — whether it is one of
+/// [`TAKEN_BACK_WHOLE`] — tells a command whose one effect undo puts back from
+/// one undo stops at.
 ///
 /// `const fn`, which is what the type wall asks of a function handing back a
 /// `&'static str`.
 const fn what_undoing_costs(
     reversibility: crate::model::Reversibility,
     the_history: bool,
+    taken_back_whole: bool,
 ) -> &'static str {
     // **The answer, not the registry's word, and no more of it than is true.**
     // `kernel.undo` takes back what a unit kept in the store and the blobs it
@@ -298,6 +301,10 @@ const fn what_undoing_costs(
              be undone, with no compensation registered for it, is one undo stops at, and a \
              timer it armed or an event it published stays as it is (§11.5)"
         }
+        crate::model::Reversibility::Write if taken_back_whole => {
+            "yes — its one effect is the value it writes, which `kernel.undo` puts back as it \
+             was and `kernel.redo` writes again (§11.5)"
+        }
         crate::model::Reversibility::Write => {
             "no — a step that ran it is one undo stops at (§11.5)"
         }
@@ -307,16 +314,27 @@ const fn what_undoing_costs(
     }
 }
 
-/// The two commands a person steps through their own history with, which
-/// are the only `write` commands of the registry whose step undo takes back.
+/// The two commands a person steps through their own history with, whose
+/// step undo takes back for what the kernel keeps.
 ///
 /// Every other `write` command the registry declares is one the kernel runs
 /// on the realm itself (`catalog/commands.toml`'s header), and the kernel
 /// makes a step that ran one a barrier (`crates/nc-kernel/src/history.rs`,
-/// `leaves_the_machine`). One the registry described for a plugin to
-/// implement would be published as a barrier too, which says less than is
-/// true rather than more.
+/// `leaves_the_machine`), but for those of [`TAKEN_BACK_WHOLE`]. One the
+/// registry described for a plugin to implement would be published as a
+/// barrier too, which says less than is true rather than more.
 const THE_HISTORY: [&str; 2] = ["kernel.undo", "kernel.redo"];
+
+/// The `write` commands of the kernel's own whose one effect is the value
+/// they write, in their own unit, so undo takes their step back whole.
+///
+/// The kernel leaves a setting's switch out of what leaves the machine
+/// (`crates/nc-kernel/src/history.rs`, `leaves_the_machine`), so the person's
+/// undo puts the value back and reaches the steps before it, and their redo
+/// writes it again. A test beside `leaves_the_machine` holds the kernel's own
+/// changes undo takes back to these and [`THE_HISTORY`], so the page and the
+/// kernel cannot part unseen.
+const TAKEN_BACK_WHOLE: [&str; 1] = ["settings.mcp.set"];
 
 /// A byte count as a reader would write it, with the exact number beside it.
 ///
@@ -1145,7 +1163,8 @@ fn commands(catalog: &Catalog) -> String {
             // not about reversal.
             what_undoing_costs(
                 entry.reversibility,
-                THE_HISTORY.contains(&entry.name.as_str())
+                THE_HISTORY.contains(&entry.name.as_str()),
+                TAKEN_BACK_WHOLE.contains(&entry.name.as_str())
             ),
             // **A row only when there is one.** No command declares a binding,
             // so `Keybindings | — |` on every row of this page would be a column
@@ -1540,7 +1559,7 @@ fn mcp_tools(catalog: &Catalog) -> String {
          is written once for each locale, by the one function the MCP server lists its tools \
          with.\n\n\
          **A session sees only the tools it may dispatch**: a session lists those of these \
-         whose resource is known without their arguments, that need no confirmation, and \
+         whose resource is known without their arguments, that are not irreversible, and \
          that it may dispatch now, decided when it asks, for the principal it is, as each of \
          its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: \
          a plugin declares its commands at `activate`, so no page lists them, and the \
@@ -1766,8 +1785,9 @@ mod tests {
     ///
     /// Exhaustive, so a variant added to `Reversibility` is a compile error
     /// here rather than a row that quietly stops being checked — and asked of
-    /// a command of the history and of one that is not, since a `write`
-    /// command the kernel runs on the realm itself is one undo stops at.
+    /// a command of the history, of one whose one effect is its own value and
+    /// of one that is neither, since a `write` command the kernel runs on the
+    /// realm itself is one undo stops at.
     #[test]
     fn every_reversibility_publishes_the_answer_it_means() {
         use crate::model::Reversibility;
@@ -1777,7 +1797,7 @@ mod tests {
             Reversibility::Write,
             Reversibility::Irreversible,
         ] {
-            for the_history in [false, true] {
+            for (the_history, taken_back_whole) in [(false, false), (true, false), (false, true)] {
                 let meant = match reversibility {
                     Reversibility::Read => "nothing to undo — it changes nothing",
                     Reversibility::Write if the_history => {
@@ -1787,16 +1807,20 @@ mod tests {
                          is one undo stops at, and a timer it armed or an event it published \
                          stays as it is (§11.5)"
                     }
+                    Reversibility::Write if taken_back_whole => {
+                        "yes — its one effect is the value it writes, which `kernel.undo` puts \
+                         back as it was and `kernel.redo` writes again (§11.5)"
+                    }
                     Reversibility::Write => "no — a step that ran it is one undo stops at (§11.5)",
                     Reversibility::Irreversible => {
                         "**no**, and a human confirms it each time (§14.6)"
                     }
                 };
                 assert_eq!(
-                    what_undoing_costs(reversibility, the_history),
+                    what_undoing_costs(reversibility, the_history, taken_back_whole),
                     meant,
                     "`{reversibility:?}` is published as `{}`",
-                    what_undoing_costs(reversibility, the_history)
+                    what_undoing_costs(reversibility, the_history, taken_back_whole)
                 );
             }
         }
@@ -1806,8 +1830,8 @@ mod tests {
         // runs on the realm itself can be published as one this repository can
         // undo.
         for published in [
-            what_undoing_costs(Reversibility::Irreversible, false),
-            what_undoing_costs(Reversibility::Write, false),
+            what_undoing_costs(Reversibility::Irreversible, false, false),
+            what_undoing_costs(Reversibility::Write, false, false),
         ] {
             assert!(
                 !published.contains("yes"),
@@ -1821,6 +1845,7 @@ mod tests {
             );
         }
         assert_eq!(super::THE_HISTORY, ["kernel.undo", "kernel.redo"]);
+        assert_eq!(super::TAKEN_BACK_WHOLE, ["settings.mcp.set"]);
     }
 
     #[test]

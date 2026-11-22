@@ -267,8 +267,8 @@ pub fn is_a_trigger_refusal(error: &sqlx::Error) -> bool {
 /// here only for an identifier the file holds already or a second live grant
 /// on one scope, which the minter and the caller never ask of it, and any
 /// other trigger is not one it installed. Anything that is not a database
-/// error at all — a pool
-/// timeout, a worker that went away — is the database not answering.
+/// error at all — a pool timeout, a worker that went away — is the database
+/// not answering.
 ///
 /// **`SQLITE_READONLY` is a file this process may not write**, which is a
 /// read-only mount or a mode changed under an open store — the filesystem's

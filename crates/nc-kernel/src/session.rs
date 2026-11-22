@@ -15,7 +15,8 @@
 //! caller, no message and no argument names an operator or a link. A session
 //! is opened only for an agent its asking person made, and an agent held for
 //! another person, one held for no person and one never made are refused in
-//! one sentence and one code, so the caller cannot tell them apart.
+//! one sentence and one code, so the caller cannot tell them apart from that
+//! answer.
 //!
 //! **An agent holds nothing the kernel issues.** A session has no slot for a
 //! confirmation or an approval; and an agent named without a session acts

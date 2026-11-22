@@ -851,8 +851,9 @@ fn check_daemon_ipc(
                 daemon.ipc_frame_max_bytes, kernel.payload_bytes
             ),
             "a dispatch's arguments and its answer are each one payload (`agents.list`'s \
-             answer apart, which a test holds within one frame), carried inside a frame \
-             with its type and a command's name or a refusal's sentence around it, so \
+             answer apart, which a test holds within one frame for the features the shipped \
+             world holds), carried inside a frame with its type and a command's name or a \
+             refusal's sentence around it, so \
              a frame smaller than both together refuses a dispatch the kernel would accept. \
              Make `ipc_frame_max_bytes` at least `payload_bytes` and 64 KiB more",
             "ipc-frame-below-a-payload",

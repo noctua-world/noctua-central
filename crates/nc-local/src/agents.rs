@@ -127,6 +127,9 @@ pub struct AgentsKept {
     /// The realm's agents, in the order of their identifiers, which is the
     /// order the minter gave them in.
     pub agents: Vec<AgentRow>,
+    /// How many agents the file holds, of every realm, which is what its
+    /// bound counts.
+    pub agents_kept: u64,
     /// The realm's grants not ended, in the order of their identifiers — the
     /// ones past their end among them, which the decision point refuses.
     pub live: Vec<GrantRow>,
@@ -200,11 +203,11 @@ impl LocalAgents {
         }
     }
 
-    /// Every agent of `realm`, its grants not ended, and how many grants the
-    /// file holds.
+    /// Every agent of `realm`, its grants not ended, and how many agents and
+    /// grants the file holds.
     ///
-    /// **One snapshot**: the three reads are one transaction, so no write
-    /// lands between a grant and the count that holds it.
+    /// **One snapshot**: the four reads are one transaction, so no write
+    /// lands between a row and the count that holds it.
     ///
     /// # Errors
     ///
@@ -228,6 +231,10 @@ impl LocalAgents {
         .iter()
         .map(agent_row)
         .collect::<Result<Vec<_>, _>>()?;
+        let agents_kept: i64 = sqlx::query_scalar("SELECT count(*) FROM main.agents")
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|error| said("counting the agents", &error))?;
         let live = sqlx::query(
             "SELECT grant_id, agent, realm, scope_type, scope_id, granted_by, reason, \
              valid_from, valid_until FROM main.agent_grants \
@@ -250,6 +257,7 @@ impl LocalAgents {
             .map_err(|error| said("finishing reading the agents", &error))?;
         Ok(AgentsKept {
             agents,
+            agents_kept: as_unsigned(agents_kept, "a count of agents")?,
             live,
             grants_kept: as_unsigned(grants_kept, "a count of grants")?,
         })
@@ -676,7 +684,8 @@ mod tests {
     /// Agents and grants read back as they were kept.
     ///
     /// The realm's agents and its grants not ended, each in the order of the
-    /// identifiers the minter gave, and every grant of the file counted.
+    /// identifiers the minter gave, and every agent and every grant of the
+    /// file counted.
     #[tokio::test]
     async fn an_agent_and_its_grants_read_back_as_they_were_kept() {
         let (store, agents) = agents().await;
@@ -706,6 +715,7 @@ mod tests {
             agents.kept(&id("home")).await.expect("read"),
             AgentsKept {
                 agents: vec![second, first],
+                agents_kept: 3,
                 live: vec![naming, finding],
                 grants_kept: 4,
             }
@@ -714,6 +724,7 @@ mod tests {
             agents.kept(&id("work")).await.expect("read"),
             AgentsKept {
                 agents: vec![abroad],
+                agents_kept: 3,
                 live: vec![elsewhere],
                 grants_kept: 4,
             }
@@ -722,6 +733,7 @@ mod tests {
             agents.kept(&id("elsewhere")).await.expect("read"),
             AgentsKept {
                 agents: Vec::new(),
+                agents_kept: 3,
                 live: Vec::new(),
                 grants_kept: 4,
             }
