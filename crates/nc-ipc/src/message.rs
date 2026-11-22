@@ -358,7 +358,8 @@ impl State {
 /// What a client asks the daemon, one at a time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
-    /// Run a command with these arguments, as the profile's person.
+    /// Run a command with these arguments, as the connection's principal: the
+    /// profile's person, or the agent of the session the connection opened.
     Dispatch {
         /// The command's registered name.
         command: String,
@@ -375,10 +376,62 @@ pub enum Request {
         /// The locale the texts are resolved in.
         locale: Locale,
     },
+    /// The commands the connection's principal may dispatch now, each one's
+    /// texts in `locale`, as one registry entry each: a session's tools.
+    Tools {
+        /// The locale the texts are resolved in, named as a registry
+        /// request names it.
+        locale: Locale,
+    },
+    /// Act, from its answer on, as the agent `agent` names: one the profile's
+    /// person made.
+    ///
+    /// **Read strictly**: the identifier is the text `to_crockford` writes
+    /// for it and no other — not in lower case, not with a digit Crockford
+    /// reads as another, not with a leading zero — so one agent has one
+    /// spelling on the wire, and the message holds that field alone.
+    Session {
+        /// The agent, as the profile's minter gave it.
+        agent: nc_ids::Snowflake,
+    },
     /// What the daemon is and where its start is.
     Status,
     /// Stop.
     Stop,
+}
+
+/// The locale a request's `locale` field names, by its exact tag.
+///
+/// **One reading for every request that names one**, so the registry and the
+/// tools are asked in the same spelling, and a tag this build ships no locale
+/// for — `pt-br` among them — is malformed.
+fn locale_of(fields: &mut Fields) -> Result<Locale, IpcError> {
+    let tag = fields.text("locale")?;
+    Locale::ALL
+        .iter()
+        .copied()
+        .find(|locale| locale.tag() == tag)
+        .ok_or_else(|| {
+            malformed(format!(
+                "a `{}` message naming `{}`, a locale this build does not ship",
+                fields.kind,
+                tag.escape_debug()
+            ))
+        })
+}
+
+/// The agent a session request names, read back only as it is written.
+fn agent_of(fields: &mut Fields) -> Result<nc_ids::Snowflake, IpcError> {
+    let text = fields.text("agent")?;
+    nc_ids::Snowflake::from_crockford(&text)
+        .ok()
+        .filter(|agent| agent.to_crockford() == text)
+        .ok_or_else(|| {
+            malformed(format!(
+                "a `session` message naming `{}`, which is not an identifier as one is written",
+                text.escape_debug()
+            ))
+        })
 }
 
 impl Request {
@@ -395,6 +448,11 @@ impl Request {
             Self::Registry { locale } => {
                 message("registry", vec![("locale", Value::text(locale.tag()))])
             }
+            Self::Tools { locale } => message("tools", vec![("locale", Value::text(locale.tag()))]),
+            Self::Session { agent } => message(
+                "session",
+                vec![("agent", Value::text(agent.to_crockford()))],
+            ),
             Self::Status => message("status", Vec::new()),
             Self::Stop => message("stop", Vec::new()),
         }
@@ -408,22 +466,15 @@ impl Request {
                 command: fields.text("command")?,
                 args: fields.object("args")?,
             },
-            "registry" => {
-                let tag = fields.text("locale")?;
-                Self::Registry {
-                    locale: Locale::ALL
-                        .iter()
-                        .copied()
-                        .find(|locale| locale.tag() == tag)
-                        .ok_or_else(|| {
-                            malformed(format!(
-                                "a `registry` message naming `{}`, a locale this build does not \
-                                 ship",
-                                tag.escape_debug()
-                            ))
-                        })?,
-                }
-            }
+            "registry" => Self::Registry {
+                locale: locale_of(&mut fields)?,
+            },
+            "tools" => Self::Tools {
+                locale: locale_of(&mut fields)?,
+            },
+            "session" => Self::Session {
+                agent: agent_of(&mut fields)?,
+            },
             "status" => Self::Status,
             "stop" => Self::Stop,
             other => {
@@ -510,6 +561,12 @@ pub enum Answer {
     Refused(Refusal),
     /// The commands the registry holds, one object each.
     Registry(Vec<Value>),
+    /// The commands the connection's principal may dispatch now, one object
+    /// each, as the registry's are.
+    Tools(Vec<Value>),
+    /// The session asked for opened: from now on, the connection is its
+    /// agent's.
+    Session,
     /// The daemon's status, as one object.
     Status(Value),
     /// The daemon is stopping.
@@ -533,6 +590,10 @@ impl Answer {
                 "registry",
                 vec![("commands", Value::Array(commands.clone()))],
             ),
+            Self::Tools(commands) => {
+                message("tools", vec![("commands", Value::Array(commands.clone()))])
+            }
+            Self::Session => message("session", Vec::new()),
             Self::Status(status) => message("status", vec![("status", status.clone())]),
             Self::Stopping => message("stopping", Vec::new()),
         }
@@ -566,6 +627,13 @@ impl Answer {
                     .into_array()
                     .ok_or_else(|| malformed("a registry whose commands are not a list"))?,
             ),
+            "tools" => Self::Tools(
+                fields
+                    .value("commands")?
+                    .into_array()
+                    .ok_or_else(|| malformed("a list of tools whose commands are not a list"))?,
+            ),
+            "session" => Self::Session,
             "status" => Self::Status(fields.object("status")?),
             "stopping" => Self::Stopping,
             other => {
@@ -584,12 +652,200 @@ mod tests {
     use nc_canon::Value;
     use nc_catalog::Locale;
 
-    use super::{Request, message};
+    use super::{Answer, Request, message};
     use crate::IpcError;
 
     /// What a registry request written as `fields` is read back as.
     fn read(fields: Vec<(&str, Value)>) -> Result<Request, IpcError> {
         Request::from_value(message("registry", fields))
+    }
+
+    /// That `read` is refused as malformed, in a sentence holding `says`.
+    fn refused_saying<T: core::fmt::Debug>(read: Result<T, IpcError>, says: &str, what: &str) {
+        match read {
+            Err(refused @ IpcError::Malformed(_)) => {
+                assert!(refused.to_string().contains(says), "{what}: {refused}");
+            }
+            other => panic!("{what} was read as {other:?}"),
+        }
+    }
+
+    /// An identifier as the profile's minter gives one: twelve characters,
+    /// as every one minted before about 2034 is written.
+    fn minted() -> nc_ids::Snowflake {
+        let flake = nc_ids::MachineFlake::from_value(1).expect("a flake");
+        nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+    }
+
+    /// A session request names one agent, by the one spelling a minted
+    /// identifier has.
+    ///
+    /// **Read back only as `to_crockford` writes it**: the twelve characters
+    /// it writes are read back as the same agent, and the same value written
+    /// in lower case, with a leading zero — thirteen characters that do not
+    /// write back as read — eleven or fourteen characters, or not as text at
+    /// all is refused as malformed, and so is a session request holding any
+    /// field beside its agent, or none.
+    #[test]
+    fn a_session_request_names_one_agent_by_the_one_spelling_a_minted_identifier_has() {
+        let agent = minted();
+        let written = agent.to_crockford();
+        assert_eq!(written.len(), nc_ids::base32::MIN_WIDTH, "{written}");
+        let request = Request::Session { agent };
+        assert_eq!(
+            request.to_value().to_canonical(),
+            format!("{{\"agent\":\"{written}\",\"type\":\"session\"}}")
+        );
+        assert_eq!(
+            Request::from_value(request.to_value()).expect("read back"),
+            request
+        );
+        let session = |fields: Vec<(&str, Value)>| Request::from_value(message("session", fields));
+        let not_as_written = "which is not an identifier as one is written";
+        for (text, what) in [
+            (written.to_lowercase(), "in lower case"),
+            (format!("0{written}"), "with a leading zero"),
+            (written[1..].to_owned(), "eleven characters"),
+            (format!("{written}00"), "fourteen characters"),
+            (String::new(), "empty"),
+        ] {
+            refused_saying(
+                session(vec![("agent", Value::text(text.as_str()))]),
+                not_as_written,
+                what,
+            );
+        }
+        refused_saying(
+            session(vec![("agent", Value::Integer(1))]),
+            "a `session` message whose `agent` is not text",
+            "an integer",
+        );
+        refused_saying(
+            session(Vec::new()),
+            "a `session` message with no `agent`",
+            "no agent",
+        );
+        for field in ["name", "confirmed"] {
+            refused_saying(
+                session(vec![
+                    ("agent", Value::text(written.as_str())),
+                    (field, Value::Bool(true)),
+                ]),
+                &format!("a field the protocol does not read, `{field}`"),
+                field,
+            );
+        }
+        // The answer names nothing: the session opened, or a refusal.
+        assert_eq!(
+            Answer::Session.to_value().to_canonical(),
+            "{\"type\":\"session\"}"
+        );
+        assert_eq!(
+            Answer::from_value(Answer::Session.to_value()).expect("read back"),
+            Answer::Session
+        );
+        refused_saying(
+            Answer::from_value(message("session", vec![("agent", Value::text(written))])),
+            "a field the protocol does not read, `agent`",
+            "a session answer naming an agent",
+        );
+    }
+
+    /// A tools request names its locale as a registry request does, and its
+    /// answer is a list as the registry's is.
+    ///
+    /// **One reading of a locale for both**: each locale this build ships is
+    /// read back as written, and `pt-br`, none, or an integer is refused.
+    #[test]
+    fn a_tools_request_names_its_locale_as_a_registry_request_does() {
+        for &locale in Locale::ALL {
+            let request = Request::Tools { locale };
+            assert_eq!(
+                request.to_value().to_canonical(),
+                format!("{{\"locale\":\"{}\",\"type\":\"tools\"}}", locale.tag())
+            );
+            assert_eq!(
+                Request::from_value(request.to_value()).expect("read back"),
+                request
+            );
+        }
+        let tools = |fields: Vec<(&str, Value)>| Request::from_value(message("tools", fields));
+        for (fields, says) in [
+            (
+                vec![("locale", Value::text("pt-br"))],
+                "a `tools` message naming `pt-br`, a locale this build does not ship",
+            ),
+            (Vec::new(), "a `tools` message with no `locale`"),
+            (
+                vec![("locale", Value::Integer(1))],
+                "a `tools` message whose `locale` is not text",
+            ),
+        ] {
+            refused_saying(tools(fields.clone()), says, &format!("{fields:?}"));
+        }
+        let answer = Answer::Tools(vec![Value::object([("name", Value::text("naming.read"))])]);
+        assert_eq!(
+            answer.to_value().to_canonical(),
+            "{\"commands\":[{\"name\":\"naming.read\"}],\"type\":\"tools\"}"
+        );
+        assert_eq!(
+            Answer::from_value(answer.to_value()).expect("read back"),
+            answer
+        );
+        refused_saying(
+            Answer::from_value(message("tools", vec![("commands", Value::Integer(1))])),
+            "a list of tools whose commands are not a list",
+            "tools that are not a list",
+        );
+    }
+
+    /// No request the wire reads carries a confirmation.
+    ///
+    /// **Nothing a client writes beside a dispatch is read**: a dispatch
+    /// holding a `confirmation`, a `confirmed_by_human` or an `approval` is
+    /// refused as malformed, whatever it holds, so no client presents one; and
+    /// every request is one of these, none of which holds anything a
+    /// confirmation could be.
+    #[test]
+    fn no_request_the_wire_reads_carries_a_confirmation() {
+        for request in [
+            Request::Dispatch {
+                command: "naming.read".to_owned(),
+                args: Value::object::<&str>([]),
+            },
+            Request::Registry { locale: Locale::En },
+            Request::Tools { locale: Locale::En },
+            Request::Session { agent: minted() },
+            Request::Status,
+            Request::Stop,
+        ] {
+            // Exhaustive and with no wildcard: a request added here is read
+            // for what it carries before it compiles.
+            let carries = match &request {
+                Request::Dispatch { .. } => "a command and its arguments",
+                Request::Registry { .. } | Request::Tools { .. } => "a locale",
+                Request::Session { .. } => "an agent",
+                Request::Status | Request::Stop => "nothing",
+            };
+            let read = Request::from_value(request.to_value()).expect("read back");
+            assert_eq!(read, request, "{carries}");
+        }
+        for field in ["confirmation", "confirmed_by_human", "approval"] {
+            refused_saying(
+                Request::from_value(message(
+                    "dispatch",
+                    vec![
+                        ("command", Value::text("naming.read")),
+                        ("args", Value::object::<&str>([])),
+                        (field, Value::Bool(true)),
+                    ],
+                )),
+                &format!("a field the protocol does not read, `{field}`"),
+                field,
+            );
+        }
     }
 
     /// A registry request names its locale, read back as written, and one

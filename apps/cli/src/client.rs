@@ -26,7 +26,10 @@
 //!    user, as both ends' peer checks require, which is the process below.
 //!
 //! Only then is a request sent, one at a time; an answer of another kind than
-//! the request's is refused (`NC-CLI-0005`).
+//! the request's is refused (`NC-CLI-0005`). A connection that opens an
+//! agent's session ([`session`]) is that agent's from the daemon's answer on:
+//! the daemon decides each of its dispatches as the agent, for the person who
+//! made it, and answers it nothing but its tools and its dispatches.
 //!
 //! # What this does not answer
 //!
@@ -128,8 +131,13 @@ pub enum Unasked {
     /// The daemon answered with something the CLI does not read; the text
     /// says what.
     Unread(String),
-    /// The daemon refused what was asked: the registry, asked before its
-    /// kernel runs or once it is stopping.
+    /// The daemon refused what was asked.
+    ///
+    /// It refuses the registry or the tools asked before its kernel runs or
+    /// once it is stopping; the registry asked on a session (`NC-DMN-0015`);
+    /// a session's tools once MCP is off (`NC-DMN-0014`) or once its switch
+    /// cannot be read, either of which also ends the session; and a session it
+    /// does not open.
     Refused(Refusal),
     /// The runtime a connection runs on could not be started.
     Runtime(std::io::Error),
@@ -237,6 +245,31 @@ pub async fn connect(found: &Found) -> Result<Connection, Unasked> {
     Ok(Connection { client, welcome })
 }
 
+/// A connection to the daemon of `found`'s install acting as `agent`: one
+/// [`connect`] makes, then the session opened on it.
+///
+/// **The daemon decides whose session it is**: it opens one only while MCP is
+/// on, within `sessions_max`, and for an agent the profile's person made, and
+/// closes the connection on any refusal. From the answer on, every dispatch on
+/// the connection is decided as `agent`, and the connection asks for nothing
+/// but its tools and dispatches.
+///
+/// # Errors
+///
+/// What [`connect`] refuses, in its order; [`Unasked::Asking`] as
+/// [`Connection::ask`]; [`Unasked::Refused`] with the daemon's refusal — MCP
+/// off (`NC-DMN-0014`), past `sessions_max` (`NC-DMN-0016`), no such agent of
+/// the person's (`NC-AI-0001`), or not running; and [`Unasked::Unread`] for an
+/// answer of another kind.
+pub async fn session(found: &Found, agent: nc_ids::Snowflake) -> Result<Connection, Unasked> {
+    let mut connection = connect(found).await?;
+    match connection.ask(&Request::Session { agent }).await? {
+        Answer::Session => Ok(connection),
+        Answer::Refused(refusal) => Err(Unasked::Refused(refusal)),
+        other => Err(unread_as("a session", &other)),
+    }
+}
+
 /// The channel's token, from `token` in `runtime`, once both are judged this
 /// user's alone.
 fn token_of(runtime: &Path, token: &Path, user: &User) -> Result<Token, Unasked> {
@@ -337,6 +370,26 @@ impl Connection {
         }
     }
 
+    /// Every command this connection may dispatch now, as the entries the
+    /// daemon sent, their texts in `locale`.
+    ///
+    /// **The daemon's answer, as it is**: the entries a registry holds, cut to
+    /// what the decision point would let the connection's principal dispatch
+    /// — the session's agent, or the person — and read by whoever shows them.
+    ///
+    /// # Errors
+    ///
+    /// [`Unasked::Asking`] as [`Connection::ask`], [`Unasked::Refused`] with
+    /// the daemon's refusal, and [`Unasked::Unread`] for an answer that is not
+    /// a list of tools.
+    pub async fn tools(&mut self, locale: Locale) -> Result<Vec<Value>, Unasked> {
+        match self.ask(&Request::Tools { locale }).await? {
+            Answer::Tools(entries) => Ok(entries),
+            Answer::Refused(refusal) => Err(Unasked::Refused(refusal)),
+            other => Err(unread_as("the tools", &other)),
+        }
+    }
+
     /// Runs `command` with `args`, and answers what it answered or how the
     /// kernel refused it.
     ///
@@ -363,6 +416,8 @@ fn unread_as(asked: &str, answer: &Answer) -> Unasked {
         Answer::Result(_) => "a result",
         Answer::Refused(_) => "a refusal",
         Answer::Registry(_) => "a registry",
+        Answer::Tools(_) => "a list of tools",
+        Answer::Session => "a session",
         Answer::Status(_) => "a status",
         Answer::Stopping => "a stop",
     };
@@ -877,6 +932,110 @@ mod tests {
             "the registry is asked in the locale the caller names"
         );
         assert_eq!(heard.len(), 6);
+    }
+
+    /// A session is opened and its tools read.
+    ///
+    /// **Over a scripted daemon**: a session asked for an agent is answered
+    /// that it opened, and the connection is the session's; its tools are the
+    /// entries the daemon sent, as it sent them, in the locale asked; tools
+    /// refused are the daemon's refusal; and an answer of another kind is
+    /// unread, exit 8. A session the daemon refuses ends as its refusal does,
+    /// and one answered with anything but a session is unread.
+    #[test]
+    fn a_session_is_opened_and_its_tools_read() {
+        let installed = Scratch::new("ses");
+        let shared = token();
+        installed.token(&shared);
+        let flake = nc_ids::MachineFlake::from_value(4).expect("a flake");
+        let agent = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted");
+        let schema = r#"{"type":"object","additionalProperties":false}"#;
+        let tools = vec![entry("naming.read", "Ler um nome", schema)];
+        let off = Refusal {
+            code: ErrorCode::DaemonMcpOff,
+            kind: RefusalKind::Denied,
+            sentence: "off".to_owned(),
+        };
+        let full = Refusal {
+            code: ErrorCode::DaemonTooManySessions,
+            kind: RefusalKind::Unavailable,
+            sentence: "full".to_owned(),
+        };
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token: shared,
+                welcome: installed.welcome(),
+                connections: vec![
+                    vec![
+                        Answer::Session,
+                        Answer::Tools(tools.clone()),
+                        Answer::Refused(off.clone()),
+                        Answer::Registry(tools.clone()),
+                    ],
+                    vec![Answer::Refused(full.clone())],
+                    vec![Answer::Stopping],
+                ],
+            },
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .enable_time()
+            .build()
+            .expect("a runtime");
+        let (listed, refused, unread) = runtime.block_on(async {
+            let mut session = super::session(&installed.found, agent)
+                .await
+                .expect("the session opened");
+            let listed = session.tools(Locale::PtBR).await.expect("the tools read");
+            let refused = session.tools(Locale::En).await;
+            let unread = session.tools(Locale::En).await;
+            drop(session);
+            (listed, refused, unread)
+        });
+        assert_eq!(listed, tools, "the tools are the entries the daemon sent");
+        match refused {
+            Err(Unasked::Refused(refusal)) => assert_eq!(refusal, off),
+            other => panic!("tools refused were read as {other:?}"),
+        }
+        let unread = unread.expect_err("a registry is not a list of tools");
+        assert_eq!(unread.code(), ErrorCode::CliAnswerUnreadable, "{unread:?}");
+        assert_eq!(unread.exit(), Exit::Internal);
+        let refused = runtime
+            .block_on(super::session(&installed.found, agent))
+            .expect_err("a session the daemon refused");
+        assert_eq!(
+            refused.code(),
+            ErrorCode::DaemonTooManySessions,
+            "{refused:?}"
+        );
+        assert_eq!(refused.exit(), Exit::Unavailable);
+        assert_eq!(refused.detail(), "full");
+        let unread = runtime
+            .block_on(super::session(&installed.found, agent))
+            .expect_err("a stop is not a session");
+        assert_eq!(unread.code(), ErrorCode::CliAnswerUnreadable, "{unread:?}");
+        assert!(
+            unread.detail().contains("a session was asked"),
+            "{unread:?}"
+        );
+        let session = Request::Session { agent };
+        assert_eq!(
+            daemon.heard(),
+            [
+                session.clone(),
+                Request::Tools {
+                    locale: Locale::PtBR
+                },
+                Request::Tools { locale: Locale::En },
+                Request::Tools { locale: Locale::En },
+                session.clone(),
+                session,
+            ],
+            "a session is asked for its agent, and its tools in the locale named"
+        );
     }
 
     /// A request is answered or lost by how the connection ended: a daemon

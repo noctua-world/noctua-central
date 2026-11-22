@@ -397,13 +397,14 @@ fn record_one_of_each(log: &nc_log::Log) {
         rows: 97,
         max_rows: 98,
     });
-    record_the_daemons(log);
+    record_the_daemons(log, unit);
 }
 
 /// One of each event the daemon and its endpoint log, with a distinguishable
 /// value in every field — the rest of [`record_one_of_each`], split from it at
-/// clippy's line bound.
-fn record_the_daemons(log: &nc_log::Log) {
+/// clippy's line bound — and `agent`, the identifier that one minted, for an
+/// agent's session.
+fn record_the_daemons(log: &nc_log::Log, agent: nc_ids::Snowflake) {
     use core::time::Duration;
     use nc_catalog::ErrorCode;
     use nc_log::events;
@@ -426,5 +427,10 @@ fn record_the_daemons(log: &nc_log::Log) {
     });
     log.record(&events::IpcRefused {
         code: ErrorCode::IpcClientUnproven,
+    });
+    log.record(&events::DaemonSessionOpened { agent });
+    log.record(&events::DaemonSessionEnded { agent });
+    log.record(&events::DaemonSessionRefused {
+        code: ErrorCode::DaemonTooManySessions,
     });
 }

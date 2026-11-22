@@ -771,6 +771,8 @@ pub struct DaemonLimits {
     pub ipc_silent_after_ms: u64,
     /// How many connections the daemon holds open at once.
     pub ipc_connections_max: u32,
+    /// How many agents' sessions the daemon holds open at once.
+    pub sessions_max: u32,
     /// How often the daemon pumps its kernel.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds.
@@ -791,6 +793,11 @@ impl DaemonLimits {
     /// **Destructured**, as [`KernelLimits::each`] is, so a field the struct
     /// gains is a compile error here rather than a limit nothing publishes.
     #[must_use]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one row per limit and nothing else: splitting the table would split \
+                  the destructuring that makes a forgotten limit a compile error"
+    )]
     pub fn each(&self) -> Vec<NamedLimit> {
         let Self {
             mark_lease_ms,
@@ -799,6 +806,7 @@ impl DaemonLimits {
             ipc_heartbeat_ms,
             ipc_silent_after_ms,
             ipc_connections_max,
+            sessions_max,
             pump_every_ms,
             sweep_every_ms,
             stop_drain_ms,
@@ -850,6 +858,13 @@ impl DaemonLimits {
                 wide: false,
                 unit: Unit::Count,
                 bounds: "How many connections the daemon holds open at once",
+            },
+            NamedLimit {
+                name: "sessions_max",
+                value: u64::from(sessions_max),
+                wide: false,
+                unit: Unit::Count,
+                bounds: "How many agents' sessions the daemon holds open at once",
             },
             wide(
                 "pump_every_ms",

@@ -1461,6 +1461,40 @@ message = "error.daemon.pid-record-unreadable"
 severity = "error"
 retryable = false
 
+# What the daemon's endpoint refuses an agent's session (§20.3), before the
+# kernel decides anything: each is answered, logged as `daemon.session_refused`
+# by its code, and never journaled, since no command was dispatched.
+
+[[error]]
+# Off until a person switches it on (`settings.mcp.set`), read when a session
+# opens and before each of its requests; a session that finds it off is ended
+# with its connection.
+code = "NC-DMN-0014"
+description = "MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended"
+message = "error.daemon.mcp-off"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A session asks for its tools and dispatches commands; the registry, the
+# status, a stop and a second session are the person's, and the session that
+# asked stands as it was.
+code = "NC-DMN-0015"
+description = "A session asked for something other than its tools or a dispatch, which no session is answered"
+message = "error.daemon.not-for-a-session"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A bound on how many sessions are open at once, below the connections the
+# daemon holds, so the person always finds one; a place comes back when a
+# session's connection ends.
+code = "NC-DMN-0016"
+description = "The daemon holds as many sessions as `sessions_max` allows, so it opened no other"
+message = "error.daemon.too-many-sessions"
+severity = "warning"
+retryable = true
+
 # --- The IPC channel (§11.1) ---
 #
 # What the channel a daemon is reached through refuses, each by what it met, so

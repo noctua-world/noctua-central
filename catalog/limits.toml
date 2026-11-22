@@ -459,8 +459,9 @@ agent_grant_minutes_max = 43_200
 # `crates/nc-ipc`, the protocol it is reached through. Every value is above
 # zero, and the compiler holds each to the bound outside this table it has to
 # keep: the mark's lease below a day, a frame above the kernel's payload and
-# what wraps it, the silence a peer is dropped after above two heartbeats, and
-# the connections within what a Windows pipe's instances hold.
+# what wraps it, the silence a peer is dropped after above two heartbeats, the
+# connections within what a Windows pipe's instances hold, and the sessions
+# below the connections.
 
 [daemon]
 # How far past the clock the identifiers' persisted ceiling is raised (§16.2).
@@ -501,6 +502,14 @@ ipc_silent_after_ms = 10_000
 # waits for the next client and one more is the connection past the bound,
 # held until the next is waiting, and a pipe holds at most 254.
 ipc_connections_max = 32
+# How many agents' sessions the daemon holds open at once (§20.3): each is a
+# connection `noctua mcp` opened for an MCP client, and one past the bound is
+# refused (`NC-DMN-0016`) and its connection closed. Below
+# `ipc_connections_max`, which the compiler holds it to, so the person's own
+# CLI and interface always find a connection no MCP client holds. It bounds how
+# many run at once, never what they do: an agent's budget is the decision
+# point's.
+sessions_max = 16
 # How often the daemon pumps its kernel (§11.1): fires the timers due, delivers
 # the events queued and holds the local database's tables to their bounds,
 # between call trees. At most `[kernel] timer_min_interval_ms`, which the

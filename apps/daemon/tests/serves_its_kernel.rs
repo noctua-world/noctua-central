@@ -1,10 +1,10 @@
 //! A real daemon process serves its kernel at its endpoint (`NOCTUA.md
 //! §11.1`): the registry of its kernel and the plugins installed in its
 //! profile, its status, every dispatch decided by the kernel and journaled,
-//! the agents its person made held again by the next start, the pump and the
-//! sweep on their schedule, one daemon to a profile, none of its spawner's
-//! handles held, a session of its own, and a stop that leaves nothing of the
-//! run.
+//! the agents its person made held again by the next start and let in over an
+//! agent's session, the pump and the sweep on their schedule, one daemon to a
+//! profile, none of its spawner's handles held, a session of its own, and a
+//! stop that leaves nothing of the run.
 //!
 //! **The binary this build made, copied where an installer puts it**, beside
 //! a manifest under a scratch root and a namespace of its own
@@ -493,11 +493,12 @@ async fn the_agents(client: &mut nc_ipc::Client) -> Vec<(String, Vec<(String, St
 /// An agent and its grants are held again after the daemon starts again.
 ///
 /// **Kept in the profile's own database, and read back at the next start**:
-/// an agent made, granted naming and finding and its finding grant ended, then
-/// the daemon stopped and started again — the agent is listed with the grant
-/// that was live and not the one that was ended; a new grant on naming ends
-/// the one read back, which is held live; and ending every grant ends that new
-/// one alone.
+/// an agent made, granted naming and finding and its finding grant ended, MCP
+/// switched on, then the daemon stopped and started again — the agent is
+/// listed with the grant that was live and not the one that was ended; its
+/// session opens and its proposal is allowed by the grant read back; a new
+/// grant on naming ends the one read back, which is held live; and ending
+/// every grant ends that new one alone.
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() {
     let installed = Installed::new(Path::new(BINARY));
@@ -539,6 +540,7 @@ async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() 
         before,
         [(agent.clone(), vec![(naming.clone(), "naming".to_owned())])]
     );
+    dispatched(&mut client, "settings.mcp.set", r#"{"on":true}"#).await;
     stopped(&mut client, &mut daemon).await;
     let mut again = installed.spawn();
     let (mut client, _) = again.connected().await;
@@ -548,6 +550,11 @@ async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() 
         before,
         "the agents read back are not the ones kept"
     );
+    let mut session = again
+        .session(nc_daemon::testing::the_agent_made(&made))
+        .await;
+    dispatched(&mut session, "naming.propose", r#"{"title":"kept"}"#).await;
+    drop(session);
     let regranted = dispatched(&mut client, "agents.grant", &granting("naming")).await;
     assert_eq!(
         text(&regranted, "ends").as_deref(),

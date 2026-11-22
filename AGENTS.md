@@ -289,7 +289,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   │   └── fixtures/               the files that MUST NOT COMPILE
 │   ├── nc-platform/                a path one user's alone, which process this is, a program the service manager restores, the user's bin directory and the clipboard's tool, per system (§2.7) — THE ONE `unsafe`
 │   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
-│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
+│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
@@ -302,7 +302,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   └── reference/                  the plugin the kernel is proven with, its entries beside its manifest
 │       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
-│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves over the world and the agents its person made (§11.1, §16.2)
+│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves over the world and the agents its person made, to the person and to their agents' sessions (§11.1, §16.2, §20.3)
 │   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, the installer, `noctua-dev` and the `checkouts` picker (§20.2, §17.1)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
@@ -490,7 +490,7 @@ fails a gate a minute or two later.
 | a restorer's shape | its generator in `crates/nc-platform/src/service.rs` — `systemd_unit`, `launchd_plist` or `task_xml` — and the table of restorers in that module's header | the generator's text is written out whole in the module's tests, and every character its format reads specially is escaped there or refused when the service is described; what each restorer does is measured, not assumed, so a change to one is measured again on its system's runner by the scratch services in `with_the_manager` in the same file — the test binary registered under this checkout's test prefix, killed, and read back through the manager's own counters — and `NOCTUA.md §17.3` says what each system's restorer is |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`, and `check_daemon_ipc` for one a frame carries — `commands_per_plugin` × `entry_bytes` × 2 at most half of `ipc_frame_max_bytes`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
-| a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
+| a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, `sessions_max` below `ipc_connections_max`, so the person always finds a connection no MCP client holds, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
 | a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, process control, and choosing the development checkout `noctua-dev` reaches — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
@@ -989,6 +989,7 @@ entry owns.
 | An agent past its budget, or acting on through what its tree put off — a timer, an event, a compensation — once its person's or its own authority is gone, or as its person alone | a session's count, spent under the kernel's bus for every call, firing and delivery and read by the core's budget rule; a timer and an event carrying the session, decided again for every link when due; a compensation refused in an agent's tree; its steps kept in its person's history | the same entry |
 | An agent made, granted or ended in a person's name by anything but their own call, or a change to it the audit never saw | four commands of the kernel's own decided by a person's own permit (`principal is User`), the three that change run only at the top of a call tree, and each change rehearsed, journaled as allowed with what it makes and only then made | "A person makes, grants and ends their agents by their own calls, each journaled before it is made" |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
+| A client acting as an agent while MCP is off, past the sessions the daemon holds, for an agent its person did not make, or asking for what only the person asks | a session opened in order — the kernel running, a place among `sessions_max`, MCP on, the kernel's own opening for the person's agent — each refusal closing its connection; the connection bound once; only its tools and its dispatches answered; MCP read again before each request, and off ending the session | "An agent's session opens only while MCP is on, for an agent of the profile's person, and asks for its tools and its dispatches alone" |
 | A tool reached under a second spelling of its name, or marked as changing nothing when it can | a tool's name is its command's with each dot an underscore, read back to that one command by the command-name parser and never from a dotted name; its one hint from `mutating`, which the kernel holds a command to | "A tool is named as its command and read back to it alone, and its one hint is one the kernel holds" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
@@ -1805,7 +1806,9 @@ kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
   local store, under a holder no plugin's identity can be, so no plugin reads or writes it,
   and switching one channel's switches no other. Never written, it is off; an entry
   holding anything but the two texts the set writes is refused as a row the kernel did not
-  write, never read as on or as off (`Kernel::settings`).
+  write, never read as on or as off (`Kernel::settings`). The daemon reads it before it
+  opens an agent's session and before each request of an open one, and refuses both while
+  it is off (`NC-DMN-0014`), so what it lets in is the entry below.
 - **A step like any other.** The set's one effect is that entry, staged in its unit, so it
   is no step that left the machine: the person's undo puts the value back and reaches the
   steps before it, and their redo puts it again.
@@ -1824,7 +1827,8 @@ daemon, and `apps/daemon/tests/channels_side_by_side.rs`, where MCP switched on 
 install is on in that one alone.
 
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
-the person's undo of a switch-off, and what being on lets in, which nothing reads yet.
+the person's undo of a switch-off, and what an agent's tree set going while it was on,
+which switching it off does not end.
 
 ### A tool is named as its command and read back to it alone, and its one hint is one the kernel holds
 
@@ -2624,6 +2628,16 @@ and a client asks through, over any stream: the endpoint's, or a test's.
   connection however the peer pings (`NC-IPC-0017`), the writer telling the reader, so
   both halves of the stream are let go. Every bound is the catalog's, read by the crate
   itself.
+- **A session names its agent in the one spelling it has, and a request carries nothing
+  else.** A session request holds one field, the agent as `to_crockford` writes the
+  Snowflake the profile's minter gave it, read back only where it writes back the same —
+  in lower case, with a digit Crockford reads as another or with a leading zero it is
+  malformed (`NC-IPC-0002`); the tools are asked in a locale read as the registry's is;
+  and a dispatch holds its command and its arguments and no field beside them, so no
+  field the wire reads is a confirmation. A dispatch is decided as the connection's
+  principal — the person, or the agent of the session it opened — which a build of the
+  protocol before sessions would read otherwise, so `PROTOCOL` is 3 and a peer of 2 is
+  refused at the handshake (`NC-IPC-0004`).
 
 **Enforced by** `crates/nc-ipc/tests/frames.rs` (round trips and every cut of a frame, a
 length past the bound refused with the writer still open, the bound itself taken, each
@@ -2640,9 +2654,13 @@ the bound, from either end, after the pings, a write longer than the relay buffe
 waiting by a peer that pings ending the connection at the bound with the daemon's stream
 let go, every request after the daemon is gone refused as lost, a client let go ending
 the daemon's connection at a frame's boundary, a dispatch outlasting the bound waited
-for, pipelining and an unasked answer refused) — every wait in the three bounded, so an
-end that never comes fails the suite rather than spinning the paused clock through its
-pings — and the operators over the crate's sources in `xtask/mutants.py`.
+for, pipelining and an unasked answer refused, and a session and its tools crossing in
+order, one written in another spelling refused by the end that reads it) — every wait in
+the three bounded, so an end that never comes fails the suite rather than spinning the
+paused clock through its pings — by the unit tests of `crates/nc-ipc/src/message.rs` (a
+session's agent read back only as written, the tools' locale read as the registry's, and
+no field a dispatch may hold read as a confirmation), and the operators over the crate's
+sources in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can read the token from the
 runtime directory and speak for anybody — authorization re-decides every dispatch (`§14`);
@@ -2793,17 +2811,20 @@ header gives, the endpoint served, and a stop.
   before a request is read. A proven connection that then sends what is not a request,
   falls silent past `ipc_silent_after_ms`, takes nothing or is lost is closed and logged
   the same way; one its client closes between requests ends well. The daemon binds nothing
-  a network can reach (invariant 23). A dispatch or the registry asked before the kernel
-  runs is refused as not running yet (`NC-DMN-0009`) and one asked after a stop began as
-  stopping (`NC-DMN-0010`); the status and a stop are answered from the first moment, and
-  every answer handed to a connection is written before the daemon lets it go.
-- **Every dispatch is the kernel's to decide, as the profile's person.** The daemon hands
-  `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
-  nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
-  and kind — the journal holds each, whoever asked. The directory the kernel decides with is
+  a network can reach (invariant 23). A dispatch, the registry, the tools or a session
+  asked before the kernel runs is refused as not running yet (`NC-DMN-0009`) and one asked
+  after a stop began as stopping (`NC-DMN-0010`); the status and a stop are answered from
+  the first moment, and every answer handed to a connection is written before the daemon
+  lets it go.
+- **Every dispatch is the kernel's to decide, as the connection's principal.** On a
+  connection that opened no session that is the person the world names; on one that opened
+  an agent's session, that agent acting for the person (the entry below). The daemon hands
+  `Kernel::dispatch` that principal and the arguments as they arrived, decides nothing
+  itself, and hands back the kernel's answer or its refusal by the kernel's own code and
+  kind — the journal holds each, whoever asked. The directory the kernel decides with is
   `nc_authz::LocalDirectory`: the world's, holding the grant and the epoch the world file
-  names, and what the profile's database keeps of the agents its person made in the world's
-  realm, each change to them kept there (`apps/daemon/src/environment.rs`).
+  names, and what the profile's database keeps of the agents of the world's realm, each
+  change to them kept there (`apps/daemon/src/environment.rs`).
 - **The token is fresh at each start, and the record names a process, not a number.** The
   token is drawn from the system's generator and the PID record holds the process as the
   system knows it — its boot, its start, its executable — and the instance the start drew,
@@ -2923,6 +2944,72 @@ the answer unwritten and uncounted; and a client running as the same user that c
 never sends its first request, which keeps every stop waiting `stop_drain_ms`, since each
 connection is owed an answer to its first request. What the daemon leaves undone is under
 **What is deliberately not claimed**.
+
+### An agent's session opens only while MCP is on, for an agent of the profile's person, and asks for its tools and its dispatches alone
+
+`apps/daemon/src/server.rs`, whose header has the order, opens the session `noctua mcp`
+asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
+
+**Guaranteed:**
+
+- **Bound once, from the person, and never back.** A connection is the person's until it
+  opens a session, and that session's agent's from then on: only the person's answerer
+  opens one, so nothing a session sends rebinds its connection, and a second session asked
+  on it is refused as any request no session is answered.
+- **Opened in order, the first refusal the answer, and a refused one's connection
+  closed.** The kernel must run (`NC-DMN-0009`, `NC-DMN-0010`). The session is counted
+  among `[daemon] sessions_max` before anything else is read, so two racing for the last
+  place cannot both have it (`NC-DMN-0016`), and the bound is below `ipc_connections_max`,
+  which the compiler holds, so the person always finds a connection. MCP must be on
+  (`NC-DMN-0014`), read from the kernel's store, where a switch that could not be read
+  refuses with the store's code and is never read as on. And the kernel opens the session
+  from its directory's answer, for an agent the profile's person made and no other
+  (`NC-AI-0001`, whether none is held under the identifier or it is another's). Every
+  refusal closes the connection once it is written, so no client that was refused goes on
+  as the person.
+- **A session asks for its tools and dispatches commands, and nothing else.** The
+  registry, the status, a stop and a second session are refused (`NC-DMN-0015`) and the
+  session stands: an agent never stops the daemon or reads the person's status. Its tools
+  are the kernel's probe of what its agent may dispatch now (`Kernel::dispatchable`), which
+  journals and spends nothing; its dispatches are the kernel's, decided for the agent and
+  its person and journaled with both, each admitted as running as the person's are, so a
+  stop drains a session's dispatch too.
+- **Off ends it.** MCP is read again before each of a session's requests, so once it is
+  off — by the person's set, undo or redo alike — or its switch cannot be read, the
+  session's next request is refused (`NC-DMN-0014`, or the store's code) and the
+  connection closed once the refusal is written.
+- **What is refused here is logged, never journaled.** Each refusal of an opening, each
+  request no session is answered and each ending for MCP off or its switch unreadable is
+  logged as `daemon.session_refused` by its code — no command was dispatched — and a
+  session opened and ended as `daemon.session_opened` and `daemon.session_ended`, with
+  its agent.
+
+**Enforced by** the unit tests of `server` — every request a session may and may not ask,
+through a match with no wildcard; a session refused before the kernel runs and once a stop
+began, each ending its connection; a refused session's next request lost on a connection
+the server serves, while a person's refused registry leaves theirs going; the switch on,
+off and unreadable; a session's dispatch counted as running until it answers; the bound
+and its places given back; over a kernel opened as the daemon opens one, a session refused
+for an agent no person made and while MCP is off, and a connection bound to its agent
+until MCP is switched off; and, over a daemon a child of the test binary serves, a
+session's opening, each refusal of it and its end logged in order, by its agent or its
+code — by `apps/daemon/tests/agent_sessions.rs` against a real daemon — off until switched
+on and ended once off again, every refusal before the kernel logged and nothing of it
+journaled, the session that opened logged once as opened and once as ended with its agent
+and the agent no person made never as opened, every dispatch journaled with the agent and
+the person, an agent written in another spelling refused by the reader, a revocation
+through the CLI seen at the next call, the agent held to its own rights, its tools exactly
+what it may dispatch, its budget its own, the bound, a restart, and a plain connection
+that is the person — by
+`an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again` in
+`serves_its_kernel.rs`, and by the operators over `server.rs` in `xtask/mutants.py`.
+
+**Not answered:** a connection that opens no session, which is the person: a process
+running as the same user can open one and dispatch as the person, or name any of the
+person's agents, whose identifiers are no secret (`NOCTUA.md §11.1`, and **What is
+deliberately not claimed**); an idle session once MCP is off, which keeps its connection
+and its place until its next request is refused; and a dispatch admitted while MCP was on
+that waits on the kernel's bus behind the switch-off, which runs.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -4306,8 +4393,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **The kernel and the local database**
 
-- **MCP's setting is read by nothing that lets a client in**: no daemon serves an MCP
-  session yet, so switching it on lets no client in.
 - **The switch resists no process running as the person.** It is the kernel's entry in the
   profile's local database, which stops other accounts and not the account it belongs to:
   such a process switches it through the CLI as the person would, or by writing the entry
@@ -4737,7 +4822,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   a start whose clock is behind its mark by more than the lease
   (`ids.clock_backwards`), a daemon started and stopped (`daemon.started`,
   `daemon.stopped`), a plugin it refused (`daemon.plugin_refused`), a pruner stuck
-  (`daemon.prune_stuck`) and a connection it refused (`ipc.refused`) — each a struct
+  (`daemon.prune_stuck`), an agent's session opened, ended or refused
+  (`daemon.session_opened`, `daemon.session_ended`, `daemon.session_refused`) and a
+  connection it refused (`ipc.refused`) — each a struct
   `catalog/log-events.toml` generates; nothing else of the platform logs yet. A daemon hands the kernel `nc_log::Log` behind a mutex, the
   one `nc_kernel::logging::LogSink` it writes its own events to too — to its standard
   error alone when its install names no store; the kernel's suites
@@ -4876,9 +4963,25 @@ rather than anything decided for the project, and each is a maintainer's to reop
   calls is a session of its own, of its person, one link deep.
 - **What an agent's tree set going keeps going until something refuses it**: a repeating
   timer it set fires as the agent for its person, decided again at each firing, until its
-  session's budget, its grants or their end stop it; nothing ends it when the session ends.
+  session's budget, its grants or their end stop it; nothing ends it when the session ends,
+  nor when MCP is switched off.
+- **Switching MCP off ends a session at its next request, not before.** The daemon reads
+  the switch when a session opens and before each of its requests, so an idle session
+  keeps its connection and its place among `sessions_max` until its next request is
+  refused, and a dispatch the daemon admitted while MCP was on runs even when it waits on
+  the kernel's bus behind the switch-off — at most one for each open session.
+- **A session is a connection, not a conversation**: whatever runs over one connection
+  shares its agent, its budget and how the journal names it.
 - **The budget is a session's, and a count**: a session opened again counts from nothing,
-  and the budget counts calls, firings and events, not their cost, and bounds no rate.
+  and the budget counts calls, firings and events, not their cost, and bounds no rate;
+  `sessions_max` bounds how many sessions are open at once, not how many open over time.
+- **What the daemon refuses before a dispatch is logged, not journaled**: a session asked
+  before the kernel runs or once a stop began, past `sessions_max`, while MCP is off or its
+  switch cannot be read, for an agent the person did not make or while the directory does
+  not answer, a request no session is answered, and a session's request once MCP is off or
+  its switch cannot be read are each logged as `daemon.session_refused` by their code, and
+  no journal entry holds them; nor does one hold a session's tools, which the kernel's
+  probe answers without deciding a dispatch.
 - **An agent's steps are in its person's history**: they can push the person's own steps
   past `undo_history`, end their way back to redo, and the person's next undo may take back
   their agent's newest step rather than their own — unreachable in the family pack, where

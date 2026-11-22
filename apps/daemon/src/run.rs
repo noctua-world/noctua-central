@@ -30,8 +30,9 @@
 //!    minter, which recovers what a stopped process left before it opens
 //!    (state `recovering`).
 //! 7. **The plugins** installed in the profile, each loaded or refused alone.
-//! 8. **Running**: dispatches are served, and the pump and the sweep run on
-//!    their schedule.
+//! 8. **Running**: dispatches are served — as the profile's person, or, on a
+//!    connection that opened an agent's session, as that agent — and the pump
+//!    and the sweep run on their schedule.
 //!
 //! # The stop
 //!

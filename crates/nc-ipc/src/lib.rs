@@ -23,8 +23,11 @@
 //!   nothing a client did not already know and an impostor nothing at all.
 //!   The whole of it is bounded by `ipc_handshake_ms` at either end.
 //! - **Requests** ([`Request`], [`Answer`]): a dispatch, the registry, the
-//!   status, or a stop, one at a time — a request before the last one was
-//!   answered is refused, and so is an answer nobody asked for.
+//!   tools, a session, the status, or a stop, one at a time — a request
+//!   before the last one was answered is refused, and so is an answer nobody
+//!   asked for. A dispatch is decided as the connection's principal: the
+//!   profile's person, or the agent of the session the connection opened, which
+//!   a session request names by the one spelling its identifier has.
 //! - **The heartbeat** ([`Client`], [`Served`]): each side pings after
 //!   `ipc_heartbeat_ms` of its own silence, while a dispatch runs as well as
 //!   between requests, and drops a peer silent for `ipc_silent_after_ms`, or
@@ -77,11 +80,14 @@ use nc_catalog::ErrorCode;
 /// The version of the protocol this build speaks, which each end names in its
 /// handshake and the other refuses unless it is its own.
 ///
-/// **2 since the registry is asked in a locale** and answers each command's
-/// texts in it: a client of 1 asks for the registry with no locale and reads
-/// a title the answer no longer carries, so the two builds are refused at the
-/// handshake rather than disagree about a message.
-pub const PROTOCOL: u32 = 2;
+/// **3 since a connection may open an agent's session**, after which each
+/// dispatch on it is decided as the connection's principal — the session's
+/// agent — and a session asks for its tools: a client of 2 would mean a
+/// dispatch as the person on a connection the daemon decides as an agent, or
+/// read a request it does not know as malformed and close, so the two builds
+/// are refused at the handshake rather than disagree about whom a dispatch is
+/// for. (2 since the registry is asked in a locale.)
+pub const PROTOCOL: u32 = 3;
 
 /// The secret a channel's connections are proven by: 32 bytes the daemon
 /// draws at each start, which neither end ever sends.

@@ -2317,6 +2317,42 @@ fn ipc_connections_a_pipe_cannot_hold_fail_the_build() {
     );
 }
 
+/// Sessions as many as the connections fail the build, and one fewer does not;
+/// and no session at all fails it too.
+#[test]
+fn sessions_as_many_as_the_connections_fail_the_build() {
+    let none = Scratch::new("daemon-sessions-0");
+    none.replacing(
+        "catalog/limits.toml",
+        "sessions_max = 16",
+        "sessions_max = 0",
+    );
+    none.must_fail_saying("daemon-limit-zero", "`[daemon] sessions_max` is zero");
+    let scratch = Scratch::new("daemon-sessions-32");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "sessions_max = 16",
+        "sessions_max = 32",
+    );
+    scratch.must_fail_saying(
+        "sessions-take-every-connection",
+        "`[daemon] sessions_max` is 32, which is not below `ipc_connections_max`, 32",
+    );
+    let fewer = Scratch::new("daemon-sessions-31");
+    fewer.replacing(
+        "catalog/limits.toml",
+        "sessions_max = 16",
+        "sessions_max = 31",
+    );
+    assert!(
+        fewer
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "sessions-take-every-connection"),
+        "sessions one fewer than the connections were refused"
+    );
+}
+
 /// A pump a millisecond further apart than the shortest timer fails the
 /// build, and one exactly as far apart does not.
 #[test]

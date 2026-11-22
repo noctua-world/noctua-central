@@ -134,6 +134,36 @@ pub const EVENTS: &[EventSpec] = &[
         ],
     },
     EventSpec {
+        name: "daemon.session_ended",
+        description: "An agent's session ended with its connection, which the daemon or its client closed, or which was lost",
+        level: Level::Info,
+        fields: &[FieldSpec {
+            name: "agent",
+            kind: FieldKind::Snowflake,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "daemon.session_opened",
+        description: "A connection opened the session of an agent the profile's person made: from then on each dispatch on it is decided as that agent, for that person",
+        level: Level::Info,
+        fields: &[FieldSpec {
+            name: "agent",
+            kind: FieldKind::Snowflake,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "daemon.session_refused",
+        description: "A session was refused as it opened — the daemon not running its kernel yet or stopping, past `sessions_max`, MCP off or its switch unreadable, an agent the person did not make, or a directory that did not answer — or, once open, asked what no session is answered, or was ended because MCP was off or its switch unreadable; logged by its code, since no command was dispatched, and nothing of it is journaled",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
+    },
+    EventSpec {
         name: "daemon.started",
         description: "The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun",
         level: Level::Info,

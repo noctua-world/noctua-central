@@ -30,6 +30,11 @@ nc-channel.workspace = true
 nc-platform.workspace = true
 # The protocol: the handshake that proves both ends, and one request at a time.
 nc-ipc.workspace = true
+# The agent a session is opened for, named on the wire by the Snowflake the
+# daemon's minter gave it, as `nc-ipc` reads it. In-house; it adds nothing to
+# the lock, and this crate logs nothing, so no identifier it holds reaches a
+# log line.
+nc-ids.workspace = true
 # A command's argument schema, read into the flags it takes and held to the
 # same rule the kernel holds the arguments to.
 nc-schema.workspace = true
