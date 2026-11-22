@@ -682,7 +682,7 @@ mod tests {
             .expect("the database opens");
         let world = the_world();
         let home = world.realm_id("home").expect("home is a realm");
-        let office = nc_ids::OpaqueId::new("office").expect("an identifier");
+        let elsewhere = nc_ids::OpaqueId::of_device_key(&[9; 32]);
         let ana = world
             .principal(nc_authz::PrincipalKind::User, "ana")
             .expect("ana is a person of the world");
@@ -696,7 +696,7 @@ mod tests {
             agents
                 .keep_agent(&nc_local::AgentRow {
                     agent: minter.mint().expect("an identifier"),
-                    realm: office.clone(),
+                    realm: elsewhere.clone(),
                     operator: ana.id().clone(),
                     label: "elsewhere".to_owned(),
                     budget: 1,
