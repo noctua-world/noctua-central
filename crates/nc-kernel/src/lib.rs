@@ -445,13 +445,13 @@ impl<E: Environment> Kernel<E> {
     /// arguments and that need no confirmation, in the registry's order.
     ///
     /// **A probe of the decision point, and nothing else of a dispatch**: each
-    /// command whose selector is the realm or a feature and that can be undone
-    /// is decided for every link of the asker's chain, on what its session has
-    /// spent, as its dispatch would be — never journaled, spending none of a
-    /// session's budget and redeeming nothing the asker holds. A command that
-    /// takes its resource from an argument is not listed, though a dispatch of
-    /// it is decided as any. What it answers can change at the next call: every
-    /// dispatch is decided again.
+    /// command whose selector is the realm or a feature and that is not one
+    /// that cannot be undone is decided for every link of the asker's chain,
+    /// on what its session has spent, as its dispatch would be — never
+    /// journaled, spending none of a session's budget and redeeming nothing
+    /// the asker holds. A command that takes its resource from an argument is
+    /// not listed, though a dispatch of it is decided as any. What it answers
+    /// can change at the next call: every dispatch is decided again.
     pub async fn dispatchable<'a>(
         &self,
         asker: impl Into<Asker<'a>>,

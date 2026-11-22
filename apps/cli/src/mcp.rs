@@ -2023,14 +2023,18 @@ mod tests {
     /// and ends in its code.
     ///
     /// **MCP switched off**: one `-32603` answer carrying the code, the detail
-    /// and the exit, the same refusal on standard error, and exit 3; nothing
-    /// after the refusal is read, and the outcome's standard output is empty.
+    /// escaped and the exit, the same refusal on standard error, and exit 3;
+    /// nothing after it is read, and the outcome's standard output is empty.
     #[test]
     fn a_session_the_daemon_refuses_answers_initialize_with_the_refusal_and_ends_in_its_code() {
         let installed = Scratch::new("off");
         let token = Token::fresh().expect("a token");
         installed.token(&token);
-        let off = refusal(ErrorCode::DaemonMcpOff, RefusalKind::Denied, "MCP is off");
+        let off = refusal(
+            ErrorCode::DaemonMcpOff,
+            RefusalKind::Denied,
+            "MCP is \u{202e}off",
+        );
         let daemon = Scripted::serve(
             &installed,
             Script {
@@ -2048,12 +2052,13 @@ mod tests {
             "{}",
             outcome.stderr
         );
+        assert!(!outcome.stderr.contains('\u{202e}'), "{}", outcome.stderr);
         let message = nc_catalog::message("error.daemon.mcp-off", Locale::En).expect("a message");
         assert_eq!(
             kept.frames(),
             [
                 json!({"jsonrpc":"2.0","id":1,"error":{"code":-32_603,"message":message,
-                    "data":{"code":code,"detail":"MCP is off","exit":3}}})
+                    "data":{"code":code,"detail":"MCP is \\u{202e}off","exit":3}}})
             ]
         );
         assert_eq!(daemon.heard(), [Request::Session { agent: agent() }]);

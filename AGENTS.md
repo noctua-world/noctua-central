@@ -1326,9 +1326,9 @@ included, is in its person's history, whose undo takes it back, and an agent's o
 finds no step. **Nothing it arranges runs later as its person alone**: a compensation
 registered in its tree is refused (`[NC-KERN-0026]`), so its step is undone by its images or
 is a barrier. **It may list what it may dispatch**: `Kernel::dispatchable` is the decision
-point's probe — each command whose resource is known without arguments and that can be
-undone, decided for every link on what the session has spent, never journaled, spending
-nothing and redeeming nothing — and its search finds that set.
+point's probe — each command whose resource is known without arguments and that is not
+one that cannot be undone, decided for every link on what the session has spent, never
+journaled, spending nothing and redeeming nothing — and its search finds that set.
 
 **Enforced by** `crates/nc-kernel/src/session.rs` and its unit tests — what a chain holds,
 how deep it is, that only a principal acting as itself holds what the kernel issues, that a
@@ -1757,8 +1757,8 @@ what it reads and answers):
 - **An agent finds what its session may dispatch now.** In a call tree acting for an agent
   the registry is cut, before anything is matched, to the decision point's probe
   (`Kernel::dispatchable`): each command whose resource is known without arguments, that
-  can be undone, and that the agent and its person may be allowed, on what its session has
-  spent — so an agent's search and its tool list are one set. A person's finds every
+  is not one that cannot be undone, and that the agent and its person may be allowed, on
+  what its session has spent — so an agent's search and its tool list are one set. A person's finds every
   registered command.
 - **Bounded work, whatever is typed.** The schema refuses a query past
   `nc_fuzzy::QUERY_CHARS_MAX` characters before the handler runs — its `maxLength`, which a
@@ -3247,10 +3247,13 @@ program reach a channel's daemon through.
   request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
   protocol reads — not one message, or past the bound — from a daemon the handshake proved
   (exit 8).
-- **It confirms nothing.** The CLI acts as the profile's person — and `noctua mcp` as
-  its session's agent — so the kernel refuses every command that cannot be
-  undone with `NC-KERN-0006`, which ends the run in an exit code of its own (4): what it
-  needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+- **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
+  every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
+  code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+  `noctua mcp` acts as its session's agent and is refused the same, but that refusal ends
+  no session: the call is answered as a tool error, or as an unknown tool when the
+  session's last list did not hold it — as no list holds a command that cannot be undone
+  — and the session goes on.
 - **What the daemon says is escaped.** A command's name, display name, line, paragraph,
   tags and categories — a command of the catalog's as much as a plugin's, since the daemon
   sends both — a refusal's sentence, a result, a schema's annotations, names and options,
