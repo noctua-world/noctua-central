@@ -80,9 +80,11 @@ use crate::render::{self, Env, Failure, Outcome};
 
 /// The protocol revisions `initialize` is answered in, newest first.
 ///
-/// **The legacy era alone**: each answer this server writes is one those
-/// revisions' schemas read, and a revision asked that is not here is answered
-/// in the first, which a client that cannot speak it declines.
+/// **The legacy era alone**: each answer this server writes to a request whose
+/// id it read is one those revisions' schemas read, and an error answering a
+/// line whose id could not be read carries no `id`, which `2025-11-25`'s
+/// schema reads and `2025-06-18`'s does not; a revision asked that is not here
+/// is answered in the first, which a client that cannot speak it declines.
 pub const REVISIONS: [&str; 2] = ["2025-11-25", "2025-06-18"];
 
 /// A line that is not JSON.
