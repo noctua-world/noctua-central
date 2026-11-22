@@ -417,9 +417,11 @@ impl Server {
     /// the store could not read, ends the session with its connection once the
     /// refusal is written; then a dispatch is admitted as the person's is, so
     /// a stop drains it, and decided as the session's agent, or the tools are
-    /// the agent's. Every refusal of this answerer's own is logged as
-    /// `daemon.session_refused` by its code, and none of them reaches the
-    /// journal.
+    /// the agent's. What no session asks, and MCP off or unreadable, are logged
+    /// as `daemon.session_refused` by their code; a kernel not running yet or
+    /// stopping (`NC-DMN-0009`, `NC-DMN-0010`, here or when a dispatch is
+    /// admitted) is answered as the person's is, and logged by nothing. None
+    /// of these refusals reaches the journal.
     async fn answer_in_session(&self, opened: &Opened, request: Request) -> Answered {
         let asked = match a_sessions(request) {
             Ok(asked) => asked,

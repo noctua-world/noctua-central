@@ -131,9 +131,13 @@ pub enum Unasked {
     /// The daemon answered with something the CLI does not read; the text
     /// says what.
     Unread(String),
-    /// The daemon refused what was asked: the registry or the tools, asked
-    /// before its kernel runs or once it is stopping, or a session it does not
-    /// open.
+    /// The daemon refused what was asked.
+    ///
+    /// It refuses the registry or the tools asked before its kernel runs or
+    /// once it is stopping; the registry asked on a session (`NC-DMN-0015`);
+    /// a session's tools once MCP is off (`NC-DMN-0014`) or once its switch
+    /// cannot be read, either of which also ends the session; and a session it
+    /// does not open.
     Refused(Refusal),
     /// The runtime a connection runs on could not be started.
     Runtime(std::io::Error),
