@@ -3105,6 +3105,27 @@ the agent's, a revoked or spent session still journaled, no field a confirmation
 idle session kept, and a stop ending the session in 9 — and by the `cli_mcp` operators of
 `xtask/mutants.py`.
 
+**Measured against a live daemon, with a client this repository did not write.** On
+2026-11-22 the MCP Inspector CLI 2.15.0, on Node 26.13.1 on Linux, ran
+`noctua mcp <agent>` from a debug build of this tree at commit 1615805, beside a scratch
+staging install made as the daemon's suites make one, with the suites' world: MCP switched
+on, an agent made with a budget of 50 and granted `naming` for an hour, each through
+`noctua`. Each of its runs asked for `2025-11-25` and was answered in it, with
+`{"tools":{"listChanged":false}}` and no `instructions`, and the frames recorded between
+the two ends show standard output carrying one JSON-RPC answer a line and nothing else.
+Its tool list held `naming_propose` and `naming_read` alone, each with `readOnlyHint`
+true, in English, and in Portuguese under `LANG=pt_BR.UTF-8`, and its `--strict` check of
+their schemas reported nothing. `naming_propose`, called with the title `Inspector run`,
+the keywords `mcp` and `agents` and the extension `md`, answered
+`--inspector-run__mcp_agents@@<identifier>.md` with an identifier minted for it, and
+`naming_read` of that name answered it canonical, with the same identifier, title, keywords
+and extension. Once
+`settings.mcp.set --on=false` had run, the next run's `initialize` was answered with one
+`-32603` frame carrying `NC-DMN-0014`, the refusal was said on standard error, and
+`noctua mcp` ended in 3. The daemon logged each session as opened and as ended with its
+agent, and that refusal by its code. That client refused on its own a call of a tool its
+list did not hold, so the run sent none; the in-house client does.
+
 **Not answered:** a process running as the same user, which can run this binary as any of
 the person's agents, whose identifiers are no secret, or reach the daemon as the person
 (`NOCTUA.md §11.1`); a call the client cancels, which still runs to its end and is
@@ -4503,15 +4524,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **The kernel and the local database**
 
-- **The switch resists no process running as the person.** It is the kernel's entry in the
-  profile's local database, which stops other accounts and not the account it belongs to:
-  such a process switches it through the CLI as the person would, or by writing the entry
-  in the file, where `{"on":true}` reads as on; only an entry holding anything but the two
-  texts the set writes is refused at the next read, rather than read as on or as off.
-- **The person's undo of a switch-off that is their newest step switches MCP on again.**
-  The switch is a step like any other. Not taken: a switch-off made a barrier to undo,
-  which would put every step before it out of the person's reach for good; a history that
-  names a step before it is undone is the interface's (Stage 16).
 - **The kernel decides a person as themselves and an agent through its session, through
   test doors for the rest.** A caller is decided unmarked with an empty actor chain, and an
   agent only through the session `Kernel::session` opened, whose chain no caller writes; a
@@ -4524,13 +4536,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
   plugin's namespace redeems none issued before. A person's history is read by identifier
   alone, so the directory is what keeps two principals of different kinds from sharing
   one.
-- **The agents' bounds are the profile's, not a realm's or a person's.** `agents` and
-  `agent_grants` are each counted whole, every realm's rows together and every grant ever
-  given, ended ones included, and nothing in either is ever deleted: a person in one realm
-  can fill them for every realm the profile serves, and a profile that has kept as many
-  grants as `[tables.agent_grants]` allows keeps no more. Not taken: a bound per realm or
-  per person, which `per` in `catalog/limits.toml` cannot say — it counts each plugin's
-  rows or each unit's.
 - **Plugins can time one another**: they share one process, one machine and one bus, one
   top-level call tree at a time, and nothing pads, batches or randomises a wait — the
   reason the kernel's crate header names timing between plugins as unanswered.
@@ -5027,30 +5032,57 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **Agents and MCP**
 
+- **A process running as the person goes around every agent.** The intersection binds what
+  is dispatched through an agent's session, and nothing else. Such a process — an MCP
+  host's own tool that runs shell commands for its model among them — runs the CLI as the
+  person would, so it switches MCP on, makes, grants and ends the person's agents and undoes
+  their steps; it reads the token and opens a connection that names no agent, which is the
+  person; it runs `noctua mcp` as any of the person's agents; and it writes the profile's
+  local database, where the switch is the kernel's entry and `{"on":true}` reads as on —
+  only an entry holding anything but the two texts the set writes is refused at the next
+  read, rather than read as on or as off. A caller naming a person is decided as that
+  person, and naming an agent without a session decides it as itself, which the core
+  refuses (`NOCTUA.md §11.1`).
+- **Only a person's own call delegates, so no plugin sets MCP up for its person.** The
+  switch and the three agents' commands that change run only at the top of a call tree: a
+  plugin run as the person and a timer's or an event's callback are refused before they
+  are decided (`[NC-KERN-0025]`), and an agent and a device by the permits, which name a
+  person alone.
 - **An agent's identifier is neither a secret nor authentication.** It is the text of a
   minted value, matched and never parsed, and naming an agent a person made is never more
   than that person can do.
+- **Nothing on the endpoint is encrypted**: a session's dispatches and their answers are as
+  readable to a process running as the person as the person's own.
 - **A grant to an agent is what keeps it from the household's shared files.**
   `family.a_member_reads_shared_content` permits any principal to read a `public` or
   `realm` file, and an agent the directory holds is refused one only because its grants are
   scoped to features and compared whole, so it holds no grant for content and
   `core.provenance` refuses; a grant scoped wider, or compared through an ancestor, would
   open every such file.
+  `a_runtime_agent_granted_every_feature_reads_no_shared_content_its_pack_lets_any_principal_read`
+  in `crates/nc-kernel/tests/the_decision_point.rs` holds that scope as it is.
 - **Grants are per feature, not per command**: a feature granted reaches every command that
-  selects it.
+  selects it, so `naming` grants `naming.propose` and `naming.read` together.
+- **The person's own half is decided on their world's grant, which nothing revokes while
+  the daemon runs**: only its end on the kernel's clock is seen mid-session, as **A
+  daemon's grant is the one its world file names, and nothing revokes it** says under
+  **Channels and installs**. The decision point asks for it at every call, so a directory
+  that withholds it refuses the agent's next one
+  (`an_agent_loses_what_its_operator_loses_at_the_next_dispatch`).
 - **An ending the keeper refused holds only until the directory is opened again** from what
   was kept; the refusal says so with the keeper's code.
-- **No agent is ever deleted**, and a profile that made as many agents as its table's bound
-  allows makes no more.
+- **No agent and no grant is ever deleted, and the bounds are the profile's, not a realm's
+  or a person's.** `agents` and `agent_grants` are each counted whole, every realm's rows
+  together and every grant ever given, ended ones included: a person in one realm can fill
+  them for every realm the profile serves, and a profile that has made as many agents as
+  `[tables.agents]` allows, or kept as many grants as `[tables.agent_grants]` allows, makes
+  no more (`[NC-AI-0003]`). Not taken: an agent retired, and a bound per realm or per
+  person, which `per` in `catalog/limits.toml` cannot say — it counts each plugin's rows or
+  each unit's.
 - **Making, granting or ending an agent is a step undo stops at**: the change is the
   profile's database's, outside every unit, so the step that made it left the machine, and
   the reverse of a grant is `agents.revoke`. Not taken: an undo that ends a grant, which
   would be a revocation under another name and bury every step before it.
-- **Delegating resists no process running as the person**: such a process makes, grants and
-  ends the person's agents through the CLI as the person would. Only a person's own call
-  reaches them otherwise: a plugin, a timer and an event run as the person are refused, since
-  only a call at the top of a call tree delegates (`[NC-KERN-0025]`), and an agent is refused
-  by the permit.
 - **The widest list of a person's agents fits one frame for the features the shipped world
   holds, and not a payload**: an agent holds one live grant per feature, so a realm of many
   more features can make the list of every agent at its bound longer than a frame, which the
@@ -5060,10 +5092,6 @@ rather than anything decided for the project, and each is a maintainer's to reop
   cannot then answer with as its own.
 - **An agent's `autonomy` is carried as `supervised` and read by nothing**: the schema
   requires one, and nothing in this repository defines what its values permit.
-- **The intersection binds what is dispatched through an agent's session, and nothing
-  else.** A caller naming a person is decided as that person, and a process running as the
-  person can be one; naming an agent without a session decides it as itself, which the core
-  refuses.
 - **The operator's grant is decided and not named in the entry**: `grant_used` holds no
   grant but the agent's, so the entry says which half refused and not which of the person's
   grants decided theirs.
@@ -5071,58 +5099,65 @@ rather than anything decided for the project, and each is a maintainer's to reop
   caller is told one sentence and the code.
 - **No chain longer than one link exists outside the test door**: an agent another agent
   calls is a session of its own, of its person, one link deep.
-- **What an agent's tree set going keeps going until something refuses it**: a repeating
-  timer it set fires as the agent for its person, decided again at each firing, until its
-  session's budget, its grants or their end stop it; nothing ends it when the session ends,
-  nor when MCP is switched off.
+- **An agent's command that cannot be undone is refused, never waited on**: no interface
+  confirms one yet, and nothing an agent holds or sends confirms it.
+- **What is refused before a command is decided is never journaled, and only the daemon
+  logs what it refuses**: a session asked before the kernel runs or once a stop began, past
+  `sessions_max`, while MCP is off or its switch cannot be read, for an agent the person did
+  not make or while the directory does not answer, a request no session is answered, and a
+  session's request once MCP is off or its switch cannot be read are each logged as
+  `daemon.session_refused` by their code, and no journal entry holds them; nor does one hold
+  a session's tools, which the kernel's probe answers without deciding a dispatch. A call is
+  sent only when its line is read and its arguments are one object: what `noctua mcp`
+  refuses before a command is named — a line that is not one request or that the
+  platform's one reader refuses, a call that is not one object or holds a field besides its
+  name, its arguments and `_meta`, a name that reads back to no command, and arguments that
+  are not one object — is answered to its client and logged nowhere.
+- **An agent's steps are in its person's history**: they can push the person's own steps
+  past `undo_history`, end their way back to redo, and the person's next undo may take back
+  their agent's newest step rather than their own — unreachable in the family pack, where
+  an agent changes nothing.
+- **The person's undo of a switch-off that is their newest step switches MCP on again.**
+  The switch is a step like any other. Not taken: a switch-off made a barrier to undo,
+  which would put every step before it out of the person's reach for good; a history that
+  names a step before it is undone is the interface's (Stage 16).
 - **Switching MCP off ends a session at its next request, not before.** The daemon reads
   the switch when a session opens and before each of its requests, whatever it asks, so an
   idle session keeps its connection and its place among `sessions_max` until its next
   request is refused, and a dispatch the daemon admitted while MCP was on runs even when
   it waits on the kernel's bus behind the switch-off — at most one for each open session.
+- **What an agent's tree set going keeps going until something refuses it**: a repeating
+  timer it set fires as the agent for its person, decided again at each firing, until its
+  session's budget, its grants or their end stop it, and the person's `agents.revoke` has
+  its next firing refused; nothing ends it when the session ends, nor when MCP is switched
+  off.
 - **A session is a connection, not a conversation**: whatever runs over one connection
   shares its agent, its budget and how the journal names it.
 - **The budget is a session's, and a count**: a session opened again counts from nothing,
   and the budget counts calls, firings and events, not their cost, and bounds no rate;
-  `sessions_max` bounds how many sessions are open at once, not how many open over time.
-- **What the daemon refuses before a dispatch is logged, not journaled**: a session asked
-  before the kernel runs or once a stop began, past `sessions_max`, while MCP is off or its
-  switch cannot be read, for an agent the person did not make or while the directory does
-  not answer, a request no session is answered, and a session's request once MCP is off or
-  its switch cannot be read are each logged as `daemon.session_refused` by their code, and
-  no journal entry holds them; nor does one hold a session's tools, which the kernel's
-  probe answers without deciding a dispatch. What `noctua mcp` refuses before a command
-  is named — a line that is not one request, a call's field it does not read, a name that
-  reads back to no command, arguments the one reader refuses or that are not one object —
-  is answered to its client and logged nowhere.
-- **An agent's steps are in its person's history**: they can push the person's own steps
-  past `undo_history`, end their way back to redo, and the person's next undo may take back
-  their agent's newest step rather than their own — unreachable in the family pack, where
-  an agent changes nothing.
-- **What an agent may list is a snapshot of what its session may dispatch**: a command that
-  takes its resource from an argument is not listed and not found, though a dispatch of it
-  is decided as any, and every call is decided again whatever the list said.
-- **An agent's command that cannot be undone is refused, never waited on**: no interface
-  confirms one yet, and nothing an agent holds or sends confirms it.
-- **What a person can read can still steer a model.** `noctua mcp` escapes only what a
-  reader cannot see; a plugin's description, a command's answer and an argument echoed
-  back reach the client as they are, and a tool's hint and a host's own prompt are
-  hints, never a confirmation.
-- **A call the client cancels still runs.** A cancellation is read and ignored: the call
-  in flight runs to its end in the kernel and is answered.
+  `sessions_max` bounds how many sessions are open at once, not how many open over time,
+  and the local journal takes an entry for every call of every session.
+- **What an agent may list is a snapshot of what its session may dispatch, and is never
+  pushed.** A session's list is what was true when it was asked: a grant ended, a budget
+  spent or MCP switched off is seen at the next call or list, never announced. A command
+  that takes its resource from an argument is not listed and not found, though a dispatch of
+  it is decided as any, and every call is decided again whatever the list said.
+- **A refusal reads alike for a tool denied and a tool absent, and takes about as long.**
+  Both are sent and both answer an unknown tool; what tells them apart is the
+  microseconds the kernel spends deciding one, against a model's round trip, and the
+  registry is no secret — `docs/mcp-tools.md` publishes the catalog's.
 - **`noctua mcp` learns late that the daemon could not read MCP's switch.** The daemon
   ends that session with the store's own code, which a dispatch's refusal can carry while
   its session stands, so `noctua mcp` answers the call as any refused one, and learns of
   the ending at its next request to the daemon, as the connection lost (exit 9), or not at
   all when its input ends first (exit 0); the daemon refused the request and closed the
   connection, so nothing more was dispatched.
-- **The tool list is never pushed.** A session's list is what was true when it was
-  asked; a grant ended, a budget spent or MCP switched off is seen at the next call or
-  list, never announced.
-- **A refusal reads alike for a tool denied and a tool absent, and takes about as long.**
-  Both are sent and both answer an unknown tool; what tells them apart is the
-  microseconds the kernel spends deciding one, against a model's round trip, and the
-  registry is no secret — `docs/mcp-tools.md` publishes the catalog's.
+- **What a person can read can still steer a model.** `noctua mcp` escapes only what a
+  reader cannot see; a plugin's description, a command's answer and an argument echoed
+  back reach the client as they are, and a tool's hint and a host's own prompt are
+  hints, never a confirmation.
+- **A call the client cancels still runs.** A cancellation is read and ignored: the call
+  in flight runs to its end in the kernel and is answered.
 - **A host that bounds a tool's name or a schema's names more tightly than the catalog
   does**: a name keeps its command's length, up to `nc_schema::NAME_MAX`, which a host
   that cuts a name with its own prefix at 64 characters can make collide, and a plugin's
@@ -5134,9 +5169,39 @@ rather than anything decided for the project, and each is a maintainer's to reop
   schema.** Such an error carries no `id`, as `2025-11-25`'s schema allows, where the
   older revision's requires one; every answer to a request whose id was read is valid
   in both.
-- **The shipped binary's standard streams against a live daemon are not proven by the
-  gate**: the binary's suite meets no daemon, and the in-house client drives the same run
-  in process, over pipes the system makes.
+- **The shipped binary meets a live daemon in one recorded run, not in the gate**: the
+  binary's suite meets no daemon, and the in-house client drives the same run in process,
+  over pipes the system makes. The run `noctua mcp`'s security answer records as measured
+  is the MCP Inspector CLI 2.15.0's, on Node 26.13.1, on 2026-11-22: it negotiated
+  `2025-11-25`, listed `naming_propose` and `naming_read` alone, had a name proposed and
+  read back canonical, and was refused with `NC-DMN-0014` once MCP was off. It is one
+  client, on Linux, against a scratch install, and that client refused on its own a call
+  of a tool it had not been listed, so the run sent none; what changed since is proven in
+  process alone.
+
+**What did not close as written.** Where the design of agents and MCP said otherwise, this
+is what holds, each a maintainer's to reopen:
+
+- **The widest `agents.list` is held to one frame, not to a payload**: at the bounds, for
+  the features the shipped world holds, it is 1,569,292 bytes, which
+  `the_widest_list_of_agents_fits_one_frame` holds within a frame and above a payload,
+  against a design that held it within `[kernel] payload_bytes`.
+- **MCP is read before every request of a session, whatever it asks**: the design read what
+  a session asks first (`a_sessions`), so a request no session is answered kept a session
+  standing once MCP was off; the first review wave set the switch first.
+- **A switch the daemon cannot read mid-session ends the session with the store's own
+  code**, as designed, but `noctua mcp` cannot tell that code from a dispatch's refusal by
+  the store, so it learns of the ending at its next request, as the connection lost.
+- **The `2025-03-26` revision is not offered**: the schemas this server was written against
+  are `2025-11-25`'s and `2025-06-18`'s, none shows its answers valid in `2025-03-26`, and
+  the batching that revision reads is refused, so a client asking for it is answered in
+  `2025-11-25`.
+- **An error answering a line whose id could not be read omits `id`** rather than writing
+  `"id": null`: `2025-11-25`'s schema allows an error with no `id` and none whose `id` is
+  null, and `2025-06-18`'s requires one, so that answer is valid in the newer revision
+  alone, as the bullet above says.
+- **The third-party run is the MCP Inspector CLI's alone**, against a scratch install: no
+  MCP host's run is recorded.
 
 **The fuzzy core**
 

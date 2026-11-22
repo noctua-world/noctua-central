@@ -115,6 +115,56 @@ speak different versions of the protocol refuse each other** at the handshake
 (`NC-IPC-0004`), so after pulling a change to the protocol, `cargo xtask dev --install`
 again, which replaces the daemon the install runs.
 
+## Connect an MCP client
+
+`noctua mcp <agent>` serves an MCP client on its standard input and output as an agent a
+person made, never as that person (`NOCTUA.md §20.3`), and reaches the daemon of the
+channel whose CLI runs it. Every command here goes through that channel's CLI:
+`noctua-dev` for this checkout's development channel, installed as above, or the
+channel's own name — `docs/cli.md` writes production's, `noctua`. MCP is off in a channel
+until a person switches it on, and an agent does nothing until it is granted a feature:
+
+```sh
+noctua-dev settings.mcp.set --on
+noctua-dev agents.create --label "My MCP client" --budget 1000
+noctua-dev agents.grant --agent <agent> --feature naming --minutes 1440 --reason "Naming my files"
+```
+
+- `agents.create` answers the agent's identifier, the `<agent>` every later command
+  names. Its budget is what each of its sessions may spend: one for each call it sends,
+  each timer of its tree that fires and each event of its tree that is delivered.
+- `agents.grant` lets the agent use one feature for the minutes `--minutes` gives, at most
+  `[kernel] agent_grant_minutes_max`. The family pack lets an agent use two: `naming`,
+  whose tools are `naming_propose` and `naming_read`, and `registry`, whose tool is
+  `kernel_find`; a grant of any other allows nothing. `agents.list` shows your agents and
+  their grants, and `agents.revoke --agent <agent>` ends every grant the agent holds, or
+  the one `--feature` names, from its next call.
+- None of the three is done for you by a plugin, a timer, an event or an agent: each runs
+  only as a person's own call, never from inside another.
+
+Then add to the MCP host a server over standard input and output whose command is the
+CLI and whose arguments are `mcp` and the agent's identifier — what
+`noctua-dev mcp <agent>` runs at a terminal. What the client is then handed:
+
+- **Its tools are the commands the agent's session may dispatch when it asks**, each
+  named as its command with each dot written as an underscore — `naming_propose` for
+  `naming.propose`. `docs/mcp-tools.md` shows every command the catalog declares as a
+  tool.
+- **Every call is decided as the agent and for you, and journaled with both**: the agent
+  is allowed only what its own permit, your grant to it and your own rights all allow,
+  decided again at each call, and a command that cannot be undone is refused, never
+  waited on.
+- **The tools speak the environment's language**, read once as `noctua mcp` starts: the
+  first of `LC_ALL`, `LC_MESSAGES` and `LANG` that is set and not empty, Brazilian
+  Portuguese when it starts `pt` and English otherwise, so set it where the host starts
+  the server.
+- **Switching MCP off ends the session**: after `settings.mcp.set --on=false`, the
+  session's next call or tool list is refused with `NC-DMN-0014` and `noctua mcp` ends.
+
+A process running as you does all of this as you, and reaches the daemon as you with no
+agent at all: what that leaves open is in `AGENTS.md`, under **What is deliberately not
+claimed**.
+
 ## What the gate checks, and where
 
 `cargo xtask check` passes on a checkout of this repository **alone**, **against a
@@ -192,7 +242,7 @@ Linux job runs it; the verdict names each one, and on Linux it holds the run to 
 | Path | What it is |
 |---|---|
 | `catalog/` | The declarative registries every part of the platform reads: error codes, notifications, emails, limits, commands — each with what a person is shown of it — log events, the capabilities a plugin can be granted, the categories an entry is listed under, the things outside the platform it identifies and what identifies each on every system, both locales, and the wiki texts an entry may carry |
-| `apps/` | The binaries a person's machine runs, each a library and a thin binary. `daemon` is the daemon a channel runs: it serves its kernel at its endpoint, and `noctua-daemon` with no argument is it. `cli` is `noctua`, the command line a channel is reached through: every command read against its schema, the daemon started, stopped and asked how it is, and the installer `cargo xtask dev --install` runs |
+| `apps/` | The binaries a person's machine runs, each a library and a thin binary. `daemon` is the daemon a channel runs: it serves its kernel at its endpoint, and `noctua-daemon` with no argument is it. `cli` is `noctua`, the command line a channel is reached through: every command read against its schema, the daemon started, stopped and asked how it is, an MCP client served as one of the person's agents, and the installer `cargo xtask dev --install` runs |
 | `crates/` | The libraries. `nc-catalog` is generated from `catalog/` and committed; `nc-catalog-compiler` is what generates it; `nc-kernel` is the local kernel, which hosts the plugins and authorizes and journals every command they run |
 | `docs/` | This manual, and every error code, notification, email, limit, command, log event, capability, category and external identifier, as Markdown and every command as the tool an MCP session is handed — the pages generated from `catalog/` by `cargo xtask docs` and committed — with the CLI's reference and the keys every channel is driven by by default, which the compiler publishes from the tables `cargo xtask` hands it out of `apps/cli` and `crates/nc-channel`. Editing a page by hand fails the gate; edit the registry, or the table the page names on its `Source:` line, instead. This file is the one written by hand |
 | `migrations/` | The schema, forward-only and applied in numeric order by `cargo xtask dev` |
