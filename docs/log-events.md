@@ -50,7 +50,7 @@ Level: `info`
 
 ## `daemon.session_refused`
 
-A session was not opened, or a request of an open one was refused, before the kernel decided anything — MCP off, past `sessions_max`, an agent the person did not make, or a request no session is answered — by its code; nothing of it is journaled
+A session was refused as it opened — the daemon not running its kernel yet or stopping, past `sessions_max`, MCP off or its switch unreadable, an agent the person did not make, or a directory that did not answer — or, once open, asked what no session is answered, or was ended because MCP was off or its switch unreadable; logged by its code, since no command was dispatched, and nothing of it is journaled
 
 Level: `warn`
 

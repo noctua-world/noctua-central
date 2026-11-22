@@ -59,9 +59,10 @@
 //!
 //! **What is refused here is logged and never journaled**: each refusal of a
 //! session's opening, each request no session is answered and each ending for
-//! MCP off is logged as `daemon.session_refused` by its code, since no command
-//! was dispatched; a session opened is logged as `daemon.session_opened`, and
-//! its end, with its connection, as `daemon.session_ended`.
+//! MCP off or unreadable is logged as `daemon.session_refused` by its code,
+//! since no command was dispatched; a session opened is logged as
+//! `daemon.session_opened`, and its end, with its connection, as
+//! `daemon.session_ended`.
 //!
 //! # What each answer holds
 //!
@@ -456,9 +457,10 @@ impl Server {
     /// else is read, and one past `sessions_max` refused (`NC-DMN-0016`); MCP
     /// must be on (`NC-DMN-0014`, or the store's own refusal when the switch
     /// could not be read); and the kernel opens the session from its
-    /// directory's answer, for an agent the person made alone (`NC-AI-0001`).
-    /// A refusal ends the connection it was asked on, so no refused client
-    /// goes on as the person.
+    /// directory's answer, for an agent the person made alone (`NC-AI-0001`,
+    /// or `NC-POL-0006` when the directory does not answer). A refusal ends
+    /// the connection it was asked on, so no refused client goes on as the
+    /// person.
     async fn session(self: &Arc<Self>, agent: Snowflake) -> Result<Opened, Refusal> {
         let opened = self.opened(agent).await;
         match &opened {
@@ -510,8 +512,8 @@ impl Server {
         }
     }
 
-    /// Logs `refusal` as a session's: refused before the kernel decided
-    /// anything, so nothing of it is journaled.
+    /// Logs `refusal` as a session's: no command was dispatched, so nothing of
+    /// it is journaled.
     fn refused_session(&self, refusal: &Refusal) {
         self.log
             .record(&nc_log::events::DaemonSessionRefused { code: refusal.code });

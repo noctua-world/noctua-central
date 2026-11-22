@@ -2979,9 +2979,10 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   session's next request is refused (`NC-DMN-0014`, or the store's code) and the
   connection closed once the refusal is written.
 - **What is refused here is logged, never journaled.** Each refusal of an opening, each
-  request no session is answered and each ending for MCP off is logged as
-  `daemon.session_refused` by its code — no command was dispatched — and a session opened
-  and ended as `daemon.session_opened` and `daemon.session_ended`, with its agent.
+  request no session is answered and each ending for MCP off or its switch unreadable is
+  logged as `daemon.session_refused` by its code — no command was dispatched — and a
+  session opened and ended as `daemon.session_opened` and `daemon.session_ended`, with
+  its agent.
 
 **Enforced by** the unit tests of `server` — every request a session may and may not ask,
 through a match with no wildcard; a session refused before the kernel runs and once a stop
@@ -4821,7 +4822,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   a start whose clock is behind its mark by more than the lease
   (`ids.clock_backwards`), a daemon started and stopped (`daemon.started`,
   `daemon.stopped`), a plugin it refused (`daemon.plugin_refused`), a pruner stuck
-  (`daemon.prune_stuck`) and a connection it refused (`ipc.refused`) — each a struct
+  (`daemon.prune_stuck`), an agent's session opened, ended or refused
+  (`daemon.session_opened`, `daemon.session_ended`, `daemon.session_refused`) and a
+  connection it refused (`ipc.refused`) — each a struct
   `catalog/log-events.toml` generates; nothing else of the platform logs yet. A daemon hands the kernel `nc_log::Log` behind a mutex, the
   one `nc_kernel::logging::LogSink` it writes its own events to too — to its standard
   error alone when its install names no store; the kernel's suites
@@ -4972,11 +4975,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The budget is a session's, and a count**: a session opened again counts from nothing,
   and the budget counts calls, firings and events, not their cost, and bounds no rate;
   `sessions_max` bounds how many sessions are open at once, not how many open over time.
-- **What the daemon refuses before the kernel is logged, not journaled**: a session asked
-  while MCP is off, past `sessions_max` or for an agent the person did not make, a request
-  no session is answered, and a session's request once MCP is off are each logged as
-  `daemon.session_refused` by their code, and no journal entry holds them; nor does one
-  hold a session's tools, which the kernel's probe answers without deciding a dispatch.
+- **What the daemon refuses before a dispatch is logged, not journaled**: a session asked
+  before the kernel runs or once a stop began, past `sessions_max`, while MCP is off or its
+  switch cannot be read, for an agent the person did not make or while the directory does
+  not answer, a request no session is answered, and a session's request once MCP is off or
+  its switch cannot be read are each logged as `daemon.session_refused` by their code, and
+  no journal entry holds them; nor does one hold a session's tools, which the kernel's
+  probe answers without deciding a dispatch.
 - **An agent's steps are in its person's history**: they can push the person's own steps
   past `undo_history`, end their way back to redo, and the person's next undo may take back
   their agent's newest step rather than their own — unreachable in the family pack, where
