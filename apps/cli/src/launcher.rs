@@ -73,7 +73,7 @@ fn through_at(executable: &Path, refused: &Refused, argv: &[OsString], env: &Env
         return match launched {
             Ok(code) => Through::Ran(code),
             Err(failure) => Through::Said(render::failed(
-                crate::run::asks_for_json(argv),
+                crate::run::renders_json(argv),
                 env.locale(),
                 &failure,
             )),
@@ -326,5 +326,60 @@ mod tests {
             said.stderr
         );
         assert_eq!(said.code(), Exit::NoInstall.code());
+    }
+
+    /// A launcher refused for a line naming `mcp` says so on standard error,
+    /// whatever its options ask.
+    ///
+    /// **Standard output is the protocol's**: `--json mcp` with an agent,
+    /// its pointer naming a CLI that does not start, ends with the launcher's
+    /// code on standard error and nothing on standard output, where a line
+    /// that names no `mcp` under `--json` is still one document there.
+    #[test]
+    fn a_launcher_refused_for_an_mcp_line_says_so_on_standard_error_whatever_its_options_ask() {
+        let scratch = Scratch::new("mcp");
+        let launcher = scratch.0.join("noctua-dev-t3");
+        drop(nc_platform::create_private(&launcher).expect("a stand-in launcher"));
+        let pointer = nc_channel::checkouts::pointer_beside(&launcher);
+        scratch.file(
+            pointer
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("a name"),
+            &nc_channel::checkouts::Pointer {
+                cli: scratch.0.join("absent-cli"),
+            }
+            .to_canonical(),
+        );
+        let launcher = std::fs::canonicalize(&launcher).expect("canonical");
+        let refused = nc_channel::found::beside(&launcher).expect_err("no install beside it");
+        let env = crate::render::Env::of(|_| None);
+        let flake = nc_ids::MachineFlake::from_value(4).expect("a flake");
+        let agent = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+            .to_crockford();
+        let said = |line: &[&str]| {
+            let argv: Vec<OsString> = line.iter().map(OsString::from).collect();
+            match super::through_at(&launcher, &refused, &argv, &env) {
+                super::Through::Said(said) => said,
+                super::Through::Ran(code) => panic!("{line:?} ran a CLI that ended in {code}"),
+            }
+        };
+        let code = ErrorCode::CliLauncherRefused.code();
+        let mcp = said(&["--json", "mcp", &agent]);
+        assert_eq!(mcp.stdout, "", "{mcp:?}");
+        assert!(
+            mcp.stderr.starts_with(&format!("error[{code}]")),
+            "{}",
+            mcp.stderr
+        );
+        assert_eq!(mcp.code(), Exit::NoInstall.code());
+        let help = said(&["--json", "help"]);
+        assert!(
+            help.stdout.starts_with("{\"error\":") && help.stdout.contains(code),
+            "{help:?}"
+        );
+        assert_eq!(help.stderr, "", "{help:?}");
     }
 }

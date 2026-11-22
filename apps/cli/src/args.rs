@@ -4,6 +4,7 @@
 //! noctua [--json] [--help] <verb | command.name> [arguments]
 //! noctua [--json] start | stop | restart | status
 //! noctua [--json] checkouts [<checkout>]
+//! noctua mcp <agent>
 //! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers | keybindings]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
@@ -13,8 +14,11 @@
 //!    renders the answer as one canonical document, `--help` asks for help,
 //!    and the first other word is a verb — one word, [`VERBS`] — or a
 //!    command's registered name, which is always dotted, so the two never
-//!    meet. `checkouts` takes at most one word after it, a checkout's digest.
-//!    Nothing here asks the daemon anything.
+//!    meet. `checkouts` takes at most one word after it, a checkout's digest,
+//!    and `mcp` exactly one, the agent it acts as, read only as the identifier
+//!    `agents.create` answered is written and never under `--json`, whose
+//!    standard output is the protocol's. Nothing here asks the daemon
+//!    anything.
 //! 2. [`arguments`] reads what follows a command's name against that
 //!    command's schema, as the daemon's registry hands it: **a flag's name is
 //!    the property's, verbatim**, a value is read as the property's type —
@@ -39,12 +43,21 @@ use nc_catalog::ErrorCode;
 use nc_schema::{Argument, Schema, Shape};
 
 /// The verbs the CLI answers itself, each one word: `help`, the verbs that
-/// control the daemon's process ([`Control`]), and [`CHECKOUTS`].
+/// control the daemon's process ([`Control`]), [`MCP`] and [`CHECKOUTS`].
 ///
 /// **Undotted, and a registered command's name is always dotted**
 /// (`nc_schema::command_name_is_well_formed`), so a verb never shadows a
 /// command and a command never takes a verb's place.
-pub const VERBS: [&str; 6] = ["help", "start", "stop", "restart", "status", CHECKOUTS];
+pub const VERBS: [&str; 7] = ["help", "start", "stop", "restart", "status", MCP, CHECKOUTS];
+
+/// The verb that serves an MCP client on the CLI's own standard streams, as
+/// one agent's session (`NOCTUA.md §20.3`).
+///
+/// **A transport, not a feature a registered command could carry**: it reads
+/// a client's messages and writes the protocol's answers, and dispatches for
+/// the client only what the session of the agent it names may — so it is a
+/// word of the CLI's, the one verb that asks the daemon.
+pub const MCP: &str = "mcp";
 
 /// The verb that lists the development checkouts installed beside this one,
 /// and chooses the one `noctua-dev` reaches: what only the CLI can do, since
@@ -122,6 +135,9 @@ pub enum Asked {
     /// The development checkouts installed beside this one: listed, or one
     /// chosen by its digest when one is given.
     Checkouts(Option<String>),
+    /// An MCP client served on the run's standard streams, as a session of
+    /// the agent named, until its input ends.
+    Mcp(nc_ids::Snowflake),
     /// A registered command, and the words after its name, which are read
     /// against its schema once the registry has handed it.
     Command {
@@ -209,8 +225,10 @@ pub fn shown(word: &str) -> String {
 /// # Errors
 ///
 /// [`Unread::Line`] for an option this build does not know or one given
-/// twice, a word that is neither a verb nor a command's name, and help asked
-/// about more than one thing.
+/// twice, a word that is neither a verb nor a command's name, help asked
+/// about more than one thing, and `mcp` under `--json`, with no agent, with a
+/// word that is not an agent's identifier as it is written, or with a second
+/// word.
 pub fn read(words: &[String]) -> Result<Line, Unread> {
     let mut json = false;
     let mut help = false;
@@ -251,6 +269,7 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
                     )));
                 }
             },
+            Some((word, after)) if word == MCP => Asked::Mcp(agent_of(json, after)?),
             Some((word, after)) if let Some(verb) = Control::of(word) => match after.first() {
                 None => Asked::Control(verb),
                 Some(extra) => {
@@ -267,6 +286,40 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
         }
     };
     Ok(Line { json, asked })
+}
+
+/// The agent `mcp` acts as, the one word `after` it, unless `json` says so.
+///
+/// **Read back only as `agents.create` writes it**: the text a Snowflake's
+/// `to_crockford` gives, so a lower-case, padded or shortened spelling is no
+/// agent's, and a session is never asked for one the person did not name.
+/// `--json` is refused, because standard output carries the protocol's
+/// messages and nothing else.
+fn agent_of(json: bool, after: &[String]) -> Result<nc_ids::Snowflake, Unread> {
+    if json {
+        return Err(unread(format!(
+            "`--json` is not read with `{MCP}`: its standard output carries the protocol's \
+             messages and nothing else"
+        )));
+    }
+    match after {
+        [] => Err(unread(format!(
+            "`{MCP}` names the agent it acts as, by the identifier `agents.create` answered"
+        ))),
+        [word] => nc_ids::Snowflake::from_crockford(word)
+            .ok()
+            .filter(|agent| agent.to_crockford() == *word)
+            .ok_or_else(|| {
+                unread(format!(
+                    "`{}` is not an agent's identifier as `agents.create` answers one",
+                    shown(word)
+                ))
+            }),
+        [_, extra, ..] => Err(unread(format!(
+            "`{MCP}` takes one agent's identifier after it, and `{}` is a second word",
+            shown(extra)
+        ))),
+    }
 }
 
 /// The topic help is asked about in `words`: nothing, one verb, one command's
@@ -668,13 +721,33 @@ mod tests {
         assert!(said.detail().contains("help"), "{said:?}");
     }
 
+    /// An agent's identifier as a minter gives one.
+    fn minted() -> nc_ids::Snowflake {
+        let flake = nc_ids::MachineFlake::from_value(5).expect("a flake");
+        nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+    }
+
     /// Every verb is one undotted word, so no registered name is one: a name is
     /// always dotted, and every catalog command's name is read as a command.
+    ///
+    /// `mcp` is read with the agent it names, and alone is refused, as no
+    /// other verb is.
     #[test]
     fn the_verbs_and_the_registered_names_never_meet() {
         for verb in VERBS {
             assert!(!verb.contains('.'), "{verb}");
             assert!(!nc_schema::command_name_is_well_formed(verb), "{verb}");
+            if verb == super::MCP {
+                assert_eq!(refused(&[verb]).code(), ErrorCode::CliCommandLineUnreadable);
+                let agent = minted();
+                assert_eq!(
+                    line(&[verb, &agent.to_crockford()]).asked,
+                    Asked::Mcp(agent)
+                );
+                continue;
+            }
             assert!(
                 matches!(
                     line(&[verb]).asked,
@@ -777,8 +850,8 @@ mod tests {
         );
     }
 
-    /// The verbs are `help`, the four that control the daemon and the one
-    /// that lists the checkouts.
+    /// The verbs are `help`, the four that control the daemon, `mcp` and the
+    /// one that lists the checkouts.
     ///
     /// Each is read as itself, under `--json` too, and a verb that controls
     /// the daemon is refused with a word after it.
@@ -787,7 +860,7 @@ mod tests {
         assert_eq!(
             VERBS[1..=4],
             Control::ALL.map(Control::word),
-            "the verbs are not help, the four that control the daemon and checkouts"
+            "the verbs are not help, the four that control the daemon, mcp and checkouts"
         );
         assert_eq!(VERBS[0], "help");
         for verb in Control::ALL {
@@ -807,6 +880,55 @@ mod tests {
         }
         assert_eq!(Control::of("help"), None);
         assert_eq!(Control::of("Stop"), None);
+    }
+
+    /// `mcp` is read with its agent alone, and never with `--json`.
+    ///
+    /// **The one spelling an identifier has**: the word `to_crockford` writes
+    /// is the agent; no word, a second word, a word that is no identifier, the
+    /// same identifier in lower case or with a digit added, and `--json`
+    /// before it — whose standard output is the protocol's — are each refused
+    /// with the CLI's code, each detail escaping what it repeats; help on the
+    /// verb is the verbs'.
+    #[test]
+    fn mcp_is_read_with_its_agent_alone_and_never_with_json() {
+        let agent = minted();
+        let written = agent.to_crockford();
+        assert_eq!(VERBS[5], super::MCP);
+        assert_eq!(
+            line(&["mcp", &written]),
+            Line {
+                json: false,
+                asked: Asked::Mcp(agent)
+            }
+        );
+        let lower = written.to_lowercase();
+        let padded = format!("0{written}");
+        for (refusal, said) in [
+            (&["mcp"][..], "names the agent it acts as"),
+            (&["mcp", &written, "y"], "is a second word"),
+            (&["mcp", "x", "y"], "is a second word"),
+            (&["mcp", "ana"], "is not an agent's identifier"),
+            (&["mcp", "\u{1b}[2J"], "\\u{1b}[2J"),
+            (&["mcp", &lower], "is not an agent's identifier"),
+            (&["mcp", &padded], "is not an agent's identifier"),
+            (
+                &["--json", "mcp", &written],
+                "`--json` is not read with `mcp`",
+            ),
+            (&["--json", "mcp"], "`--json` is not read with `mcp`"),
+        ] {
+            let unread = refused(refusal);
+            assert_eq!(
+                unread.code(),
+                ErrorCode::CliCommandLineUnreadable,
+                "{refusal:?}"
+            );
+            assert!(unread.detail().contains(said), "{refusal:?}: {unread:?}");
+        }
+        for asked in [&["help", "mcp"][..], &["--help", "mcp"]] {
+            assert_eq!(line(asked).asked, Asked::Help(Topic::Verbs), "{asked:?}");
+        }
     }
 
     /// Each type is read as its type: text as written, a whole number, a

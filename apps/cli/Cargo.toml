@@ -42,8 +42,9 @@ nc-schema.workspace = true
 # arguments as the kernel reads it.
 serde_json.workspace = true
 # The runtime a connection runs on: one thread (`rt`), the endpoint's socket or
-# pipe (`net`) and the protocol's bounds (`time`). Already in the graph with
-# each of them; never `process` or `signal`.
+# pipe (`net`) and the protocol's bounds (`time`); and, for `noctua mcp`, the
+# blocking pool its standard streams are read and written on, which `rt`
+# carries. Already in the graph with each of them; never `process` or `signal`.
 tokio = { workspace = true, features = ["rt", "net", "time"] }
 # The one fuzzy matcher (`NOCTUA.md §12.4`), which the `checkouts` picker
 # filters by: a list filtered by typing is matched by it, never a second.

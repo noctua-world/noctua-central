@@ -44,7 +44,8 @@
 //! it — while MCP is on (`NC-DMN-0014`, or the store's own refusal when the
 //! switch could not be read: never read as on), and for an agent the
 //! profile's person made, which the kernel opens from its directory's answer
-//! (`NC-AI-0001`). **A refused session closes its connection** once the
+//! (`NC-AI-0001`, or `NC-POL-0006` when the directory does not answer). **A
+//! refused session closes its connection** once the
 //! refusal is written, so no client that was refused goes on as the person.
 //!
 //! **A session asks for its tools and dispatches commands, and nothing

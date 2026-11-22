@@ -6,6 +6,12 @@
 //! error — exiting with the outcome's code. What a run does and which code it
 //! ends in is the library's; what is written, and the code when it cannot be,
 //! is decided by [`written`], which this file's own tests call.
+//!
+//! **Two doors, and the second is `mcp`'s alone**: [`standard_streams`] hands
+//! the run this process's standard input and output, which `noctua mcp`
+//! reads its client's messages from and writes the protocol's answers to,
+//! one line each, while every other run leaves them unread — so its outcome's
+//! standard output is empty, and [`say`] writes nothing there.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 
@@ -26,7 +32,7 @@ fn main() -> ExitCode {
             &|name| std::env::var_os(name),
         ));
     let outcome = match nc_channel::found::of_this_process() {
-        Ok(found) => nc_cli::run(&arguments, &found, &env),
+        Ok(found) => nc_cli::run_with(&arguments, &found, &env, standard_streams()),
         Err(refused) => match nc_cli::launcher::through(&refused, &arguments, &env) {
             // **The launched CLI printed its own run**, so nothing is said
             // here, and its code is this one's whole.
@@ -35,6 +41,21 @@ fn main() -> ExitCode {
         },
     };
     ExitCode::from(say(&outcome))
+}
+
+/// The streams `noctua mcp` serves its client on: this process's standard
+/// input and standard output.
+///
+/// **They carry the protocol and nothing else while it runs**: what the
+/// client sends is read from the first, and only the answers to it are
+/// written to the second.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the MCP server's door: its client's messages are read from standard input and its \
+              answers written to standard output, one line each, and nothing else is written there"
+)]
+fn standard_streams() -> nc_cli::mcp::Streams {
+    nc_cli::mcp::Streams::new(std::io::stdin(), std::io::stdout())
 }
 
 /// Whether standard input and standard output are both a terminal, which a

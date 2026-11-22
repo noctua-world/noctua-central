@@ -237,6 +237,7 @@ dir   = "ltr"
 "error.cli.chosen-not-pointed" = "O noctua-dev não foi alterado: a pasta dele, ou o que já está lá, não cabe a esta instalação alterar, ou não pôde ser gravado."
 "error.cli.terminal-unanswered" = "O terminal não respondeu, então nada foi escolhido. Tente de novo, ou escolha pelo resumo do checkout."
 "error.cli.launcher-refused" = "As configurações deste lançador podem pertencer a outra conta, ou não puderam ser lidas, então nada foi executado. Instale de novo."
+"error.cli.input-failed" = "Não foi possível ler a entrada padrão da sessão MCP, então a sessão terminou."
 
 # --- The entries that prove the catalog's mechanism ---
 "notification.catalog.mechanism.title" = "O Noctua está funcionando"
