@@ -249,6 +249,7 @@ dir   = "ltr"
 "error.cli.chosen-not-pointed" = "noctua-dev was not changed: its folder, or what is already there, is not this installation's to change, or it could not be written."
 "error.cli.terminal-unanswered" = "The terminal did not answer, so nothing was chosen. Try again, or choose by the checkout's digest."
 "error.cli.launcher-refused" = "This launcher's settings could belong to another account, or could not be read, so nothing was run. Install again."
+"error.cli.input-failed" = "The MCP session's standard input could not be read, so the session ended."
 
 # --- The catalog's own mechanism entries ---
 # These two pairs exist to prove the generated typed handles resolve in both

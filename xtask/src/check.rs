@@ -7795,7 +7795,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 54] = [
+const SUITES: [(&str, &str); 55] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7811,6 +7811,11 @@ const SUITES: [(&str, &str); 54] = [
     // back: it touches no disk and spawns nothing.
     ("nc-cli", "arguments_from_schemas.rs"),
     ("nc-cli", "the_launcher_passes_everything_through.rs"),
+    // The built CLI copied beside a manifest, serving MCP with no daemon.
+    (
+        "nc-cli",
+        "the_mcp_server_writes_nothing_but_the_protocol.rs",
+    ),
     // The daemon's binary, copied into a scratch install beside a manifest.
     ("nc-daemon", "the_binary_prepares_a_profile.rs"),
     // A child of the test binary killed while it mints behind the real mark,
@@ -17533,7 +17538,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 3),
-        ("nc-cli", 4),
+        ("nc-cli", 5),
         ("nc-daemon", 12),
         ("nc-fuzzy", 3),
         ("nc-guest", 1),
@@ -19588,8 +19593,8 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 232] = [
-        ("cli/args.rs", 46, 10),
+    const DOCUMENTED: [(&str, usize, usize); 234] = [
+        ("cli/args.rs", 50, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
         ("cli/chosen.rs", 26, 10),
@@ -19599,15 +19604,21 @@ mod the_frozen_path_rule {
         ("cli/help.rs", 42, 3),
         ("cli/install.rs", 81, 18),
         ("cli/launcher.rs", 13, 6),
-        ("cli/lib.rs", 1, 13),
-        ("cli/main.rs", 7, 5),
+        ("cli/lib.rs", 1, 14),
+        ("cli/main.rs", 8, 5),
+        ("cli/mcp.rs", 110, 15),
         ("cli/picker.rs", 33, 5),
         ("cli/render.rs", 25, 4),
-        ("cli/run.rs", 30, 5),
+        ("cli/run.rs", 35, 5),
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
+        (
+            "cli/the_mcp_server_writes_nothing_but_the_protocol.rs",
+            11,
+            3,
+        ),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
-        ("daemon/agent_sessions.rs", 38, 0),
+        ("daemon/agent_sessions.rs", 65, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 24, 18),
@@ -22611,8 +22622,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 881 scratches this tree
-    /// builds, 793 of the 881 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 891 scratches this tree
+    /// builds, 803 of the 891 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22678,15 +22689,21 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 63] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 65] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 8, 8),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 18, 18),
         ("cli/launcher.rs", 3, 3),
-        ("cli/run.rs", 10, 10),
+        ("cli/mcp.rs", 3, 3),
+        ("cli/run.rs", 12, 12),
         ("cli/the_launcher_passes_everything_through.rs", 4, 4),
+        (
+            "cli/the_mcp_server_writes_nothing_but_the_protocol.rs",
+            5,
+            5,
+        ),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 3, 3),
@@ -25770,7 +25787,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21645;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21921;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25789,7 +25806,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5809;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5919;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25806,7 +25823,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1960;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1998;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25840,7 +25857,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 28676;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29073;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25894,7 +25911,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **513 of 28,676 are accepted by the first-line
+    /// rules the gates apply: **513 of 29,073 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25927,7 +25944,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1960 of
+    /// this tree offers, **1998 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34556,7 +34573,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 61] = [
+    const NOT_MUTATED: [(&str, &str); 62] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -35089,6 +35106,17 @@ mod the_meta_gate {
              `launcher.rs` and `main.rs`, which the runner's commands for them run, \
              and a weakening of this file would remove evidence rather than uncover \
              an undecided clause",
+        ),
+        (
+            "apps/cli/tests/the_mcp_server_writes_nothing_but_the_protocol.rs",
+            "a suite: the built CLI copied beside a manifest, or beside none, \
+             serving an MCP client on its standard streams with no daemon, every \
+             line it writes there one answer of the protocol's and every refusal \
+             of its line said on standard error. It spawns a process, so no \
+             mutation command runs it: what it drives in `mcp.rs`, `args.rs`, \
+             `run.rs` and `main.rs` is decided by those modules' unit tests, which \
+             the runner's commands for them run, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
         ),
     ];
 
@@ -35662,7 +35690,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 16] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 17] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35723,6 +35751,10 @@ mod the_meta_gate {
         ),
         (
             "apps/cli/tests/the_launcher_passes_everything_through.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/cli/tests/the_mcp_server_writes_nothing_but_the_protocol.rs",
             SPAWNS_A_PROCESS,
         ),
     ];
@@ -37902,7 +37934,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 246,
+            walked, 248,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37942,7 +37974,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2771] = [
+    static OPERATORS: [(&str, &str, &str); 2805] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41392,7 +41424,11 @@ Options:
             "a category's display name is escaped",
         ),
         ("cli_help", "set_heading", "what defines a set is escaped"),
-        ("cli_run", "run", "help on the categories needs no daemon"),
+        (
+            "cli_run",
+            "run_with",
+            "help on the categories needs no daemon",
+        ),
         (
             "compiler_registries",
             "check_external_identifiers",
@@ -41731,7 +41767,7 @@ Options:
         ),
         (
             "cli_run",
-            "run",
+            "run_with",
             "help on the external identifiers needs no daemon",
         ),
         (
@@ -49099,7 +49135,7 @@ Options:
         ),
         (
             "cli_run",
-            "run",
+            "run_with",
             "help on the keybindings is in the environment's language",
         ),
         (
@@ -49224,7 +49260,11 @@ Options:
             "tools",
             "the tools are asked in the locale named",
         ),
-        ("cli_run", "run", "help on the exit codes asks no daemon"),
+        (
+            "cli_run",
+            "run_with",
+            "help on the exit codes asks no daemon",
+        ),
         (
             "cli_run",
             "registered",
@@ -49267,7 +49307,7 @@ Options:
         ),
         (
             "cli_run",
-            "run",
+            "run_with",
             "help on everything shows the grammar when no registry is read",
         ),
         (
@@ -49280,7 +49320,7 @@ Options:
             "asks_for_json",
             "only the options before the command ask for `--json`",
         ),
-        ("cli_run", "run", "the checkouts verb needs no daemon"),
+        ("cli_run", "run_with", "the checkouts verb needs no daemon"),
         (
             "platform_process",
             "judged",
@@ -50453,6 +50493,128 @@ Options:
             "generator",
             "surfaces",
             "the CLI's page is handed every exit code",
+        ),
+        (
+            "cli_mcp",
+            "heard",
+            "nothing but initialize and a ping is answered before initialize",
+        ),
+        ("cli_mcp", "heard", "a second initialize is refused"),
+        (
+            "cli_mcp",
+            "initialize",
+            "a revision this server does not speak is answered in its newest",
+        ),
+        ("cli_mcp", "heard", "a notification is never answered"),
+        ("cli_mcp", "heard", "a client's response is never answered"),
+        (
+            "cli_mcp",
+            "heard",
+            "a request's id is a string or an integer",
+        ),
+        ("cli_mcp", "heard", "a message is JSON-RPC 2.0"),
+        ("cli_mcp", "heard", "a blank line is nothing"),
+        ("cli_mcp", "call", "a call reads a closed set of fields"),
+        (
+            "cli_mcp",
+            "CALL_READS",
+            "a call reads its meta, and nothing in it",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "a session that never listed lists before its first call",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "a call is acted on only as the platform's one reader reads it",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "a name that reads back to no command is never sent",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "a call's arguments given as null are the empty object",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "arguments that are not one object are never sent",
+        ),
+        (
+            "cli_mcp",
+            "call",
+            "a call is listed only when the last list held its tool",
+        ),
+        (
+            "cli_mcp",
+            "called",
+            "an unlisted tool's refusal reads as an unknown tool",
+        ),
+        (
+            "cli_mcp",
+            "called",
+            "a command gone from the registry reads as an unknown tool",
+        ),
+        (
+            "cli_mcp",
+            "called",
+            "a daemon's own refusal is shown as it is",
+        ),
+        ("cli_mcp", "called", "what a command answered is escaped"),
+        (
+            "cli_mcp",
+            "called",
+            "a call too long to send is a tool error",
+        ),
+        ("cli_mcp", "ends", "a connection gone ends the session"),
+        ("cli_mcp", "closes", "MCP switched off ends the session"),
+        ("cli_mcp", "tool_of", "a tool's description is escaped"),
+        (
+            "cli_mcp",
+            "tool_of",
+            "an entry whose name is not a command's is no tool",
+        ),
+        (
+            "cli_mcp",
+            "projected",
+            "a list holding an entry this build cannot read is refused whole",
+        ),
+        (
+            "cli_mcp",
+            "next_line",
+            "a line is held to the frame's bound",
+        ),
+        (
+            "cli_mcp",
+            "next_line",
+            "a carriage return before a line feed is no part of the line",
+        ),
+        (
+            "cli_mcp",
+            "session",
+            "the end of the input ends the session well",
+        ),
+        ("cli_mcp", "session", "a refused opening ends the session"),
+        (
+            "cli_mcp",
+            "opened",
+            "the tool list is never said to change on its own",
+        ),
+        ("cli_args", "agent_of", "mcp is never read with --json"),
+        (
+            "cli_args",
+            "agent_of",
+            "an agent is read only as its identifier is written",
+        ),
+        (
+            "cli_run",
+            "renders_json",
+            "a refused line naming mcp is said on standard error",
         ),
     ];
 

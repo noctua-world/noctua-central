@@ -73,7 +73,7 @@ fn through_at(executable: &Path, refused: &Refused, argv: &[OsString], env: &Env
         return match launched {
             Ok(code) => Through::Ran(code),
             Err(failure) => Through::Said(render::failed(
-                crate::run::asks_for_json(argv),
+                crate::run::renders_json(argv),
                 env.locale(),
                 &failure,
             )),

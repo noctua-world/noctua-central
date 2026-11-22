@@ -5,7 +5,7 @@
 
 What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its verbs, its exit codes, and what its help says of every command the catalog declares. The CLI is named for its channel (`§17.1`), and this page writes production's name, `noctua`.
 
-**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what only the CLI does — help, and its own channel's daemon started, stopped and asked how it is — and acts with no daemon, while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
+**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and dispatches for it only what its session may — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
 
 ## Usage
 
@@ -13,6 +13,7 @@ What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its v
 Usage:
   noctua [--json] <command> [arguments]
   noctua [--json] checkouts [<checkout>]
+  noctua mcp <agent>
   noctua [--json] help [<command> | <verb> | exit-codes | categories | external-identifiers | keybindings]
 
 Options, before the command:
@@ -31,6 +32,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | `stop` | stop this channel's daemon, and keep anything that restores it from starting it again until `start` |
 | `restart` | stop this channel's daemon, then start it |
 | `status` | say how this channel's daemon is, or why it does not answer |
+| `mcp` | serve an MCP client on standard input and output as the agent named, once MCP is switched on in this channel: its tools are the commands that agent's session may dispatch, each decided as the agent and for its person, and standard output carries the protocol alone |
 | `checkouts` | list the development checkouts installed beside this one, and choose the one `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no `--json`, in a picker filtered by typing; or by its digest |
 
 ## Exit codes

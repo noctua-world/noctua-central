@@ -206,7 +206,7 @@ pub fn shown(json: bool, text: String) -> Outcome {
 ///
 /// **None for a message with parameters**, which a refusal carries no values
 /// for: it is shown by its detail alone rather than with its braces showing.
-fn message_of(code: ErrorCode, locale: Locale) -> Option<String> {
+pub(crate) fn message_of(code: ErrorCode, locale: Locale) -> Option<String> {
     nc_catalog::render(code.message_key(), locale, &[]).and_then(Result::ok)
 }
 

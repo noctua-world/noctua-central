@@ -1779,3 +1779,13 @@ description = "The launcher's pointer, or the directory it is in, is not this us
 message = "error.cli.launcher-refused"
 severity = "critical"
 retryable = false
+
+[[error]]
+# `noctua mcp <agent>` serves one MCP client on the CLI's standard input and
+# output (§20.3): an input that fails to read ends the session, since no
+# message of the client's can be read after it.
+code = "NC-CLI-0015"
+description = "The standard input an MCP session is served on could not be read, so the session ended"
+message = "error.cli.input-failed"
+severity = "error"
+retryable = true

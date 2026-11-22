@@ -9,17 +9,23 @@
 //! beside it; help
 //! on everything shows the grammar and the verbs when no registry can be read,
 //! beside the refusal and in its exit code; a verb that controls the daemon's
-//! process is [`crate::control`]'s, which reads no registry; for anything else
-//! the daemon is reached and proven ([`crate::client`]), its registry read, the
-//! command found there and its arguments read against the schema it lists and
-//! held to it, and only then is the command dispatched — so a command line the
-//! CLI cannot read, a command the registry does not hold and arguments the
-//! schema refuses each reach no kernel.
+//! process is [`crate::control`]'s, which reads no registry; `mcp` is
+//! [`crate::mcp`]'s, served on the streams the run was handed; for anything
+//! else the daemon is reached and proven ([`crate::client`]), its registry
+//! read, the command found there and its arguments read against the schema it
+//! lists and held to it, and only then is the command dispatched — so a
+//! command line the CLI cannot read, a command the registry does not hold and
+//! arguments the schema refuses each reach no kernel.
 //!
 //! **The CLI acts as the profile's person and confirms nothing** (`§11.1`):
 //! a command that cannot be undone is refused by the kernel with
 //! `NC-KERN-0006`, which ends the run in its own exit code, because what it
-//! needs is a person in the Noctua window.
+//! needs is a person in the Noctua window. `mcp` alone acts otherwise, as the
+//! session of the agent it names, and confirms nothing either.
+//!
+//! **A refusal of a line that names `mcp` is said on standard error**, under
+//! `--json` too ([`renders_json`]): standard output is what an MCP client
+//! reads, and carries the protocol's messages alone.
 
 use std::ffi::OsString;
 
@@ -34,11 +40,27 @@ use crate::help;
 use crate::render::{self, Env, Failure, Outcome};
 
 /// Runs the command line `argv` — without the program's name — against the
-/// daemon of `found`'s install, in the language `env` names.
+/// daemon of `found`'s install, in the language `env` names, `mcp` served on
+/// streams that end at once: what a suite drives.
 #[must_use]
 pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
+    run_with(argv, found, env, crate::mcp::Streams::closed())
+}
+
+/// Runs `argv` as [`run`] does, `mcp` served on `streams`.
+///
+/// **The one run with streams**: `noctua`'s `main` hands it the process's own
+/// standard input and output, and every other verb and command leaves them
+/// unread.
+#[must_use]
+pub fn run_with(
+    argv: &[OsString],
+    found: &Found,
+    env: &Env,
+    streams: crate::mcp::Streams,
+) -> Outcome {
     let locale = env.locale();
-    let json = asks_for_json(argv);
+    let json = renders_json(argv);
     let words = match words_of(argv) {
         Ok(words) => words,
         Err(failure) => return render::failed(json, locale, &failure),
@@ -70,6 +92,7 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
             env,
             digest.as_deref(),
         )),
+        Asked::Mcp(agent) => Ok(crate::mcp::served(found, agent, env, streams)),
         asked => on_a_runtime(found, line.json, env, asked),
     };
     ended.unwrap_or_else(|failure| render::failed(line.json, locale, &failure))
@@ -91,10 +114,24 @@ fn unlisted(found: &Found, json: bool, locale: Locale, failure: &Failure) -> Out
 
 /// Whether the options before the command ask for `--json`, read before the
 /// rest of the line is, so a refusal of the line is rendered as it asks.
-pub(crate) fn asks_for_json(argv: &[OsString]) -> bool {
+fn asks_for_json(argv: &[OsString]) -> bool {
     argv.iter()
         .take_while(|word| word.to_str().is_some_and(|word| word.starts_with('-')))
         .any(|word| word == "--json")
+}
+
+/// Whether a refusal of `argv` before its line is read is rendered as one JSON
+/// document: when its options ask for `--json`, unless it names `mcp`, whose
+/// standard output is the protocol's.
+pub(crate) fn renders_json(argv: &[OsString]) -> bool {
+    asks_for_json(argv) && !names_mcp(argv)
+}
+
+/// Whether the first word of `argv` that is not an option is `mcp`.
+fn names_mcp(argv: &[OsString]) -> bool {
+    argv.iter()
+        .find(|word| !word.to_str().is_some_and(|word| word.starts_with('-')))
+        .is_some_and(|word| word == crate::args::MCP)
 }
 
 /// The command line as text, each word whole.
@@ -176,8 +213,9 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             }
         }
         // Help on everything; a verb that controls the daemon was answered
-        // above, before the connection, and the checkouts before any.
-        Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(_) => {
+        // above, before the connection, and the checkouts and `mcp` before
+        // any.
+        Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(_) | Asked::Mcp(_) => {
             Ok(render::shown(json, help::everything(cli, &registry)))
         }
     }
@@ -892,6 +930,81 @@ mod tests {
         let outcome = super::run(&argv(&["journal.verify"]), &installed.found, &english());
         assert_eq!(outcome.exit, Exit::Refused, "{outcome:?}");
         assert_eq!(daemon.heard(), [] as [Request; 0]);
+    }
+
+    /// A refused line that names `mcp` is said on standard error, whatever
+    /// its options ask.
+    ///
+    /// **Standard output is the protocol's**: `--json` before `mcp`, with an
+    /// agent, with none and with a word after it, and `mcp` alone, each end in
+    /// exit 2 with the CLI's code on standard error and nothing on standard
+    /// output, with no install as with one; a line that names no `mcp` is
+    /// still one document there under `--json`.
+    #[test]
+    fn a_refused_mcp_line_is_said_on_standard_error_whatever_its_options_ask() {
+        let installed = Scratch::new("mcpl");
+        let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
+        let agent = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+            .to_crockford();
+        let code = ErrorCode::CliCommandLineUnreadable.code();
+        for line in [
+            &["--json", "mcp"][..],
+            &["--json", "mcp", &agent],
+            &["--json", "mcp", "extra"],
+            &["--json", "mcp", &agent, "extra"],
+            &["mcp"],
+        ] {
+            let outcome = super::run(&argv(line), &installed.found, &english());
+            assert_eq!(outcome.exit, Exit::Invalid, "{line:?}: {outcome:?}");
+            assert_eq!(outcome.stdout, "", "{line:?}");
+            assert!(
+                outcome.stderr.starts_with(&format!("error[{code}]")),
+                "{line:?}: {}",
+                outcome.stderr
+            );
+        }
+        let missing = nc_channel::found::beside(&installed.path("absent").join("noctua"))
+            .expect_err("nothing is there");
+        let outcome = crate::unfound(&argv(&["--json", "mcp", &agent]), &missing, &english());
+        assert_eq!(outcome.exit, Exit::NoInstall, "{outcome:?}");
+        assert_eq!(outcome.stdout, "", "{outcome:?}");
+        let outcome = super::run(
+            &argv(&["--json", "Journal.Verify"]),
+            &installed.found,
+            &english(),
+        );
+        assert!(
+            outcome.stdout.starts_with("{\"error\":"),
+            "{}",
+            outcome.stdout
+        );
+    }
+
+    /// A run handed no streams serves a session that ends at once.
+    ///
+    /// **`run` is `run_with` on streams that end at once**: `mcp` with an
+    /// agent's identifier ends in 0, nothing said on either stream, and asks
+    /// nothing of a daemon that is not there.
+    #[test]
+    fn a_run_handed_no_streams_serves_a_session_that_ends_at_once() {
+        let installed = Scratch::new("mcpr");
+        installed.token(&Token::fresh().expect("a token"));
+        let flake = nc_ids::MachineFlake::from_value(2).expect("a flake");
+        let agent = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("minted")
+            .to_crockford();
+        let outcome = super::run(&argv(&["mcp", &agent]), &installed.found, &english());
+        assert_eq!(
+            outcome,
+            crate::render::Outcome {
+                exit: Exit::Success,
+                stdout: String::new(),
+                stderr: String::new()
+            }
+        );
     }
 
     /// No install beside the executable ends the run in exit 12 with the

@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "e88a1399e98d66ebea656963c95b688bc2de05cc375768a53d5d123d7d182ede"
-count = 170
+checksum = "3a9076f2fc0f825ed0156bb0a801e3015670689331061186750f4c7b023d36da"
+count = 171
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -67,6 +67,7 @@ count = 170
 "NC-CLI-0012" = "error.cli.chosen-not-pointed — error — retryable:false — params:[] — `noctua-dev` was not pointed at the chosen checkout: the bin directory or what stands at the name is not this install's to change, or it could not be written"
 "NC-CLI-0013" = "error.cli.terminal-unanswered — error — retryable:true — params:[] — The terminal the picker runs in did not answer, so nothing was chosen"
 "NC-CLI-0014" = "error.cli.launcher-refused — critical — retryable:false — params:[] — The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run"
+"NC-CLI-0015" = "error.cli.input-failed — error — retryable:true — params:[] — The standard input an MCP session is served on could not be read, so the session ended"
 "NC-DB-0001" = "error.db.unreachable — critical — retryable:true — params:[] — The database did not answer"
 "NC-DB-0002" = "error.db.migration-failed — critical — retryable:false — params:[] — A migration failed to apply"
 "NC-DB-0003" = "error.db.prune-failed — error — retryable:true — params:[] — Pruning a table did not finish, and a later run may"

@@ -303,7 +303,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │       └── i18n/                   what its commands say, one file per locale (§20.4)
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
 │   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves over the world and the agents its person made, to the person and to their agents' sessions (§11.1, §16.2, §20.3)
-│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, the installer, `noctua-dev` and the `checkouts` picker (§20.2, §17.1)
+│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked and its process controlled, the exit codes, the layout its help and `docs/cli.md` share, the installer, `noctua-dev`, the `checkouts` picker, and `noctua mcp`, which serves an MCP client on its standard streams as one agent's session (§20.2, §17.1, §20.3)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
 ```
@@ -492,7 +492,9 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, `sessions_max` below `ipc_connections_max`, so the person always finds a connection no MCP client holds, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, process control, and choosing the development checkout `noctua-dev` reaches — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb is what the CLI does itself rather than a command it dispatches — help, process control, and choosing the development checkout `noctua-dev` reaches, each acting without dispatching, and `mcp`, the one verb that dispatches, because it is a transport: it carries an MCP client's calls to the daemon as one agent's session, and a command is what a transport carries, so no registered command could be it — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A verb whose standard streams carry a protocol says every refusal of its line on standard error, `--json` or not (`renders_json` in `apps/cli/src/run.rs`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| an MCP method | `Engine::heard` in `apps/cli/src/mcp.rs`, and a unit test in that file answering it | a method is answered only when this server offers what it belongs to, and every other is `-32601`; a capability is never declared for a feature that sends the client a request — elicitation, sampling, roots, tasks — because what a client answers would be read as the person's; a call's fields are a closed set, every other refused with `-32602`, and no field is ever read as a confirmation; every answer is one line through the session's one writer; and a protocol revision joins `REVISIONS` only once a saved schema of it shows every answer this server writes valid in it, so a revision this server does not speak is answered in its newest and the client declines it |
+| an MCP tool | nothing: a tool is a command (*a command*, above) | `noctua mcp` lists what its session's agent may dispatch now, as the daemon answers it, each entry projected by `nc_schema::entry::as_tool`, and a call is sent as the command its name reads back to, so a tool arrives with its command and an agent reaches it with its feature's agent permit and its person's grant (*an agent permit*); no list of tools is written anywhere, and `docs/mcp-tools.md` is the catalog's projection, not a session's |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
 | a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
 
@@ -905,7 +907,8 @@ tests, and by no gate over a path to Cedar written beside the decision point's.
     reads only what it is handed, and a command's MCP tool is projected by one,
     `nc_schema::entry::as_tool` — its name `nc_schema::entry::tool_name`'s, each dot an
     underscore, read back to the command by `nc_schema::entry::command_of_tool` alone, and
-    its one annotation, `readOnlyHint`, from whether the command is `mutating`.
+    its one annotation, `readOnlyHint`, from whether the command is `mutating` — the one
+    function `noctua mcp` lists a session's tools with too.
     **Enforced by** `a_hand_edit_to_any_generated_page_is_drift`
     in `xtask/src/check.rs`, over every page the compiler emits and every page committed;
     `the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` in
@@ -990,6 +993,10 @@ entry owns.
 | An agent made, granted or ended in a person's name by anything but their own call, or a change to it the audit never saw | four commands of the kernel's own decided by a person's own permit (`principal is User`), the three that change run only at the top of a call tree, and each change rehearsed, journaled as allowed with what it makes and only then made | "A person makes, grants and ends their agents by their own calls, each journaled before it is made" |
 | A plugin, a timer or an event switching a setting in a person's name, or an agent or a device letting agents in | the setting's commands decided by a person's own permit (`principal is User`), and the switch run only at the top of a call tree, refused nested before it is decided | "A setting is switched by a person's own call, and MCP is off until one switches it on" |
 | A client acting as an agent while MCP is off, past the sessions the daemon holds, for an agent its person did not make, or asking for what only the person asks | a session opened in order — the kernel running, a place among `sessions_max`, MCP on, the kernel's own opening for the person's agent — each refusal closing its connection; the connection bound once; only its tools and its dispatches answered; MCP read again before each request, and off ending the session | "An agent's session opens only while MCP is on, for an agent of the profile's person, and asks for its tools and its dispatches alone" |
+| An MCP client confirming for the person through a field of a message, or having the server ask them | a call's fields a closed set and `_meta` never read, no capability declared that lets a server ask, and no request ever written to the client | "`noctua mcp` writes nothing but the protocol, sends every call that names a command, and confirms nothing" |
+| A call to a tool the session was not shown | sent and decided as its agent's like any other, spent and journaled, and its refusal written as an absent tool's | the same entry |
+| A result or a tool's description hiding text from the person | every answer, refusal detail, line and paragraph written with each character a reader sees nothing of escaped | the same entry |
+| Standard output carrying anything but the protocol, or a silent client losing its connection | one writer through one door, each answer one line; every refusal before a session on standard error; every read and write off the runtime's thread, so the heartbeat runs | the same entry |
 | A tool reached under a second spelling of its name, or marked as changing nothing when it can | a tool's name is its command's with each dot an underscore, read back to that one command by the command-name parser and never from a dotted name; its one hint from `mutating`, which the kernel holds a command to | "A tool is named as its command and read back to it alone, and its one hint is one the kernel holds" |
 | A name on a person's `PATH` that runs what another account chose, or a file of the person's replaced by an install | one name written outside Noctua's directories, in a bin directory judged this user's and written by this user alone, replacing only a link or a launcher to a checkout's CLI of its own bases, and a launcher's pointer read only when private | "`noctua-dev` is the one name an install writes outside its own directories, and it replaces nothing it did not make" |
 
@@ -2964,9 +2971,9 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   (`NC-DMN-0014`), read from the kernel's store, where a switch that could not be read
   refuses with the store's code and is never read as on. And the kernel opens the session
   from its directory's answer, for an agent the profile's person made and no other
-  (`NC-AI-0001`, whether none is held under the identifier or it is another's). Every
-  refusal closes the connection once it is written, so no client that was refused goes on
-  as the person.
+  (`NC-AI-0001`, whether none is held under the identifier or it is another's, or
+  `NC-POL-0006` when the directory does not answer). Every refusal closes the connection
+  once it is written, so no client that was refused goes on as the person.
 - **A session asks for its tools and dispatches commands, and nothing else.** The
   registry, the status, a stop and a second session are refused (`NC-DMN-0015`) and the
   session stands: an agent never stops the daemon or reads the person's status. Its tools
@@ -2994,9 +3001,9 @@ for an agent no person made and while MCP is off, and a connection bound to its 
 until MCP is switched off; and, over a daemon a child of the test binary serves, a
 session's opening, each refusal of it and its end logged in order, by its agent or its
 code — by `apps/daemon/tests/agent_sessions.rs` against a real daemon — off until switched
-on and ended once off again, every refusal before the kernel logged and nothing of it
-journaled, the session that opened logged once as opened and once as ended with its agent
-and the agent no person made never as opened, every dispatch journaled with the agent and
+on and ended once off again, every refusal with no command dispatched logged and nothing
+of it journaled, the session that opened logged once as opened and once as ended with its
+agent and the agent no person made never as opened, every dispatch journaled with the agent and
 the person, an agent written in another spelling refused by the reader, a revocation
 through the CLI seen at the next call, the agent held to its own rights, its tools exactly
 what it may dispatch, its budget its own, the bound, a restart, and a plain connection
@@ -3010,6 +3017,86 @@ person's agents, whose identifiers are no secret (`NOCTUA.md §11.1`, and **What
 deliberately not claimed**); an idle session once MCP is off, which keeps its connection
 and its place until its next request is refused; and a dispatch admitted while MCP was on
 that waits on the kernel's bus behind the switch-off, which runs.
+
+### `noctua mcp` writes nothing but the protocol, sends every call that names a command, and confirms nothing
+
+`apps/cli/src/mcp.rs`, whose header has the order, serves one MCP client on the CLI's own
+standard input and output as the session of the agent its command line names
+(`NOCTUA.md §20.3`).
+
+**Guaranteed:**
+
+- **Standard output carries the protocol alone.** One writer, the session's loop, through
+  one door, `standard_streams` in `apps/cli/src/main.rs`: each answer is one compact line
+  of JSON-RPC, written and flushed whole, a response to an id the client sent — or to
+  none, for a line whose id could not be read — and never a request of the server's.
+  Every refusal of the command line and of the install is said on standard error,
+  `--json` or not (`renders_json`), and why a session ended is said there once.
+- **A session opens at `initialize`, for the agent named and no other.** The command line
+  names the agent by the identifier `agents.create` answered, read back only as
+  `to_crockford` writes it (`NC-CLI-0001` and exit 2 otherwise); nothing is asked of the
+  daemon before `initialize`, which opens the session (`client::session`), and a refused
+  opening is one `-32603` answer carrying the refusal's code, the same refusal on standard
+  error, and the run ended in its exit. One process is one session and one connection.
+- **The legacy era, tools alone, and nothing asked of the client.** A session is answered
+  in `2025-11-25` or `2025-06-18`, and a revision asked that is neither in the newest;
+  server/discover and every method not offered are `-32601`; the capabilities are
+  `{"tools":{"listChanged":false}}`, with no `instructions`; a notification and a
+  client's response are never answered; and no request is ever written to the client.
+- **No field is read as a confirmation.** A call reads `name`, `arguments` and `_meta` and
+  refuses every other field with `-32602` — a task, a client's input responses and a
+  request state among them; `_meta` is never read; the values acted on are `nc_canon`'s
+  reading of the whole line, so a key written twice or a fraction is a tool error with
+  the reader's code, never sent; and arguments that are not one object are a tool error
+  (`NC-VAL-0002`), never sent, since the wire closes a connection on them.
+- **Every call that names a command is sent, listed or not.** A name that
+  `nc_schema::entry::command_of_tool` reads back to no command is `-32602 Unknown tool`
+  and never sent; every other call is the agent's dispatch, decided, spent and journaled
+  with the agent and its person. A refusal of a tool the session's last list did not
+  hold, or of a command gone from the registry since, is `-32602 Unknown tool` with no
+  code and no detail, so a denied command and an absent one read alike; a refusal of a
+  listed tool is a tool error with its code, the catalog's message in the session's
+  language and its detail; and the daemon's own refusals are shown as they are, MCP
+  switched off ending the session in its code.
+- **What a person cannot see is escaped.** Every answer's canonical text, every
+  refusal's detail and every tool's line and paragraph are written with each character
+  `nc_schema::unseen` answers for as `\u{…}`, as the CLI prints them; a tool's schema is
+  the one `nc_schema::Schema::compile` judged.
+- **Bounded, and off the runtime's thread.** A line is at most `[daemon]
+  ipc_frame_max_bytes`, the one bound a request could ever be sent within; requests are
+  read and answered one at a time, in the order written; and each line is read, and
+  each answer written and flushed, on tokio's blocking pool, so the connection's
+  heartbeat runs while the client is silent. Its input ending is exit 0, an input that
+  cannot be read exit 1 (`NC-CLI-0015`), an output that takes nothing exit 1
+  (`NC-CLI-0006`), and the daemon's connection lost exit 9.
+
+**Enforced by** the unit tests of `apps/cli/src/mcp.rs` — the engine line by line, and the
+loop against a daemon in-process that answers as a script says: every revision asked,
+nothing but a ping answered and nothing asked before `initialize`, every method not
+offered, notifications and responses unanswered, each malformed line by its own code, a
+carriage return, the closed fields of a call and `_meta` never read nor sent, an
+unlisted call sent and its refusal an unknown tool, a list filled before a first call, a
+name that reads back to no command never sent, the one reader's refusals, arguments
+that are not an object, every tool projected in the daemon's order and a list this build
+cannot read refused whole, refusals in the session's language, every text escaped, every
+frame one response to an id sent, a refused opening, no daemon, requests in order, a
+connection lost, input and output that fail, and the bound — by the tests of `args.rs` and
+`run.rs` for the line and its refusals, by
+`apps/cli/tests/the_mcp_server_writes_nothing_but_the_protocol.rs` over the shipped
+binary's doors, by the in-house client in `apps/daemon/tests/agent_sessions.rs`, written
+from the protocol's `2025-11-25` schema, against a real daemon — off until switched on,
+the naming round trip, the tools in the environment's language, every call journaled as
+the agent's, a revoked or spent session still journaled, no field a confirmation, an
+idle session kept, and a stop ending the session in 9 — and by the `cli_mcp` operators of
+`xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which can run this binary as any of
+the person's agents, whose identifiers are no secret, or reach the daemon as the person
+(`NOCTUA.md §11.1`); a call the client cancels, which still runs to its end and is
+answered; text a person can read that steers a model — a description, an answer, an
+argument echoed back; a host that shortens a tool's name or refuses its schema; and
+conversations a host interleaves over one process, which share its one session (all
+under **What is deliberately not claimed**).
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -3160,9 +3247,10 @@ program reach a channel's daemon through.
   request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
   protocol reads — not one message, or past the bound — from a daemon the handshake proved
   (exit 8).
-- **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
-  every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
-  code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+- **It confirms nothing.** The CLI acts as the profile's person — and `noctua mcp` as
+  its session's agent — so the kernel refuses every command that cannot be
+  undone with `NC-KERN-0006`, which ends the run in an exit code of its own (4): what it
+  needs is a person in the Noctua window (`NOCTUA.md §11.1`).
 - **What the daemon says is escaped.** A command's name, display name, line, paragraph,
   tags and categories — a command of the catalog's as much as a plugin's, since the daemon
   sends both — a refusal's sentence, a result, a schema's annotations, names and options,
@@ -4981,7 +5069,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   not answer, a request no session is answered, and a session's request once MCP is off or
   its switch cannot be read are each logged as `daemon.session_refused` by their code, and
   no journal entry holds them; nor does one hold a session's tools, which the kernel's
-  probe answers without deciding a dispatch.
+  probe answers without deciding a dispatch. What `noctua mcp` refuses before a command
+  is named — a line that is not one request, a call's field it does not read, a name that
+  reads back to no command, arguments the one reader refuses or that are not one object —
+  is answered to its client and logged nowhere.
 - **An agent's steps are in its person's history**: they can push the person's own steps
   past `undo_history`, end their way back to redo, and the person's next undo may take back
   their agent's newest step rather than their own — unreachable in the family pack, where
@@ -4991,6 +5082,29 @@ rather than anything decided for the project, and each is a maintainer's to reop
   is decided as any, and every call is decided again whatever the list said.
 - **An agent's command that cannot be undone is refused, never waited on**: no interface
   confirms one yet, and nothing an agent holds or sends confirms it.
+- **What a person can read can still steer a model.** `noctua mcp` escapes only what a
+  reader cannot see; a plugin's description, a command's answer and an argument echoed
+  back reach the client as they are, and a tool's hint and a host's own prompt are
+  hints, never a confirmation.
+- **A call the client cancels still runs.** A cancellation is read and ignored: the call
+  in flight runs to its end in the kernel and is answered.
+- **The tool list is never pushed.** A session's list is what was true when it was
+  asked; a grant ended, a budget spent or MCP switched off is seen at the next call or
+  list, never announced.
+- **A refusal reads alike for a tool denied and a tool absent, and takes about as long.**
+  Both are sent and both answer an unknown tool; what tells them apart is the
+  microseconds the kernel spends deciding one, against a model's round trip, and the
+  registry is no secret — `docs/mcp-tools.md` publishes the catalog's.
+- **A host that bounds a tool's name or a schema's names more tightly than the catalog
+  does**: a name keeps its command's length, up to `nc_schema::NAME_MAX`, which a host
+  that cuts a name with its own prefix at 64 characters can make collide, and a plugin's
+  property names are not held to what such a host accepts.
+- **A session's language is its environment's, read once.** The protocol carries none,
+  so a host that hands its child no `LANG` gets English, and a change of the environment
+  reaches the next session only.
+- **The shipped binary's standard streams against a live daemon are proven by a recorded
+  run of a third-party client, not by the gate**: the binary's suite meets no daemon, and
+  the in-house client drives the same run in process, over pipes the system makes.
 
 **The fuzzy core**
 
@@ -5057,13 +5171,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 **The generated pages**
 
 - **`docs/mcp-tools.md` is no session's tool list.** It is every command the catalog
-  declares, projected by the function the MCP server lists a session's tools with; which
-  of them a session sees is decided when it asks, for the principal it is — only those
-  whose resource is known without their arguments and that need no confirmation — and a
-  plugin's tools are the daemon's to list. Nothing serves them until `noctua mcp` (Stage
-  15). Each tool is named as its command with each dot an underscore and marked
-  `readOnlyHint` when the command changes nothing; each locale has its own definition,
-  and which one a session is handed is `noctua mcp`'s to choose.
+  declares, projected by the function `noctua mcp` lists a session's tools with; which of
+  them a session sees is decided when it asks, for the principal it is — only those whose
+  resource is known without their arguments and that are not irreversible, so need no
+  confirmation — and a plugin's tools are the daemon's to list. Each tool is named as its
+  command with each dot an underscore and marked `readOnlyHint` when the command changes
+  nothing; each locale has its own definition, and a session is handed the one its
+  environment names.
 - **`docs/cli.md` writes production's CLI**, `noctua`; every other channel's is the same
   but for its name (`NOCTUA.md §17.1`). Its commands are the catalog's alone: a plugin's
   are what `noctua help` lists while its daemon runs.
@@ -6077,7 +6191,7 @@ here, and `crossterm` on 2026-11-17, for the `checkouts` picker.
 |---|---|
 | `cedar-policy` | The authorization engine, `NOCTUA.md §4` [CLOSED]. `nc-policy` validates the pack with it and `nc-authz` decides with it, and a pack validated by one Cedar and decided by another is validated against a second implementation of its semantics. Cargo already resolves compatible requirements to one version (`cargo tree -i cedar-policy`), so the one `[workspace.dependencies]` line is not what unifies them: it is the one place the requirement is written, so raising it moves both, and it keeps either member from moving to another major version — a second Cedar beside the first — or to an exact `=` pin that silently decides the other's version |
 | `sqlx` | Driver, pool and migration runner in one. `macros` is **on**, because `sqlx::migrate!` needs it and needs no database; what is refused is the `query!` family, which checks SQL against a live database *while compiling* — and `gates::no_compile_time_query` fails the build on one, in every Rust file in the tree. A feature list cannot say "this macro and not that one", so the rule is a source gate. From 0.9, text built at run time reaches `query`, `query_as`, `query_scalar`, `raw_sql` or an `Executor` only inside `sqlx::AssertSqlSafe(..)`, a claim the compiler takes on trust, so `gates::ASSERTED_STATEMENTS` names each file that makes one, how many, and every value their text is built from — a new wrap, or an old one built from a new value, is a finding until somebody has read where the value comes from. What stays outside what the compiler refuses is listed on `gates::Asserted` with how each is held — a reading of `sqlx`'s signatures, not a proof there is no other: `QueryBuilder`, whose `new` and `push` wrap whatever they are handed inside `sqlx` and which the same walk therefore refuses by name; `copy_in_raw` and `copy_out_raw`, which take a whole `COPY` statement as a plain `&str` and are read the way a wrap is, so a `COPY` built from values is counted in its file's row and one written as a literal needs none; `sqlx-sqlite`'s `SqliteConnectOptions::pragma`, whose key and value are any `Into<Cow<'static, str>>` written unquoted into a batch it runs on every connection, read the same way, so a pragma set from values is counted and one set from literals — every one this tree writes — needs no row; a migrator built when the store runs — `Migrator::new` over a path, `with_migrations`, a `MigrationSource`, `ResolveWith`, `resolve_blocking` — which reads its `.sql` then and hands the text to the database vouched for inside `sqlx`, refused by name in the sources `WRITERS` in `xtask/src/local.rs` names, where `sqlx::migrate!("../../local-migrations")`, embedded when the crate compiles, is the one migrator (`a_store_migrates_with_what_the_build_embedded_wherever_it_runs` opens a store from another working directory); and, held by nothing, a `String` leaked into a `&'static str` and the migrator's own table and schema names, which no migrator here sets. **SQLite, bundled, for the local database** (`NOCTUA.md §4`): `crates/nc-local`, `nc-prune`'s second target and `xtask`'s schema gate each take the `sqlite-bundled` feature — not `sqlite`, which in 0.9 also compiles extension loading, `deserialize` and unlock notification — and the workspace line stays without it. Which SQLite is linked is `Cargo.lock`'s choice, not a manifest's: `sqlx-sqlite` accepts `libsqlite3-sys` `>=0.30.1, <0.38`, `cargo update -p sqlx` alone keeps an old one, and `cargo tree -i libsqlite3-sys` says which; `nc-local`'s self-check at every open and the local schema gate in `check` refuse one below 3.50.2 |
-| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; and `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on; `nc-daemon`, whose run is a multi-threaded runtime — so a plugin running on one worker never holds up the heartbeat of a connection on another — with `time` for its schedule and `sync` for its state and its stop; and `nc-cli`, for the one-thread runtime a run of the CLI makes its one connection on (`rt`, `net`, `time`) — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
+| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; and `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on; `nc-daemon`, whose run is a multi-threaded runtime — so a plugin running on one worker never holds up the heartbeat of a connection on another — with `time` for its schedule and `sync` for its state and its stop; and `nc-cli`, for the one-thread runtime a run of the CLI makes its one connection on (`rt`, `net`, `time`), and, for `noctua mcp`, the blocking pool its standard streams are read and written on, which `rt` already carries — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
 | `wasmtime` | The plugin runtime, `NOCTUA.md §4` [CLOSED]: the Component Model, fuel and epoch interruption. Every default feature is off, and the feature list beside the `wasmtime` line in `Cargo.toml` names the ones the kernel runs, with what was left off and why — `call-hook` among them, which is how the epoch counts a plugin's own running and not the host's — and `cache` above all of what is off, whose reading half is `Component::deserialize`, which is `unsafe`, so the kernel compiles a component on every load |
 | `wit-bindgen` | The guest half of the same world (`§4`: the Component Model "with `wit-bindgen`"), in `crates/nc-guest` only, `macros` only. Its `build.rs` links two prebuilt archives into every `wasm32` build — `deny.toml` says which and why its build-script rule does not see them |
 | `wit-component` | What turns a plugin's core module into a component, inside `cargo xtask` rather than as a tool somebody installs, and what reads the component back. The encoder refuses only an import no embedded world describes, and a dependency with bindings of its own embeds one — `wasip2`'s `wasi:random` encoded without a word — so `xtask/src/plugins.rs` decodes each component and refuses any import the world `plugin` does not declare |

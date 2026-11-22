@@ -145,6 +145,8 @@ pub enum ErrorCode {
     CliTerminalUnanswered,
     /// NC-CLI-0014 — The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run
     CliLauncherRefused,
+    /// NC-CLI-0015 — The standard input an MCP session is served on could not be read, so the session ended
+    CliInputFailed,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -446,6 +448,7 @@ impl ErrorCode {
         Self::CliChosenNotPointed,
         Self::CliTerminalUnanswered,
         Self::CliLauncherRefused,
+        Self::CliInputFailed,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -622,6 +625,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => "NC-CLI-0012",
             Self::CliTerminalUnanswered => "NC-CLI-0013",
             Self::CliLauncherRefused => "NC-CLI-0014",
+            Self::CliInputFailed => "NC-CLI-0015",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -799,6 +803,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => "CLI",
             Self::CliTerminalUnanswered => "CLI",
             Self::CliLauncherRefused => "CLI",
+            Self::CliInputFailed => "CLI",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -1047,6 +1052,9 @@ impl ErrorCode {
             }
             Self::CliLauncherRefused => {
                 "The launcher's pointer, or the directory it is in, is not this user's alone or does not read, so nothing was run"
+            }
+            Self::CliInputFailed => {
+                "The standard input an MCP session is served on could not be read, so the session ended"
             }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
@@ -1425,6 +1433,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => "error.cli.chosen-not-pointed",
             Self::CliTerminalUnanswered => "error.cli.terminal-unanswered",
             Self::CliLauncherRefused => "error.cli.launcher-refused",
+            Self::CliInputFailed => "error.cli.input-failed",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -1602,6 +1611,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => Severity::Error,
             Self::CliTerminalUnanswered => Severity::Error,
             Self::CliLauncherRefused => Severity::Critical,
+            Self::CliInputFailed => Severity::Error,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -1779,6 +1789,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => false,
             Self::CliTerminalUnanswered => true,
             Self::CliLauncherRefused => false,
+            Self::CliInputFailed => true,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1956,6 +1967,7 @@ impl ErrorCode {
             Self::CliChosenNotPointed => &[],
             Self::CliTerminalUnanswered => &[],
             Self::CliLauncherRefused => &[],
+            Self::CliInputFailed => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],

@@ -24,12 +24,17 @@
 //! **Process control** ([`control`]) — `start`, `stop`, `restart` and `status`
 //! — reads no registry: it writes and removes the explicit-stop mark, asks the
 //! daemon through its endpoint, and signals only the process its PID record is
-//! held to. **The installer** ([`install`]) is what `cargo xtask dev --install`
-//! and the suites install an install with.
+//! held to. **An MCP client** ([`mcp`]) — `mcp <agent>` — is served on the
+//! run's standard input and output, one session of that agent's opened at the
+//! client's `initialize`, and nothing but the protocol is written there.
+//! **The installer** ([`install`]) is what `cargo xtask dev --install` and the
+//! suites install an install with.
 //!
 //! [`run()`] is all of it but reading the install, so a suite drives the CLI
-//! in-process against an install of its own; `noctua`'s `main` only reads its
-//! arguments, its install and its environment, and prints.
+//! in-process against an install of its own, and [`run_with()`] the same with
+//! the streams `mcp` serves; `noctua`'s `main` only reads its arguments, its
+//! install and its environment, hands its standard input and output to
+//! `mcp`, and prints.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -41,7 +46,10 @@
 //! A terminal acted on by what the daemon says: every text from it is escaped.
 //! A command a person did not confirm: the CLI confirms nothing, so the kernel
 //! refuses every irreversible command it is asked (`NC-KERN-0006`), which ends
-//! the run in an exit code of its own.
+//! the run in an exit code of its own. An MCP client reaching past its agent:
+//! `mcp` reads a closed set of each call's fields, never one as a
+//! confirmation, sends the daemon nothing but its session's requests, and
+//! writes on standard output the protocol's answers alone.
 //!
 //! # What it does not
 //!
@@ -49,8 +57,10 @@
 //! as the daemon, or ask the daemon anything this CLI can — authorization
 //! re-decides every dispatch (`§14`) — or stop the daemon and remove its mark;
 //! a command's welcome, held to the system's word for the process at the other
-//! end and not to the PID record, which process control alone reads; and, on
-//! macOS, the moment between a process read and the signal sent it.
+//! end and not to the PID record, which process control alone reads; on
+//! macOS, the moment between a process read and the signal sent it; and, for
+//! `mcp`, text a person can read that steers a model, and a call its client
+//! cancels, which still runs.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -66,13 +76,14 @@ pub mod exit;
 pub mod help;
 pub mod install;
 pub mod launcher;
+pub mod mcp;
 pub mod picker;
 pub mod render;
 pub mod run;
 pub mod terminal;
 
 pub use render::{Env, Outcome};
-pub use run::run;
+pub use run::{run, run_with};
 
 /// How a run ends when no install was found beside the executable: exit 12,
 /// with the manifest's refusal, rendered as the command line asks.
@@ -91,5 +102,5 @@ pub fn unfound(
         exit: exit::Exit::NoInstall,
         detail: render::without_code(&refused.to_string(), refused.code()),
     };
-    render::failed(run::asks_for_json(argv), env.locale(), &failure)
+    render::failed(run::renders_json(argv), env.locale(), &failure)
 }

@@ -1544,8 +1544,10 @@ fn mcp_tools(catalog: &Catalog) -> String {
          that it may dispatch now, decided when it asks, for the principal it is, as each of \
          its calls is decided (`§20.3`, `§14.6`). **A plugin's tools come from the daemon**: \
          a plugin declares its commands at `activate`, so no page lists them, and the \
-         daemon's registry holds them while the plugin is loaded (`§15.3`). **Nothing serves \
-         these yet**: the MCP server arrives in Stage 15 (`NOCTUA-PLAN.md`).",
+         daemon's registry holds them while the plugin is loaded (`§15.3`). **`noctua mcp \
+         <agent>` serves them**: to an MCP client on its standard input and output, as the \
+         agent it names, in the language its environment names, once MCP is switched on in \
+         its channel (`§20.3`).",
     );
     // **Sorted, like the generated crate**, as every page's sections are.
     let mut in_order: Vec<_> = catalog.commands.iter().collect();

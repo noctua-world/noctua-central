@@ -2561,6 +2561,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.cli.input-failed",
+        [
+            "The MCP session's standard input could not be read, so the session ended.",
+            "Não foi possível ler a entrada padrão da sessão MCP, então a sessão terminou.",
+        ],
+    ),
+    (
         "error.cli.launcher-refused",
         [
             "This launcher's settings could belong to another account, or could not be read, so nothing was run. Install again.",
@@ -4022,6 +4029,7 @@ pub const KEYS: &[&str] = &[
     "error.cli.daemon-did-not-start",
     "error.cli.daemon-did-not-stop",
     "error.cli.daemon-misnamed",
+    "error.cli.input-failed",
     "error.cli.launcher-refused",
     "error.cli.output-failed",
     "error.cli.process-unverified",

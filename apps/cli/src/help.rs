@@ -35,7 +35,9 @@ use nc_schema::entry::Shown;
 use nc_schema::keys::{Keyboard, Table};
 use nc_schema::{Argument, Schema, Shape};
 
-use crate::args::{CATEGORIES, CHECKOUTS, EXIT_CODES, EXTERNAL_IDENTIFIERS, KEYBINDINGS, VERBS};
+use crate::args::{
+    CATEGORIES, CHECKOUTS, EXIT_CODES, EXTERNAL_IDENTIFIERS, KEYBINDINGS, MCP, VERBS,
+};
 use crate::client::Listed;
 use crate::render::{escaped, without_code};
 
@@ -55,6 +57,12 @@ pub const fn what_it_does(verb: &str) -> &'static str {
         }
         b"restart" => "stop this channel's daemon, then start it",
         b"status" => "say how this channel's daemon is, or why it does not answer",
+        b"mcp" => {
+            "serve an MCP client on standard input and output as the agent named, once MCP is \
+             switched on in this channel: its tools are the commands that agent's session may \
+             dispatch, each decided as the agent and for its person, and standard output carries \
+             the protocol alone"
+        }
         b"checkouts" => {
             "list the development checkouts installed beside this one, and choose the one \
              `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no \
@@ -69,7 +77,7 @@ pub const fn what_it_does(verb: &str) -> &'static str {
 pub fn usage(cli: &str) -> String {
     format!(
         "Usage:\n  {cli} [--json] <command> [arguments]\n  {cli} [--json] {CHECKOUTS} \
-         [<checkout>]\n  {cli} [--json] help [<command> | \
+         [<checkout>]\n  {cli} {MCP} <agent>\n  {cli} [--json] help [<command> | \
          <verb> | {EXIT_CODES} | {CATEGORIES} | {EXTERNAL_IDENTIFIERS} | {KEYBINDINGS}]\n\nOptions, before the command:\n  --json   write the answer \
          as one JSON document on standard output\n  --help   ask for help\n\nArguments follow \
          a command's name: `--<name> <value>`, `--<name>=<value>`, `--<boolean>` or \
