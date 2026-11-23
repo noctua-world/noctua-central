@@ -54,9 +54,9 @@ pub const VERBS: [&str; 7] = ["help", "start", "stop", "restart", "status", MCP,
 /// one agent's session (`NOCTUA.md §20.3`).
 ///
 /// **A transport, not a feature a registered command could carry**: it reads
-/// a client's messages and writes the protocol's answers, and dispatches for
-/// the client only what the session of the agent it names may — so it is a
-/// word of the CLI's, the one verb that asks the daemon.
+/// a client's messages and writes the protocol's answers, and sends each call
+/// the client makes to be decided as the session of the agent it names — so
+/// it is a word of the CLI's, the one verb that dispatches.
 pub const MCP: &str = "mcp";
 
 /// The verb that lists the development checkouts installed beside this one,

@@ -764,7 +764,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      `refuse-at-limit` bound as it commits and an agent or a grant as it keeps \
      one, and by the pruner, which \
      `Kernel::pump` and the `limits.prune` command run over the local database — \
-     and nothing in this tree calls either on a timer yet. Nothing here prunes a \
+     the daemon runs the first every `pump_every_ms` (**Daemon**, below), and the \
+     second runs when it is dispatched. Nothing here prunes a \
      `server` table, and there is no rate limiter and no key derivation, as their \
      own sections say. This paragraph said *nothing on this page has a runner* \
      while every `refuse-at-limit` bound under **Tables** was refused at already. \
