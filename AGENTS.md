@@ -3110,9 +3110,10 @@ idle session kept, and a stop ending the session in 9 — and by the `cli_mcp` o
 `noctua mcp <agent>` from a debug build of this tree at commit 1615805, beside a scratch
 staging install made as the daemon's suites make one, with the suites' world: MCP switched
 on, an agent made with a budget of 50 and granted `naming` for an hour, each through
-`noctua`. Each of its runs asked for `2025-11-25` and was answered in it, with
-`{"tools":{"listChanged":false}}` and no `instructions`, and the frames recorded between
-the two ends show standard output carrying one JSON-RPC answer a line and nothing else.
+`noctua`. Each of its runs asked for `2025-11-25`; each made while MCP was on was answered
+in it, with `{"tools":{"listChanged":false}}` and no `instructions`, and the frames recorded
+between the two ends show standard output carrying one JSON-RPC answer a line and nothing
+else.
 Its tool list held `naming_propose` and `naming_read` alone, each with `readOnlyHint`
 true, in English, and in Portuguese under `LANG=pt_BR.UTF-8`, and its `--strict` check of
 their schemas reported nothing. `naming_propose`, called with the title `Inspector run`,
@@ -5045,9 +5046,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   refuses (`NOCTUA.md §11.1`).
 - **Only a person's own call delegates, so no plugin sets MCP up for its person.** The
   switch and the three agents' commands that change run only at the top of a call tree: a
-  plugin run as the person and a timer's or an event's callback are refused before they
-  are decided (`[NC-KERN-0025]`), and an agent and a device by the permits, which name a
-  person alone.
+  plugin run as the person and a timer's or an event's callback are refused before any
+  policy decides them, and journaled under `kernel.top_level_only` (`[NC-KERN-0025]`), and
+  an agent and a device by the permits, which name a person alone.
 - **An agent's identifier is neither a secret nor authentication.** It is the text of a
   minted value, matched and never parsed, and naming an agent a person made is never more
   than that person can do.
@@ -5101,18 +5102,18 @@ rather than anything decided for the project, and each is a maintainer's to reop
   calls is a session of its own, of its person, one link deep.
 - **An agent's command that cannot be undone is refused, never waited on**: no interface
   confirms one yet, and nothing an agent holds or sends confirms it.
-- **What is refused before a command is decided is never journaled, and only the daemon
-  logs what it refuses**: a session asked before the kernel runs or once a stop began, past
-  `sessions_max`, while MCP is off or its switch cannot be read, for an agent the person did
-  not make or while the directory does not answer, a request no session is answered, and a
-  session's request once MCP is off or its switch cannot be read are each logged as
-  `daemon.session_refused` by their code, and no journal entry holds them; nor does one hold
-  a session's tools, which the kernel's probe answers without deciding a dispatch. A call is
-  sent only when its line is read and its arguments are one object: what `noctua mcp`
-  refuses before a command is named — a line that is not one request or that the
-  platform's one reader refuses, a call that is not one object or holds a field besides its
-  name, its arguments and `_meta`, a name that reads back to no command, and arguments that
-  are not one object — is answered to its client and logged nowhere.
+- **What is refused before it reaches the kernel's dispatch is never journaled, and only
+  the daemon logs what it refuses**: a session asked before the kernel runs or once a stop
+  began, past `sessions_max`, while MCP is off or its switch cannot be read, for an agent
+  the person did not make or while the directory does not answer, a request no session is
+  answered, and a session's request once MCP is off or its switch cannot be read are each
+  logged as `daemon.session_refused` by their code, and no journal entry holds them; nor
+  does one hold a session's tools, which the kernel's probe answers without deciding a
+  dispatch. A call is sent only when its line is read and its arguments are one object:
+  what `noctua mcp` refuses before a command is named — a line that is not one request or
+  that the platform's one reader refuses, a call that is not one object or holds a field
+  besides its name, its arguments and `_meta`, a name that reads back to no command, and
+  arguments that are not one object — is answered to its client and logged nowhere.
 - **An agent's steps are in its person's history**: they can push the person's own steps
   past `undo_history`, end their way back to redo, and the person's next undo may take back
   their agent's newest step rather than their own — unreachable in the family pack, where
