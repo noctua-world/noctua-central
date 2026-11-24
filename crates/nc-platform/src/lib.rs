@@ -30,6 +30,15 @@
 //! runs as with no private directory at hand ([`this_user`]). This crate is
 //! what they need, and no more.
 //!
+//! **And the Leader's delivery** ([`leader`]): which way the one chord that
+//! reaches the interface from anywhere reaches this process in the session it
+//! runs in — a hotkey the system registers, or a binding of the compositor's —
+//! and the registration where there is one. The X server's is this crate's own
+//! client of the protocol, in safe Rust (`x11.rs`); Windows' is in
+//! `windows.rs` and macOS's in `macos.rs`, which holds nothing else. Every
+//! decision of the three — which key, which modifiers, what a refusal means —
+//! is made in [`leader`], compiled on every system.
+//!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
 //! definition written in the format the manager reads, and the manager's tool
@@ -75,9 +84,9 @@
 //! local database and the blobs keep: what is created is created private in
 //! one call, with no moment in which it is anybody else's, and what is found
 //! is refused unless it already is. **`unsafe` is written here and nowhere
-//! else in this tree**, in `windows.rs` alone, each block beside the reason
-//! every pointer it hands the system is valid and where what the system
-//! allocated is freed.
+//! else in this tree**, in `windows.rs` and `macos.rs` alone, each block
+//! beside the reason every pointer it hands the system is valid and where
+//! what the system allocated is freed.
 //!
 //! # What it does not
 //!
@@ -99,20 +108,36 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod clipboard;
+pub mod leader;
 pub mod service;
 pub mod testing;
 mod unix;
-// **The one module of this tree that writes `unsafe`**, and the one place it
-// is allowed: the Win32 security calls take and hand back raw pointers, and
-// `windows-sys` declares each of them `unsafe`. Every block in it carries a
-// `// SAFETY:` comment, and the gate that refuses `unsafe` everywhere else
-// names this file as its one exception.
+// **One of the two modules of this tree that write `unsafe`**, and one of
+// the two places it is allowed: the Win32 security calls take and hand back
+// raw pointers, and `windows-sys` declares each of them `unsafe`. Every block
+// in it carries a `// SAFETY:` comment, and the gate that refuses `unsafe`
+// everywhere else names this file and `macos.rs` as its two exceptions.
 #[allow(
     unsafe_code,
     reason = "the Win32 security calls are `unsafe` to make, and this module is where they are \
               made; each block says why its pointers are valid and what it frees"
 )]
 mod windows;
+// **The other module that writes `unsafe`, and there is no third**: Carbon's
+// hotkey calls are C functions this module declares itself, which makes each
+// call `unsafe`. Admitted exactly as the Windows half is, by this one
+// attribute, and named beside it in the gate that refuses `unsafe` everywhere
+// else.
+#[allow(
+    unsafe_code,
+    reason = "Carbon's hotkey calls are `unsafe` to make, and this module is where they are \
+              made; each block says why its pointers are valid and what it frees"
+)]
+mod macos;
+// The X server's half of the Leader, in safe Rust. Compiled on every system,
+// so each system's job runs its tests; asked only where a session may be
+// X's, which is every Unix but macOS.
+mod x11;
 
 /// The endpoint a daemon is reached through: a socket or a pipe, this user's alone.
 pub mod ipc;

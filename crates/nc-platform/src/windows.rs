@@ -2492,3 +2492,165 @@ pub(crate) fn every_harmless_restriction(kind: Kind) -> Vec<Opening> {
         })
         .collect()
 }
+
+/// The identifier this module's one hotkey has on its thread: a thread's
+/// hotkeys are told apart by it, and each registration has a thread of its
+/// own.
+const HOT_KEY: i32 = 1;
+
+/// A hotkey registered with `RegisterHotKey`, on a thread that reads its own
+/// message queue: unregistered, and its thread ended, when this drops
+/// ([`crate::leader`], `NOCTUA.md §12.8`).
+///
+/// **A thread of its own, and no window.** A hotkey registered for no window
+/// is posted, as `WM_HOTKEY`, to the queue of the thread that registered it,
+/// so the thread that registers is the one that reads, and it reads nothing
+/// else: no hook is set, and no other key reaches it. `MOD_NOREPEAT`, which
+/// the caller's flags carry, keeps a held chord to one message.
+#[derive(Debug)]
+pub(crate) struct HotKey {
+    /// The thread the hotkey is registered on, as Windows numbers it.
+    thread: u32,
+    /// That thread, waited for when this drops.
+    reading: Option<std::thread::JoinHandle<()>>,
+}
+
+impl HotKey {
+    /// Registers the key held with `modifiers`, as `RegisterHotKey` writes
+    /// them, and hands each press to `on_press`: the virtual key `fixed`, or,
+    /// for a key a layout moves, the one this thread's layout has at `scan`.
+    ///
+    /// # Errors
+    ///
+    /// The call that failed and the error Windows gave it, with the thread
+    /// ended and nothing registered.
+    pub(crate) fn register(
+        fixed: Option<u8>,
+        scan: u8,
+        modifiers: u32,
+        on_press: crate::leader::OnPress,
+    ) -> Result<Self, (crate::leader::Call, u32)> {
+        use windows_sys::Win32::Foundation::GetLastError;
+
+        use crate::leader::Call;
+        use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            MAPVK_VSC_TO_VK, MapVirtualKeyW, RegisterHotKey, UnregisterHotKey,
+        };
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetMessageW, MSG, PM_NOREMOVE, PeekMessageW, WM_HOTKEY, WM_USER,
+        };
+
+        let (said, heard) = std::sync::mpsc::channel();
+        let reading = std::thread::Builder::new()
+            .name("nc-leader-hotkey".to_owned())
+            .spawn(move || {
+                let mut message = MSG {
+                    hwnd: null_mut(),
+                    message: 0,
+                    wParam: 0,
+                    lParam: 0,
+                    time: 0,
+                    pt: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+                };
+                // SAFETY: `message` is a local `MSG` Windows may write, and
+                // nothing is removed from the queue: the call is made for the
+                // queue it gives this thread, which a message posted to the
+                // thread needs.
+                unsafe {
+                    PeekMessageW(&raw mut message, null_mut(), WM_USER, WM_USER, PM_NOREMOVE)
+                };
+                // SAFETY: the call takes nothing and cannot fail.
+                let thread = unsafe { GetCurrentThreadId() };
+                let virtual_key = fixed.map_or_else(
+                    // SAFETY: the call takes two integers and answers zero
+                    // for a scan code the layout has no key at.
+                    || unsafe { MapVirtualKeyW(u32::from(scan), MAPVK_VSC_TO_VK) },
+                    u32::from,
+                );
+                if virtual_key == 0 {
+                    let _ = said.send(Err((Call::MapVirtualKey, ERROR_INVALID_PARAMETER)));
+                    return;
+                }
+                // SAFETY: no window is named, so the hotkey is this thread's;
+                // the rest are integers.
+                if unsafe { RegisterHotKey(null_mut(), HOT_KEY, modifiers, virtual_key) } == FALSE {
+                    // SAFETY: the call takes nothing; it reads this thread's
+                    // last error, which the failed call above set.
+                    let code = unsafe { GetLastError() };
+                    let _ = said.send(Err((Call::RegisterHotKey, code)));
+                    return;
+                }
+                let _ = said.send(Ok(thread));
+                // SAFETY: `message` is a local `MSG` Windows writes, and no
+                // window is named, so what is read is this thread's queue.
+                while unsafe { GetMessageW(&raw mut message, null_mut(), 0, 0) } > 0 {
+                    if message.message == WM_HOTKEY
+                        && i32::try_from(message.wParam).is_ok_and(|id| id == HOT_KEY)
+                    {
+                        on_press();
+                    }
+                }
+                // SAFETY: the hotkey registered above, on this same thread,
+                // given back once.
+                unsafe { UnregisterHotKey(null_mut(), HOT_KEY) };
+            })
+            .map_err(|error| {
+                (
+                    Call::Thread,
+                    error
+                        .raw_os_error()
+                        .and_then(|code| u32::try_from(code).ok())
+                        .unwrap_or(ERROR_INVALID_PARAMETER),
+                )
+            })?;
+        match heard.recv() {
+            Ok(Ok(thread)) => Ok(Self {
+                thread,
+                reading: Some(reading),
+            }),
+            Ok(Err(refused)) => {
+                let _ = reading.join();
+                Err(refused)
+            }
+            Err(_) => {
+                let _ = reading.join();
+                Err((Call::RegisterHotKey, ERROR_INVALID_PARAMETER))
+            }
+        }
+    }
+
+    /// Posts `message`, carrying `id`, to the thread the hotkey is registered
+    /// on.
+    fn post(&self, message: u32, id: usize) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::PostThreadMessageW;
+
+        // SAFETY: the call takes four integers; a thread that has ended is
+        // refused and nothing is posted.
+        unsafe { PostThreadMessageW(self.thread, message, id, 0) };
+    }
+
+    /// Posts the message Windows sends when the chord goes down, as a test
+    /// stands in for the keyboard, and says that it did.
+    #[cfg(test)]
+    pub(crate) fn press(&self) -> bool {
+        self.post(
+            windows_sys::Win32::UI::WindowsAndMessaging::WM_HOTKEY,
+            usize::try_from(HOT_KEY).unwrap_or(0),
+        );
+        true
+    }
+}
+
+impl Drop for HotKey {
+    /// Ends the thread's loop, which gives the hotkey back as it ends, and
+    /// waits for it.
+    fn drop(&mut self) {
+        self.post(windows_sys::Win32::UI::WindowsAndMessaging::WM_QUIT, 0);
+        if let Some(reading) = self.reading.take()
+            && reading.thread().id() != std::thread::current().id()
+        {
+            let _ = reading.join();
+        }
+    }
+}

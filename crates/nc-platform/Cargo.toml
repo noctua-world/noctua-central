@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, which process this is, and the endpoint a daemon is reached through: the one place each system's answer is written."
+description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, which process this is, the endpoint a daemon is reached through, and how the Leader reaches a process: the one place each system's answer is written."
 
 [features]
 # The doors other crates' suites stage a path through: one another user can
@@ -13,9 +13,9 @@ description = "Who this process runs as, a directory or a file private to that u
 # shipped can loosen a path through this crate.
 test-support = []
 
-# **The Win32 calls of security, of random bytes and of the processes at either
-# end of a named pipe, and nothing else of Windows** (`NOCTUA.md §2.3`, decided
-# 2026-11-02): who the token says this process is, an access list built and
+# **The Win32 calls of security, of random bytes, of the processes at either
+# end of a named pipe and of the Leader's hotkey, and nothing else of Windows**
+# (`NOCTUA.md §2.3`, decided 2026-11-02, the hotkey for Stage 16): who the token says this process is, an access list built and
 # read, a file and a directory created with one, a handle's attributes, the
 # system's generator of random bytes (`Win32_Security_Cryptography`, for
 # `BCryptGenRandom` alone), the process at the other end of the daemon's pipe
@@ -41,6 +41,12 @@ windows-sys = { version = "0.61", features = [
     # Which process is at the other end of the daemon's pipe, asked from either
     # end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`).
     "Win32_System_Pipes",
+    # The Leader's hotkey (`NOCTUA.md §12.8`): `RegisterHotKey`,
+    # `UnregisterHotKey` and the virtual key a layout has at a scan code
+    # (`MapVirtualKeyW`), and the queue of the thread it is registered on
+    # (`PeekMessageW`, `GetMessageW`, `PostThreadMessageW`).
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 # **A session of the daemon's own, and the session a test reads back**
@@ -69,6 +75,12 @@ rustix = { workspace = true, features = ["std", "process"] }
 # the graph, with each of these features, under `sqlx`, so it adds no package
 # and no feature; never `process` or `signal`.
 tokio = { workspace = true, features = ["net", "io-util", "time"] }
+# **The Leader's grammar, for the one type a registration takes**
+# (`NOCTUA.md §12.8`): `nc_schema::keys::Leader`, a chord that cannot be built
+# without a modifier, so a bare key is never asked of a system, and `Key`, the
+# closed vocabulary of physical keys each system's code is tabled for. That
+# crate depends on nothing of this tree, so the edge closes no cycle.
+nc-schema.workspace = true
 
 [dev-dependencies]
 # **Itself, with the doors open**, so the documentation gate can read this
@@ -84,10 +96,10 @@ nc-channel.workspace = true
 # sets `unsafe_code = "forbid"`, and a `forbid` cannot be lifted by anything
 # under it, so a crate taking `workspace = true` could not hold the Windows
 # module at all. Here it is `deny`: refused everywhere in this crate as it is
-# everywhere else, and allowed on `src/windows.rs` alone, by the one attribute
-# on that `mod` line. Every other line is the workspace's own, and
-# `every_member_takes_the_workspace_lints` holds this table to that one, entry
-# for entry, so the two cannot drift apart.
+# everywhere else, and allowed on `src/windows.rs` and `src/macos.rs` alone,
+# each by the one attribute on its `mod` line. Every other line is the
+# workspace's own, and `every_member_takes_the_workspace_lints` holds this
+# table to that one, entry for entry, so the two cannot drift apart.
 [lints.cargo]
 unused_workspace_dependencies = "allow"
 

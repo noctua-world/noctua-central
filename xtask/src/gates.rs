@@ -6002,17 +6002,22 @@ mod the_unsafe_rule {
         (written, read)
     }
 
-    /// The one file of this tree that writes `unsafe`.
+    /// The two files of this tree that write `unsafe`, and no third.
     ///
     /// **The Win32 security calls are `unsafe` to make**, and the Windows half
     /// of `nc-platform` is where they are made (`NOCTUA.md §2.7`, decided on
     /// 2026-11-02): who the token says this process is, an access list built
-    /// and read, a file and a directory created with one. Its crate takes
-    /// `unsafe_code = "deny"` where the workspace takes `forbid`, which nothing
-    /// under it could lift, and allows it on this module alone; and each use of
-    /// the keyword in it is held below to the comment that says why it is
-    /// sound.
-    const WRITES_UNSAFE: &str = "crates/nc-platform/src/windows.rs";
+    /// and read, a file and a directory created with one. **And so are
+    /// Carbon's hotkey calls**, which the macOS half declares itself and makes
+    /// for the Leader alone (`NOCTUA.md §12.8`, decided for Stage 16). Their
+    /// crate takes `unsafe_code = "deny"` where the workspace takes `forbid`,
+    /// which nothing under it could lift, and allows it on these two modules
+    /// alone, each by one attribute on its `mod` line; and each use of the
+    /// keyword in them is held below to the comment that says why it is sound.
+    const WRITES_UNSAFE: [&str; 2] = [
+        "crates/nc-platform/src/macos.rs",
+        "crates/nc-platform/src/windows.rs",
+    ];
 
     /// Whether the `unsafe` on line `at` of `text` is explained where it is
     /// written: a block under a `// SAFETY:` comment, a function under a doc
@@ -6048,8 +6053,8 @@ mod the_unsafe_rule {
         false
     }
 
-    /// No `unsafe` is written in any Rust file of this tree but one, and
-    /// every `unsafe` in that one says why it is sound.
+    /// No `unsafe` is written in any Rust file of this tree but two, and
+    /// every `unsafe` in those two says why it is sound.
     ///
     /// **`forbid(unsafe_code)` is the rule, and what it covers is narrower
     /// than it reads.** It refuses `unsafe` written in a crate and says
@@ -6060,8 +6065,9 @@ mod the_unsafe_rule {
     /// this repository states is *no `unsafe` is written here*, and this is
     /// the test of that sentence rather than of the lint: every `.rs` the tree
     /// holds — members, plugins, fixtures, canaries and tests alike — with its
-    /// comments and strings blanked, holds no `unsafe` keyword, except
-    /// [`WRITES_UNSAFE`], which must still hold one, each beside its reason.
+    /// comments and strings blanked, holds no `unsafe` keyword, except the
+    /// files of [`WRITES_UNSAFE`], each of which must still hold one, every
+    /// one beside its reason.
     ///
     /// It walks the files the gates walk and asserts it reached three of them
     /// by name, one per place a generated `unsafe` sits beside hand-written
@@ -6072,30 +6078,36 @@ mod the_unsafe_rule {
         let (written, read) = unsafe_written_under(root);
         let (excused, written): (Vec<super::Finding>, Vec<super::Finding>) = written
             .into_iter()
-            .partition(|finding| finding.file == WRITES_UNSAFE);
+            .partition(|finding| WRITES_UNSAFE.contains(&finding.file.as_str()));
         assert!(
             written.is_empty(),
-            "`unsafe` is written in this tree outside `{WRITES_UNSAFE}`, which `AGENTS.md` \
+            "`unsafe` is written in this tree outside {WRITES_UNSAFE:?}, which `AGENTS.md` \
              says it never is: {written:?}"
         );
-        assert!(
-            !excused.is_empty(),
-            "`{WRITES_UNSAFE}` writes no `unsafe`, so the one exception this test makes \
-             excuses nothing: take it out, here and in `AGENTS.md`'s invariant 17"
-        );
-        let text = std::fs::read_to_string(root.join(WRITES_UNSAFE))
-            .unwrap_or_else(|error| panic!("`{WRITES_UNSAFE}` is readable: {error}"));
-        let unexplained: Vec<usize> = excused
-            .iter()
-            .map(|finding| finding.line)
-            .filter(|line| !explained(&text, *line))
-            .collect();
-        assert!(
-            unexplained.is_empty(),
-            "`{WRITES_UNSAFE}` writes `unsafe` on line(s) {unexplained:?} with no `// SAFETY:` \
-             comment above the block, or `# Safety` in the function's doc, saying why each \
-             pointer it hands the system is valid and what is freed where"
-        );
+        for writes in WRITES_UNSAFE {
+            let lines: Vec<usize> = excused
+                .iter()
+                .filter(|finding| finding.file == writes)
+                .map(|finding| finding.line)
+                .collect();
+            assert!(
+                !lines.is_empty(),
+                "`{writes}` writes no `unsafe`, so the exception this test makes for it \
+                 excuses nothing: take it out, here and in `AGENTS.md`'s invariant 17"
+            );
+            let text = std::fs::read_to_string(root.join(writes))
+                .unwrap_or_else(|error| panic!("`{writes}` is readable: {error}"));
+            let unexplained: Vec<usize> = lines
+                .into_iter()
+                .filter(|line| !explained(&text, *line))
+                .collect();
+            assert!(
+                unexplained.is_empty(),
+                "`{writes}` writes `unsafe` on line(s) {unexplained:?} with no `// SAFETY:` \
+                 comment above the block, or `# Safety` in the function's doc, saying why \
+                 each pointer it hands the system is valid and what is freed where"
+            );
+        }
         for expected in [
             "crates/nc-kernel/src/bindings.rs",
             "crates/nc-guest/src/lib.rs",

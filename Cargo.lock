@@ -1995,6 +1995,7 @@ version = "0.1.0-rc.1"
 dependencies = [
  "nc-channel",
  "nc-platform",
+ "nc-schema",
  "rustix",
  "tokio",
  "windows-sys 0.61.2",

@@ -19593,7 +19593,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 234] = [
+    const DOCUMENTED: [(&str, usize, usize); 237] = [
         ("cli/args.rs", 50, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19786,12 +19786,15 @@ mod the_frozen_path_rule {
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 111, 23),
+        ("nc-platform/leader.rs", 48, 7),
+        ("nc-platform/lib.rs", 111, 26),
+        ("nc-platform/macos.rs", 16, 10),
         ("nc-platform/process.rs", 46, 15),
         ("nc-platform/service.rs", 181, 21),
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 105, 4),
-        ("nc-platform/windows.rs", 147, 13),
+        ("nc-platform/windows.rs", 153, 15),
+        ("nc-platform/x11.rs", 130, 34),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -25787,7 +25790,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 21944;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22305;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25806,7 +25809,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 5939;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6169;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25823,7 +25826,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2005;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2084;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25857,7 +25860,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29126;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29457;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25875,7 +25878,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 512;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 516;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25911,7 +25914,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **512 of 29,126 are accepted by the first-line
+    /// rules the gates apply: **516 of 29,457 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25944,7 +25947,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2005 of
+    /// this tree offers, **2084 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34573,7 +34576,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 62] = [
+    const NOT_MUTATED: [(&str, &str); 63] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34582,6 +34585,16 @@ mod the_meta_gate {
              would leave the build it judges byte for byte the same and come back \
              `SURVIVED` for a clause nothing was asked about. The Windows job of \
              the workflow runs the suites that decide it",
+        ),
+        (
+            "crates/nc-platform/src/macos.rs",
+            "another system's: Carbon's registration of the Leader, compiled for a \
+             macOS target alone. The runner needs the stack, which runs on Linux, \
+             so every operator here would leave the build it judges byte for byte \
+             the same and come back `SURVIVED` for a clause nothing was asked \
+             about. It decides nothing of its own: which key, which modifiers and \
+             what a refusal means are `leader.rs`'s, which the runner judges, and \
+             the macOS job of the workflow links it and registers through it",
         ),
         (
             "crates/nc-log/src/events.rs",
@@ -35412,8 +35425,8 @@ mod the_meta_gate {
         /// argument is decided when a plugin is compiled and no weakening of one
         /// builds.
         Bindings,
-        /// Compiled for Windows alone, by its own inner attribute, so no build
-        /// the runner makes holds a line of it.
+        /// Compiled for Windows alone, or for macOS alone, by its own inner
+        /// attribute, so no build the runner makes holds a line of it.
         AnotherSystem,
     }
 
@@ -35569,22 +35582,28 @@ mod the_meta_gate {
     }
 
     /// An `another system's` row is held to a file compiled for Windows
-    /// alone, by its own inner attribute written as code.
+    /// alone, or for macOS alone, by its own inner attribute written as code.
     ///
-    /// Both answers: the Windows half itself, and the Unix half beside it, the
-    /// attribute in a comment, and the attribute in a string.
+    /// Both answers: the Windows half and the macOS half themselves, and the
+    /// Unix half beside them, the attribute in a comment, and the attribute in
+    /// a string.
     #[test]
-    fn another_systems_row_is_held_to_a_file_compiled_for_windows_alone() {
+    fn another_systems_row_is_held_to_a_file_compiled_for_that_system_alone() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let read = |named: &str| {
             std::fs::read_to_string(root.join(named))
                 .unwrap_or_else(|error| panic!("`{named}` is in this tree: {error}"))
         };
-        assert!(
-            is_compiled_for_windows_alone(&read("crates/nc-platform/src/windows.rs")),
-            "the Windows half is compiled for Windows alone, and the rule an `another \
-             system's` row is held to does not see it"
-        );
+        for half in [
+            "crates/nc-platform/src/windows.rs",
+            "crates/nc-platform/src/macos.rs",
+        ] {
+            assert!(
+                is_compiled_for_another_system_alone(&read(half)),
+                "`{half}` is compiled for one system alone, which is not the runner's, and \
+                 the rule an `another system's` row is held to does not see it"
+            );
+        }
         for (what, text) in [
             ("the Unix half", read("crates/nc-platform/src/unix.rs")),
             (
@@ -35595,10 +35614,22 @@ mod the_meta_gate {
                 "a string",
                 "const NOTE: &str = \"\n#![cfg(windows)]\n\";\n".to_owned(),
             ),
+            (
+                "macOS's in a comment",
+                "// #![cfg(target_os = \"macos\")]\npub fn f() {}\n".to_owned(),
+            ),
+            (
+                "macOS's in a string",
+                "const NOTE: &str = r#\"\n#![cfg(target_os = \"macos\")]\n\"#;\n".to_owned(),
+            ),
+            (
+                "Linux's",
+                "#![cfg(target_os = \"linux\")]\npub fn f() {}\n".to_owned(),
+            ),
         ] {
             assert!(
-                !is_compiled_for_windows_alone(&text),
-                "{what} reads as a file compiled for Windows alone"
+                !is_compiled_for_another_system_alone(&text),
+                "{what} reads as a file compiled for another system alone"
             );
         }
         assert_eq!(
@@ -37618,18 +37649,30 @@ Options:
         (everything, stems)
     }
 
-    /// Whether a source holds `#![cfg(windows)]` as code, which compiles it
-    /// for a Windows target alone.
+    /// Whether a source holds, as code, the attribute `#![cfg(windows)]` or
+    /// the one that is `#![cfg(target_os = "macos")]`, which compiles it for a
+    /// Windows target alone, or for a macOS one.
+    ///
+    /// **macOS's is read twice**, because its predicate holds a string: the
+    /// line with every string blanked says it is an attribute written as code
+    /// and not text inside a literal, and the same line unblanked says which
+    /// system it names — blanked, Linux's, which the runner does build, is the
+    /// same line.
     ///
     /// **The fact an `another system's` row rests on, read from the file
     /// rather than from the row.** The runner builds for the machine it is
     /// started on, so a file that condition keeps out of every build it makes
     /// is one no operator of its can change; a file without it is built, and
     /// excusing it leaves what it builds decided by nobody.
-    fn is_compiled_for_windows_alone(text: &str) -> bool {
+    fn is_compiled_for_another_system_alone(text: &str) -> bool {
         let code =
             crate::gates::without_string_contents(&crate::gates::without_comments(text, "//"));
-        code.lines().any(|line| line.trim() == "#![cfg(windows)]")
+        let plain = crate::gates::without_comments(text, "//");
+        let macos = "#![cfg(target_os = \"macos\")]";
+        let blanked = crate::gates::without_string_contents(macos);
+        code.lines().zip(plain.lines()).any(|(line, written)| {
+            line.trim() == "#![cfg(windows)]" || (line.trim() == blanked && written.trim() == macos)
+        })
     }
 
     /// Whether a source is one `generate!` call and nothing written by hand.
@@ -37824,9 +37867,9 @@ Options:
                 ),
                 Kind::AnotherSystem => assert!(
                     std::fs::read_to_string(root.join(named))
-                        .is_ok_and(|text| is_compiled_for_windows_alone(&text)),
+                        .is_ok_and(|text| is_compiled_for_another_system_alone(&text)),
                     "the row for `{named}` calls it another system's, and it does not \
-                     hold `#![cfg(windows)]` as code. A source the runner builds, \
+                     hold `#![cfg(windows)]` or `#![cfg(target_os = \"macos\")]` as code. A source the runner builds, \
                      excused as one it never builds, is excused by a sentence that is \
                      not true of it, and is then decided by nobody"
                 ),
@@ -37934,7 +37977,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 248,
+            walked, 251,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37974,7 +38017,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2818] = [
+    static OPERATORS: [(&str, &str, &str); 2861] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49492,6 +49535,213 @@ Options:
             "platform_clipboard",
             "copy",
             "the first tool that takes the text ends the trying",
+        ),
+        (
+            "platform_leader",
+            "delivery_on",
+            "a session that says it is Wayland's is one",
+        ),
+        (
+            "platform_leader",
+            "delivery_on",
+            "a session that names a Wayland display is one, whatever else it names",
+        ),
+        (
+            "platform_leader",
+            "delivery_on",
+            "an empty display names none",
+        ),
+        (
+            "platform_leader",
+            "delivery_on",
+            "a session that names no display is refused",
+        ),
+        ("platform_leader", "physical", "Space is the kernel's Space"),
+        (
+            "platform_leader",
+            "physical",
+            "a key is the Mac's code for its own place",
+        ),
+        (
+            "platform_leader",
+            "physical",
+            "a key every layout has in one place is its virtual key",
+        ),
+        (
+            "platform_leader",
+            "physical",
+            "a key a layout moves is asked for by its scan code",
+        ),
+        (
+            "platform_leader",
+            "windows_modifiers",
+            "a held chord is one message on Windows",
+        ),
+        (
+            "platform_leader",
+            "windows_modifiers",
+            "Super is the Windows key",
+        ),
+        (
+            "platform_leader",
+            "carbon_modifiers",
+            "Alt is Option and Super is Command",
+        ),
+        (
+            "platform_leader",
+            "refused_by_windows",
+            "a hotkey another program registered is the chord taken",
+        ),
+        (
+            "platform_leader",
+            "refused_by_carbon",
+            "a hotkey that exists is the chord taken",
+        ),
+        (
+            "platform_leader",
+            "guarded",
+            "a panic in what a press is handed to goes no further",
+        ),
+        (
+            "platform_x11",
+            "parse",
+            "a display on another machine is never dialled",
+        ),
+        (
+            "platform_x11",
+            "parse",
+            "a display's number is digits and nothing else",
+        ),
+        (
+            "platform_x11",
+            "cookie",
+            "an entry named for another machine is not this one's",
+        ),
+        (
+            "platform_x11",
+            "cookie",
+            "an entry for another display is not this display's",
+        ),
+        (
+            "platform_x11",
+            "cookie",
+            "only a magic cookie is sent as one",
+        ),
+        (
+            "platform_x11",
+            "cookie",
+            "the first entry that fits is the cookie",
+        ),
+        ("platform_x11", "cookie", "a file cut short holds no cookie"),
+        (
+            "platform_x11",
+            "read_setup",
+            "a server's reason holds nothing a terminal acts on",
+        ),
+        (
+            "platform_x11",
+            "read_setup",
+            "a server's reason is kept to a line",
+        ),
+        (
+            "platform_x11",
+            "setup_of",
+            "a server with no screen has nothing to grab on",
+        ),
+        (
+            "platform_x11",
+            "packet",
+            "a message is held to the longest asked for, exactly",
+        ),
+        (
+            "platform_x11",
+            "packet",
+            "what an event carries past its header is read past",
+        ),
+        (
+            "platform_x11",
+            "packet",
+            "an event another client sent is the event it is",
+        ),
+        (
+            "platform_x11",
+            "read",
+            "Alt and Super are never one of the protocol's fixed modifiers",
+        ),
+        (
+            "platform_x11",
+            "read",
+            "Alt and Super in one modifier cannot be told apart",
+        ),
+        (
+            "platform_x11",
+            "read",
+            "a Num Lock that is the chord's own modifier is no variant of it",
+        ),
+        (
+            "platform_x11",
+            "read",
+            "a map whose length is not its header's is not read",
+        ),
+        (
+            "platform_x11",
+            "variants",
+            "the chord is grabbed with Caps Lock on as well",
+        ),
+        (
+            "platform_x11",
+            "grabs_answered",
+            "a grab another client holds is the chord taken",
+        ),
+        (
+            "platform_x11",
+            "grabs_answered",
+            "the reading stops at the reply asked for and no other",
+        ),
+        (
+            "platform_x11",
+            "is_down",
+            "a reply that is not a keymap's length says the key is up",
+        ),
+        (
+            "platform_x11",
+            "over",
+            "a key the server does not have is not grabbed",
+        ),
+        (
+            "platform_x11",
+            "read_presses",
+            "the keyboard a firing grab hands over is handed back",
+        ),
+        (
+            "platform_x11",
+            "read_presses",
+            "the grabs are not made again while the key is down",
+        ),
+        (
+            "platform_x11",
+            "pressed",
+            "the press of another key is not the Leader's",
+        ),
+        (
+            "platform_x11",
+            "pressed",
+            "the Leader's key going up is not its press",
+        ),
+        (
+            "platform_x11",
+            "drop",
+            "a dropped registration lets every grab go",
+        ),
+        (
+            "platform_x11",
+            "over",
+            "a registration's reads and writes are bounded",
+        ),
+        (
+            "platform_x11",
+            "over",
+            "the wait for a press is not bounded",
         ),
         (
             "channel_record",
