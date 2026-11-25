@@ -17,7 +17,10 @@
 //!    one that does not read.
 //! 2. **The socket** is `/tmp/.X11-unix/X<N>`, and where nothing answers
 //!    there, on Linux, the abstract socket of the same name, which is how a
-//!    server is reached from a mount namespace that has another `/tmp`.
+//!    server is reached from a mount namespace that has another `/tmp`. A
+//!    socket that is a file is spoken to only when the file is this user's or
+//!    root's, asked before anything is sent; a display named by its socket's
+//!    path is reached at that path or not at all.
 //! 3. **Who this is**: the `MIT-MAGIC-COOKIE-1` the file `XAUTHORITY` names
 //!    holds for this machine and this display, or `.Xauthority` under `HOME`.
 //!    With no cookie the setup is sent with none, which a server that admits
@@ -35,11 +38,20 @@
 //!    held reach the window that has the focus and never this client.
 //! 7. **One press for one time the key goes down.** The server fires a grab
 //!    again for each repeat of a held key — measured on Xvfb 21.1, every
-//!    forty milliseconds past the first two thirds of a second — so with the
-//!    keyboard the grabs themselves are let go as the press is reported, and
-//!    made again once the key is up. That the server is asked, every
-//!    [`session::ASKED_EVERY`], with `QueryKeymap`, the one request that says
-//!    so to a client the key's release is not sent to.
+//!    forty milliseconds past the first two thirds of a second — and each
+//!    firing takes the keyboard from the window that has the focus anew. So
+//!    with the keyboard the grabs themselves are let go as the press is
+//!    reported, and made again once the key is up. That the server is asked,
+//!    every [`session::ASKED_EVERY`], with `QueryKeymap`, the one request
+//!    that says so to a client the key's release is not sent to.
+//! 8. **The chord again, and its loss.** While the key was down the chord
+//!    was nobody's, so the server may have granted it to another client, and
+//!    then answers `BadAccess` to the grabs made again. Whatever part of the
+//!    chord it did grant is let go, and it is asked again every
+//!    [`session::TRIED_EVERY`], [`session::TRIES`] times in all; after the
+//!    last the connection is closed and the caller is told the chord is
+//!    lost, as it is told when the server goes away. Nothing ends in
+//!    silence but a registration dropped.
 //!
 //! # Physical keys
 //!
@@ -66,6 +78,13 @@
 //! - **Another program holding the chord** is the server's `BadAccess` to the
 //!   grab, and is refused as [`Refused::Taken`] with every grab this made let
 //!   go: the chord is never shared and never taken from its holder.
+//! - **The cookie is sent to this user's server or the system's**, where the
+//!   socket is a file: one another account made in `/tmp/.X11-unix` — a
+//!   directory every account may write in — is refused before a byte is
+//!   sent. The file it is read from is read up to a bound.
+//! - **A registration that stops delivering says so.** The caller is told
+//!   when the server went away and when the chord was lost to another
+//!   client, once, and no registration is left looking held.
 //! - **A server whose map cannot say which modifier Alt or Super is**, or
 //!   puts two of the chord's in one, is refused: grabbing by a guess would
 //!   grab another chord.
@@ -73,20 +92,27 @@
 //! # What it does not
 //!
 //! - **Another account answering at the abstract socket's name** while no
-//!   server holds it and none listens in `/tmp`: an abstract name is anyone's
-//!   to bind, so that account is sent this display's cookie, if the file still
-//!   holds one, and can send presses. It reaches no key the person types.
+//!   server holds it and no file is at the socket's path in `/tmp`: an
+//!   abstract name is anyone's to bind and has no owner to ask after, so that
+//!   account is sent this display's cookie, if the file still holds one, and
+//!   can send presses. It reaches no key the person types.
 //! - **A server that numbers its keys another way** — the retired `kbd`
 //!   driver, a server of another system — where the keycode sent is another
 //!   key's. Every server a Linux session runs today numbers them as above.
 //! - **A process of this user's**, which can ask the server for the same grab
 //!   first, send it synthetic presses, or read the keyboard itself: an X
 //!   server keeps nothing of one client from another.
-//! - **The chord between two presses.** From the key going up to the grabs
-//!   being made again — one [`session::ASKED_EVERY`] and an answer — the chord
-//!   is nobody's: a press in it reaches the window with the focus, and a
-//!   program that grabs it then keeps it, which ends this delivery in silence.
-//!   So does the server going away, with the session it served.
+//! - **The chord while the Leader's key is down.** From the press until the
+//!   grabs are made again — for as long as the key is held, which is seconds
+//!   when the Leader is held for what holding it does (`§12.8`), and then one
+//!   [`session::ASKED_EVERY`] and an answer — the chord is nobody's. A second
+//!   press in it reaches the window with the focus; and another client that
+//!   asks for the chord then is granted it, not refused as
+//!   [`Refused::Taken`]. That client keeps the chord for as long as it holds
+//!   it: this one has it back only if the other lets it go within the tries
+//!   above, and is otherwise told it lost it. Keeping the grabs through the
+//!   hold would close this, at the price of the focus taken from the window
+//!   twenty-five times a second while the key repeats.
 //! - **While the Leader is held, its own repeats**, which reach the window
 //!   with the focus as any key's do.
 
@@ -179,12 +205,7 @@ impl Display {
     /// [`Refused::Failed`] when it names a host, which this never dials, or
     /// does not read as a display at all.
     pub(crate) fn parse(text: &str) -> Result<Self, Refused> {
-        let unreadable = || {
-            Refused::Failed(format!(
-                "`DISPLAY` is `{text}`, which names no display on this machine: one is `:N`, \
-                 `unix:N` or a socket's path"
-            ))
-        };
+        let unreadable = || Self::unreadable(text);
         let (before, after) = text.rsplit_once(':').ok_or_else(unreadable)?;
         let number = after.split_once('.').map_or(after, |(number, screen)| {
             if screen.bytes().all(|byte| byte.is_ascii_digit()) && !screen.is_empty() {
@@ -205,6 +226,14 @@ impl Display {
             }),
             _ => Err(unreadable()),
         }
+    }
+
+    /// Why `text` is no display this dials.
+    pub(crate) fn unreadable(text: &str) -> Refused {
+        Refused::Failed(format!(
+            "`DISPLAY` is `{text}`, which names no display on this machine: one is `:N`, \
+             `unix:N` or a socket's path"
+        ))
     }
 
     /// The path of the socket a server of this display listens at.
@@ -692,8 +721,7 @@ impl Wire for Socket {
     }
 
     fn within(&self, bound: Option<std::time::Duration>) -> std::io::Result<()> {
-        self.set_read_timeout(bound)?;
-        self.set_write_timeout(bound)
+        bounded(self, bound)
     }
 
     fn close(&self) {
@@ -701,15 +729,69 @@ impl Wire for Socket {
     }
 }
 
+/// Bounds each read and each write of `socket` to `bound`, or lifts the
+/// bound: what keeps a server that takes a connection and never answers from
+/// holding a registration.
+#[cfg(unix)]
+fn bounded(socket: &Socket, bound: Option<std::time::Duration>) -> std::io::Result<()> {
+    socket.set_read_timeout(bound)?;
+    socket.set_write_timeout(bound)
+}
+
+/// Whether a socket file that the user numbered `owner` owns is one the user
+/// numbered `me` speaks to: its own, or the system's.
+///
+/// **Asked before a byte is sent**, since what is sent first carries this
+/// display's cookie. `/tmp/.X11-unix` is a directory every account may make a
+/// file in, so where no server holds a display's socket another account can
+/// put one there; a server this user reaches is one this user started, or one
+/// the system did, as root.
+#[allow(
+    dead_code,
+    reason = "asked where a socket is a file with an owner, which is every system but one, and \
+              tested on all of them"
+)]
+pub(crate) const fn answers_for(owner: u32, me: u32) -> bool {
+    owner == me || owner == 0
+}
+
 /// A connection to the server of `display`: its socket in `/tmp`, and
 /// on Linux, where nothing answers there, the abstract socket of that name.
 ///
 /// # Errors
 ///
-/// [`Refused::Failed`] when nothing answers at either.
+/// [`Refused::Failed`] when nothing answers at either, and when the socket's
+/// file is another account's.
 #[cfg(unix)]
 pub(crate) fn dial(display: &Display) -> Result<Socket, Refused> {
+    dial_as(display, rustix::process::geteuid().as_raw())
+}
+
+/// As [`dial`], for the user numbered `me`.
+///
+/// **A socket file is judged by its owner before it is connected to**
+/// ([`answers_for`]), and one refused is not gone round: the abstract socket
+/// is tried only where no file answers at all. The file is read and then
+/// connected to, two steps, and what stands between them is the directory's
+/// sticky bit, under which only a file's owner replaces it.
+///
+/// # Errors
+///
+/// As [`dial`].
+#[cfg(unix)]
+pub(crate) fn dial_as(display: &Display, me: u32) -> Result<Socket, Refused> {
+    use std::os::unix::fs::MetadataExt as _;
+
     let socket = display.socket();
+    if let Ok(found) = std::fs::metadata(&socket)
+        && !answers_for(found.uid(), me)
+    {
+        return Err(Refused::Failed(format!(
+            "the socket at `{socket}`, the display `DISPLAY` names, belongs to another account, \
+             user {}, so nothing was sent to it",
+            found.uid()
+        )));
+    }
     let by_path = Socket::connect(&socket);
     #[cfg(target_os = "linux")]
     let by_path = by_path.or_else(|error| {
@@ -796,7 +878,20 @@ pub(crate) mod session {
         get_input_focus, get_modifier_mapping, grab_key, grabs_answered, is_down, packet,
         query_keymap, read_setup, setup_request, ungrab_key, ungrab_keyboard,
     };
-    use crate::leader::{OnPress, Refused};
+    use crate::leader::{OnLost, OnPress, Refused};
+
+    /// What a registration tells its caller, each from the thread that reads
+    /// the presses and with nothing held.
+    pub(crate) struct Told {
+        /// Called once for each time the chord goes down.
+        pub(crate) on_press: OnPress,
+        /// Called once, if ever, when the chord is lost.
+        ///
+        /// That is when it stops being this client's with the registration
+        /// still held: the server went away, or the chord could not be
+        /// grabbed again after a press.
+        pub(crate) on_lost: OnLost,
+    }
 
     /// How long a server may take over each read and write of a registration.
     ///
@@ -812,6 +907,41 @@ pub(crate) mod session {
     /// grabs are made again before the next press.
     pub(crate) const ASKED_EVERY: Duration = Duration::from_millis(10);
 
+    /// How long a chord another client took while the Leader was held is
+    /// left before it is asked for again.
+    pub(crate) const TRIED_EVERY: Duration = Duration::from_millis(250);
+
+    /// How many times the chord is asked for again once its key is up, before
+    /// it is given up as lost: five seconds of [`TRIED_EVERY`].
+    ///
+    /// Long enough for a program that asked only whether the chord was free
+    /// to have let it go, and short enough that the caller is told while the
+    /// person still remembers which program they started.
+    pub(crate) const TRIES: u32 = 20;
+
+    /// How long each wait of a session is.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct Pace {
+        /// The bound on each read and write of a registration.
+        pub(crate) within: Duration,
+        /// How often the server is asked whether the key is still down.
+        pub(crate) asked_every: Duration,
+        /// How long a chord found taken is left before it is asked for again.
+        pub(crate) tried_every: Duration,
+        /// How many times the chord is asked for before it is lost.
+        pub(crate) tries: u32,
+    }
+
+    impl Pace {
+        /// The pace of every session outside a test.
+        pub(crate) const USUAL: Self = Self {
+            within: WITHIN,
+            asked_every: ASKED_EVERY,
+            tried_every: TRIED_EVERY,
+            tries: TRIES,
+        };
+    }
+
     /// The connection's writing half, and how many requests have crossed it.
     struct Writer<W> {
         /// The connection.
@@ -819,6 +949,9 @@ pub(crate) mod session {
         /// The number of the last request sent, in the sixteen bits a reply
         /// carries.
         sent: u16,
+        /// Whether the registration was dropped, which closes the connection
+        /// and is no loss to tell its caller of.
+        dropped: bool,
     }
 
     impl<W: Wire> Writer<W> {
@@ -857,6 +990,7 @@ pub(crate) mod session {
         /// that thread.
         fn drop(&mut self) {
             if let Ok(mut writer) = self.writer.lock() {
+                writer.dropped = true;
                 for (window, mask, keycode) in &self.grabs {
                     let _ = writer.send(&ungrab_key(*window, *mask, *keycode));
                 }
@@ -875,11 +1009,27 @@ pub(crate) mod session {
         Refused::Failed(format!("the X server could not be asked: {error}"))
     }
 
-    /// The cookie this user's authorization file holds for `display`, if the
-    /// environment `variable` reads names a file that holds one.
-    fn cookie_for(
+    /// This machine's host name, as an authorization file names it.
+    ///
+    /// The kernel's, which is where `xauth` reads it from; `None` where the
+    /// kernel does not say, and then no entry is this machine's by name.
+    pub(crate) fn host() -> Option<Vec<u8>> {
+        let name = std::fs::read("/proc/sys/kernel/hostname").ok()?;
+        Some(name.trim_ascii().to_vec())
+    }
+
+    /// The cookie this user's authorization file holds for `display` of the
+    /// machine named `host`, if the environment `variable` reads names a file
+    /// that holds one.
+    ///
+    /// **The file is the one `XAUTHORITY` names, and `.Xauthority` under
+    /// `HOME` only where it names none**, and of either no more than
+    /// [`AUTHORITY_BYTES_MAX`] is read: a longer file is one cut short, which
+    /// holds no cookie ([`cookie`]).
+    pub(crate) fn cookie_in(
         display: &Display,
         variable: &dyn Fn(&str) -> Option<OsString>,
+        host: Option<&[u8]>,
     ) -> Option<Vec<u8>> {
         let file = variable("XAUTHORITY")
             .filter(|path| !path.is_empty())
@@ -895,32 +1045,50 @@ pub(crate) mod session {
             .take(AUTHORITY_BYTES_MAX)
             .read_to_end(&mut bytes)
             .ok()?;
-        let host = std::fs::read("/proc/sys/kernel/hostname").ok();
-        let host = host.as_deref().map(<[u8]>::trim_ascii);
         cookie(&bytes, host, display.number)
     }
 
     /// Grabs the key the kernel numbers `evdev`, held with `modifiers`, on
-    /// the server the environment `variable` reads names, and hands each
-    /// press to `on_press`.
+    /// the server the environment `variable` reads names, and tells `told`
+    /// of each press, and of the chord lost.
     ///
     /// # Errors
     ///
-    /// What [`over`] refuses; [`Refused::NoSession`] when `DISPLAY` is not
-    /// set to a text; and [`Refused::Failed`] when it names no display on
-    /// this machine or no server answers there.
+    /// As [`register_paced`].
     pub(crate) fn register(
         evdev: u8,
         modifiers: Modifiers,
         variable: &dyn Fn(&str) -> Option<OsString>,
-        on_press: OnPress,
+        told: Told,
+    ) -> Result<Grabbed, Refused> {
+        register_paced(evdev, modifiers, variable, Pace::USUAL, told)
+    }
+
+    /// As [`register`], with each wait as long as `pace` says.
+    ///
+    /// # Errors
+    ///
+    /// What [`over`] refuses; [`Refused::NoSession`] when `DISPLAY` is not
+    /// set; and [`Refused::Failed`] when it is set to what is not a text or
+    /// names no display on this machine, when no server answers there, and
+    /// when the socket there is another account's.
+    pub(crate) fn register_paced(
+        evdev: u8,
+        modifiers: Modifiers,
+        variable: &dyn Fn(&str) -> Option<OsString>,
+        pace: Pace,
+        told: Told,
     ) -> Result<Grabbed, Refused> {
         let named = variable("DISPLAY").ok_or(Refused::NoSession)?;
-        let named = named.to_str().ok_or(Refused::NoSession)?;
+        // Set, and not a text: a display this cannot read, which is another
+        // refusal than a session that names none.
+        let Some(named) = named.to_str() else {
+            return Err(Display::unreadable(&named.to_string_lossy()));
+        };
         let display = Display::parse(named)?;
         let stream = dial(&display)?;
-        let cookie = cookie_for(&display, variable);
-        over(stream, cookie.as_deref(), evdev, modifiers, on_press)
+        let cookie = cookie_in(&display, variable, host().as_deref());
+        over(stream, cookie.as_deref(), evdev, modifiers, pace, told)
     }
 
     /// Grabs the chord over `stream`, a connection no message has crossed.
@@ -936,13 +1104,18 @@ pub(crate) mod session {
         cookie: Option<&[u8]>,
         evdev: u8,
         modifiers: Modifiers,
-        on_press: OnPress,
+        pace: Pace,
+        told: Told,
     ) -> Result<Grabbed<W>, Refused> {
         stream
-            .within(Some(WITHIN))
+            .within(Some(pace.within))
             .map_err(|error| unsent(&error))?;
         let mut reading = stream.second().map_err(|error| unsent(&error))?;
-        let mut writer = Writer { stream, sent: 0 };
+        let mut writer = Writer {
+            stream,
+            sent: 0,
+            dropped: false,
+        };
         writer
             .stream
             .write_all(&setup_request(cookie))
@@ -982,9 +1155,24 @@ pub(crate) mod session {
         let reader = std::thread::Builder::new()
             .name("nc-leader-x11".to_owned())
             .spawn(move || {
-                // Ends when the connection does — the drop of the `Grabbed`
-                // closes it — or when the chord cannot be grabbed again.
-                let _ = read_presses(&shared, &mut reading, &grabbed, keycode, &on_press);
+                let Told { on_press, on_lost } = told;
+                let Err(why) =
+                    read_presses(&shared, &mut reading, &grabbed, keycode, pace, &on_press);
+                // The reading ended. Where the drop of the `Grabbed` ended
+                // it, by closing the connection, nobody is told; anywhere
+                // else the chord is this client's no longer, so the
+                // connection is closed — which lets go whatever the server
+                // still holds for it — and the caller is told why, with the
+                // writer let go first.
+                let dropped = shared.lock().map_or(true, |writer| {
+                    if !writer.dropped {
+                        writer.stream.close();
+                    }
+                    writer.dropped
+                });
+                if !dropped {
+                    on_lost(why);
+                }
             })
             .map_err(|error| {
                 Refused::Failed(format!(
@@ -1023,39 +1211,29 @@ pub(crate) mod session {
     /// **At a press everything is let go** — the keyboard the firing grab
     /// handed over, and the grabs themselves, which the server would fire
     /// again for each repeat — and the caller is told; then the server is
-    /// asked, every [`ASKED_EVERY`], whether the key is still down, and once
-    /// it is not the grabs are made again.
+    /// asked, every [`Pace::asked_every`], whether the key is still down, and
+    /// once it is not the grabs are made again ([`regrab`]).
     ///
     /// # Errors
     ///
-    /// Why the reading ended: the connection closed, or the chord was not
-    /// this client's to grab again.
+    /// Why the reading ended, which it only ever does so: the connection
+    /// closed, or the chord was not this client's to grab again.
     fn read_presses<W: Wire>(
         writer: &Mutex<Writer<W>>,
         reading: &mut W,
         grabs: &[(u32, u16, u8)],
         keycode: u8,
+        pace: Pace,
         on_press: &OnPress,
-    ) -> Result<(), Refused> {
-        let gone = || Refused::Failed("the connection's writer is gone".to_owned());
+    ) -> Result<core::convert::Infallible, Refused> {
         loop {
             if !pressed(&packet(reading)?, keycode) {
                 continue;
             }
-            {
-                let mut writer = writer.lock().map_err(|_| gone())?;
-                writer
-                    .send(&ungrab_keyboard())
-                    .map_err(|error| unsent(&error))?;
-                for (window, mask, keycode) in grabs {
-                    writer
-                        .send(&ungrab_key(*window, *mask, *keycode))
-                        .map_err(|error| unsent(&error))?;
-                }
-            }
+            let_go(writer, grabs)?;
             on_press();
             loop {
-                std::thread::sleep(ASKED_EVERY);
+                std::thread::sleep(pace.asked_every);
                 let asked = writer
                     .lock()
                     .map_err(|_| gone())?
@@ -1077,8 +1255,68 @@ pub(crate) mod session {
                     break;
                 }
             }
+            regrab(writer, reading, grabs, pace)?;
+        }
+    }
+
+    /// Why a writer another thread panicked holding cannot be written through.
+    fn gone() -> Refused {
+        Refused::Failed("the connection's writer is gone".to_owned())
+    }
+
+    /// Hands back the keyboard a firing grab handed over, and lets every
+    /// grab of `grabs` go.
+    ///
+    /// Each is nothing to a server that holds none of it for this client.
+    ///
+    /// # Errors
+    ///
+    /// [`Refused::Failed`] when the server is gone.
+    fn let_go<W: Wire>(writer: &Mutex<Writer<W>>, grabs: &[(u32, u16, u8)]) -> Result<(), Refused> {
+        let mut writer = writer.lock().map_err(|_| gone())?;
+        writer
+            .send(&ungrab_keyboard())
+            .map_err(|error| unsent(&error))?;
+        for (window, mask, keycode) in grabs {
+            writer
+                .send(&ungrab_key(*window, *mask, *keycode))
+                .map_err(|error| unsent(&error))?;
+        }
+        Ok(())
+    }
+
+    /// Makes the grabs again, once the key is up.
+    ///
+    /// **The chord was nobody's while the key was down**, so another client
+    /// may have been granted it. Where the server says so, whatever part of
+    /// the chord it did grant is let go — the chord is held whole or not at
+    /// all — and it is asked again after [`Pace::tried_every`], up to
+    /// [`Pace::tries`] times in all: a program that asked only whether the
+    /// chord was free has let it go by then, and one that keeps it has taken
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// [`Refused::Taken`] when the last try is refused as the first was, and
+    /// [`Refused::Failed`] when the server refuses for another reason or is
+    /// gone.
+    fn regrab<W: Wire>(
+        writer: &Mutex<Writer<W>>,
+        reading: &mut W,
+        grabs: &[(u32, u16, u8)],
+        pace: Pace,
+    ) -> Result<(), Refused> {
+        let mut tried = 1;
+        loop {
             let until = grab(&mut *writer.lock().map_err(|_| gone())?, grabs)?;
-            grabs_answered(reading, until)?;
+            match grabs_answered(reading, until) {
+                Err(Refused::Taken) if tried < pace.tries => {
+                    tried += 1;
+                    let_go(writer, grabs)?;
+                    std::thread::sleep(pace.tried_every);
+                }
+                answered => return answered,
+            }
         }
     }
 
@@ -1093,12 +1331,36 @@ pub(crate) mod session {
 mod tests {
     use nc_schema::keys::{Modifier, Modifiers};
 
+    use super::session::{cookie_in, host};
     use super::{
-        BAD_ACCESS, Display, EXTRA_BYTES_MAX, GENERIC_EVENT, KEY_PRESS, Masks, Packet, cookie,
-        get_input_focus, get_modifier_mapping, grab_key, grabs_answered, is_down, keycode, packet,
-        query_keymap, read_setup, setup_request, ungrab_key, ungrab_keyboard,
+        AUTHORITY_BYTES_MAX, BAD_ACCESS, Display, EXTRA_BYTES_MAX, GENERIC_EVENT, KEY_PRESS, Masks,
+        Packet, answers_for, cookie, get_input_focus, get_modifier_mapping, grab_key,
+        grabs_answered, is_down, keycode, packet, query_keymap, read_setup, setup_request,
+        ungrab_key, ungrab_keyboard,
     };
     use crate::leader::Refused;
+
+    /// A directory of one test's own, removed with it.
+    pub(super) struct Scratch(pub(super) std::path::PathBuf);
+
+    impl Scratch {
+        /// An empty directory named for `name` and this process.
+        ///
+        /// The name is kept short, since a socket's path made under it has to
+        /// fit the hundred or so bytes a system gives one.
+        pub(super) fn new(name: &str) -> Self {
+            let root = std::env::temp_dir().join(format!("nc-x11-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(&root).expect("a scratch directory");
+            Self(root)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     /// The modifier Alt is in [`a_modifier_map`]: `Mod1`.
     pub(super) const ALT: u16 = 1 << 3;
@@ -1185,7 +1447,13 @@ mod tests {
     }
 
     /// One entry of an authorization file.
-    fn an_entry(family: u16, address: &[u8], display: &[u8], name: &[u8], data: &[u8]) -> Vec<u8> {
+    pub(super) fn an_entry(
+        family: u16,
+        address: &[u8],
+        display: &[u8],
+        name: &[u8],
+        data: &[u8],
+    ) -> Vec<u8> {
         let mut entry = family.to_be_bytes().to_vec();
         for field in [address, display, name, data] {
             entry.extend(u16::try_from(field.len()).expect("short").to_be_bytes());
@@ -1339,6 +1607,117 @@ mod tests {
             None,
             "a length past the file's end is not read"
         );
+    }
+
+    /// The cookie is read from the file `XAUTHORITY` names, from `.Xauthority`
+    /// under `HOME` only where it names none, for the host it is asked for,
+    /// and from no more of either than the bound.
+    ///
+    /// A file longer than the bound is one cut short, and holds no cookie.
+    #[test]
+    fn the_cookie_is_read_from_the_file_the_environment_names_up_to_the_bound() {
+        use std::path::Path;
+
+        let scratch = Scratch::new("cookie");
+        let magic = b"MIT-MAGIC-COOKIE-1";
+        let named = scratch.0.join("named");
+        std::fs::write(&named, an_entry(256, b"here", b"0", magic, b"the named")).expect("written");
+        let home = scratch.0.join("home");
+        std::fs::create_dir(&home).expect("made");
+        std::fs::write(
+            home.join(".Xauthority"),
+            an_entry(256, b"here", b"0", magic, b"the home's"),
+        )
+        .expect("written");
+        let display = Display::parse(":0").expect("a display");
+        let read_as = |variables: &[(&str, &Path)], host: Option<&[u8]>| {
+            cookie_in(
+                &display,
+                &|name| {
+                    variables
+                        .iter()
+                        .find(|(held, _)| *held == name)
+                        .map(|(_, value)| value.as_os_str().to_owned())
+                },
+                host,
+            )
+        };
+        let read = |variables: &[(&str, &Path)]| read_as(variables, Some(b"here"));
+        assert_eq!(
+            read(&[("XAUTHORITY", &named), ("HOME", &home)]).as_deref(),
+            Some(&b"the named"[..]),
+            "the file `XAUTHORITY` names is the one read"
+        );
+        assert_eq!(
+            read(&[("HOME", &home)]).as_deref(),
+            Some(&b"the home's"[..])
+        );
+        assert_eq!(
+            read(&[("XAUTHORITY", Path::new("")), ("HOME", &home)]).as_deref(),
+            Some(&b"the home's"[..]),
+            "an empty `XAUTHORITY` names no file"
+        );
+        assert_eq!(
+            read(&[("XAUTHORITY", &scratch.0.join("absent")), ("HOME", &home)]),
+            None,
+            "a file named and absent is not gone round"
+        );
+        assert_eq!(read(&[]), None);
+        assert_eq!(read(&[("HOME", Path::new(""))]), None);
+        assert_eq!(read(&[("HOME", &scratch.0)]), None);
+        assert_eq!(
+            read_as(&[("XAUTHORITY", &named)], Some(b"elsewhere")),
+            None,
+            "an entry is this machine's by the name asked for"
+        );
+        assert_eq!(read_as(&[("XAUTHORITY", &named)], None), None);
+
+        let entry = an_entry(256, b"here", b"0", magic, b"0123456789abcdef");
+        let bound = usize::try_from(AUTHORITY_BYTES_MAX).expect("a megabyte");
+        assert_ne!(bound % entry.len(), 0, "the bound falls inside an entry");
+        let fits = bound / entry.len();
+        let under = scratch.0.join("under");
+        std::fs::write(&under, entry.repeat(fits)).expect("written");
+        assert_eq!(
+            read(&[("XAUTHORITY", &under)]).as_deref(),
+            Some(&b"0123456789abcdef"[..]),
+            "a file of whole entries under the bound is read"
+        );
+        let over = scratch.0.join("over");
+        std::fs::write(&over, entry.repeat(fits + 1)).expect("written");
+        assert_eq!(
+            read(&[("XAUTHORITY", &over)]),
+            None,
+            "a file past the bound is read up to it, which is a file cut short"
+        );
+    }
+
+    /// This machine's name is the kernel's, where the kernel says it in the
+    /// one place this reads, with nothing around it.
+    #[test]
+    fn this_machines_name_is_the_kernels_where_it_says_one() {
+        let name = host();
+        assert_eq!(
+            name.is_some(),
+            crate::clipboard::SYSTEM == crate::clipboard::System::Linux,
+            "{name:?}"
+        );
+        if let Some(name) = name {
+            assert_ne!(name, b"");
+            assert!(!name.iter().any(u8::is_ascii_whitespace), "{name:?}");
+        }
+    }
+
+    /// A socket's file is spoken to when it is this user's or the system's,
+    /// and no other account's.
+    #[test]
+    fn a_socket_is_spoken_to_when_it_is_this_users_or_the_systems() {
+        assert!(answers_for(1000, 1000));
+        assert!(answers_for(0, 1000));
+        assert!(answers_for(0, 0));
+        assert!(!answers_for(1001, 1000));
+        assert!(!answers_for(1000, 0), "root speaks to no account's socket");
+        assert!(!answers_for(u32::MAX, 1000));
     }
 
     /// The connection's first message, byte for byte, with a cookie and with
@@ -1755,10 +2134,10 @@ pub(crate) mod served {
     use nc_schema::keys::{Modifier, Modifiers};
 
     use super::Wire;
-    use super::session::{Grabbed, over};
+    use super::session::{Grabbed, Pace, Told, over, register_paced};
     use super::tests::{
-        ALT, NUM_LOCK, SPACE, SUPER, a_key_event, a_modifier_map, a_refusal, a_reply, a_setup,
-        an_error,
+        ALT, NUM_LOCK, SPACE, SUPER, Scratch, a_key_event, a_modifier_map, a_refusal, a_reply,
+        a_setup, an_entry, an_error,
     };
     use super::{
         BAD_ACCESS, KEY_PRESS, get_input_focus, get_modifier_mapping, grab_key, query_keymap,
@@ -1887,6 +2266,8 @@ pub(crate) mod served {
         events: Arc<Mutex<Pipe>>,
         /// How many more times it answers that the key is down.
         down_for: Arc<AtomicUsize>,
+        /// How many more grabs it answers that another client holds.
+        taken_for: Arc<AtomicUsize>,
         /// Its thread, which ends when the client's end closes.
         serving: Option<std::thread::JoinHandle<()>>,
     }
@@ -1899,23 +2280,32 @@ pub(crate) mod served {
             let heard = Arc::new(Mutex::new(Vec::new()));
             let events = Arc::new(Mutex::new(served.second().expect("a second handle")));
             let down_for = Arc::new(AtomicUsize::new(0));
-            let (log, writer, down) = (
+            let taken_for = Arc::new(AtomicUsize::new(0));
+            let (log, writer, down, taken) = (
                 Arc::clone(&heard),
                 Arc::clone(&events),
                 Arc::clone(&down_for),
+                Arc::clone(&taken_for),
             );
             let serving = std::thread::spawn(move || {
-                let _ = serve(served, &log, &writer, &down, answers);
+                let _ = serve(served, &log, &writer, (&down, &taken), answers);
             });
             (
                 Self {
                     heard,
                     events,
                     down_for,
+                    taken_for,
                     serving: Some(serving),
                 },
                 client,
             )
+        }
+
+        /// Ends the connection from the server's side, as a server going
+        /// away does.
+        fn hang_up(&self) {
+            self.events.lock().expect("unpoisoned").close();
         }
 
         /// Sends the client `message`.
@@ -1961,7 +2351,7 @@ pub(crate) mod served {
         mut stream: Pipe,
         heard: &Mutex<Vec<Vec<u8>>>,
         writer: &Mutex<Pipe>,
-        down_for: &AtomicUsize,
+        (down_for, taken_for): (&AtomicUsize, &AtomicUsize),
         answers: Answers,
     ) -> std::io::Result<()> {
         let send = |message: &[u8]| writer.lock().expect("unpoisoned").write_all(message);
@@ -1991,6 +2381,11 @@ pub(crate) mod served {
             match opcode {
                 119 => send(&a_reply(sequence, 2, &[], &a_modifier_map()))?,
                 33 if answers.taken => send(&an_error(BAD_ACCESS, sequence))?,
+                // This thread alone counts down, as for the key below.
+                33 if taken_for.load(Ordering::SeqCst) > 0 => {
+                    taken_for.fetch_sub(1, Ordering::SeqCst);
+                    send(&an_error(BAD_ACCESS, sequence))?;
+                }
                 43 => send(&a_reply(sequence, 0, &[], &[]))?,
                 44 => {
                     // This thread alone counts down, and a test stores a
@@ -2017,17 +2412,62 @@ pub(crate) mod served {
     /// Alt, Super and Space grabbed over `client`, each press sent on the
     /// channel answered beside it.
     fn grabbed(client: Pipe) -> (Result<Grabbed<Pipe>, Refused>, mpsc::Receiver<()>) {
+        let (held, presses, _lost) = grabbed_at(client, Pace::USUAL);
+        (held, presses)
+    }
+
+    /// What tells a channel of each press, and another of the chord lost.
+    fn told() -> (Told, mpsc::Receiver<()>, mpsc::Receiver<Refused>) {
         let (said, presses) = mpsc::channel();
+        let (gone, lost) = mpsc::channel();
+        let told = Told {
+            on_press: Box::new(move || {
+                let _ = said.send(());
+            }),
+            on_lost: Box::new(move |why| {
+                let _ = gone.send(why);
+            }),
+        };
+        (told, presses, lost)
+    }
+
+    /// As [`grabbed`], each wait as long as `pace` says, and with the channel
+    /// the chord's loss is sent on.
+    fn grabbed_at(
+        client: Pipe,
+        pace: Pace,
+    ) -> (
+        Result<Grabbed<Pipe>, Refused>,
+        mpsc::Receiver<()>,
+        mpsc::Receiver<Refused>,
+    ) {
+        let (told, presses, lost) = told();
         let held = over(
             client,
             Some(b"a cookie"),
             57,
             Modifiers::of(&[Modifier::Alt, Modifier::Super]),
-            Box::new(move || {
-                let _ = said.send(());
-            }),
+            pace,
+            told,
         );
-        (held, presses)
+        (held, presses, lost)
+    }
+
+    /// A pace that asks again at once, `tries` times.
+    fn hurried(tries: u32) -> Pace {
+        Pace {
+            asked_every: Duration::from_millis(1),
+            tried_every: Duration::from_millis(1),
+            tries,
+            ..Pace::USUAL
+        }
+    }
+
+    /// Everything let go: the keyboard handed back, and every grab.
+    fn the_letting_go() -> Vec<Vec<u8>> {
+        let mut sent = vec![ungrab_keyboard().to_vec()];
+        sent.extend(the_ungrabs());
+        sent
     }
 
     /// The eight grabs of the chord: two roots, bare and with each lock.
@@ -2077,7 +2517,7 @@ pub(crate) mod served {
     fn a_chord_is_grabbed_pressed_once_and_let_go() {
         let (server, client) = Server::start(WILLING);
         let watched = client.second().expect("a second handle");
-        let (held, presses) = grabbed(client);
+        let (held, presses, lost) = grabbed_at(client, Pace::USUAL);
         let held = held.expect("grabbed");
         let mut expected = the_registration();
         assert_eq!(server.heard(), expected);
@@ -2124,6 +2564,96 @@ pub(crate) mod served {
             "the drop lets every grab go, and the server's read ended: the connection is closed"
         );
         assert!(presses.try_recv().is_err());
+        assert_eq!(
+            lost.try_recv(),
+            Err(mpsc::TryRecvError::Disconnected),
+            "a registration dropped is not one lost: what a loss is told to was dropped untold"
+        );
+    }
+
+    /// A chord another client was granted while the key was down is asked
+    /// for again, whatever part of it the server did grant let go first, and
+    /// is this client's once more when the other has let it go.
+    #[test]
+    fn a_chord_taken_while_the_key_was_down_is_asked_for_again() {
+        let (server, client) = Server::start(WILLING);
+        let (held, presses, lost) = grabbed_at(client, hurried(3));
+        let held = held.expect("grabbed");
+        server.taken_for.store(5, Ordering::SeqCst);
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses.recv_timeout(SOON).expect("the press is heard");
+        let mut expected = the_registration();
+        expected.extend(the_letting_go());
+        expected.push(query_keymap().to_vec());
+        expected.extend(the_registration().split_off(2));
+        expected.extend(the_letting_go());
+        expected.extend(the_registration().split_off(2));
+        assert_eq!(
+            server.heard_once(expected.len()),
+            expected,
+            "five of the eight grabs refused is the chord taken: the three granted are let go, \
+             and all eight are asked for again"
+        );
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses
+            .recv_timeout(SOON)
+            .expect("the chord is this client's again, and its press is heard");
+        assert_eq!(lost.try_recv(), Err(mpsc::TryRecvError::Empty));
+        drop(held);
+    }
+
+    /// A chord another client keeps is asked for the times the pace says and
+    /// no more, and then its loss is told, once, and the connection closed.
+    #[test]
+    fn a_chord_another_client_keeps_is_lost_and_its_loss_is_told() {
+        let (server, client) = Server::start(WILLING);
+        let (held, presses, lost) = grabbed_at(client, hurried(3));
+        let held = held.expect("grabbed");
+        server.taken_for.store(usize::MAX, Ordering::SeqCst);
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses.recv_timeout(SOON).expect("the press is heard");
+        assert_eq!(
+            lost.recv_timeout(SOON),
+            Ok(Refused::Taken),
+            "the caller is told the chord is another program's"
+        );
+        let mut expected = the_registration();
+        expected.extend(the_letting_go());
+        expected.push(query_keymap().to_vec());
+        for tried in 1..=3 {
+            expected.extend(the_registration().split_off(2));
+            if tried < 3 {
+                expected.extend(the_letting_go());
+            }
+        }
+        assert_eq!(
+            server.ended(),
+            expected,
+            "asked three times, let go between them, and then the connection is closed"
+        );
+        assert!(presses.try_recv().is_err());
+        assert_eq!(
+            lost.recv_timeout(SOON),
+            Err(mpsc::RecvTimeoutError::Disconnected),
+            "told once"
+        );
+        drop(held);
+    }
+
+    /// A server that goes away with the registration held is a loss told,
+    /// with why.
+    #[test]
+    fn a_server_gone_with_the_chord_held_is_a_loss_told() {
+        let (server, client) = Server::start(WILLING);
+        let (held, _presses, lost) = grabbed_at(client, Pace::USUAL);
+        let held = held.expect("grabbed");
+        server.hang_up();
+        let why = lost.recv_timeout(SOON).expect("the loss is told");
+        assert!(
+            matches!(&why, Refused::Failed(why) if why.contains("ended before its answer did")),
+            "{why:?}"
+        );
+        drop(held);
     }
 
     /// The one message this client acts on is the press of the Leader's own
@@ -2248,6 +2778,242 @@ pub(crate) mod served {
         );
     }
 
+    /// What a test asks of this system's sockets, where a socket is a file.
+    #[cfg(unix)]
+    mod sockets {
+        use std::any::Any;
+        use std::ffi::OsString;
+        use std::path::Path;
+
+        use crate::leader::Refused;
+        use crate::x11::Display;
+
+        /// A socket listening at `path` for as long as what is answered is
+        /// kept, which takes a connection and never answers it.
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn listening_at(path: &Path) -> Option<Box<dyn Any>> {
+            let listener = std::os::unix::net::UnixListener::bind(path).expect("bound");
+            Some(Box::new(listener))
+        }
+
+        /// The same at the abstract name `name`, where the system has such
+        /// names.
+        #[cfg(target_os = "linux")]
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn listening_by_name(name: &str) -> Option<Box<dyn Any>> {
+            use std::os::linux::net::SocketAddrExt as _;
+
+            let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes())
+                .expect("an abstract name");
+            let listener =
+                std::os::unix::net::UnixListener::bind_addr(&address).expect("bound by name");
+            Some(Box::new(listener))
+        }
+
+        /// The same at the abstract name `name`, which this system has none
+        /// of.
+        #[cfg(not(target_os = "linux"))]
+        pub(super) fn listening_by_name(_name: &str) -> Option<Box<dyn Any>> {
+            None
+        }
+
+        /// Who owns the socket of `display`, and what dialling it as the
+        /// user numbered one past its owner is answered.
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn dialled_as_another(display: &Display) -> Option<(u32, Result<(), Refused>)> {
+            use std::os::unix::fs::MetadataExt as _;
+
+            let owner = std::fs::metadata(display.socket()).expect("a socket").uid();
+            let dialled = crate::x11::dial_as(display, owner.wrapping_add(1)).map(|_| ());
+            Some((owner, dialled))
+        }
+
+        /// A display's name that is not a text, and would name a socket's
+        /// path if what does not read in it were let through.
+        pub(super) fn not_a_text() -> OsString {
+            use std::os::unix::ffi::OsStringExt as _;
+
+            OsString::from_vec(b"/nonexistent/nc-platform/\xff:0".to_vec())
+        }
+    }
+
+    /// What a test asks of this system's sockets, where a socket is no file:
+    /// nothing listens, and nothing is dialled.
+    #[cfg(windows)]
+    mod sockets {
+        use std::any::Any;
+        use std::ffi::OsString;
+        use std::path::Path;
+
+        use crate::leader::Refused;
+        use crate::x11::Display;
+
+        /// Nothing: no socket here is a file.
+        pub(super) fn listening_at(_path: &Path) -> Option<Box<dyn Any>> {
+            None
+        }
+
+        /// Nothing: no socket here has an abstract name.
+        pub(super) fn listening_by_name(_name: &str) -> Option<Box<dyn Any>> {
+            None
+        }
+
+        /// Nothing: no socket here has an owner to be another's.
+        pub(super) fn dialled_as_another(_display: &Display) -> Option<(u32, Result<(), Refused>)> {
+            None
+        }
+
+        /// A display's name that is not a text, and would name a socket's
+        /// path if what does not read in it were let through.
+        pub(super) fn not_a_text() -> OsString {
+            use std::os::windows::ffi::OsStringExt as _;
+
+            let mut name: Vec<u16> = "/nonexistent/nc-platform/".encode_utf16().collect();
+            name.push(0xD800);
+            name.extend(":0".encode_utf16());
+            OsString::from_wide(&name)
+        }
+    }
+
+    /// A `DISPLAY` that is not a text, on this system.
+    pub(crate) fn a_display_that_is_not_a_text() -> std::ffi::OsString {
+        sockets::not_a_text()
+    }
+
+    /// A pace whose registration is bounded to a third of a second.
+    fn brisk() -> Pace {
+        Pace {
+            within: Duration::from_millis(300),
+            ..Pace::USUAL
+        }
+    }
+
+    /// What registering Alt, Super and Space on the display `named` is
+    /// answered at the pace `brisk`, asked on a thread of its own so that a
+    /// registration that never returns fails the test and does not hold it.
+    fn registered_briskly(named: std::ffi::OsString) -> Result<(), Refused> {
+        let (said, answered) = mpsc::channel();
+        std::thread::spawn(move || {
+            let (told, _presses, _lost) = told();
+            let registered = register_paced(
+                57,
+                Modifiers::of(&[Modifier::Alt, Modifier::Super]),
+                &|name| (name == "DISPLAY").then(|| named.clone()),
+                brisk(),
+                told,
+            );
+            let _ = said.send(registered.map(|_| ()));
+        });
+        answered
+            .recv_timeout(SOON)
+            .expect("a registration is answered within its bound, whatever the server does")
+    }
+
+    /// Whether a socket is a file on this system.
+    ///
+    /// It decides what a display named by a path under a scratch directory
+    /// is refused as: by what happens at the socket where it is one, and
+    /// before any socket is thought of where it is not.
+    fn a_socket_is_a_file() -> bool {
+        crate::clipboard::SYSTEM != crate::clipboard::System::Windows
+    }
+
+    /// Why a registration was refused, or that it was not.
+    fn failure(registered: Result<(), Refused>) -> String {
+        match registered {
+            Err(Refused::Failed(why)) => why,
+            other => format!("not a failure: {other:?}"),
+        }
+    }
+
+    /// A server that takes the connection and never answers holds a
+    /// registration for its bound and no longer.
+    ///
+    /// Where a socket is a file one listens here and never answers; where it
+    /// is not, nothing is dialled, and the registration is refused all the
+    /// same.
+    #[test]
+    fn a_server_that_never_answers_holds_a_registration_for_its_bound_alone() {
+        let scratch = Scratch::new("mute");
+        let path = scratch.0.join("s");
+        let listener = sockets::listening_at(&path);
+        assert_eq!(listener.is_some(), a_socket_is_a_file());
+        let mut named = path.into_os_string();
+        named.push(":0");
+        let began = Instant::now();
+        let why = failure(registered_briskly(named));
+        assert!(began.elapsed() < SOON, "refused within the bound");
+        assert!(!why.starts_with("not a failure"), "{why}");
+        if a_socket_is_a_file() {
+            assert!(why.contains("ended before its answer did"), "{why}");
+        }
+    }
+
+    /// A display named by its socket's path is reached at that path or not
+    /// at all: never at an abstract socket of the same name.
+    #[test]
+    fn a_display_named_by_its_path_is_reached_by_no_abstract_name() {
+        let scratch = Scratch::new("named");
+        let path = scratch.0.join("s");
+        let _listener = sockets::listening_by_name(&path.to_string_lossy());
+        let mut named = path.into_os_string();
+        named.push(":0");
+        let why = failure(registered_briskly(named));
+        assert!(!why.starts_with("not a failure"), "{why}");
+        if a_socket_is_a_file() {
+            assert!(why.contains("no X server answers at"), "{why}");
+        }
+    }
+
+    /// A socket another account made is sent nothing, and is not gone round.
+    ///
+    /// The socket here is this user's, dialled as the user numbered one past
+    /// it, which is refused unless this user is the system's.
+    #[test]
+    fn a_socket_another_account_made_is_sent_nothing() {
+        let scratch = Scratch::new("owned");
+        let path = scratch.0.join("s");
+        let listener = sockets::listening_at(&path);
+        let display = super::Display {
+            path: Some(path.to_string_lossy().into_owned()),
+            number: 0,
+        };
+        if let Some((owner, dialled)) = sockets::dialled_as_another(&display) {
+            if owner == 0 {
+                assert_eq!(
+                    dialled,
+                    Ok(()),
+                    "the system's socket is every user's to dial"
+                );
+            } else {
+                let why = failure(dialled);
+                assert!(why.contains("belongs to another account"), "{why}");
+                assert!(why.contains(&format!("user {owner}")), "{why}");
+            }
+        }
+        assert!(
+            super::dial(&display).is_ok() == listener.is_some(),
+            "a socket of this user's own is dialled, where a socket is a file"
+        );
+    }
+
+    /// A `DISPLAY` that is set and is not a text names no display this
+    /// reads, and is never read around what does not read in it.
+    #[test]
+    fn a_display_that_is_not_a_text_is_refused_as_unreadable() {
+        let why = failure(registered_briskly(a_display_that_is_not_a_text()));
+        assert!(why.contains("names no display on this machine"), "{why}");
+    }
+
     /// A real X server, started for one test and ended with it.
     struct Xvfb(std::process::Child);
 
@@ -2264,9 +3030,10 @@ pub(crate) mod served {
     impl<T: Read + Write> Duplex for T {}
 
     /// A second client of a real server, which presses keys there through
-    /// the server's own test extension.
+    /// the server's own test extension, and has a window of its own to see
+    /// which keys a window is sent.
     ///
-    /// No client of this crate's does so outside a test.
+    /// No client of this crate's does either outside a test.
     struct Keyboard {
         /// Its connection, boxed.
         ///
@@ -2275,6 +3042,11 @@ pub(crate) mod served {
         stream: Box<dyn Duplex>,
         /// The opcode the server gave `XTEST`.
         xtest: u8,
+        /// The first screen's root window.
+        root: u32,
+        /// The first identifier the server gave this client for what it
+        /// makes.
+        base: u32,
     }
 
     impl Keyboard {
@@ -2284,7 +3056,13 @@ pub(crate) mod served {
                 .map(|socket| -> Box<dyn Duplex> { Box::new(socket) })
                 .expect("the server answers");
             stream.write_all(&setup_request(None)).expect("sent");
-            super::read_setup(&mut stream).expect("accepted");
+            let mut setup = vec![0_u8; 8];
+            stream.read_exact(&mut setup).expect("answered");
+            let mut body = vec![0_u8; usize::from(u16::from_le_bytes([setup[6], setup[7]])) * 4];
+            stream.read_exact(&mut body).expect("answered whole");
+            setup.extend(&body);
+            let root = super::read_setup(&mut &setup[..]).expect("accepted").roots[0];
+            let base = u32::from_le_bytes(body[4..8].try_into().expect("four"));
             let mut query = vec![98, 0, 4, 0, 5, 0, 0, 0];
             query.extend(b"XTEST\0\0\0");
             stream.write_all(&query).expect("sent");
@@ -2294,6 +3072,8 @@ pub(crate) mod served {
             Self {
                 stream,
                 xtest: reply[9],
+                root,
+                base,
             }
         }
 
@@ -2307,12 +3087,61 @@ pub(crate) mod served {
         /// Presses `keys` in order, holds them `held`, and lets them go in
         /// the reverse order.
         fn chord(&mut self, keys: &[u8], held: Duration) {
+            self.down(keys);
+            std::thread::sleep(held);
+            self.up(keys);
+        }
+
+        /// Presses `keys` in order, and keeps them down.
+        fn down(&mut self, keys: &[u8]) {
             for key in keys {
                 self.key(*key, true);
             }
-            std::thread::sleep(held);
+        }
+
+        /// Lets `keys` go, in the reverse order.
+        fn up(&mut self, keys: &[u8]) {
             for key in keys.iter().rev() {
                 self.key(*key, false);
+            }
+        }
+
+        /// Makes a window that asks for the keys pressed in it, shows it and
+        /// gives it the focus.
+        ///
+        /// Three requests: `CreateWindow` with `KeyPress` selected, `MapWindow`
+        /// and `SetInputFocus`.
+        fn takes_the_focus(&mut self) {
+            let (window, root) = (self.base.to_le_bytes(), self.root.to_le_bytes());
+            let mut requests = vec![1, 0, 9, 0];
+            requests.extend(window);
+            requests.extend(root);
+            requests.extend([0, 0, 0, 0, 16, 0, 16, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
+            requests.extend([0, 8, 0, 0, 1, 0, 0, 0]);
+            requests.extend([8, 0, 2, 0]);
+            requests.extend(window);
+            requests.extend([42, 1, 3, 0]);
+            requests.extend(window);
+            requests.extend([0, 0, 0, 0]);
+            self.stream.write_all(&requests).expect("sent");
+            assert_eq!(self.typed(), [0_u8; 0], "no key was pressed in it yet");
+        }
+
+        /// The keys whose presses the window was sent since this was last
+        /// asked: everything the server sent up to its answer to a request
+        /// made now, which follows whatever it made of the requests before.
+        fn typed(&mut self) -> Vec<u8> {
+            self.stream.write_all(&get_input_focus()).expect("sent");
+            let mut keys = Vec::new();
+            loop {
+                let mut message = [0_u8; 32];
+                self.stream.read_exact(&mut message).expect("answered");
+                match message[0] & 0x7f {
+                    0 => panic!("the server refused a request: error {}", message[1]),
+                    1 => return keys,
+                    KEY_PRESS => keys.push(message[1]),
+                    _ => {}
+                }
             }
         }
     }
@@ -2324,15 +3153,11 @@ pub(crate) mod served {
             .find(|program| program.is_file())
     }
 
-    /// Against a real X server, through [`crate::leader::register`]: the
-    /// chord pressed there reaches the caller once, held past the server's
-    /// repeat or not, and with Caps Lock on; a chord beside it does not; a
-    /// second registration of it is refused as taken; and a dropped one gives
-    /// it back.
+    /// A real X server started with `more` arguments and no socket
+    /// in `/tmp`, and the name of the display it chose.
     ///
-    /// **`Xvfb`, started here with no socket in `/tmp`**, so the server is
-    /// reached by its abstract socket, which Linux has, and a server killed
-    /// leaves no file.
+    /// **`Xvfb`, reached by its abstract socket**, which Linux has, so a
+    /// server killed leaves no file.
     ///
     /// **It never stands aside**: every X server a Linux session runs is the
     /// one program this drives, so a machine without `Xvfb` fails here and is
@@ -2343,10 +3168,8 @@ pub(crate) mod served {
         reason = "the child is the X server, started with its input and its errors null and \
                   its output a pipe this reads its display from"
     )]
-    pub(crate) fn a_real_server_grants_the_chord_hears_it_and_gives_it_back() {
+    fn a_real_server(more: &[&std::ffi::OsStr]) -> (Xvfb, String) {
         use std::io::BufRead as _;
-
-        use nc_schema::keys::{Chord, Key, Leader};
 
         let xvfb = xvfb().expect(
             "no `Xvfb` on `PATH`, so there is no real X server to press the Leader on: install \
@@ -2355,6 +3178,7 @@ pub(crate) mod served {
         let mut server = Xvfb(
             std::process::Command::new(xvfb)
                 .args(["-displayfd", "1", "-nolisten", "tcp", "-nolisten", "unix"])
+                .args(more)
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
@@ -2365,65 +3189,272 @@ pub(crate) mod served {
         std::io::BufReader::new(server.0.stdout.take().expect("piped"))
             .read_line(&mut number)
             .expect("Xvfb names its display");
-        let named = format!(":{}", number.trim());
-        let environment = |name: &str| (name == "DISPLAY").then(|| named.clone().into());
+        (server, format!(":{}", number.trim()))
+    }
+
+    /// Alt, Super and Space: the development channel's default Leader.
+    fn the_leader() -> nc_schema::keys::Leader {
+        use nc_schema::keys::{Chord, Key, Leader};
+
         let Ok(leader) = Leader::of(Chord::new(
             Modifiers::of(&[Modifier::Alt, Modifier::Super]),
             Key::Space,
         )) else {
             panic!("a chord with a modifier is a Leader");
         };
-        let register = || {
-            let (said, presses) = mpsc::channel();
-            let held = crate::leader::register(leader, &environment, move || {
+        leader
+    }
+
+    /// How long a test leaves a real server and this crate's client of it to
+    /// act on what was sent: well past [`super::session::ASKED_EVERY`], after
+    /// which the grabs let go at a press are made again.
+    const SETTLED: Duration = Duration::from_millis(300);
+
+    /// How long a test waits for a press that must not come.
+    const UNHEARD: Duration = Duration::from_millis(300);
+
+    /// Against real X servers, through [`crate::leader::register`]: what
+    /// [`a_real_server_delivers_the_chord`],
+    /// [`a_real_server_grants_a_chord_held_down_and_tells_its_loss`] and
+    /// [`a_real_server_is_sent_the_cookie_of_this_users_file`] hold.
+    pub(crate) fn a_real_server_grants_the_chord_hears_it_and_gives_it_back() {
+        a_real_server_delivers_the_chord();
+        a_real_server_grants_a_chord_held_down_and_tells_its_loss();
+        a_real_server_is_sent_the_cookie_of_this_users_file();
+    }
+
+    /// What [`register_on`] answers: the registration, the channel each press
+    /// is sent on and the channel a loss is.
+    type Registered = (
+        Result<crate::leader::Held, Refused>,
+        mpsc::Receiver<()>,
+        mpsc::Receiver<Refused>,
+    );
+
+    /// The Leader registered on the display `named`, through
+    /// [`crate::leader::register`].
+    fn register_on(named: &str) -> Registered {
+        let (said, presses) = mpsc::channel();
+        let (gone, lost) = mpsc::channel();
+        let held = crate::leader::register(
+            the_leader(),
+            &|name| (name == "DISPLAY").then(|| named.into()),
+            move || {
                 let _ = said.send(());
-            });
-            (held, presses)
-        };
-        let (held, presses) = register();
+            },
+            move |why| {
+                let _ = gone.send(why);
+            },
+        );
+        (held, presses, lost)
+    }
+
+    /// The keycodes a Linux X server gives Left Alt, Left Super, Left Shift
+    /// and Caps Lock.
+    const KEYS: (u8, u8, u8, u8) = (64, 133, 50, 66);
+
+    /// How long a key is held for a tap.
+    const TAP: Duration = Duration::from_millis(20);
+
+    /// Against a real X server, the chord pressed there reaches the caller.
+    ///
+    /// Once, held past the server's repeat or not, and with Caps Lock on; a
+    /// chord beside it does not, with the grabs in place; a key pressed with
+    /// the Leader held reaches the window that has the focus; and a second
+    /// registration, the key up, is refused as taken.
+    fn a_real_server_delivers_the_chord() {
+        let (mut server, named) = a_real_server(&[]);
+        let (held, presses, _lost) = register_on(&named);
         let held = held.expect("a real server grants the chord");
         let mut keyboard = Keyboard::of(&super::Display::parse(&named).expect("a display"));
-        let (alt, meta, shift, caps) = (64, 133, 50, 66);
+        // Another key is the one the kernel numbers 16, a US board's Q; the
+        // key numbered one under Space's is Left Alt, which is no other key.
+        let ((alt, meta, shift, caps), other, tap) = (KEYS, super::keycode(16), TAP);
 
-        keyboard.chord(&[alt, meta, SPACE], Duration::from_millis(20));
+        keyboard.chord(&[alt, meta, SPACE], tap);
         presses.recv_timeout(SOON).expect("the chord is heard");
-        keyboard.chord(&[alt, SPACE], Duration::from_millis(20));
-        keyboard.chord(&[alt, meta, shift, SPACE], Duration::from_millis(20));
-        keyboard.chord(&[alt, meta, SPACE - 1], Duration::from_millis(20));
-        keyboard.chord(&[SPACE], Duration::from_millis(20));
+        // The grabs were let go at the press and are made again once the key
+        // is up: only then is a chord beside the Leader's one a grab could
+        // answer, and each is left time to be seen up before the next.
+        std::thread::sleep(SETTLED);
+        for neighbour in [
+            &[alt, SPACE][..],
+            &[meta, SPACE],
+            &[alt, meta, shift, SPACE],
+            &[alt, meta, other],
+            &[SPACE],
+        ] {
+            keyboard.chord(neighbour, tap);
+            std::thread::sleep(SETTLED);
+        }
         assert!(
-            presses.recv_timeout(Duration::from_millis(300)).is_err(),
-            "a chord short of a modifier, with one more, on the key beside it, or bare is not \
+            presses.try_recv().is_err(),
+            "a chord short of a modifier, with one more, on another key, or bare is not \
              the Leader"
         );
+        keyboard.chord(&[alt, meta, SPACE], tap);
+        presses
+            .recv_timeout(SOON)
+            .expect("the grabs were in place while the chords beside it were pressed");
+        assert!(
+            presses.recv_timeout(UNHEARD).is_err(),
+            "and it is one press"
+        );
+
+        keyboard.takes_the_focus();
+        keyboard.down(&[alt, meta, SPACE]);
+        presses.recv_timeout(SOON).expect("the chord is heard");
+        std::thread::sleep(SETTLED);
+        keyboard.chord(&[other], tap);
+        let typed = keyboard.typed();
+        assert!(
+            typed.contains(&other),
+            "a key pressed with the Leader held reaches the window that has the focus: {typed:?}"
+        );
+        keyboard.up(&[alt, meta, SPACE]);
+        std::thread::sleep(SETTLED);
 
         keyboard.chord(&[alt, meta, SPACE], Duration::from_millis(1200));
         presses.recv_timeout(SOON).expect("the held chord is heard");
         assert!(
-            presses.recv_timeout(Duration::from_millis(300)).is_err(),
+            presses.recv_timeout(UNHEARD).is_err(),
             "held past the server's repeat, it is one press"
         );
 
-        keyboard.chord(&[caps], Duration::from_millis(20));
-        keyboard.chord(&[alt, meta, SPACE], Duration::from_millis(20));
+        keyboard.chord(&[caps], tap);
+        keyboard.chord(&[alt, meta, SPACE], tap);
         presses
             .recv_timeout(SOON)
             .expect("the chord is heard with Caps Lock on");
-        keyboard.chord(&[caps], Duration::from_millis(20));
+        keyboard.chord(&[caps], tap);
+        std::thread::sleep(SETTLED);
 
         assert_eq!(
-            register().0.err(),
+            register_on(&named).0.err(),
             Some(Refused::Taken),
-            "a second client asking for the chord is refused it"
+            "a second client asking for the chord, its key up, is refused it"
         );
         drop(held);
-        let (again, presses) = register();
-        let again = again.expect("a dropped registration gave the chord back");
-        keyboard.chord(&[alt, meta, SPACE], Duration::from_millis(20));
+        let _ = server.0.kill();
+    }
+
+    /// Against a real X server, a chord whose key is down is granted to a
+    /// second registration, and its loss is told.
+    ///
+    /// The chord is nobody's while the key is down. The first asks again
+    /// once the key is up, has the chord back when the second let it go, and
+    /// is told when the second kept it; and a dropped registration gives the
+    /// chord back.
+    fn a_real_server_grants_a_chord_held_down_and_tells_its_loss() {
+        let (mut server, named) = a_real_server(&[]);
+        let environment = |name: &str| (name == "DISPLAY").then(|| named.clone().into());
+        let register = || register_on(&named);
+        let (held, presses, lost) = register();
+        let held = held.expect("a real server grants the chord");
+        let mut keyboard = Keyboard::of(&super::Display::parse(&named).expect("a display"));
+        let ((alt, meta, _, _), tap) = (KEYS, TAP);
+
+        keyboard.down(&[alt, meta, SPACE]);
+        presses.recv_timeout(SOON).expect("the chord is heard");
+        std::thread::sleep(SETTLED);
+        let (second, _, _) = register();
+        let second = second.expect(
+            "the chord is nobody's while its key is down, so a second client asking then is \
+             granted it",
+        );
+        keyboard.up(&[alt, meta, SPACE]);
+        std::thread::sleep(SETTLED + super::session::TRIED_EVERY);
+        assert_eq!(
+            lost.try_recv(),
+            Err(mpsc::TryRecvError::Empty),
+            "the first asks again before it calls the chord lost"
+        );
+        drop(second);
+        std::thread::sleep(SETTLED + super::session::TRIED_EVERY);
+        keyboard.chord(&[alt, meta, SPACE], tap);
         presses
             .recv_timeout(SOON)
+            .expect("the second let the chord go, and it is the first's again");
+        std::thread::sleep(SETTLED);
+        drop(held);
+
+        let (told, presses, lost) = told();
+        let quick = register_paced(
+            57,
+            Modifiers::of(&[Modifier::Alt, Modifier::Super]),
+            &environment,
+            Pace {
+                tried_every: Duration::from_millis(20),
+                tries: 3,
+                ..Pace::USUAL
+            },
+            told,
+        )
+        .expect("a dropped registration gave the chord back");
+        keyboard.down(&[alt, meta, SPACE]);
+        presses.recv_timeout(SOON).expect("the chord is heard");
+        std::thread::sleep(SETTLED);
+        let (keeper, kept, _) = register();
+        let keeper = keeper.expect("granted while the key is down");
+        keyboard.up(&[alt, meta, SPACE]);
+        assert_eq!(
+            lost.recv_timeout(SOON),
+            Ok(Refused::Taken),
+            "a chord another client was granted and kept is lost, and its loss is told"
+        );
+        keyboard.chord(&[alt, meta, SPACE], tap);
+        kept.recv_timeout(SOON)
             .expect("the chord is heard by who holds it now");
-        drop(again);
+        assert!(presses.try_recv().is_err(), "and by nobody else");
+        drop(quick);
+        drop(keeper);
+        let _ = server.0.kill();
+    }
+
+    /// Against a real X server that admits by cookie alone, the cookie found
+    /// is the one sent.
+    ///
+    /// A registration is refused where the environment names no file, and
+    /// granted where `XAUTHORITY` names the file the server was started with.
+    fn a_real_server_is_sent_the_cookie_of_this_users_file() {
+        let scratch = Scratch::new("auth");
+        let file = scratch.0.join("authority");
+        let host = super::session::host().expect("this machine's name");
+        std::fs::write(
+            &file,
+            an_entry(
+                256,
+                &host,
+                b"",
+                b"MIT-MAGIC-COOKIE-1",
+                b"\x9e\x11\x4c\xd0\x27\x6a\xf3\x05\xb8\x72\xe9\x3d\x50\xc6\x1f\xaa",
+            ),
+        )
+        .expect("written");
+        let (mut server, named) = a_real_server(&[std::ffi::OsStr::new("-auth"), file.as_os_str()]);
+        let register = |authority: Option<&std::path::Path>| {
+            crate::leader::register(
+                the_leader(),
+                &|name| match name {
+                    "DISPLAY" => Some(named.clone().into()),
+                    "XAUTHORITY" => authority.map(|file| file.as_os_str().to_owned()),
+                    _ => None,
+                },
+                || {},
+                |_| {},
+            )
+            .map(|_| ())
+        };
+        let refused = failure(register(None));
+        assert!(
+            refused.contains("the X server refused the connection"),
+            "a server that admits by cookie refuses a client that sends none: {refused}"
+        );
+        assert_eq!(
+            register(Some(&file)),
+            Ok(()),
+            "the cookie of the file `XAUTHORITY` names is the one the server was started with"
+        );
         let _ = server.0.kill();
     }
 }

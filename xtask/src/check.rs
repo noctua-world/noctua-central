@@ -19786,7 +19786,7 @@ mod the_frozen_path_rule {
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/leader.rs", 48, 7),
+        ("nc-platform/leader.rs", 50, 7),
         ("nc-platform/lib.rs", 111, 26),
         ("nc-platform/macos.rs", 16, 10),
         ("nc-platform/process.rs", 46, 15),
@@ -19794,7 +19794,7 @@ mod the_frozen_path_rule {
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 105, 4),
         ("nc-platform/windows.rs", 153, 15),
-        ("nc-platform/x11.rs", 130, 34),
+        ("nc-platform/x11.rs", 192, 38),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22625,8 +22625,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 893 scratches this tree
-    /// builds, 805 of the 893 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 899 scratches this tree
+    /// builds, 811 of the 899 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22692,7 +22692,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 65] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 66] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 8, 8),
@@ -22748,6 +22748,7 @@ mod the_frozen_path_rule {
         ("nc-platform/lib.rs", 32, 32),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
+        ("nc-platform/x11.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 9, 9),
@@ -25790,7 +25791,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22305;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22407;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25809,7 +25810,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6169;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6246;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25826,7 +25827,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2084;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2113;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25860,7 +25861,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29457;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29586;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25878,7 +25879,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 516;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 519;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25914,7 +25915,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **516 of 29,457 are accepted by the first-line
+    /// rules the gates apply: **519 of 29,586 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25947,7 +25948,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2084 of
+    /// this tree offers, **2113 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38017,7 +38018,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2861] = [
+    static OPERATORS: [(&str, &str, &str); 2876] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49710,7 +49711,7 @@ Options:
         ),
         (
             "platform_x11",
-            "read_presses",
+            "let_go",
             "the keyboard a firing grab hands over is handed back",
         ),
         (
@@ -49742,6 +49743,81 @@ Options:
             "platform_x11",
             "over",
             "the wait for a press is not bounded",
+        ),
+        (
+            "platform_x11",
+            "cookie_in",
+            "the authorization file is read up to its bound and no further",
+        ),
+        (
+            "platform_x11",
+            "cookie_in",
+            "the file `XAUTHORITY` names is the one the cookie is read from",
+        ),
+        (
+            "platform_x11",
+            "cookie_in",
+            "an empty `XAUTHORITY` names no file",
+        ),
+        (
+            "platform_x11",
+            "cookie_in",
+            "`.Xauthority` under `HOME` is read where no file is named",
+        ),
+        (
+            "platform_x11",
+            "host",
+            "this machine's name is read where the kernel says it",
+        ),
+        (
+            "platform_x11",
+            "bounded",
+            "a socket's reads and writes are bounded as they are asked to be",
+        ),
+        (
+            "platform_x11",
+            "answers_for",
+            "a socket file is spoken to when it is this user's or root's",
+        ),
+        (
+            "platform_x11",
+            "dial_as",
+            "a socket another account made is sent nothing",
+        ),
+        (
+            "platform_x11",
+            "dial_as",
+            "a display named by its socket's path is reached by no abstract name",
+        ),
+        (
+            "platform_x11",
+            "register_paced",
+            "a display that is not a text is not read around what does not read",
+        ),
+        (
+            "platform_x11",
+            "over",
+            "a chord lost with the registration held is told to its caller",
+        ),
+        (
+            "platform_x11",
+            "drop",
+            "a registration dropped is not a chord lost",
+        ),
+        (
+            "platform_x11",
+            "regrab",
+            "a chord taken while the key was down is asked for again",
+        ),
+        (
+            "platform_x11",
+            "regrab",
+            "a chord another client keeps is asked for a bounded number of times",
+        ),
+        (
+            "platform_x11",
+            "regrab",
+            "a chord granted in part is let go before it is asked for again",
         ),
         (
             "channel_record",

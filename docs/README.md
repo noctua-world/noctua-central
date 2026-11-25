@@ -44,6 +44,10 @@ detects it and says so.
   it to `false` takes lingering away at each switch. No test enables it.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
+- **Xvfb**, on Linux only, on `PATH`: the gate starts one, with no socket in `/tmp`, and
+  presses the Leader on it, and fails without it rather than passing that test unrun. It
+  is the `xvfb` package on Debian and Ubuntu (`sudo apt-get install xvfb`), and with Nix
+  nothing is installed: `nix shell nixpkgs#xvfb --command cargo xtask check`.
 
 ## Quick start
 

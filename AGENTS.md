@@ -496,7 +496,7 @@ fails a gate a minute or two later.
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
 | a restorer's shape | its generator in `crates/nc-platform/src/service.rs` — `systemd_unit`, `launchd_plist` or `task_xml` — and the table of restorers in that module's header | the generator's text is written out whole in the module's tests, and every character its format reads specially is escaped there or refused when the service is described; what each restorer does is measured, not assumed, so a change to one is measured again on its system's runner by the scratch services in `with_the_manager` in the same file — the test binary registered under this checkout's test prefix, killed, and read back through the manager's own counters — and `NOCTUA.md §17.3` says what each system's restorer is |
-| a way a system delivers the Leader, or a change to one | `crates/nc-platform/src/leader.rs` for what is decided — which delivery a session has, which key and modifiers, what a refusal means — and the system's half for the call alone: `x11.rs`, `windows.rs` or `macos.rs` | the halves decide nothing, so the Linux job tests and mutates every decision: a flag, a code or an error a system names is a function or a constant of `leader.rs` with its unit test and its operator in `xtask/mutants.py`. A registration takes a `Leader`, reports presses alone, and gives the chord back when dropped; a chord another program holds is `Refused::Taken`, on every system. `unsafe` is written in `windows.rs` and `macos.rs` and nowhere else (invariant 17), each block under its `// SAFETY:` comment; `x11.rs` is safe Rust, every request it sends held to its bytes by a test, every length it reads held to a bound before it is read, and its connection driven end to end by the server written beside its tests, on every system, and on Linux by a real `Xvfb`, which `this_system_grants_the_chord_hears_it_and_gives_it_back` starts and never stands aside for. **No test of a half is written under a `cfg`**, which the gate reads as a test hidden: the session is generic over its connection so every system compiles and runs its tests, and the one test that asks the system itself branches on `clipboard::SYSTEM` at run time. Wayland has no registration: its delivery is the compositor's binding running `noctua leader`, and the GlobalShortcuts portal is not built (**What is deliberately not claimed**). `NOCTUA.md §12.8` says what each system does, and changes in the same edit |
+| a way a system delivers the Leader, or a change to one | `crates/nc-platform/src/leader.rs` for what is decided — which delivery a session has, which key and modifiers, what a refusal means — and the system's half for the call alone: `x11.rs`, `windows.rs` or `macos.rs` | the halves decide nothing, so the Linux job tests and mutates every decision: a flag, a code or an error a system names is a function or a constant of `leader.rs` with its unit test and its operator in `xtask/mutants.py`. A registration takes a `Leader`, reports presses alone, and gives the chord back when dropped; a chord another program holds is `Refused::Taken`, on every system; and a registration that stops delivering while it is held tells its caller so through `on_lost`, which X11 alone has cause to call — a path that ends the reading thread without telling is a defect, whatever ended it. `unsafe` is written in `windows.rs` and `macos.rs` and nowhere else (invariant 17), each block under its `// SAFETY:` comment; `x11.rs` is safe Rust, every request it sends held to its bytes by a test, every length it reads held to a bound before it is read, and its connection driven end to end by the server written beside its tests, on every system, and on Linux by a real `Xvfb`, which `this_system_grants_the_chord_hears_it_and_gives_it_back` starts and never stands aside for. **No test of a half is written under a `cfg`**, which the gate reads as a test hidden: the session is generic over its connection so every system compiles and runs its tests, the one test that asks the system itself branches on `clipboard::SYSTEM` at run time, and a test that needs a socket that is a file asks `served::sockets` — the one module of helpers written per system, holding no test — which answers nothing where there is none, the test then holding that system to its own refusal. Every wait of a session is a field of `session::Pace`, so a test shortens one rather than sleeping through it, and a test of a registration that might never return asks on a thread of its own and fails by its wait, since `xtask/mutants.py` plants exactly that. Wayland has no registration: its delivery is the compositor's binding running `noctua leader`, and the GlobalShortcuts portal is not built (**What is deliberately not claimed**). `NOCTUA.md §12.8` says what each system does, and changes in the same edit |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`, and `check_daemon_ipc` for one a frame carries — `commands_per_plugin` × `entry_bytes` × 2 at most half of `ipc_frame_max_bytes`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, `sessions_max` below `ipc_connections_max`, so the person always finds a connection no MCP client holds, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
@@ -4041,15 +4041,21 @@ cannot be identified is refused (`Refused::NoSession`) and nothing is asked; a W
 session is refused as having no registration (`Refused::ByBinding`), whatever X display it
 also names, since Xwayland's grabs are not global; and a chord another program holds is
 refused as `Refused::Taken` — X11's `BadAccess`, Windows' `ERROR_HOTKEY_ALREADY_REGISTERED`,
-Carbon's `eventHotKeyExistsErr` — never shared and never taken over. The key is a place on
+Carbon's `eventHotKeyExistsErr` — never shared and never taken from it. The key is a place on
 the board, asked of each system by that place from one table the compiler holds to the
 vocabulary. What is reported is that the chord went down, once for each time it does, and
-never that it went up; dropping the registration gives the chord back.
+never that it went up; dropping the registration gives the chord back; and a registration
+that stops delivering while it is held says so, once, through `on_lost` — on X11, the one
+system where one can, when the server goes away or the chord is lost to another client.
 
 On X11 the client is this crate's own, in safe Rust: it dials the display `DISPLAY` names
-on this machine's sockets and refuses a name with a host in it; sends the
-`MIT-MAGIC-COOKIE-1` of this machine and this display, from a file read up to a bound and
-believed only when it ends where an entry does; reads every length the server sends under
+on this machine's sockets and refuses a name with a host in it, one that is set and is not
+a text, and a socket whose file is neither this user's nor root's — asked before a byte is
+sent, and never gone round by the abstract socket, which is tried only where no file is at
+the path and never for a display named by its socket's path; sends the
+`MIT-MAGIC-COOKIE-1` of this machine and this display, from the file `XAUTHORITY` names or
+`.Xauthority` under `HOME`, read up to a bound and believed only when it ends where an entry
+does; bounds every read and write of a registration in time; reads every length the server sends under
 a bound, before a byte of that length is read or allocated; reads which modifier Alt, Super
 and Num Lock are from the server's own map, by physical key, and refuses a map that cannot
 tell the chord's modifiers apart; grabs the one key with exactly the chord's modifiers on
@@ -4057,23 +4063,44 @@ every root window, bare and with each lock; and at a press hands back the keyboa
 handed over and lets the grabs go, asking the server only whether the Leader's own key is
 still down until it is not — one bit read of each answer — and then makes them again, so a
 held key is one press and the keys pressed with it reach the window that has the focus.
+Where the server answers that another client was granted the chord meanwhile, whatever part
+of it was granted to this one is let go and the chord is asked for again, every quarter of a
+second and twenty times in all, after which the connection is closed and the caller is told
+the chord is lost.
 
 **Enforced by** the unit tests of `crates/nc-platform/src/leader.rs` — the delivery from
 each system and environment, every key's code in each system's own list written out in that
 list's order, the modifiers' flags, each system's refusal, a panic in the caller's function
-caught, and `Held` refused as `Send` by a `compile_fail` doctest — and of
+caught, no two keys sharing a code in any system's list, and `Held` refused as `Send` by a
+`compile_fail` doctest beside one that holds the same path to compiling, since a
+`compile_fail` block passes for any error — and of
 `crates/nc-platform/src/x11.rs`: every request against its bytes, the display and the
-authorization file read and cut short at every length, a message longer than any asked for
-refused unread, the masks read from the map, and the connection driven end to end against a
-server written beside the tests at the other end of a connection made in memory, which
-keeps every byte it was sent and runs on every system
+authorization file read and cut short at every length, the file the environment names read
+from a directory of the test's own and up to its bound
+(`the_cookie_is_read_from_the_file_the_environment_names_up_to_the_bound`), a message longer
+than any asked for refused unread, the masks read from the map, and the connection driven
+end to end against a server written beside the tests at the other end of a connection made
+in memory, which keeps every byte it was sent and runs on every system
 (`a_chord_is_grabbed_pressed_once_and_let_go`, `a_key_the_server_repeats_while_held_is_one_press`,
-`a_chord_another_client_holds_is_refused_as_taken`); by
+`a_chord_another_client_holds_is_refused_as_taken`,
+`a_chord_taken_while_the_key_was_down_is_asked_for_again`,
+`a_chord_another_client_keeps_is_lost_and_its_loss_is_told`,
+`a_server_gone_with_the_chord_held_is_a_loss_told`); against sockets of the test's own,
+where a socket is a file — one that never answers holding a registration for its bound
+alone, a display named by a path not reached by an abstract socket of that name, a socket
+dialled as another account refused, and a `DISPLAY` that is not a text refused as
+unreadable; by
 `this_system_grants_the_chord_hears_it_and_gives_it_back` in `leader.rs`, which every
 system runs against what it has — on Linux a real `Xvfb`, started with no socket in
 `/tmp`, where the chord is heard once, held past the server's repeat and with Caps Lock
-on, a chord beside it is not heard, a second registration is refused as taken and a
-dropped one is given back; on Windows a registration, the message Windows sends for it
+on; a chord short of a modifier, with one more or on another key is not heard, pressed
+once the grabs are made again and followed by a press that is; a key pressed with the
+Leader held reaches a window that has the focus; a second registration is refused as taken
+while the key is up and granted while it is down, after which the first has the chord back
+when the second lets it go and is told of its loss when the second keeps it; a dropped
+registration is given back; and a server started to admit by cookie alone refuses a
+registration that names no file and grants one whose `XAUTHORITY` names the server's; on
+Windows a registration, the message Windows sends for it
 posted to its thread, a second registration refused and the first given back; on macOS a
 registration made and given back through Carbon, twice; by the operators over both sources
 in `xtask/mutants.py`; and by invariant 17's gates over the two files that write `unsafe`.
@@ -4081,9 +4108,14 @@ in `xtask/mutants.py`; and by invariant 17's gates over the two files that write
 **Not answered:** a process running as this user, which on every system can register the
 chord first, and on X11 and Windows send a synthetic press or read the keyboard itself;
 on X11, another account answering at the display's abstract socket name while no server
-holds it and none listens in `/tmp`, which is sent this display's cookie if the file still
-holds one, and the instant between the key going up and the grabs being made again, in
-which the chord is nobody's and a program that takes it keeps it; an X server that does not
+holds it and no file is at the socket's path in `/tmp`, which is sent this display's cookie
+if the file still holds one — an abstract name has no owner to ask after — and **the chord
+while the Leader's key is down**: the grabs are let go from the press until the key is up,
+which is for as long as the Leader is held, because kept they fire again for each repeat
+and take the keyboard from the window each time, so a program that asks for the chord then
+is granted it and not refused, and keeps it if it does not let it go within the five
+seconds this client asks again — `Refused::Taken` is the answer only while the holder's key
+is up, and "held" means until `on_lost` says otherwise; an X server that does not
 number its keys as Linux's do; on macOS, whether the system refuses a chord another
 application registered, which was not measured, and a press itself, which a test may not
 send there; and on Windows, a layout switched after the registration, which leaves the

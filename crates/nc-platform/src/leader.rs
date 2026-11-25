@@ -58,6 +58,16 @@
 //! with nothing held, and a panic in it is caught and dropped, since one
 //! could not cross the system's own frames.
 //!
+//! # A registration lost
+//!
+//! **On X11 a chord held can stop being this process's, and the caller is
+//! told**: `on_lost` is called once, from that same thread, with why — the
+//! server went away, or another program was granted the chord while the
+//! Leader's key was down and kept it (below). The [`Held`] is then a
+//! registration of nothing, and a caller that wants the chord back drops it
+//! and registers again. Windows and macOS keep a registration until it is
+//! given back, and never call it.
+//!
 //! # What this answers (`§2.4`)
 //!
 //! - **What is taken is one chord, and never a bare key.** [`register`] takes
@@ -67,14 +77,24 @@
 //! - **A session that cannot be identified is refused** ([`Refused::NoSession`]):
 //!   with no display named, nothing is guessed and nothing is asked.
 //! - **A chord another program holds is refused, typed** ([`Refused::Taken`]),
-//!   and never shared or taken over: X11's `BadAccess` to the grab, Windows'
-//!   `ERROR_HOTKEY_ALREADY_REGISTERED`, Carbon's `eventHotKeyExistsErr`.
+//!   and never shared or taken from it: X11's `BadAccess` to the grab,
+//!   Windows' `ERROR_HOTKEY_ALREADY_REGISTERED`, Carbon's
+//!   `eventHotKeyExistsErr`.
 //! - **Dropping the [`Held`] gives the chord back**: `UngrabKey` and the
 //!   connection closed, `UnregisterHotKey`, `UnregisterEventHotKey` with the
 //!   handler removed.
 //!
 //! # What it does not
 //!
+//! - **On X11, the chord while the Leader's key is down.** The grabs are let
+//!   go from the press until the key is up — kept, the server fires them
+//!   again for each repeat of the held key, and each firing takes the
+//!   keyboard from the window that has the focus — so for as long as the
+//!   Leader is held the chord is nobody's: another program that asks for it
+//!   then is granted it, not refused. This process asks again once the key is
+//!   up, for five seconds, and where the other program kept the chord
+//!   `on_lost` says so. A registration on X11 is therefore refused as taken
+//!   only while the holder's key is up, and held only until it is lost.
 //! - **macOS refusing a chord another application registered.** Carbon
 //!   answers `eventHotKeyExistsErr` where it refuses; whether it refuses a
 //!   chord another application holds, or delivers to one of the two, is the
@@ -405,6 +425,10 @@ pub fn refused_by_carbon(call: Call, status: i32) -> Refused {
 /// What the press of the Leader is handed to.
 pub(crate) type OnPress = Box<dyn Fn() + Send + 'static>;
 
+/// What is told, once, that a chord held is this process's no longer, and
+/// why.
+pub(crate) type OnLost = Box<dyn FnOnce(Refused) + Send + 'static>;
+
 /// `on_press`, with a panic in it caught and dropped.
 ///
 /// **A press is delivered from the system's own frames on two systems** — a
@@ -417,11 +441,27 @@ pub(crate) fn guarded(on_press: impl Fn() + Send + 'static) -> OnPress {
     })
 }
 
+/// `on_lost`, with a panic in it caught and dropped, as [`guarded`] does for
+/// a press and for the same reason.
+pub(crate) fn guarded_once(on_lost: impl FnOnce(Refused) + Send + 'static) -> OnLost {
+    Box::new(move |why| {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || on_lost(why)));
+    })
+}
+
 /// A Leader registered: the chord is this process's until this drops, which
-/// gives it back.
+/// gives it back — or, on X11, until `on_lost` is told it was lost
+/// ([`register`]).
 ///
 /// Not `Send`, on any system: macOS takes the registration back on the thread
-/// that made it.
+/// that made it. The first block below is held to compiling, so that the
+/// second fails for the bound it names and not for a path that no longer
+/// reads.
+///
+/// ```
+/// fn named<T>() {}
+/// named::<nc_platform::leader::Held>();
+/// ```
 ///
 /// ```compile_fail,E0277
 /// fn sent<T: Send>() {}
@@ -493,6 +533,14 @@ impl Native {
 /// module's on X11 and Windows, on the main thread's run loop on macOS —
 /// where this is called on the main thread — and never the key going up.
 ///
+/// **`on_lost` is called at most once, and on X11 alone**, from the thread
+/// the presses arrive on, when the chord stops being this process's with the
+/// [`Held`] still held: with [`Refused::Taken`] when another program was
+/// granted the chord while the Leader's key was down and kept it past the
+/// five seconds it is asked for again, and with [`Refused::Failed`] when the
+/// server went away. No press follows it. Dropping the [`Held`] is not a
+/// loss, and calls nothing.
+///
 /// # Errors
 ///
 /// [`Refused::NoSession`] when the session cannot be identified;
@@ -503,12 +551,14 @@ pub fn register(
     leader: Leader,
     variable: &dyn Fn(&str) -> Option<OsString>,
     on_press: impl Fn() + Send + 'static,
+    on_lost: impl FnOnce(Refused) + Send + 'static,
 ) -> Result<Held, Refused> {
     registered_on(
         crate::clipboard::SYSTEM,
         leader,
         variable,
         guarded(on_press),
+        guarded_once(on_lost),
     )
 }
 
@@ -523,6 +573,7 @@ fn registered_on(
     leader: Leader,
     variable: &dyn Fn(&str) -> Option<OsString>,
     on_press: OnPress,
+    on_lost: OnLost,
 ) -> Result<Held, Refused> {
     let registration = match delivery_on(system, variable)? {
         Delivery::CompositorBinding => return Err(Refused::ByBinding),
@@ -531,8 +582,10 @@ fn registered_on(
                 physical(leader.key()).evdev,
                 leader.chord().modifiers(),
                 variable,
-                on_press,
+                crate::x11::session::Told { on_press, on_lost },
             )?),
+            // A hotkey these systems register is the caller's until it is
+            // given back, so there is no loss to tell of.
             System::MacOs | System::Windows => Registration::Native(native(leader, on_press)?),
         },
     };
@@ -581,7 +634,7 @@ mod tests {
     use nc_schema::keys::{Chord, Key, Leader, Modifier, Modifiers};
 
     use super::{
-        Call, Delivery, Refused, carbon_modifiers, delivery_on, guarded, physical,
+        Call, Delivery, Refused, carbon_modifiers, delivery_on, guarded, guarded_once, physical,
         refused_by_carbon, refused_by_windows, windows_modifiers,
     };
     use crate::clipboard::System;
@@ -825,6 +878,15 @@ mod tests {
             .map(|(_, code)| key(code))
             .collect();
         assert_eq!(fixed.len(), BY_WINDOWS_VIRTUAL_KEY.len());
+        let virtual_keys: BTreeSet<u8> = BY_WINDOWS_VIRTUAL_KEY
+            .iter()
+            .map(|(code, _)| *code)
+            .collect();
+        assert_eq!(
+            virtual_keys.len(),
+            BY_WINDOWS_VIRTUAL_KEY.len(),
+            "no two keys share a virtual key"
+        );
         for (code, name) in BY_WINDOWS_VIRTUAL_KEY {
             assert_eq!(physical(key(name)).windows, Some(code), "{name}");
         }
@@ -979,7 +1041,7 @@ mod tests {
     }
 
     /// What a press is handed to is called, and a panic in it goes no
-    /// further.
+    /// further; nor does one in what a loss is told to.
     #[test]
     fn a_panic_in_what_a_press_is_handed_to_goes_no_further() {
         let (said, heard) = std::sync::mpsc::channel();
@@ -994,6 +1056,17 @@ mod tests {
             2,
             "called each time, the panic caught"
         );
+        let (said, told) = std::sync::mpsc::channel();
+        let on_lost = guarded_once(move |why| {
+            said.send(why).expect("heard");
+            std::panic::resume_unwind(Box::new("a panic with no message printed"));
+        });
+        on_lost(Refused::Taken);
+        assert_eq!(
+            told.try_iter().collect::<Vec<_>>(),
+            [Refused::Taken],
+            "told why, the panic caught"
+        );
     }
 
     /// A Linux session's registration is refused where the session cannot be
@@ -1004,15 +1077,17 @@ mod tests {
     /// before any system is asked.
     #[test]
     fn a_registration_is_refused_where_the_session_delivers_none() {
-        let register = |variables: &[(&str, &str)]| {
+        let registered = |variable: &dyn Fn(&str) -> Option<OsString>| {
             super::registered_on(
                 System::Linux,
                 the_development_leader(),
-                &environment(variables),
+                variable,
                 Box::new(|| {}),
+                Box::new(|_| {}),
             )
             .map(|_| ())
         };
+        let register = |variables: &[(&str, &str)]| registered(&environment(variables));
         assert_eq!(register(&[]), Err(Refused::NoSession));
         assert_eq!(
             register(&[("WAYLAND_DISPLAY", "wayland-1"), ("DISPLAY", ":0")]),
@@ -1035,6 +1110,19 @@ mod tests {
                 Err(Refused::Failed(why)) if why.contains("no X server answers at")
             ),
             "a socket nothing listens at is no server"
+        );
+        let not_a_text = crate::x11::served::a_display_that_is_not_a_text();
+        let unreadable = |name: &str| (name == "DISPLAY").then(|| not_a_text.clone());
+        assert_eq!(
+            delivery_on(System::Linux, &unreadable),
+            Ok(Delivery::GlobalHotkey),
+            "a display is named, whatever it is named"
+        );
+        assert!(
+            matches!(registered(&unreadable), Err(Refused::Failed(why))
+                if why.contains("names no display on this machine")),
+            "a `DISPLAY` that is set and is not a text is a display this cannot read, and never \
+             a session that names none"
         );
     }
 
@@ -1070,9 +1158,14 @@ mod tests {
                 panic!("a chord with a modifier is a Leader");
             };
             let (said, heard) = std::sync::mpsc::channel();
-            let held = super::register(leader, &environment(&[]), move || {
-                let _ = said.send(());
-            });
+            let held = super::register(
+                leader,
+                &environment(&[]),
+                move || {
+                    let _ = said.send(());
+                },
+                |_| {},
+            );
             (held, heard)
         };
         let free = [Key::F11, Key::F10, Key::F9, Key::F8]
