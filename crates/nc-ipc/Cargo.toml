@@ -6,6 +6,14 @@ rust-version.workspace = true
 publish = false
 description = "The protocol a daemon is reached through: frames of canonical JSON, a handshake that proves both ends, one request at a time, and a heartbeat."
 
+[features]
+# The scratch install and the scripted daemon a client's suite connects to
+# (`nc_ipc::testing`), which stage a token another account can reach through
+# `nc-platform`'s own doors and run the endpoint on a runtime of their own
+# (tokio's `net` feature, which `enable_io` is behind). **Off by default**, so
+# nothing shipped can script a daemon through this crate.
+test-support = ["nc-platform/test-support", "tokio/net"]
+
 [dependencies]
 # Every refusal carries its catalog code (`NOCTUA.md §15.1`), and `DAEMON` holds
 # the channel's bounds, which this crate reads itself and takes from no caller.
@@ -34,7 +42,7 @@ tokio = { workspace = true, features = ["io-util", "time", "sync", "rt"] }
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests**, as every crate with a `tests/` suite does.
-nc-ipc = { path = "." }
+nc-ipc = { path = ".", features = ["test-support"] }
 # A paused clock the heartbeat's silences are measured on, rather than waited
 # out (`tokio::time::pause`).
 tokio = { workspace = true, features = ["test-util"] }

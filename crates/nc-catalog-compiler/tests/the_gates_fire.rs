@@ -2353,6 +2353,101 @@ fn sessions_as_many_as_the_connections_fail_the_build() {
     );
 }
 
+/// A watch that waits as long as a silent peer is kept fails the build, and
+/// one a millisecond shorter does not; and no wait at all fails it too.
+#[test]
+fn a_watch_as_long_as_the_silence_fails_the_build() {
+    let none = Scratch::new("daemon-watch-0");
+    none.replacing(
+        "catalog/limits.toml",
+        "ipc_watch_wait_ms = 8_000",
+        "ipc_watch_wait_ms = 0",
+    );
+    none.must_fail_saying("daemon-limit-zero", "`[daemon] ipc_watch_wait_ms` is zero");
+    let scratch = Scratch::new("daemon-watch-10000");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_watch_wait_ms = 8_000",
+        "ipc_watch_wait_ms = 10_000",
+    );
+    scratch.must_fail_saying(
+        "ipc-watch-outlasts-the-silence",
+        "`[daemon] ipc_watch_wait_ms` is 10000, which is not below `ipc_silent_after_ms`, 10000",
+    );
+    let shorter = Scratch::new("daemon-watch-9999");
+    shorter.replacing(
+        "catalog/limits.toml",
+        "ipc_watch_wait_ms = 8_000",
+        "ipc_watch_wait_ms = 9_999",
+    );
+    assert!(
+        shorter
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-watch-outlasts-the-silence"),
+        "a watch a millisecond shorter than the silence was refused"
+    );
+}
+
+/// A note a frame cannot carry with its envelope fails the build, and the
+/// largest one it can does not.
+#[test]
+fn a_note_a_frame_cannot_carry_fails_the_build() {
+    let scratch = Scratch::new("daemon-note-past");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_note_max_bytes = 8_192",
+        "ipc_note_max_bytes = 2_031_617",
+    );
+    scratch.must_fail_saying(
+        "ipc-note-past-a-frame",
+        "`[daemon] ipc_note_max_bytes` is 2031617, which with the 65536 bytes a frame wraps a \
+         message in is past `ipc_frame_max_bytes`, 2097152",
+    );
+    let most = Scratch::new("daemon-note-most");
+    most.replacing(
+        "catalog/limits.toml",
+        "ipc_note_max_bytes = 8_192",
+        "ipc_note_max_bytes = 2_031_616",
+    );
+    assert!(
+        most.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-note-past-a-frame"),
+        "the largest note a frame carries with its envelope was refused"
+    );
+}
+
+/// An announced environment a frame cannot carry at its bounds fails the
+/// build, and the largest one it can does not.
+#[test]
+fn an_announced_environment_a_frame_cannot_carry_fails_the_build() {
+    let scratch = Scratch::new("daemon-display-past");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_display_value_max_bytes = 4_096",
+        "ipc_display_value_max_bytes = 253_953",
+    );
+    scratch.must_fail_saying(
+        "ipc-display-past-a-frame",
+        "`[daemon] ipc_display_value_max_bytes` is 253953, and 4 values of it, each byte \
+         written as two, with the 65536 bytes a frame wraps a message in are past \
+         `ipc_frame_max_bytes`, 2097152",
+    );
+    let most = Scratch::new("daemon-display-most");
+    most.replacing(
+        "catalog/limits.toml",
+        "ipc_display_value_max_bytes = 4_096",
+        "ipc_display_value_max_bytes = 253_952",
+    );
+    assert!(
+        most.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-display-past-a-frame"),
+        "the largest environment a frame carries with its envelope was refused"
+    );
+}
+
 /// A pump a millisecond further apart than the shortest timer fails the
 /// build, and one exactly as far apart does not.
 #[test]

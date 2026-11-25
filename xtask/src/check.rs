@@ -19617,12 +19617,12 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 237] = [
+    const DOCUMENTED: [(&str, usize, usize); 239] = [
         ("cli/args.rs", 50, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
         ("cli/chosen.rs", 26, 10),
-        ("cli/client.rs", 42, 13),
+        ("cli/client.rs", 4, 1),
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 42, 3),
@@ -19657,8 +19657,8 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 90, 12),
-        ("daemon/serves_its_kernel.rs", 24, 3),
+        ("daemon/server.rs", 110, 13),
+        ("daemon/serves_its_kernel.rs", 26, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
@@ -19675,14 +19675,14 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
-        ("nc-catalog-compiler/load.rs", 61, 18),
+        ("nc-catalog-compiler/load.rs", 63, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 25, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 124, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 127, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -19728,15 +19728,17 @@ mod the_frozen_path_rule {
         ("nc-ids/naming.rs", 57, 40),
         ("nc-ids/properties.rs", 13, 6),
         ("nc-ids/snowflake.rs", 70, 90),
+        ("nc-ipc/client.rs", 35, 7),
         ("nc-ipc/connection.rs", 15, 9),
         ("nc-ipc/endpoint.rs", 4, 5),
         ("nc-ipc/frame.rs", 5, 0),
         ("nc-ipc/frames.rs", 8, 6),
         ("nc-ipc/handshake.rs", 10, 0),
-        ("nc-ipc/handshake.rs", 14, 15),
-        ("nc-ipc/heartbeat.rs", 18, 19),
-        ("nc-ipc/lib.rs", 9, 15),
-        ("nc-ipc/message.rs", 50, 6),
+        ("nc-ipc/handshake.rs", 15, 15),
+        ("nc-ipc/heartbeat.rs", 21, 19),
+        ("nc-ipc/lib.rs", 9, 17),
+        ("nc-ipc/message.rs", 73, 8),
+        ("nc-ipc/testing.rs", 12, 6),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
@@ -19813,7 +19815,7 @@ mod the_frozen_path_rule {
         ("nc-platform/leader.rs", 50, 7),
         ("nc-platform/lib.rs", 112, 26),
         ("nc-platform/macos.rs", 16, 10),
-        ("nc-platform/process.rs", 46, 15),
+        ("nc-platform/process.rs", 48, 15),
         ("nc-platform/service.rs", 181, 21),
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 106, 4),
@@ -22649,8 +22651,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 903 scratches this tree
-    /// builds, 815 of the 903 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 913 scratches this tree
+    /// builds, 825 of the 913 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22716,10 +22718,10 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 66] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 68] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
-        ("cli/client.rs", 8, 8),
+        ("cli/client.rs", 1, 1),
         ("cli/control.rs", 19, 19),
         ("cli/install.rs", 18, 18),
         ("cli/launcher.rs", 4, 4),
@@ -22744,7 +22746,7 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 266, 266),
+        ("nc-catalog-compiler/the_gates_fire.rs", 273, 273),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -22758,7 +22760,9 @@ mod the_frozen_path_rule {
         ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
+        ("nc-ipc/client.rs", 9, 9),
         ("nc-ipc/endpoint.rs", 2, 2),
+        ("nc-ipc/testing.rs", 1, 1),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 5, 5),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
@@ -25815,7 +25819,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22479;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22632;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25834,7 +25838,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6276;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6336;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25851,7 +25855,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2125;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2144;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25868,7 +25872,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 36, 37, 90];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [94, 20, 37, 38, 94];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25885,7 +25889,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29709;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29930;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25903,7 +25907,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 519;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 532;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25939,8 +25943,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 29,709 are accepted by the first-line
-    /// rule alone, and 273 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **532 of 29,930 are accepted by the first-line
+    /// rule alone, and 283 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25961,8 +25965,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 36
-    /// swaps, 37 rotations and 90 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **94 ascending sorts, 20 descending, 37
+    /// swaps, 38 rotations and 94 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25972,7 +25976,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2125 of
+    /// this tree offers, **2144 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37108,7 +37112,7 @@ Options:
     }
 
     /// The mutated sources whose tests live somewhere else, each said here.
-    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 14] = [
         "xtask/src/main.rs",
         "plugins/reference/src/lib.rs",
         "plugins/reference/src/adapter.rs",
@@ -37129,6 +37133,9 @@ Options:
         "crates/nc-ipc/src/frame.rs",
         "crates/nc-ipc/src/handshake.rs",
         "crates/nc-ipc/src/connection.rs",
+        // The scripted daemon a client's suite connects to, compiled for
+        // tests alone and held by `client`'s.
+        "crates/nc-ipc/src/testing.rs",
         // The CLI's crate root, whose one function `run.rs`'s tests drive.
         "apps/cli/src/lib.rs",
     ];
@@ -38011,7 +38018,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 251,
+            walked, 253,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38051,7 +38058,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2898] = [
+    static OPERATORS: [(&str, &str, &str); 2929] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -48333,6 +48340,55 @@ Options:
             "Answer",
             "a session answer is read as the session opened",
         ),
+        ("ipc_message", "count", "a count below zero is refused"),
+        ("ipc_message", "Note", "a note is one object"),
+        ("ipc_message", "Note", "a note past its bound is refused"),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment names no variable outside its list",
+        ),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment's value is not empty",
+        ),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment's value past its bound is refused",
+        ),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment's value holds no control character",
+        ),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment's path is absolute",
+        ),
+        (
+            "ipc_message",
+            "Graphical",
+            "an environment names a variable once",
+        ),
+        ("ipc_message", "Graphical", "an environment names a display"),
+        (
+            "loader",
+            "check_daemon_interface",
+            "a watch waits less than the silence a peer is dropped at",
+        ),
+        (
+            "loader",
+            "check_daemon_interface",
+            "a note at its bound fits a frame with its envelope",
+        ),
+        (
+            "loader",
+            "check_daemon_interface",
+            "an environment at its bound fits a frame with every byte doubled",
+        ),
         (
             "loader",
             "check_daemon_ipc",
@@ -48681,7 +48737,7 @@ Options:
         ),
         (
             "daemon_server",
-            "kernel_if_running",
+            "as_stopping",
             "a stopping daemon says it is stopping",
         ),
         (
@@ -48823,6 +48879,62 @@ Options:
             "daemon_server",
             "a_sessions",
             "a session is refused another session",
+        ),
+        (
+            "daemon_server",
+            "a_sessions",
+            "a session is refused a watch",
+        ),
+        ("daemon_server", "a_sessions", "a session is refused a note"),
+        (
+            "daemon_server",
+            "a_sessions",
+            "a session is refused a display",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a watch waits for the kernel to run",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a note waits for the kernel to run",
+        ),
+        (
+            "daemon_server",
+            "watch",
+            "a watch waits the catalog's bound at most",
+        ),
+        (
+            "daemon_server",
+            "watch",
+            "a revision is compared for being another one and never for being later",
+        ),
+        (
+            "daemon_server",
+            "watch",
+            "a watch waiting when a stop begins is refused",
+        ),
+        (
+            "daemon_server",
+            "note",
+            "a note that says what is held moves no revision",
+        ),
+        (
+            "daemon_server",
+            "display",
+            "a display that says what is held moves no revision",
+        ),
+        (
+            "daemon_server",
+            "moved",
+            "a revision turns to zero after the wire's largest integer",
+        ),
+        (
+            "daemon_server",
+            "told",
+            "a watch's answer holds the state only at another revision",
         ),
         (
             "daemon_server",
@@ -49352,50 +49464,80 @@ Options:
         ("cli_help", "argument_help", "a required argument says so"),
         ("cli_help", "bounds", "both bounds are shown"),
         (
-            "cli_client",
+            "ipc_client",
             "held_to",
             "the welcome's process is the one the system shows",
         ),
         (
-            "cli_client",
+            "ipc_client",
             "held_to",
             "the welcome's channel is the install's",
         ),
         (
-            "cli_client",
+            "ipc_client",
             "token_of",
             "the token and its directory are judged before it is read",
         ),
         (
             "cli_client",
-            "exit",
+            "exit_of",
             "nothing listening is a daemon not running",
         ),
         (
             "cli_client",
-            "exit",
+            "exit_of",
             "a request too long to send is arguments refused",
         ),
         (
-            "cli_client",
+            "ipc_client",
             "read",
             "an entry's fields are read as text alone",
         ),
-        ("cli_client", "read", "an entry is read with its tags"),
+        ("ipc_client", "read", "an entry is read with its tags"),
         (
-            "cli_client",
+            "ipc_client",
             "registry",
             "the registry is asked in the locale named",
         ),
         (
-            "cli_client",
+            "ipc_client",
             "session",
             "a session answered with anything else is unread",
         ),
         (
-            "cli_client",
+            "ipc_client",
             "tools",
             "the tools are asked in the locale named",
+        ),
+        (
+            "ipc_client",
+            "watch",
+            "a watch answered another revision without its state is unread",
+        ),
+        (
+            "ipc_client",
+            "watch",
+            "a watch answered with anything else is unread",
+        ),
+        (
+            "ipc_client",
+            "note",
+            "a note answered with anything else is unread",
+        ),
+        (
+            "ipc_client",
+            "display",
+            "a display answered with anything else is unread",
+        ),
+        (
+            "ipc_testing",
+            "serve",
+            "a scripted daemon hands back every request it heard",
+        ),
+        (
+            "ipc_testing",
+            "welcome",
+            "a scripted daemon's welcome names this process",
         ),
         (
             "cli_run",
@@ -50395,7 +50537,7 @@ Options:
         ),
         (
             "cli_client",
-            "exit",
+            "exit_of",
             "an answer the CLI cannot read after the handshake is exit 8",
         ),
         (

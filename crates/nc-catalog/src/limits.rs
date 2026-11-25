@@ -512,6 +512,12 @@ pub struct DaemonLimits {
     pub ipc_connections_max: u32,
     /// How many agents' sessions the daemon holds open at once.
     pub sessions_max: u32,
+    /// How long a watch waits at most for what it watches to change, in milliseconds.
+    pub ipc_watch_wait_ms: u64,
+    /// How much a note may carry, as its object's canonical text, in bytes.
+    pub ipc_note_max_bytes: u64,
+    /// How long one value of an announced graphical environment may be, in bytes.
+    pub ipc_display_value_max_bytes: u64,
     /// How often the daemon fires its timers, delivers its events and prunes, in milliseconds.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds, in milliseconds.
@@ -535,6 +541,9 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     ipc_silent_after_ms: 10_000,
     ipc_connections_max: 32,
     sessions_max: 16,
+    ipc_watch_wait_ms: 8_000,
+    ipc_note_max_bytes: 8_192,
+    ipc_display_value_max_bytes: 4_096,
     pump_every_ms: 1_000,
     sweep_every_ms: 600_000,
     stop_drain_ms: 30_000,

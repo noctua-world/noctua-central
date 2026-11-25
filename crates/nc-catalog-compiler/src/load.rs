@@ -790,6 +790,7 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_kernel(&limits.kernel, text, problems);
     check_daemon(limits.daemon, text, problems);
     check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
+    check_daemon_interface(limits.daemon, text, problems);
     check_daemon_schedule(limits.daemon, &limits.kernel, text, problems);
     check_daemon_control(limits.daemon, text, problems);
 }
@@ -812,6 +813,15 @@ const IPC_ENVELOPE_BYTES: u64 = 65_536;
 /// `the_catalogs_connections_fit_the_pipes_instances`, holds the generated
 /// value to `nc_platform::ipc::CONNECTIONS_MAX`.
 const PIPE_INSTANCES: u64 = 254;
+
+/// How many variables an announced graphical environment names at most.
+///
+/// **Written here and not asked of `nc-ipc`**, which reads the crate this
+/// compiler generates; a test in `crates/nc-ipc`,
+/// `a_note_and_an_environment_at_every_bound_cross_in_one_frame`, sends an
+/// environment naming every variable `nc_ipc::Graphical::NAMES` lists, each at
+/// its bound and written in the bytes JSON doubles, through a connection.
+const DISPLAY_VALUES: u64 = 4;
 
 /// The IPC channel's limits keep the bounds outside `[daemon]` they answer to.
 ///
@@ -926,6 +936,75 @@ fn check_daemon_ipc(
              connections could take every one, and the person's own CLI and interface would \
              find none. Make `sessions_max` below `ipc_connections_max`",
             "sessions-take-every-connection",
+        );
+    }
+}
+
+/// What an interface watches, notes and announces keeps the channel's own
+/// bounds.
+///
+/// **A watch waits less than the silence a peer is dropped at**, or a watcher
+/// that went away would keep its connection longer than a silent client
+/// keeps one; and **a note and an announced environment, each at its bound,
+/// fit a frame with its envelope** — the environment's four values with every
+/// byte one JSON writes as two — or the protocol would allow a message no
+/// connection can send.
+fn check_daemon_interface(daemon: DaemonLimits, text: &str, problems: &mut Vec<Problem>) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.ipc_watch_wait_ms >= daemon.ipc_silent_after_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_watch_wait_ms"),
+            format!(
+                "`[daemon] ipc_watch_wait_ms` is {}, which is not below `ipc_silent_after_ms`, {}",
+                daemon.ipc_watch_wait_ms, daemon.ipc_silent_after_ms
+            ),
+            "a watcher that went away without closing is noticed only once its answer is \
+             written, so a wait as long as the silence bound keeps a connection for a client \
+             that is gone longer than a silent one is kept. Make `ipc_watch_wait_ms` below \
+             `ipc_silent_after_ms`",
+            "ipc-watch-outlasts-the-silence",
+        );
+    }
+    if daemon.ipc_note_max_bytes.saturating_add(IPC_ENVELOPE_BYTES) > daemon.ipc_frame_max_bytes {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_note_max_bytes"),
+            format!(
+                "`[daemon] ipc_note_max_bytes` is {}, which with the {IPC_ENVELOPE_BYTES} bytes \
+                 a frame wraps a message in is past `ipc_frame_max_bytes`, {}",
+                daemon.ipc_note_max_bytes, daemon.ipc_frame_max_bytes
+            ),
+            "a note within its bound is refused nowhere but by its bound, so one the frame \
+             cannot carry would be a note the protocol allows and no connection can send. \
+             Make `ipc_note_max_bytes` at most `ipc_frame_max_bytes` less 64 KiB",
+            "ipc-note-past-a-frame",
+        );
+    }
+    if daemon
+        .ipc_display_value_max_bytes
+        .saturating_mul(DISPLAY_VALUES)
+        .saturating_mul(2)
+        .saturating_add(IPC_ENVELOPE_BYTES)
+        > daemon.ipc_frame_max_bytes
+    {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_display_value_max_bytes"),
+            format!(
+                "`[daemon] ipc_display_value_max_bytes` is {}, and {DISPLAY_VALUES} values of \
+                 it, each byte written as two, with the {IPC_ENVELOPE_BYTES} bytes a frame \
+                 wraps a message in are past `ipc_frame_max_bytes`, {}",
+                daemon.ipc_display_value_max_bytes, daemon.ipc_frame_max_bytes
+            ),
+            "an announced environment names at most that many variables, each within its \
+             bound, and JSON writes a quotation mark or a backslash as two bytes, so one the \
+             frame cannot carry would be an environment the protocol allows and no connection \
+             can send. Lower `ipc_display_value_max_bytes`",
+            "ipc-display-past-a-frame",
         );
     }
 }

@@ -574,6 +574,18 @@ mod tests {
         )
     }
 
+    /// The line of `written` on which a child said `word`, once that line is
+    /// whole: ended by its newline, so nothing of a line still being written
+    /// is read.
+    fn reported<'a>(word: &str, written: &'a str) -> Option<&'a str> {
+        let marker = format!("{word}\t");
+        written
+            .split_inclusive('\n')
+            .filter_map(|line| line.strip_suffix('\n'))
+            .map(|line| line.trim_end_matches('\r'))
+            .find(|line| line.contains(&marker))
+    }
+
     /// The process a child said it is on `line`, after `word` — wherever on
     /// the line, since the test harness writes the test's name before what
     /// the test says.
@@ -928,6 +940,33 @@ mod tests {
         .expect("this thread holds no privilege");
     }
 
+    /// A report is read only once its line is whole.
+    ///
+    /// **Found as a flake**: the detached child's line was read while it was
+    /// being written, so a line cut before its last field — or inside it —
+    /// was taken for the report. Every prefix of a written report that stops
+    /// short of its newline is nothing yet, and the line is read once the
+    /// newline is there, whatever follows it.
+    #[test]
+    fn a_report_is_read_only_once_its_line_is_whole() {
+        let whole = "detached\t41\tboot\t7\t/bin/test\t41\n";
+        for cut in 0..whole.len() {
+            assert_eq!(reported("detached", &whole[..cut]), None, "{cut}");
+        }
+        let line = whole.trim_end_matches('\n');
+        assert_eq!(reported("detached", whole), Some(line));
+        assert_eq!(
+            reported("detached", &format!("{whole}detached\t41\tbo")),
+            Some(line),
+            "the whole line is read, and the one still being written is not"
+        );
+        assert_eq!(
+            reported("detached", &format!("a warning\n{whole}")),
+            Some(line)
+        );
+        assert_eq!(reported("detached", "a warning\nanother\n"), None);
+    }
+
     /// A child is held to its record and ended through it.
     ///
     /// It is refused as soon as one part of the record is not its own, asked to
@@ -1021,21 +1060,31 @@ mod tests {
     ///
     /// The group is its own where the system has one, its standard error the
     /// file it was handed, and it is held to its record and ended through it.
+    ///
+    /// **The report is one line written whole and read whole**: the child
+    /// hands its line, the newline with it, to one write, and the parent
+    /// takes nothing of the file before that newline is there
+    /// ([`reported`]) — a line read while it was still being written lacked
+    /// its last field, the group, and failed a child that led one.
     #[test]
     #[expect(
-        clippy::print_stderr,
+        clippy::disallowed_methods,
         reason = "the detached child's one report, to the standard error its parent handed it \
                   as a file"
     )]
     fn a_detached_child_leads_a_group_of_its_own_and_writes_where_it_was_told() {
+        use std::io::Write as _;
         if std::env::args().any(|argument| argument == DETACHED) {
             let identity = super::this_process().expect("this process is read");
             let group = crate::testing::group_of(identity.pid).expect("the group is read");
-            eprintln!(
-                "{}\t{}",
+            let line = format!(
+                "{}\t{}\n",
                 saying("detached", &identity),
                 group.map_or_else(String::new, |group| group.to_string())
             );
+            std::io::stderr()
+                .write_all(line.as_bytes())
+                .expect("the report is written");
             // Ended by its parent, and on its own once the wait is over, so
             // a parent that failed leaves nothing running for long.
             std::thread::sleep(PATIENCE);
@@ -1062,7 +1111,7 @@ mod tests {
         let deadline = std::time::Instant::now() + PATIENCE;
         let report = loop {
             let written = std::fs::read_to_string(&error_file).unwrap_or_default();
-            if let Some(line) = written.lines().find(|line| line.contains("detached\t")) {
+            if let Some(line) = reported("detached", &written) {
                 break line.to_owned();
             }
             assert!(

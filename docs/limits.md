@@ -137,6 +137,9 @@ The bounds the daemon holds itself to, read from `[daemon]` and from nowhere els
 | `ipc_silent_after_ms` | 10000 milliseconds | How long a peer may be silent before its connection is dropped |
 | `ipc_connections_max` | 32 | How many connections the daemon holds open at once |
 | `sessions_max` | 16 | How many agents' sessions the daemon holds open at once |
+| `ipc_watch_wait_ms` | 8000 milliseconds | How long a watch waits at most for what it watches to change |
+| `ipc_note_max_bytes` | 8 KiB (8192 bytes) | How much a note may carry, as its object's canonical text |
+| `ipc_display_value_max_bytes` | 4 KiB (4096 bytes) | How long one value of an announced graphical environment may be |
 | `pump_every_ms` | 1000 milliseconds | How often the daemon fires its timers, delivers its events and prunes |
 | `sweep_every_ms` | 600000 milliseconds | How often the daemon sweeps the blobs no committed unit holds |
 | `stop_drain_ms` | 30000 milliseconds | How long a stop waits for the dispatches already running |
