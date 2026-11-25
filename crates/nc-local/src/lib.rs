@@ -157,8 +157,9 @@ pub use agents::{AgentRow, AgentsKept, EndedGrant, GrantRow, KeepError, LocalAge
 pub use journal::LocalJournal;
 pub use open::blob_directory;
 pub use store::{
-    BlobCreated, BlobRow, CommitError, Committed, Entry, Expect, Image, LocalStore, Page, Quotas,
-    Revision, StagedWrite, UnitDetail, UnitKind, UnitMeta, UnitRecord, UnitRow, UnitState,
+    BlobCreated, BlobRow, CommitError, Committed, Entry, Expect, Image, KEPT, KERNEL, LocalStore,
+    Page, Quotas, Revision, StagedWrite, UnitDetail, UnitKind, UnitMeta, UnitRecord, UnitRow,
+    UnitState, unkeepable,
 };
 
 use nc_catalog::ErrorCode;

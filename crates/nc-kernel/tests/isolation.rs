@@ -194,6 +194,15 @@ impl StoreBackend for Hanging {
         self.inner.count(realm, plugin)
     }
 
+    fn keep(
+        &self,
+        realm: &nc_ids::OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), nc_local::CommitError>> + Send {
+        self.inner.keep(realm, key, value)
+    }
+
     fn commit(
         &self,
         unit: &UnitRecord,

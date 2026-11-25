@@ -710,6 +710,83 @@ async fn every_page_of_keys_is_the_same_in_both_stores() {
     through_both!(pages, 1);
 }
 
+/// A key of the kernel's kept outside every unit: written, written over, read
+/// back at its own revision, refused when it is not canonical and when a unit
+/// wrote the key, and written over by a unit that names the revision it read.
+async fn kept(store: &impl StoreBackend, fixture: &Fixture, said: &mut Transcript) {
+    let kernel = nc_local::KERNEL;
+    said.said(
+        "keep",
+        store.keep(&fixture.realm, "kept", r#"{"a":1}"#).await,
+    )
+    .expect("kept");
+    said.said("keep again", store.keep(&fixture.realm, "kept", "2").await)
+        .expect("kept over itself");
+    let read = said
+        .said("get", store.get(&fixture.realm, kernel, "kept").await)
+        .expect("readable");
+    assert_eq!(read.map(|entry| entry.revision), Some(nc_local::KEPT));
+    said.said(
+        "count",
+        store
+            .count(&fixture.realm, kernel)
+            .await
+            .expect("countable"),
+    );
+    said.said(
+        "units",
+        store
+            .units(&fixture.realm, &fixture.ana, 10)
+            .await
+            .expect("listable"),
+    );
+    assert!(
+        said.said(
+            "not canonical",
+            store.keep(&fixture.realm, "kept", " 3").await
+        )
+        .is_err()
+    );
+    let unit = fixture.unit(
+        0,
+        &fixture.ana,
+        vec![put(kernel, "set", "1", Expect::Absent)],
+    );
+    said.said("commit 0", store.commit(&unit, &roomy()).await)
+        .expect("a unit writes the kernel's own key");
+    assert_eq!(
+        said.said(
+            "over a unit's",
+            store.keep(&fixture.realm, "set", "2").await
+        ),
+        Err(nc_local::unkeepable("set", fixture.revision(0, 0)))
+    );
+    assert_eq!(
+        said.said(
+            "elsewhere",
+            store.get(&fixture.office, kernel, "kept").await
+        ),
+        Ok(None),
+        "a kept key is its realm's"
+    );
+    let over = fixture.unit(
+        1,
+        &fixture.ana,
+        vec![put(kernel, "kept", "4", Expect::Revision(nc_local::KEPT))],
+    );
+    said.said("commit 1", store.commit(&over, &roomy()).await)
+        .expect("a unit names the revision a keep left");
+    let after = said
+        .said("get after", store.get(&fixture.realm, kernel, "kept").await)
+        .expect("readable");
+    assert_eq!(after.map(|entry| entry.value).as_deref(), Some("4"));
+}
+
+#[tokio::test]
+async fn a_kept_key_is_answered_alike_in_both_stores() {
+    through_both!(kept, 2);
+}
+
 /// A person's units, newest first, their states and their forgetting.
 async fn units(store: &impl StoreBackend, fixture: &Fixture, said: &mut Transcript) {
     for n in 0..5 {
@@ -1412,6 +1489,9 @@ enum Operation {
     UnpinnedBefore(u64, u32),
     /// Forget one blob.
     ForgetBlob(usize),
+    /// Keep a value as a key of the kernel's, outside every unit, in one
+    /// realm.
+    Keep(usize, usize, bool),
 }
 
 /// What a write expects, before it is resolved against what is held.
@@ -1425,7 +1505,9 @@ enum Expecting {
     OtherValue,
 }
 
-const PLUGINS: [&str; 2] = ["p", "q"];
+/// The plugins a unit writes for, the last being the kernel's own holder, so a
+/// unit writes the keys a keep is refused on and over the keys a keep wrote.
+const PLUGINS: [&str; 3] = ["p", "q", nc_local::KERNEL];
 const KEYS: [&str; 6] = ["a", "a/1", "ab", "b", "é", "a\u{10FFFF}"];
 const PREFIXES: [&str; 4] = ["", "a", "a/", "é"];
 /// The blobs a unit may create, the last of which is not a hash at all.
@@ -1498,6 +1580,8 @@ fn operation() -> impl Strategy<Value = Operation> {
             .prop_map(|(blob, pinned, at)| Operation::SetPinned(blob, pinned, at)),
         1 => (0_u64..30, 0_u32..4).prop_map(|(before, limit)| Operation::UnpinnedBefore(before, limit)),
         1 => (0..FILLS.len()).prop_map(Operation::ForgetBlob),
+        2 => (0..KEYS.len(), 0..NOTES.len(), any::<bool>())
+            .prop_map(|(key, value, home)| Operation::Keep(key, value, home)),
     ]
 }
 
@@ -1666,6 +1750,34 @@ impl Both {
         Ok(())
     }
 
+    /// Keeps `value` as the kernel's `key` in one realm in both, holds the
+    /// answers to each other, and keeps the map in step with what was kept.
+    async fn keep(&mut self, key: &str, value: &str, home: bool) -> Result<(), TestCaseError> {
+        let realm = self.realm(home).clone();
+        let in_memory = self.memory.keep(&realm, key, value).await;
+        prop_assert_eq!(
+            &in_memory,
+            &self.file.keep(&realm, key, value).await,
+            "keep {} {}",
+            key,
+            value
+        );
+        if in_memory.is_ok() {
+            self.model.insert(
+                (
+                    realm.as_str().to_owned(),
+                    nc_local::KERNEL.to_owned(),
+                    key.to_owned(),
+                ),
+                Entry {
+                    value: value.to_owned(),
+                    revision: nc_local::KEPT,
+                },
+            );
+        }
+        Ok(())
+    }
+
     /// The keys' operations: a read, every page, a count, each in both
     /// realms and each held to the other store and to the map.
     async fn keys(&self, operation: &Operation) -> Result<(), TestCaseError> {
@@ -1819,6 +1931,8 @@ async fn both_answer(operations: Vec<Operation>) -> Result<(), TestCaseError> {
         if let Operation::Commit(planned) | Operation::CommitHeld(planned) = operation.clone() {
             both.commit(planned, matches!(operation, Operation::CommitHeld(_)))
                 .await?;
+        } else if let Operation::Keep(key, value, home) = operation {
+            both.keep(KEYS[key], NOTES[value], home).await?;
         } else {
             both.keys(&operation).await?;
             both.units(&operation).await?;

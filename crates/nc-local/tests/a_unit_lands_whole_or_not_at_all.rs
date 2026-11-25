@@ -2477,3 +2477,105 @@ proptest! {
         })?;
     }
 }
+
+/// A key the kernel keeps is written outside every unit, and never over a key
+/// a unit wrote.
+///
+/// **No unit, no image, no note**: the history never names it, so no undo
+/// takes it back. **Its own holder alone, at its own revision**, so a read
+/// tells a kept key from one a unit wrote. **And never over a unit's key**:
+/// an undo of that unit would otherwise meet a value it did not write.
+#[tokio::test]
+async fn a_kept_key_is_written_outside_every_unit_and_never_over_one_a_unit_wrote() {
+    let scratch = Scratch::new("kept");
+    let store = LocalStore::open(&scratch.profile()).await.expect("opens");
+    let realm = home();
+    store
+        .keep(&realm, "shell.state", r#"{"a":1}"#)
+        .await
+        .expect("a kept key");
+    store
+        .keep(&realm, "shell.state", r#"{"a":2}"#)
+        .await
+        .expect("kept again, over itself");
+    assert_eq!(
+        store
+            .get(&realm, nc_local::KERNEL, "shell.state")
+            .await
+            .expect("readable"),
+        Some(Entry {
+            value: r#"{"a":2}"#.to_owned(),
+            revision: nc_local::KEPT,
+        })
+    );
+    assert_eq!(nc_local::KEPT.unit, Snowflake::ZERO);
+    assert_eq!(traces_of(&store, Snowflake::ZERO).await, (0, 0, 0, 1));
+    let units: i64 = sqlx::query_scalar("SELECT count(*) FROM main.store_units")
+        .fetch_one(store.pool())
+        .await
+        .expect("countable");
+    assert_eq!(units, 0, "a keep writes no unit");
+    assert_eq!(
+        store
+            .get(&id("elsewhere"), nc_local::KERNEL, "shell.state")
+            .await
+            .expect("readable"),
+        None,
+        "a key is its realm's"
+    );
+    let refused = store
+        .keep(&realm, "shell.state", r#"{ "a": 3 }"#)
+        .await
+        .expect_err("not canonical");
+    assert!(
+        matches!(&refused, CommitError::Invalid(why) if why.contains("not its canonical form")),
+        "{refused:?}"
+    );
+    store
+        .commit(
+            &step(
+                7,
+                vec![put(
+                    nc_local::KERNEL,
+                    "settings.mcp",
+                    "true",
+                    Expect::Absent,
+                )],
+            ),
+            &ROOMY,
+        )
+        .await
+        .expect("a unit writes the kernel's setting");
+    let refused = store
+        .keep(&realm, "settings.mcp", "false")
+        .await
+        .expect_err("a unit wrote it");
+    assert_eq!(
+        refused,
+        nc_local::unkeepable(
+            "settings.mcp",
+            Revision {
+                unit: unit(7),
+                n: 0
+            }
+        )
+    );
+    assert_eq!(
+        store
+            .get(&realm, nc_local::KERNEL, "settings.mcp")
+            .await
+            .expect("readable")
+            .map(|entry| entry.value),
+        Some("true".to_owned()),
+        "a refused keep leaves the key as it was"
+    );
+    assert_eq!(
+        store
+            .get(&realm, nc_local::KERNEL, "shell.state")
+            .await
+            .expect("readable")
+            .map(|entry| entry.value),
+        Some(r#"{"a":2}"#.to_owned()),
+        "a refused keep leaves the kept key as it was"
+    );
+}

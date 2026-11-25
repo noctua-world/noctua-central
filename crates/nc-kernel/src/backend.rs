@@ -3,7 +3,8 @@
 //!
 //! **One trait, two stores, one behaviour.** [`StoreBackend`] is everything the
 //! kernel asks of a plugin store, in `nc_local`'s types: a key's committed
-//! value, a page of keys, one unit committed whole or not at all, the units a
+//! value, a page of keys, one unit committed whole or not at all, a key of the
+//! kernel's own kept outside every unit, the units a
 //! person's history is read from, and the blobs this machine holds — and one
 //! answer no kernel path asks in this build, `forget_beyond`, which the bound
 //! on a person's history (`undo_history`) is for and nothing enforces yet:
@@ -93,6 +94,22 @@ pub trait StoreBackend: core::fmt::Debug + Send + Sync + 'static {
         realm: &OpaqueId,
         plugin: &str,
     ) -> impl Future<Output = Result<u64, LocalError>> + Send;
+
+    /// Keeps `value` as the key `key` of the kernel's own holder in a realm,
+    /// outside every unit: the one write no unit holds, and no undo takes
+    /// back.
+    ///
+    /// # Errors
+    ///
+    /// [`CommitError::Invalid`] for a value that is not canonical JSON and for
+    /// a key a unit wrote; [`CommitError::Store`] when the store fails. Either
+    /// way the key holds what it held.
+    fn keep(
+        &self,
+        realm: &OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), CommitError>> + Send;
 
     /// Commits one unit, whole or not at all.
     ///
@@ -298,6 +315,15 @@ impl StoreBackend for LocalStore {
         Self::count(self, realm, plugin)
     }
 
+    fn keep(
+        &self,
+        realm: &OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), CommitError>> + Send {
+        Self::keep(self, realm, key, value)
+    }
+
     fn commit(
         &self,
         unit: &UnitRecord,
@@ -496,6 +522,34 @@ impl StoreBackend for MemoryBackend {
             .filter(|(of, owner, _)| of == realm.as_str() && owner == plugin)
             .count();
         core::future::ready(Ok(u64::try_from(held).unwrap_or(u64::MAX)))
+    }
+
+    fn keep(
+        &self,
+        realm: &OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), CommitError>> + Send {
+        let answer = canonical(value, "a value").and_then(|()| {
+            let mut held = self.held();
+            let slot = slot_of(realm, nc_local::KERNEL, key);
+            match held.entries.get(&slot) {
+                Some(written) if written.revision != nc_local::KEPT => {
+                    Err(nc_local::unkeepable(key, written.revision))
+                }
+                _ => {
+                    held.entries.insert(
+                        slot,
+                        Entry {
+                            value: value.to_owned(),
+                            revision: nc_local::KEPT,
+                        },
+                    );
+                    Ok(())
+                }
+            }
+        });
+        core::future::ready(answer)
     }
 
     fn commit(

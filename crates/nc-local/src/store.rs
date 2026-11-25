@@ -13,7 +13,15 @@
 //! kernel's to name: a plugin supplies keys and values, never the plugin they
 //! belong to, and never SQL. The kernel keeps its own entries here too — a
 //! setting of the channel, staged in the unit of the command that switches it
-//! — under `kernel`, which no plugin's identity can be.
+//! — under [`KERNEL`], which no plugin's identity can be.
+//!
+//! **And one write outside every unit, the kernel's alone**:
+//! [`LocalStore::keep`] writes a key of [`KERNEL`]'s with no unit, at the
+//! revision [`KEPT`] — what the kernel keeps of the interface's state between
+//! starts, which no undo takes back. A key is kept or written by units, never
+//! both: `keep` refuses a key a unit wrote, so no image of a unit ever covers
+//! one it wrote, and an undo never finds a kept value where it expected its
+//! own.
 //!
 //! These types are the kernel's too: its `StoreBackend` wraps this store, and
 //! a unit record is what its overlay becomes when the unit commits.
@@ -57,6 +65,20 @@ impl core::fmt::Display for Revision {
         write!(formatter, "{}.{}", self.unit.to_crockford(), self.n)
     }
 }
+
+/// The holder the kernel keeps its own entries under: a setting of the
+/// channel, and what [`LocalStore::keep`] writes.
+///
+/// Never a plugin's identity, which is `<word>:<word>`, so no plugin reads or
+/// writes it.
+pub const KERNEL: &str = "kernel";
+
+/// The revision a key [`LocalStore::keep`] writes is at: the unit numbered
+/// zero, which no minter mints, so it is never one a unit hands out.
+pub const KEPT: Revision = Revision {
+    unit: Snowflake::ZERO,
+    n: 0,
+};
 
 /// One committed key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -618,6 +640,71 @@ impl LocalStore {
         .await
         .map_err(|error| said("counting keys", &error))?;
         as_unsigned(held, "a count of keys")
+    }
+
+    /// Keeps `value` as the key `key` of [`KERNEL`]'s in a realm, outside
+    /// every unit, at the revision [`KEPT`].
+    ///
+    /// **The kernel's one write that no unit holds**, for what it keeps
+    /// between starts and no undo takes back — the interface's state. It
+    /// writes no unit, image or note, so no history ever names it, and it
+    /// writes only the kernel's own holder, so no plugin's key is ever written
+    /// past its unit. A key a unit wrote is refused rather than written over:
+    /// its revision is one a unit handed out, and an undo of that unit would
+    /// meet a value it did not write.
+    ///
+    /// # Errors
+    ///
+    /// [`CommitError::Invalid`] for a value that is not canonical JSON, and
+    /// for a key a unit wrote; [`CommitError::Store`] when the database fails.
+    /// Either way the key holds what it held.
+    pub async fn keep(&self, realm: &OpaqueId, key: &str, value: &str) -> Result<(), CommitError> {
+        canonical(value, "a value")?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| said("beginning a keep", &error))?;
+        schema::no_temporary_object(&mut transaction).await?;
+        let held = sqlx::query(
+            "SELECT value, rev_unit, rev_n FROM main.store_entries \
+             WHERE realm = ?1 AND plugin = ?2 AND store_key = ?3",
+        )
+        .bind(realm.as_str())
+        .bind(KERNEL)
+        .bind(key)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|error| said("reading a kept key", &error))?
+        .map(|row| entry(&row, "value", "rev_unit", "rev_n"))
+        .transpose()?;
+        if let Some(written) = held.filter(|held| held.revision != KEPT) {
+            return Err(unkeepable(key, written.revision));
+        }
+        let unit = as_signed(KEPT.unit.value(), "a unit")?;
+        write_exactly(
+            sqlx::query(
+                "INSERT INTO main.store_entries \
+                 (realm, plugin, store_key, value, rev_unit, rev_n) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+                 ON CONFLICT (realm, plugin, store_key) DO UPDATE SET value = excluded.value",
+            )
+            .bind(realm.as_str())
+            .bind(KERNEL)
+            .bind(key)
+            .bind(value)
+            .bind(unit)
+            .bind(i64::from(KEPT.n))
+            .execute(&mut *transaction)
+            .await,
+            1,
+            "keeping a key",
+        )?;
+        transaction
+            .commit()
+            .await
+            .map_err(|error| said("finishing a keep", &error))?;
+        Ok(())
     }
 
     /// Commits one unit, whole or not at all.
@@ -1708,6 +1795,18 @@ fn hash_shaped(hash: &str) -> Result<(), CommitError> {
             "`{hash}` is not a BLAKE3 hash: sixty-four lowercase hex characters"
         )))
     }
+}
+
+/// The refusal of a keep of `key`, which a unit wrote at `revision`.
+///
+/// One sentence, written here once and copied by the kernel's store held in
+/// memory, which answers as this one does.
+#[must_use]
+pub fn unkeepable(key: &str, revision: Revision) -> CommitError {
+    CommitError::Invalid(format!(
+        "the kernel's key `{key}` was written by the unit {revision}, so it is not one kept \
+         outside every unit"
+    ))
 }
 
 /// Refuses text that is not nc-canon's canonical form of itself.
