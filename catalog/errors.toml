@@ -869,6 +869,29 @@ message = "error.kernel.compensation-for-an-agent"
 severity = "warning"
 retryable = false
 
+[[error]]
+# The interface's own state (`crates/nc-kernel/src/shell.rs`): a command of
+# `window.`, `page.` or `shell.` named a window or a page the kernel does not
+# hold — closed since, or never opened — or asked for the page that has focus
+# where none has. Not NC-VAL-0002: the arguments are well formed, and what they
+# name is what changed.
+code = "NC-KERN-0027"
+description = "A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
+message = "error.kernel.shell-unknown"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The interface's own state is held to `[kernel] shell_windows_max`,
+# `shell_pages_max`, `shell_drawer_pages_max` and `shell_trail_max`, and a
+# command that would pass one is refused whole. Not NC-PLUG-0017, whose
+# description names a plugin.
+code = "NC-KERN-0028"
+description = "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit"
+message = "error.kernel.shell-full"
+severity = "warning"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer

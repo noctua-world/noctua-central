@@ -51,12 +51,15 @@
 //! who its call runs for; and it writes to a log of its own, which never
 //! reaches the central one ([`Kernel::plugin_log`]). [`Kernel::pump`] fires the
 //! timers due and delivers the events queued, each callback a call tree of its
-//! own, decided again before it runs, and holds the local database's tables to
-//! their bounds; [`Kernel::dispatchable`] lists the commands an asker may
+//! own, decided again before it runs, holds the local database's tables to
+//! their bounds and saves the interface's state when it changed;
+//! [`Kernel::dispatchable`] lists the commands an asker may
 //! dispatch now, a probe of the decision point that journals and spends
-//! nothing; [`Kernel::surfaces`] lists what every plugin shows, and
-//! [`Kernel::unload`] takes a plugin out with its commands, timers and
-//! surfaces.
+//! nothing; [`Kernel::surfaces`] lists what every plugin shows;
+//! [`Kernel::shell`] answers the interface's own state, which the commands of
+//! the interface change as reads that make no step and the pump keeps outside
+//! every unit (`crate::shell`); and [`Kernel::unload`] takes a plugin out with
+//! its commands, timers and surfaces.
 //!
 //! **What this answers (`NOCTUA.md §2.4`).** A plugin is compiled from bytes on
 //! every load and never read back as native code, so a file on disk cannot hand
@@ -113,6 +116,7 @@ mod pump;
 pub mod registry;
 mod session;
 mod settings;
+mod shell;
 mod supervisor;
 mod timers;
 mod ui;
@@ -238,6 +242,9 @@ pub(crate) struct Shared<E: Environment> {
     pub(crate) timers: Mutex<timers::Timers>,
     /// Every surface open, and the tree each shows.
     pub(crate) surfaces: Mutex<ui::Surfaces>,
+    /// The interface's own state, and the revision it is at
+    /// (`crate::shell`).
+    pub(crate) shell: Mutex<shell::Cell>,
     /// Every unit this kernel left committed in the store and open in the
     /// journal — its close not taken, its reversal refused — until a prune
     /// reverts it first (`crate::units::reverted_again`): what the pruner may
@@ -350,6 +357,7 @@ impl<E: Environment> Kernel<E> {
                 events: Mutex::new(events::Queue::default()),
                 timers: Mutex::new(timers::Timers::default()),
                 surfaces: Mutex::new(ui::Surfaces::default()),
+                shell: Mutex::new(shell::Cell::default()),
                 left_committed: Mutex::new(BTreeSet::new()),
                 ticker,
             }),
@@ -357,7 +365,30 @@ impl<E: Environment> Kernel<E> {
         units::recover(&kernel.shared)
             .await
             .map_err(OpenError::Unrecovered)?;
+        let restored = shell::restored(
+            &*kernel.shared.store,
+            &kernel.shared.realm,
+            &kernel.shared.log,
+        )
+        .await;
+        *dispatch::lock(&kernel.shared.shell) = shell::Cell::over(restored);
         Ok(kernel)
+    }
+
+    /// The interface's own state as the kernel holds it now, and the
+    /// revision it is at (`NOCTUA.md §12.1`).
+    ///
+    /// **What every window of the interface draws**: the windows and their
+    /// pages, the drawer, the sidebar, the footer, the info line, the prompt
+    /// and each seat — the object `shell.read` answers as `shell`, as
+    /// canonical JSON. The revision moves by one each time a command changes
+    /// the state, and is this kernel's alone: it begins at zero when the
+    /// kernel opens over the state the store kept.
+    #[must_use]
+    pub fn shell(&self) -> (u64, String) {
+        let cell = dispatch::lock(&self.shared.shell);
+        let (revision, state) = cell.read();
+        (revision, state.to_value().to_canonical())
     }
 
     /// Every command this kernel can dispatch, in name order: its own and every
@@ -577,15 +608,17 @@ impl<E: Environment> Kernel<E> {
         Ok(slot)
     }
 
-    /// Fires every timer due, delivers every event queued, and holds the
-    /// local database's tables to their bounds, answering what each came to.
+    /// Fires every timer due, delivers every event queued, holds the local
+    /// database's tables to their bounds and saves the interface's state when
+    /// it changed, answering what each came to.
     ///
     /// **Between call trees, in that order** (`crate::pump`): it takes the bus
     /// every top-level dispatch takes, fires the timers due first, then
     /// delivers the events that were queued when it began — so what a callback
-    /// publishes waits for the next pump — and runs the one pruner last, once
+    /// publishes waits for the next pump — then runs the one pruner, once
     /// every unit this kernel left committed in the store and open in the
-    /// journal is reverted, and not while one stays. Each
+    /// journal is reverted, and not while one stays, and saves the interface's
+    /// state last. Each
     /// timer and each event is a callback in a call tree of its own, acting as
     /// the tree that set or published it acted, the authority it was set or
     /// published under decided again before it runs — for an agent's, for every

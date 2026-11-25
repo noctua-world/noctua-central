@@ -5,7 +5,7 @@
 //! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
 //! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read`,
 //! `settings.mcp.set`, `agents.create`, `agents.list`, `agents.grant` and
-//! `agents.revoke`; the
+//! `agents.revoke`, and every command of the interface's state; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -80,6 +80,14 @@
 //! which the family pack gives every person of the realm
 //! (`family.a_member_switches_mcp`); `crate::settings` says where the value is
 //! kept and why the set runs only at the top of a call tree.
+//!
+//! **The commands of `shell.`, `window.`, `leader.`, `page.`, `drawer.`,
+//! `sidebar.`, `footer.`, `info.` and `prompt.` are the interface's own
+//! state** (`NOCTUA.md §12.1`), `Read` and `Write` on `Feature::"interface"`,
+//! which the family pack gives every person of the realm
+//! (`family.a_member_drives_the_interface`); `crate::shell` says what each
+//! changes, why each is a read that no undo takes back, and where the state is
+//! kept between starts.
 //!
 //! **`agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are a
 //! person's agents** (`NOCTUA.md §14.6`), `Write`, `Read`, `Grant` and `Revoke`
@@ -184,14 +192,34 @@ pub(crate) enum Builtin {
     AgentsGrant,
     /// `agents.revoke`: an agent's grants ended (`crate::agents`).
     AgentsRevoke,
+    /// A command of the interface's state (`crate::shell`).
+    Shell(crate::shell::Verb),
 }
 
 impl Builtin {
-    /// Every one: the only place a handler is made.
+    /// Every one: the only place a handler is made — the kernel's own, then
+    /// one for each command of the interface's state, which
+    /// `crate::shell::Verb::ALL` lists.
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 13] = [
+    const ALL: [Self; 13 + crate::shell::Verb::ALL.len()] = {
+        let mut all = [Self::Verify; 13 + crate::shell::Verb::ALL.len()];
+        let mut at = 0;
+        while at < Self::OWN.len() {
+            all[at] = Self::OWN[at];
+            at += 1;
+        }
+        let mut verb = 0;
+        while verb < crate::shell::Verb::ALL.len() {
+            all[at + verb] = Self::Shell(crate::shell::Verb::ALL[verb]);
+            verb += 1;
+        }
+        all
+    };
+
+    /// The kernel's own, which [`Builtin::ALL`] begins with.
+    const OWN: [Self; 13] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -223,6 +251,7 @@ impl Builtin {
             Self::AgentsList => crate::agents::LIST,
             Self::AgentsGrant => crate::agents::GRANT,
             Self::AgentsRevoke => crate::agents::REVOKE,
+            Self::Shell(verb) => verb.name(),
         }
     }
 

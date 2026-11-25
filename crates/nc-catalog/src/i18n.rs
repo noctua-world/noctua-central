@@ -2125,6 +2125,207 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Revoke an agent's access", "Revogar o acesso de um agente"],
     ),
     (
+        "command.drawer.back.description",
+        [
+            "Leave a sub-page of the drawer's page, or close that page if it has none.",
+            "Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.",
+        ],
+    ),
+    (
+        "command.drawer.back.paragraph",
+        [
+            "Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.",
+            "Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.",
+        ],
+    ),
+    (
+        "command.drawer.back.title",
+        ["Go back in the drawer", "Voltar na gaveta"],
+    ),
+    (
+        "command.drawer.collapse.description",
+        [
+            "Hide the whole drawer, keeping every page open in it.",
+            "Esconder a gaveta inteira, mantendo abertas todas as páginas dela.",
+        ],
+    ),
+    (
+        "command.drawer.collapse.paragraph",
+        [
+            "Hides the drawer below the footer, keeping the pages open in it; the end of the modeline then shows how many there are. Expanding it brings everything back.",
+            "Esconde a gaveta abaixo do rodapé, mantendo abertas as páginas que há nela; o fim da linha de modo passa a mostrar quantas são. Expandi-la traz tudo de volta.",
+        ],
+    ),
+    (
+        "command.drawer.collapse.title",
+        ["Collapse the drawer", "Recolher a gaveta"],
+    ),
+    (
+        "command.drawer.expand.description",
+        [
+            "Show the drawer again, with everything that was open in it.",
+            "Mostrar a gaveta de novo, com tudo o que estava aberto nela.",
+        ],
+    ),
+    (
+        "command.drawer.expand.paragraph",
+        [
+            "Shows the drawer below the footer again, as it was when it was collapsed.",
+            "Mostra de novo a gaveta abaixo do rodapé, como estava quando foi recolhida.",
+        ],
+    ),
+    (
+        "command.drawer.expand.title",
+        ["Expand the drawer", "Expandir a gaveta"],
+    ),
+    (
+        "command.drawer.resize.description",
+        [
+            "Set how much of the height the drawer takes, below half.",
+            "Definir quanto da altura a gaveta ocupa, sempre menos da metade.",
+        ],
+    ),
+    (
+        "command.drawer.resize.paragraph",
+        [
+            "Sets how much of the height the drawer shares with the workspace area it takes, in percent. It always stays shorter than the workspace area.",
+            "Define quanto da altura que a gaveta divide com a área de trabalho ela ocupa, em porcentagem. Ela sempre fica mais baixa que a área de trabalho.",
+        ],
+    ),
+    (
+        "command.drawer.resize.title",
+        ["Resize the drawer", "Redimensionar a gaveta"],
+    ),
+    (
+        "command.drawer.toward.description",
+        [
+            "Open the leader menu's pages in the workspace area or in the drawer.",
+            "Abrir as páginas do menu do Leader na área de trabalho ou na gaveta.",
+        ],
+    ),
+    (
+        "command.drawer.toward.paragraph",
+        [
+            "Chooses where a page opened from the leader menu goes: the workspace area, where they go at first, or the drawer. The choice is kept until you change it.",
+            "Escolhe para onde vai uma página aberta pelo menu do Leader: a área de trabalho, para onde elas vão no início, ou a gaveta. A escolha fica guardada até você mudá-la.",
+        ],
+    ),
+    (
+        "command.drawer.toward.title",
+        ["Choose where pages open", "Escolher onde as páginas abrem"],
+    ),
+    (
+        "command.footer.hide.description",
+        [
+            "Let the footer hide again where the setting hides it.",
+            "Deixar o rodapé se esconder de novo onde a configuração o esconde.",
+        ],
+    ),
+    (
+        "command.footer.hide.paragraph",
+        [
+            "Lets the footer hide again where it is set to hide. Where it is set to always show, it stays.",
+            "Deixa o rodapé se esconder de novo onde ele está configurado para isso. Onde está configurado para aparecer sempre, ele fica.",
+        ],
+    ),
+    (
+        "command.footer.hide.title",
+        ["Hide the footer", "Esconder o rodapé"],
+    ),
+    (
+        "command.footer.show.description",
+        [
+            "Show the footer's three lines now, even where the setting hides it.",
+            "Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.",
+        ],
+    ),
+    (
+        "command.footer.show.paragraph",
+        [
+            "Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.",
+            "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.",
+        ],
+    ),
+    (
+        "command.footer.show.title",
+        ["Show the footer", "Mostrar o rodapé"],
+    ),
+    (
+        "command.info.clear.description",
+        [
+            "Take the message off the info line.",
+            "Tirar a mensagem da linha de informações.",
+        ],
+    ),
+    (
+        "command.info.clear.paragraph",
+        [
+            "Takes the message off the info line, which goes back to saying what each seat is on.",
+            "Tira a mensagem da linha de informações, que volta a dizer onde cada assento está.",
+        ],
+    ),
+    (
+        "command.info.clear.title",
+        ["Clear the info line", "Limpar a linha de informações"],
+    ),
+    (
+        "command.info.collapse.description",
+        [
+            "Keep the info line to one line again.",
+            "Manter a linha de informações numa linha só de novo.",
+        ],
+    ),
+    (
+        "command.info.collapse.paragraph",
+        [
+            "Keeps the info line to one line again, cutting what does not fit.",
+            "Mantém a linha de informações numa linha só de novo, cortando o que não couber.",
+        ],
+    ),
+    (
+        "command.info.collapse.title",
+        ["Collapse the info line", "Recolher a linha de informações"],
+    ),
+    (
+        "command.info.expand.description",
+        [
+            "Let the info line grow to show all it holds, each hover on a line of its own.",
+            "Deixar a linha de informações crescer para mostrar tudo o que tem.",
+        ],
+    ),
+    (
+        "command.info.expand.paragraph",
+        [
+            "Lets the info line wrap and grow to show everything it holds, with what the pointer is over and what the keyboard is on each on a line of its own.",
+            "Deixa a linha de informações quebrar e crescer para mostrar tudo o que tem, com o que está sob o ponteiro e onde está o teclado, cada um numa linha própria.",
+        ],
+    ),
+    (
+        "command.info.expand.title",
+        ["Expand the info line", "Expandir a linha de informações"],
+    ),
+    (
+        "command.info.say.description",
+        [
+            "Show a short message on the info line until it is cleared.",
+            "Mostrar uma mensagem curta na linha de informações até que seja limpa.",
+        ],
+    ),
+    (
+        "command.info.say.paragraph",
+        [
+            "Shows a message on the info line, the middle line of the footer, in place of the one before it.",
+            "Mostra uma mensagem na linha de informações, a linha do meio do rodapé, no lugar da anterior.",
+        ],
+    ),
+    (
+        "command.info.say.title",
+        [
+            "Say something on the info line",
+            "Dizer algo na linha de informações",
+        ],
+    ),
+    (
         "command.journal.verify.description",
         [
             "Check that every recorded action is intact and in order.",
@@ -2194,6 +2395,24 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     ),
     ("command.kernel.undo.title", ["Undo", "Desfazer"]),
     (
+        "command.leader.tap.description",
+        [
+            "Do what one tap of the Leader key does in the interface.",
+            "Fazer o que um toque da tecla Leader faz na interface.",
+        ],
+    ),
+    (
+        "command.leader.tap.paragraph",
+        [
+            "Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.",
+            "Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.",
+        ],
+    ),
+    (
+        "command.leader.tap.title",
+        ["Tap the Leader", "Tocar a tecla Leader"],
+    ),
+    (
         "command.limits.prune.description",
         [
             "Remove the oldest records from any table that has passed its limit.",
@@ -2248,6 +2467,210 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Read a file name", "Ler um nome de arquivo"],
     ),
     (
+        "command.page.back.description",
+        [
+            "Return from a sub-page to the page it was opened from.",
+            "Sair de uma subpágina e voltar para a página de onde ela foi aberta.",
+        ],
+    ),
+    (
+        "command.page.back.paragraph",
+        [
+            "Goes back one step inside a page — the one in focus, unless you name another. A page that is not inside a sub-page stays as it is.",
+            "Volta um passo dentro de uma página — a que está em foco, a menos que você indique outra. Uma página que não está numa subpágina fica como está.",
+        ],
+    ),
+    (
+        "command.page.back.title",
+        ["Go back in a page", "Voltar dentro de uma página"],
+    ),
+    (
+        "command.page.close.description",
+        [
+            "Close a page of the interface, in one place or everywhere it is shown.",
+            "Fechar uma página da interface, num lugar ou em todos os lugares onde aparece.",
+        ],
+    ),
+    (
+        "command.page.close.paragraph",
+        [
+            "Closes the page in focus in a window's workspace area or in the drawer, or the page you name — from the place you say, or from everywhere it is shown. A page nothing shows any more is closed for good; anything it started keeps running.",
+            "Fecha a página em foco na área de trabalho de uma janela ou na gaveta, ou a página que você indicar — do lugar que você disser, ou de todos os lugares onde aparece. Uma página que nada mais mostra é fechada de vez; o que ela começou continua rodando.",
+        ],
+    ),
+    (
+        "command.page.close.title",
+        ["Close a page", "Fechar uma página"],
+    ),
+    (
+        "command.page.focus.description",
+        [
+            "Show a page that is open, in the workspace area or in the drawer.",
+            "Mostrar uma página aberta, na área de trabalho ou na gaveta.",
+        ],
+    ),
+    (
+        "command.page.focus.paragraph",
+        [
+            "Brings a page that is already open to the front of the place that shows it: a window's workspace area, or the drawer, which is expanded if it was collapsed.",
+            "Traz para a frente uma página que já está aberta, no lugar que a mostra: a área de trabalho de uma janela, ou a gaveta, que é expandida se estava recolhida.",
+        ],
+    ),
+    (
+        "command.page.focus.title",
+        [
+            "Bring a page to the front",
+            "Trazer uma página para a frente",
+        ],
+    ),
+    (
+        "command.page.into.description",
+        [
+            "Open a sub-page inside a page, such as one topic of help.",
+            "Abrir uma subpágina dentro de uma página, como um tópico da ajuda.",
+        ],
+    ),
+    (
+        "command.page.into.paragraph",
+        [
+            "Goes one step deeper inside a page — the one in focus, unless you name another — to the topic given, so going back returns to where it was. A page goes only so many steps deep.",
+            "Avança um passo para dentro de uma página — a que está em foco, a menos que você indique outra — até o tópico indicado, para que voltar retorne a onde estava. Uma página só desce um número limitado de passos.",
+        ],
+    ),
+    (
+        "command.page.into.title",
+        ["Go into a sub-page", "Entrar numa subpágina"],
+    ),
+    (
+        "command.page.next.description",
+        [
+            "Bring the next page of a window's stack to the front.",
+            "Trazer para a frente a próxima página da pilha de uma janela.",
+        ],
+    ),
+    (
+        "command.page.next.paragraph",
+        [
+            "Brings to the front the page after the one in focus in a window's workspace area. At the last page, nothing changes.",
+            "Traz para a frente a página que vem depois da que está em foco na área de trabalho de uma janela. Na última página, nada muda.",
+        ],
+    ),
+    (
+        "command.page.next.title",
+        ["Show the next page", "Mostrar a próxima página"],
+    ),
+    (
+        "command.page.open.description",
+        [
+            "Open a page of the interface: settings, help, dev, a surface or a list.",
+            "Abrir uma página: configurações, ajuda, dev, uma superfície ou uma lista.",
+        ],
+    ),
+    (
+        "command.page.open.paragraph",
+        [
+            "Opens a page in the workspace area of a window or in the drawer — where the drawer's direction says, unless you choose. A page already open is shown again where it is asked for, as one more view of the same page. Opening a page closes the leader menu.",
+            "Abre uma página na área de trabalho de uma janela ou na gaveta — onde a direção da gaveta indicar, a menos que você escolha. Uma página que já está aberta aparece de novo onde for pedida, como mais uma vista da mesma página. Abrir uma página fecha o menu do Leader.",
+        ],
+    ),
+    (
+        "command.page.open.title",
+        ["Open a page", "Abrir uma página"],
+    ),
+    (
+        "command.page.previous.description",
+        [
+            "Bring the previous page of a window's stack to the front.",
+            "Trazer para a frente a página anterior da pilha de uma janela.",
+        ],
+    ),
+    (
+        "command.page.previous.paragraph",
+        [
+            "Brings to the front the page before the one in focus in a window's workspace area. At the first page, nothing changes.",
+            "Traz para a frente a página que vem antes da que está em foco na área de trabalho de uma janela. Na primeira página, nada muda.",
+        ],
+    ),
+    (
+        "command.page.previous.title",
+        ["Show the previous page", "Mostrar a página anterior"],
+    ),
+    (
+        "command.page.scroll.description",
+        [
+            "Set how far a page is scrolled, so it reopens where it was.",
+            "Definir até onde uma página está rolada, para que reabra onde estava.",
+        ],
+    ),
+    (
+        "command.page.scroll.paragraph",
+        [
+            "Sets how far down a page is scrolled, in CSS pixels — the page in focus, unless you name another — so every window shows it there and reopening it brings you back to the same place.",
+            "Define até onde uma página está rolada para baixo, em pixels CSS — a página em foco, a menos que você indique outra — para que todas as janelas a mostrem ali e reabri-la leve você de volta ao mesmo ponto.",
+        ],
+    ),
+    (
+        "command.page.scroll.title",
+        ["Scroll a page", "Rolar uma página"],
+    ),
+    (
+        "command.prompt.ask.description",
+        [
+            "Keep the prompt line on a command, asking for its parameters.",
+            "Manter a linha do prompt num comando, pedindo os parâmetros dele.",
+        ],
+    ),
+    (
+        "command.prompt.ask.paragraph",
+        [
+            "Keeps the prompt line on the command you chose, offering its parameters — on the one you name, when you name one — so what you type next is a parameter's value.",
+            "Mantém a linha do prompt no comando que você escolheu, oferecendo os parâmetros dele — no que você indicar, quando indicar um — para que o que você digitar em seguida seja o valor de um parâmetro.",
+        ],
+    ),
+    (
+        "command.prompt.ask.title",
+        [
+            "Ask for a command's parameters",
+            "Pedir os parâmetros de um comando",
+        ],
+    ),
+    (
+        "command.prompt.clear.description",
+        [
+            "Empty the prompt line and stop asking for anything.",
+            "Esvaziar a linha do prompt e parar de pedir qualquer coisa.",
+        ],
+    ),
+    (
+        "command.prompt.clear.paragraph",
+        [
+            "Empties the prompt line and stops asking for a command or its parameters, closing the list of commands in the drawer.",
+            "Esvazia a linha do prompt e para de pedir um comando ou os parâmetros dele, fechando a lista de comandos na gaveta.",
+        ],
+    ),
+    (
+        "command.prompt.clear.title",
+        ["Clear the prompt line", "Limpar a linha do prompt"],
+    ),
+    (
+        "command.prompt.set.description",
+        [
+            "Set what the prompt line holds, as if it were typed there.",
+            "Definir o que a linha do prompt contém, como se fosse digitado ali.",
+        ],
+    ),
+    (
+        "command.prompt.set.paragraph",
+        [
+            "Sets the text of the prompt line, the bottom line of the footer. Text that begins with a semicolon or a colon opens the list of commands in the drawer, and the rest of it filters the list.",
+            "Define o texto da linha do prompt, a última linha do rodapé. Um texto que começa com ponto e vírgula ou dois-pontos abre a lista de comandos na gaveta, e o resto dele filtra a lista.",
+        ],
+    ),
+    (
+        "command.prompt.set.title",
+        ["Type into the prompt line", "Digitar na linha do prompt"],
+    ),
+    (
         "command.settings.mcp.read.description",
         [
             "Show whether this installation of Noctua lets MCP clients in.",
@@ -2282,6 +2705,246 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.mcp.set.title",
         ["Switch MCP on or off", "Ligar ou desligar o MCP"],
+    ),
+    (
+        "command.shell.drag.description",
+        [
+            "Record what a seat is dragging, or that it stopped.",
+            "Registrar o que um assento está arrastando, ou que parou de arrastar.",
+        ],
+    ),
+    (
+        "command.shell.drag.paragraph",
+        [
+            "Records what one seat is dragging in the interface, so every window shows it being dragged; naming nothing says the drag ended.",
+            "Registra o que um assento está arrastando na interface, para que todas as janelas mostrem isso sendo arrastado; sem indicar nada, diz que o arraste terminou.",
+        ],
+    ),
+    (
+        "command.shell.drag.title",
+        ["Say what a seat drags", "Dizer o que um assento arrasta"],
+    ),
+    (
+        "command.shell.focus.description",
+        [
+            "Give a seat's keyboard to a part of an interface window.",
+            "Levar o teclado de um assento para uma parte de uma janela da interface.",
+        ],
+    ),
+    (
+        "command.shell.focus.paragraph",
+        [
+            "Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.",
+            "Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.",
+        ],
+    ),
+    (
+        "command.shell.focus.title",
+        ["Move a seat's focus", "Mover o foco de um assento"],
+    ),
+    (
+        "command.shell.hover.description",
+        [
+            "Record what a seat's pointer hovers, or what its keyboard selection is on.",
+            "Registrar o que está sob o ponteiro de um assento, ou a seleção do teclado dele.",
+        ],
+    ),
+    (
+        "command.shell.hover.paragraph",
+        [
+            "Records what one seat's pointer is over, or what its keyboard selection is on, so the info line can say what it is; naming nothing clears it. The info line shows whichever of the two changed last.",
+            "Registra o que está sob o ponteiro de um assento, ou onde está a seleção do teclado dele, para que a linha de informações diga o que é; sem indicar nada, limpa o registro. A linha de informações mostra o que mudou por último entre os dois.",
+        ],
+    ),
+    (
+        "command.shell.hover.title",
+        [
+            "Say what a seat points at",
+            "Dizer para onde um assento aponta",
+        ],
+    ),
+    (
+        "command.shell.read.description",
+        [
+            "Show all the interface holds: its windows, pages, drawer, prompt and seats.",
+            "Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt.",
+        ],
+    ),
+    (
+        "command.shell.read.paragraph",
+        [
+            "Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing.",
+            "Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada.",
+        ],
+    ),
+    (
+        "command.shell.read.title",
+        ["Read the interface's state", "Ler o estado da interface"],
+    ),
+    (
+        "command.sidebar.cycle.description",
+        [
+            "Do what Leader Space does: show the sidebar, focus it, or hide it.",
+            "Fazer o que Leader Espaço faz: mostrar a barra lateral, focá-la ou escondê-la.",
+        ],
+    ),
+    (
+        "command.sidebar.cycle.paragraph",
+        [
+            "Shows the sidebar when it is hidden, puts a seat's keyboard on it when it is shown, and hides it when the keyboard is already there.",
+            "Mostra a barra lateral quando está escondida, leva o teclado de um assento até ela quando está visível, e a esconde quando o teclado já está nela.",
+        ],
+    ),
+    (
+        "command.sidebar.cycle.title",
+        [
+            "Show, focus or hide the sidebar",
+            "Mostrar, focar ou esconder a barra",
+        ],
+    ),
+    (
+        "command.sidebar.hide.description",
+        [
+            "Hide the list of what is open in the interface.",
+            "Esconder a lista do que está aberto na interface.",
+        ],
+    ),
+    (
+        "command.sidebar.hide.paragraph",
+        [
+            "Hides the sidebar; a seat whose keyboard was on it goes back to the workspace area.",
+            "Esconde a barra lateral; um assento cujo teclado estava nela volta para a área de trabalho.",
+        ],
+    ),
+    (
+        "command.sidebar.hide.title",
+        ["Hide the sidebar", "Esconder a barra lateral"],
+    ),
+    (
+        "command.sidebar.show.description",
+        [
+            "Show the list of what is open in the interface.",
+            "Mostrar a lista do que está aberto na interface.",
+        ],
+    ),
+    (
+        "command.sidebar.show.paragraph",
+        [
+            "Shows the sidebar, the list of everything open in the interface.",
+            "Mostra a barra lateral, a lista de tudo o que está aberto na interface.",
+        ],
+    ),
+    (
+        "command.sidebar.show.title",
+        ["Show the sidebar", "Mostrar a barra lateral"],
+    ),
+    (
+        "command.window.close.description",
+        [
+            "Close a window of the interface, or hide it when it is the last one.",
+            "Fechar uma janela da interface, ou escondê-la quando for a última.",
+        ],
+    ),
+    (
+        "command.window.close.paragraph",
+        [
+            "Closes a window of the desktop interface — the one you are using, unless you name another — with the pages only it showed. The last window is hidden instead, so the interface is always ready to show again. Nothing that runs in Noctua stops.",
+            "Fecha uma janela da interface — a que você está usando, a menos que indique outra — com as páginas que só ela mostrava. A última janela é escondida em vez de fechada, para que a interface esteja sempre pronta para aparecer. Nada do que roda no Noctua para.",
+        ],
+    ),
+    (
+        "command.window.close.title",
+        ["Close a window", "Fechar uma janela"],
+    ),
+    (
+        "command.window.hide.description",
+        [
+            "Hide a window of the interface, keeping everything in it.",
+            "Esconder uma janela da interface, mantendo tudo o que há nela.",
+        ],
+    ),
+    (
+        "command.window.hide.paragraph",
+        [
+            "Hides a window of the desktop interface — the one you are using, unless you name another. Nothing stops: what was open in it is kept, and showing it again brings it all back.",
+            "Esconde uma janela da interface — a que você está usando, a menos que indique outra. Nada para: o que estava aberto nela é mantido, e mostrá-la de novo traz tudo de volta.",
+        ],
+    ),
+    (
+        "command.window.hide.title",
+        ["Hide a window", "Esconder uma janela"],
+    ),
+    (
+        "command.window.move.description",
+        [
+            "Place a window of the interface at a position on the screen.",
+            "Colocar uma janela da interface numa posição da tela.",
+        ],
+    ),
+    (
+        "command.window.move.paragraph",
+        [
+            "Moves a window of the desktop interface — the one you are using, unless you name another — so its top left corner is at the position given, in the screen's own units. Under a tiling window manager, the manager may place it elsewhere.",
+            "Move uma janela da interface — a que você está usando, a menos que indique outra — para que o canto superior esquerdo fique na posição indicada, nas unidades da própria tela. Num gerenciador de janelas em mosaico, ele pode colocá-la em outro lugar.",
+        ],
+    ),
+    (
+        "command.window.move.title",
+        ["Move a window", "Mover uma janela"],
+    ),
+    (
+        "command.window.open.description",
+        [
+            "Open one more window of the interface, showing the same state.",
+            "Abrir mais uma janela da interface, mostrando o mesmo estado.",
+        ],
+    ),
+    (
+        "command.window.open.paragraph",
+        [
+            "Opens another window of the desktop interface, shown at once. Every window shows the same drawer, prompt and footer, and each keeps a stack of pages of its own. The interface holds only so many windows.",
+            "Abre mais uma janela da interface, já visível. Todas as janelas mostram a mesma gaveta, o mesmo prompt e o mesmo rodapé, e cada uma tem a sua própria pilha de páginas. A interface comporta um número limitado de janelas.",
+        ],
+    ),
+    (
+        "command.window.open.title",
+        ["Open another window", "Abrir outra janela"],
+    ),
+    (
+        "command.window.resize.description",
+        [
+            "Give a window of the interface a new width and height.",
+            "Dar a uma janela da interface uma nova largura e uma nova altura.",
+        ],
+    ),
+    (
+        "command.window.resize.paragraph",
+        [
+            "Resizes a window of the desktop interface — the one you are using, unless you name another — in CSS pixels. A window is never made smaller than the smallest size every page is built for.",
+            "Redimensiona uma janela da interface — a que você está usando, a menos que indique outra — em pixels CSS. Uma janela nunca fica menor que o menor tamanho para o qual todas as páginas são feitas.",
+        ],
+    ),
+    (
+        "command.window.resize.title",
+        ["Resize a window", "Redimensionar uma janela"],
+    ),
+    (
+        "command.window.show.description",
+        [
+            "Show a window of the interface that is hidden.",
+            "Mostrar uma janela da interface que está escondida.",
+        ],
+    ),
+    (
+        "command.window.show.paragraph",
+        [
+            "Shows a window of the desktop interface — the one you are using, unless you name another — exactly as it was when it was hidden.",
+            "Mostra uma janela da interface — a que você está usando, a menos que indique outra — exatamente como estava quando foi escondida.",
+        ],
+    ),
+    (
+        "command.window.show.title",
+        ["Show a window", "Mostrar uma janela"],
     ),
     (
         "email.catalog.mechanism.body",
@@ -3136,6 +3799,20 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.kernel.shell-full",
+        [
+            "The interface already holds as many of those as it can. Close one and try again.",
+            "A interface já tem o máximo que consegue disso. Feche um e tente de novo.",
+        ],
+    ),
+    (
+        "error.kernel.shell-unknown",
+        [
+            "That window or page is not open in the interface any more, so nothing was changed.",
+            "Essa janela ou página não está mais aberta na interface, então nada foi alterado.",
+        ],
+    ),
+    (
         "error.kernel.step-unrecorded",
         [
             "That step cannot be undone or redone yet, because Noctua's history does not show it as finished. Nothing was changed.",
@@ -3962,6 +4639,39 @@ pub const KEYS: &[&str] = &[
     "command.agents.revoke.description",
     "command.agents.revoke.paragraph",
     "command.agents.revoke.title",
+    "command.drawer.back.description",
+    "command.drawer.back.paragraph",
+    "command.drawer.back.title",
+    "command.drawer.collapse.description",
+    "command.drawer.collapse.paragraph",
+    "command.drawer.collapse.title",
+    "command.drawer.expand.description",
+    "command.drawer.expand.paragraph",
+    "command.drawer.expand.title",
+    "command.drawer.resize.description",
+    "command.drawer.resize.paragraph",
+    "command.drawer.resize.title",
+    "command.drawer.toward.description",
+    "command.drawer.toward.paragraph",
+    "command.drawer.toward.title",
+    "command.footer.hide.description",
+    "command.footer.hide.paragraph",
+    "command.footer.hide.title",
+    "command.footer.show.description",
+    "command.footer.show.paragraph",
+    "command.footer.show.title",
+    "command.info.clear.description",
+    "command.info.clear.paragraph",
+    "command.info.clear.title",
+    "command.info.collapse.description",
+    "command.info.collapse.paragraph",
+    "command.info.collapse.title",
+    "command.info.expand.description",
+    "command.info.expand.paragraph",
+    "command.info.expand.title",
+    "command.info.say.description",
+    "command.info.say.paragraph",
+    "command.info.say.title",
     "command.journal.verify.description",
     "command.journal.verify.paragraph",
     "command.journal.verify.title",
@@ -3974,6 +4684,9 @@ pub const KEYS: &[&str] = &[
     "command.kernel.undo.description",
     "command.kernel.undo.paragraph",
     "command.kernel.undo.title",
+    "command.leader.tap.description",
+    "command.leader.tap.paragraph",
+    "command.leader.tap.title",
     "command.limits.prune.description",
     "command.limits.prune.paragraph",
     "command.limits.prune.title",
@@ -3983,12 +4696,84 @@ pub const KEYS: &[&str] = &[
     "command.naming.read.description",
     "command.naming.read.paragraph",
     "command.naming.read.title",
+    "command.page.back.description",
+    "command.page.back.paragraph",
+    "command.page.back.title",
+    "command.page.close.description",
+    "command.page.close.paragraph",
+    "command.page.close.title",
+    "command.page.focus.description",
+    "command.page.focus.paragraph",
+    "command.page.focus.title",
+    "command.page.into.description",
+    "command.page.into.paragraph",
+    "command.page.into.title",
+    "command.page.next.description",
+    "command.page.next.paragraph",
+    "command.page.next.title",
+    "command.page.open.description",
+    "command.page.open.paragraph",
+    "command.page.open.title",
+    "command.page.previous.description",
+    "command.page.previous.paragraph",
+    "command.page.previous.title",
+    "command.page.scroll.description",
+    "command.page.scroll.paragraph",
+    "command.page.scroll.title",
+    "command.prompt.ask.description",
+    "command.prompt.ask.paragraph",
+    "command.prompt.ask.title",
+    "command.prompt.clear.description",
+    "command.prompt.clear.paragraph",
+    "command.prompt.clear.title",
+    "command.prompt.set.description",
+    "command.prompt.set.paragraph",
+    "command.prompt.set.title",
     "command.settings.mcp.read.description",
     "command.settings.mcp.read.paragraph",
     "command.settings.mcp.read.title",
     "command.settings.mcp.set.description",
     "command.settings.mcp.set.paragraph",
     "command.settings.mcp.set.title",
+    "command.shell.drag.description",
+    "command.shell.drag.paragraph",
+    "command.shell.drag.title",
+    "command.shell.focus.description",
+    "command.shell.focus.paragraph",
+    "command.shell.focus.title",
+    "command.shell.hover.description",
+    "command.shell.hover.paragraph",
+    "command.shell.hover.title",
+    "command.shell.read.description",
+    "command.shell.read.paragraph",
+    "command.shell.read.title",
+    "command.sidebar.cycle.description",
+    "command.sidebar.cycle.paragraph",
+    "command.sidebar.cycle.title",
+    "command.sidebar.hide.description",
+    "command.sidebar.hide.paragraph",
+    "command.sidebar.hide.title",
+    "command.sidebar.show.description",
+    "command.sidebar.show.paragraph",
+    "command.sidebar.show.title",
+    "command.window.close.description",
+    "command.window.close.paragraph",
+    "command.window.close.title",
+    "command.window.hide.description",
+    "command.window.hide.paragraph",
+    "command.window.hide.title",
+    "command.window.move.description",
+    "command.window.move.paragraph",
+    "command.window.move.title",
+    "command.window.open.description",
+    "command.window.open.paragraph",
+    "command.window.open.title",
+    "command.window.resize.description",
+    "command.window.resize.paragraph",
+    "command.window.resize.title",
+    "command.window.show.description",
+    "command.window.show.paragraph",
+    "command.window.show.title",
     "email.catalog.mechanism.body",
     "email.catalog.mechanism.subject",
     "error.ai.agents-full",
@@ -4112,6 +4897,8 @@ pub const KEYS: &[&str] = &[
     "error.kernel.redo-blob-swept",
     "error.kernel.redo-compensated",
     "error.kernel.reentrant",
+    "error.kernel.shell-full",
+    "error.kernel.shell-unknown",
     "error.kernel.step-unrecorded",
     "error.kernel.too-deep",
     "error.kernel.too-many-dispatches",
@@ -4377,6 +5164,101 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.drawer.back.tags",
+        [
+            &["drawer", "back", "escape", "close", "interface"],
+            &["gaveta", "voltar", "esc", "fechar", "interface"],
+        ],
+    ),
+    (
+        "command.drawer.collapse.tags",
+        [
+            &["drawer", "collapse", "hide", "interface"],
+            &["gaveta", "recolher", "esconder", "interface"],
+        ],
+    ),
+    (
+        "command.drawer.expand.tags",
+        [
+            &["drawer", "expand", "show", "interface"],
+            &["gaveta", "expandir", "mostrar", "interface"],
+        ],
+    ),
+    (
+        "command.drawer.resize.tags",
+        [
+            &["drawer", "resize", "height", "size", "interface"],
+            &["gaveta", "redimensionar", "altura", "tamanho", "interface"],
+        ],
+    ),
+    (
+        "command.drawer.toward.tags",
+        [
+            &[
+                "drawer",
+                "direction",
+                "workspace",
+                "leader menu",
+                "interface",
+            ],
+            &[
+                "gaveta",
+                "direção",
+                "área de trabalho",
+                "menu do leader",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.footer.hide.tags",
+        [
+            &["footer", "hide", "interface"],
+            &["rodapé", "esconder", "interface"],
+        ],
+    ),
+    (
+        "command.footer.show.tags",
+        [
+            &["footer", "show", "modeline", "prompt", "interface"],
+            &["rodapé", "mostrar", "linha de modo", "prompt", "interface"],
+        ],
+    ),
+    (
+        "command.info.clear.tags",
+        [
+            &["info line", "clear", "message", "interface"],
+            &["linha de informações", "limpar", "mensagem", "interface"],
+        ],
+    ),
+    (
+        "command.info.collapse.tags",
+        [
+            &["info line", "collapse", "less", "interface"],
+            &["linha de informações", "recolher", "menos", "interface"],
+        ],
+    ),
+    (
+        "command.info.expand.tags",
+        [
+            &["info line", "expand", "more", "interface"],
+            &["linha de informações", "expandir", "mais", "interface"],
+        ],
+    ),
+    (
+        "command.info.say.tags",
+        [
+            &["info line", "message", "notify", "say", "interface"],
+            &[
+                "linha de informações",
+                "mensagem",
+                "avisar",
+                "dizer",
+                "interface",
+            ],
+        ],
+    ),
+    (
         "command.journal.verify.tags",
         [
             &[
@@ -4425,6 +5307,13 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.leader.tap.tags",
+        [
+            &["leader", "leader key", "shortcut", "menu", "interface"],
+            &["leader", "tecla leader", "atalho", "menu", "interface"],
+        ],
+    ),
+    (
         "command.limits.prune.tags",
         [
             &["prune", "clean up", "old records", "limit", "free space"],
@@ -4460,6 +5349,96 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "identificador",
                 "analisar",
                 "detalhes",
+            ],
+        ],
+    ),
+    (
+        "command.page.back.tags",
+        [
+            &["back", "sub-page", "navigate", "return", "interface"],
+            &["voltar", "subpágina", "navegar", "retornar", "interface"],
+        ],
+    ),
+    (
+        "command.page.close.tags",
+        [
+            &["page", "close", "interface", "tab"],
+            &["página", "fechar", "interface", "aba"],
+        ],
+    ),
+    (
+        "command.page.focus.tags",
+        [
+            &["page", "focus", "switch", "show", "interface"],
+            &["página", "foco", "alternar", "mostrar", "interface"],
+        ],
+    ),
+    (
+        "command.page.into.tags",
+        [
+            &["sub-page", "navigate", "open", "topic", "interface"],
+            &["subpágina", "navegar", "abrir", "tópico", "interface"],
+        ],
+    ),
+    (
+        "command.page.next.tags",
+        [
+            &["page", "next", "switch", "forward", "interface"],
+            &["página", "próxima", "alternar", "avançar", "interface"],
+        ],
+    ),
+    (
+        "command.page.open.tags",
+        [
+            &["page", "open", "settings", "help", "dev", "interface"],
+            &[
+                "página",
+                "abrir",
+                "configurações",
+                "ajuda",
+                "dev",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.page.previous.tags",
+        [
+            &["page", "previous", "switch", "back", "interface"],
+            &["página", "anterior", "alternar", "voltar", "interface"],
+        ],
+    ),
+    (
+        "command.page.scroll.tags",
+        [
+            &["scroll", "page", "position", "interface"],
+            &["rolar", "página", "posição", "interface"],
+        ],
+    ),
+    (
+        "command.prompt.ask.tags",
+        [
+            &["prompt", "parameters", "command", "arguments", "interface"],
+            &["prompt", "parâmetros", "comando", "argumentos", "interface"],
+        ],
+    ),
+    (
+        "command.prompt.clear.tags",
+        [
+            &["prompt", "clear", "empty", "cancel", "interface"],
+            &["prompt", "limpar", "esvaziar", "cancelar", "interface"],
+        ],
+    ),
+    (
+        "command.prompt.set.tags",
+        [
+            &["prompt", "type", "text", "command list", "interface"],
+            &[
+                "prompt",
+                "digitar",
+                "texto",
+                "lista de comandos",
+                "interface",
             ],
         ],
     ),
@@ -4503,6 +5482,122 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "ferramentas de ia",
                 "protocolo de contexto",
             ],
+        ],
+    ),
+    (
+        "command.shell.drag.tags",
+        [
+            &["drag", "pointer", "seat", "interface", "move"],
+            &["arrastar", "ponteiro", "assento", "interface", "mover"],
+        ],
+    ),
+    (
+        "command.shell.focus.tags",
+        [
+            &["focus", "keyboard", "seat", "interface", "move focus"],
+            &["foco", "teclado", "assento", "interface", "mudar o foco"],
+        ],
+    ),
+    (
+        "command.shell.hover.tags",
+        [
+            &["hover", "pointer", "selection", "info line", "seat"],
+            &[
+                "sobrevoar",
+                "ponteiro",
+                "seleção",
+                "linha de informações",
+                "assento",
+            ],
+        ],
+    ),
+    (
+        "command.shell.read.tags",
+        [
+            &["interface", "window", "state", "layout", "what is open"],
+            &[
+                "interface",
+                "janela",
+                "estado",
+                "disposição",
+                "o que está aberto",
+            ],
+        ],
+    ),
+    (
+        "command.sidebar.cycle.tags",
+        [
+            &["sidebar", "leader space", "toggle", "focus", "interface"],
+            &[
+                "barra lateral",
+                "leader espaço",
+                "alternar",
+                "foco",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.sidebar.hide.tags",
+        [
+            &["sidebar", "hide", "interface"],
+            &["barra lateral", "esconder", "interface"],
+        ],
+    ),
+    (
+        "command.sidebar.show.tags",
+        [
+            &["sidebar", "show", "list", "interface"],
+            &["barra lateral", "mostrar", "lista", "interface"],
+        ],
+    ),
+    (
+        "command.window.close.tags",
+        [
+            &["window", "close", "interface"],
+            &["janela", "fechar", "interface"],
+        ],
+    ),
+    (
+        "command.window.hide.tags",
+        [
+            &["window", "hide", "minimize", "interface"],
+            &["janela", "esconder", "minimizar", "interface"],
+        ],
+    ),
+    (
+        "command.window.move.tags",
+        [
+            &["window", "move", "position", "place", "interface"],
+            &["janela", "mover", "posição", "lugar", "interface"],
+        ],
+    ),
+    (
+        "command.window.open.tags",
+        [
+            &["window", "new window", "open", "interface"],
+            &["janela", "nova janela", "abrir", "interface"],
+        ],
+    ),
+    (
+        "command.window.resize.tags",
+        [
+            &["window", "resize", "size", "width", "height", "interface"],
+            &[
+                "janela",
+                "redimensionar",
+                "tamanho",
+                "largura",
+                "altura",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.window.show.tags",
+        [
+            &["window", "show", "bring back", "interface"],
+            &["janela", "mostrar", "trazer de volta", "interface"],
         ],
     ),
     (

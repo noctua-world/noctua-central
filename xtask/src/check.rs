@@ -11320,7 +11320,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 795] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11521,6 +11521,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "a `static` or `const` of the type is a value a caller can copy; a `pub type` alias opens an inherent impl the constructor rule resolves by name and would not recognise; and a `Deref` whose target is `{kind}` gives a caller `*wrapper`, which is a `{kind}` because it is `Copy`. `{kind}::of::<S>()` is the only way in (NOCTUA.md §15.4)",
     "a canary carries exactly what a gate refuses, and the gate is told to ignore findings in it — so anything cargo compiles from there ships the defect with the run still green. Measured: five lines of `#[path]` put a real registry code into `libnc_canon.rlib` and every printed count rose. A canary is read by `cargo xtask check` and by nothing else",
     "a check CI runs has to run. Every reader in this file sees the command and counts its verdict, and a condition or a loop around it means the verdict may be of nothing — measured, the determinism job wrapped in `while false; do … done` left every count in this gate unchanged. Write the commands at the top level of the step",
+    "a child of the house drives their interface too",
     "a child of the house finds a command too",
     "a child of the house reads what the house shares",
     "a child of the house switches MCP too",
@@ -11538,6 +11539,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "a device in an agent's chain finds no command by the agent's permit",
     "a device in an agent's chain has no file named by the agent's permit",
     "a device in the realm steps through no history, however attested",
+    "a device of the house drives no interface, however attested",
     "a device of the house finds no command, however attested",
     "a device of the house has no file named, however attested",
     "a device is the machine's, and reading one at build time is the machine reaching the output",
@@ -11591,6 +11593,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "a marker that names nothing excuses whatever else lands on its line, and `cargo fmt` moves things onto lines. Say `{ALLOW} …{needle}…` so an excuse that arrived by reformatting fails rather than widens",
     "a member finds a command and writes nothing to the registry",
     "a member has a file named and writes nothing to the feature",
+    "a member of the house drives their interface",
     "a member of the house finds a command",
     "a member of the house has a file named",
     "a member of the house reads whether MCP is on in their channel",
@@ -11605,6 +11608,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "a migration redirects `search_path` through `set_config`",
     "a member deletes nothing of the agents feature",
     "a member of the house makes an agent of their own",
+    "a member of the house reads what their interface shows",
     "a migration redirects `search_path`",
     "a migration sets a configuration whose name this gate cannot read",
     "a name assembled at run time is not in this file, so a `CREATE TABLE` behind it declares no bound and this gate reads the migration as creating nothing (§15.8) — the same reason `IMPORT FOREIGN SCHEMA` is refused. Write the statement out, which is also the only way a reader of the migrations can see what the database now holds",
@@ -11657,6 +11661,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "an agent acting unmarked is impersonating and is refused",
     "an agent another agent called for a person is within the limit",
     "an agent cannot delete on a human's behalf without that human confirming",
+    "an agent drives no interface, not even its person's",
     "an agent finds a command and writes nothing to the registry",
     "an agent has a file named and writes nothing to the feature",
     "an agent of the house finds a command, for the person it acts for",
@@ -11671,6 +11676,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "an error's identity is data, not a string at a call site (NOCTUA.md §15.1). The code travels through every layer and is what the central log is queried by, so one spelled out here is one the registry cannot renumber, cannot translate and cannot publish. Use the `ErrorCode` variant `catalog/errors.toml` declares; if the code does not exist yet, declare it there",
     "an image named here is a second definition of a service `docker-compose.yml` already defines, and CI cannot reproduce what that file gives it — a service container has no command, so the log store loses the retention flags the gate reads back, and nothing applies the migrations. Delete it and let `cargo xtask dev` bring up the stack",
     "an import of `{name}`",
+    "an outsider drives an interface, which only the decision point refuses",
     "an outsider finds a command, which only the decision point refuses",
     "an outsider has a file named, which only the decision point refuses",
     "an outsider keeps agents, which only the decision point refuses",
@@ -11761,6 +11767,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 787] = [
     "docker resolves `tag@sha256:…` by the digest and ignores the tag, so the two halves can name different images and only the half a person reads is wrong. Measured: 16-alpine's digest under 18-alpine's tag brought up PostgreSQL 16.14 with every printed line identical. Take the digest from `docker image inspect <tag> --format '{{index .RepoDigests 0}}'`",
     "docs",
     "documentation of {documented} test target(s)",
+    "driving the interface deletes nothing of the feature",
+    "driving the interface reaches no other feature",
     "every command after it can fail and the step still exits zero, which is the same as not running them — and each one is still read as a command here",
     "every command after it is text, and this file reads commands. If the step is not wanted, delete it, so its absence is a finding",
     "every crate it names, before any of the six checks above see one",
@@ -19617,7 +19625,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 239] = [
+    const DOCUMENTED: [(&str, usize, usize); 240] = [
         ("cli/args.rs", 50, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19727,7 +19735,7 @@ mod the_frozen_path_rule {
         ("nc-ids/lib.rs", 47, 28),
         ("nc-ids/naming.rs", 57, 40),
         ("nc-ids/properties.rs", 13, 6),
-        ("nc-ids/snowflake.rs", 70, 90),
+        ("nc-ids/snowflake.rs", 71, 90),
         ("nc-ipc/client.rs", 35, 7),
         ("nc-ipc/connection.rs", 15, 9),
         ("nc-ipc/endpoint.rs", 4, 5),
@@ -19748,17 +19756,17 @@ mod the_frozen_path_rule {
         ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
         ("nc-journal/unit.rs", 30, 40),
-        ("nc-kernel/activation.rs", 32, 67),
+        ("nc-kernel/activation.rs", 32, 68),
         ("nc-kernel/agents.rs", 54, 18),
-        ("nc-kernel/backend.rs", 35, 38),
+        ("nc-kernel/backend.rs", 36, 40),
         ("nc-kernel/bindings.rs", 34, 8),
         ("nc-kernel/blobs.rs", 69, 52),
-        ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
+        ("nc-kernel/both_stores_answer_alike.rs", 54, 21),
         ("nc-kernel/built.rs", 8, 7),
-        ("nc-kernel/builtin.rs", 72, 13),
+        ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 137, 31),
+        ("nc-kernel/dispatch.rs", 138, 31),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -19771,11 +19779,11 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/events.rs", 0, 4),
         ("nc-kernel/host/log.rs", 13, 12),
         ("nc-kernel/host/net.rs", 12, 20),
-        ("nc-kernel/host/store.rs", 19, 41),
+        ("nc-kernel/host/store.rs", 19, 42),
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
-        ("nc-kernel/isolation.rs", 71, 46),
-        ("nc-kernel/lib.rs", 62, 58),
+        ("nc-kernel/isolation.rs", 71, 47),
+        ("nc-kernel/lib.rs", 63, 59),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19786,26 +19794,27 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
+        ("nc-kernel/shell.rs", 183, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 286, 86),
+        ("nc-kernel/the_decision_point.rs", 296, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 72, 64),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
-        ("nc-kernel/units.rs", 113, 18),
+        ("nc-kernel/units.rs", 115, 18),
         ("nc-kernel/units_and_history.rs", 159, 48),
-        ("nc-kernel/where_a_blob_is.rs", 40, 36),
+        ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
-        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 53, 15),
+        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
         ("nc-local/agents.rs", 42, 11),
         ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 85, 12),
+        ("nc-local/store.rs", 89, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
-        ("nc-log/events.rs", 30, 150),
+        ("nc-log/events.rs", 32, 160),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
         ("nc-log/lib.rs", 22, 27),
         ("nc-log/ship.rs", 108, 50),
@@ -19864,7 +19873,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 58, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 42, 22),
+        ("xtask/the_registry_reaches_the_code.rs", 43, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -22651,8 +22660,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 913 scratches this tree
-    /// builds, 825 of the 913 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 914 scratches this tree
+    /// builds, 826 of the 914 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22768,7 +22777,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
-        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 27, 27),
+        ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 28, 28),
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
@@ -25819,7 +25828,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22632;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22954;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25838,7 +25847,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6336;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6495;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25855,7 +25864,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2144;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2201;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25889,7 +25898,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29930;
+    const THE_REARRANGEMENTS_JUDGED: usize = 30144;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25907,7 +25916,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 532;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 535;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25943,7 +25952,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **532 of 29,930 are accepted by the first-line
+    /// rules the gates apply: **535 of 30,144 are accepted by the first-line
     /// rule alone, and 283 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25976,7 +25985,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2144 of
+    /// this tree offers, **2201 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28527,7 +28536,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 787;
+    const THE_REST_IT_SAYS: usize = 795;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -38018,7 +38027,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 253,
+            walked, 254,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38058,7 +38067,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2929] = [
+    static OPERATORS: [(&str, &str, &str); 2979] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44235,6 +44244,228 @@ Options:
             "writes_only_its_entry",
             "only the set writes nothing but its entry",
         ),
+        (
+            "kernel_shell",
+            "release",
+            "a held state is released over the one it was computed from alone",
+        ),
+        (
+            "kernel_shell",
+            "release",
+            "a release that changes nothing moves no revision",
+        ),
+        (
+            "kernel_shell",
+            "ran",
+            "a change is held until its call tree ends",
+        ),
+        (
+            "kernel_shell",
+            "ran",
+            "the read answers the revision the state is at",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
+            "with the leader menu open a tap flips where the next page goes",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
+            "the menu's rule comes before the prompt's",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
+            "a tap opens the menu only from a window that is shown",
+        ),
+        ("kernel_shell", "leader_tap", "a tap shows the footer"),
+        (
+            "kernel_shell",
+            "direction",
+            "a tap's flip sends the next page to the other place",
+        ),
+        (
+            "kernel_shell",
+            "opened",
+            "any other page closes the leader menu",
+        ),
+        (
+            "kernel_shell",
+            "opened",
+            "a page open already is not opened twice",
+        ),
+        (
+            "kernel_shell",
+            "opened",
+            "the pages are held to their bound",
+        ),
+        (
+            "kernel_shell",
+            "opened",
+            "the drawer's pages are held to their bound",
+        ),
+        (
+            "kernel_shell",
+            "window_open",
+            "the windows are held to their bound",
+        ),
+        (
+            "kernel_shell",
+            "window_close",
+            "the last window is hidden and kept",
+        ),
+        (
+            "kernel_shell",
+            "window_close",
+            "a seat in a window closed loses its focus",
+        ),
+        (
+            "kernel_shell",
+            "window_resize",
+            "a window is never narrower than the smallest",
+        ),
+        (
+            "kernel_shell",
+            "page_into",
+            "a page's sub-pages are held to their bound",
+        ),
+        (
+            "kernel_shell",
+            "page_open",
+            "the drawer's lists open in the drawer alone",
+        ),
+        (
+            "kernel_shell",
+            "topic_is_known",
+            "a setting's page is of a setting the registry holds",
+        ),
+        (
+            "kernel_shell",
+            "drawer_back",
+            "Esc goes back a sub-page before it closes the page",
+        ),
+        (
+            "kernel_shell",
+            "removed",
+            "a page's focus moves to the page before it",
+        ),
+        ("kernel_shell", "step", "the next page is the one after"),
+        (
+            "kernel_shell",
+            "sidebar_cycle",
+            "Leader Space hides the sidebar its seat is on",
+        ),
+        (
+            "kernel_shell",
+            "prompt_set",
+            "a colon opens the command list as a semicolon does",
+        ),
+        (
+            "kernel_shell",
+            "prompt_set",
+            "text that opens no list closes the command list",
+        ),
+        (
+            "kernel_shell",
+            "prompt_ask",
+            "a parameter asked for is one the command takes",
+        ),
+        (
+            "kernel_shell",
+            "lines_made",
+            "the info line says nothing a reader cannot see",
+        ),
+        (
+            "kernel_shell",
+            "text",
+            "a text is held to its bound in bytes",
+        ),
+        ("kernel_shell", "seat", "a seat is at most the bound"),
+        (
+            "kernel_shell",
+            "is_word",
+            "a word is at most sixty-four characters",
+        ),
+        ("kernel_shell", "is_word", "a word is plain characters"),
+        (
+            "kernel_shell",
+            "unkept",
+            "a kept state of another shape is set aside",
+        ),
+        (
+            "kernel_shell",
+            "done",
+            "a field beside what is read is refused",
+        ),
+        (
+            "kernel_shell",
+            "holds",
+            "a window's size is held to the smallest",
+        ),
+        (
+            "kernel_shell",
+            "holds",
+            "the drawer's share is held below half",
+        ),
+        (
+            "kernel_shell",
+            "holds",
+            "a seat kept is one the bound allows",
+        ),
+        (
+            "kernel_shell",
+            "holds",
+            "a list of the drawer's is never kept in a window",
+        ),
+        ("kernel_shell", "holds", "a page kept is shown somewhere"),
+        (
+            "kernel_shell",
+            "restored",
+            "a kept state set aside is logged",
+        ),
+        (
+            "kernel_shell",
+            "kept",
+            "an unchanged state is not kept again",
+        ),
+        (
+            "kernel_units",
+            "released",
+            "the interface's state a tree holds is the kernel's once released",
+        ),
+        (
+            "kernel_dispatch",
+            "builtin",
+            "a command of the interface is run as its own verb",
+        ),
+        (
+            "kernel_dispatch",
+            "shell_held",
+            "a tree reads back the interface's state it holds itself",
+        ),
+        (
+            "kernel_dispatch",
+            "shell_held",
+            "a tree reads back the interface's state its unit holds",
+        ),
+        (
+            "kernel_builtin",
+            "name",
+            "a command of the interface is named as its verb",
+        ),
+        (
+            "kernel_pump",
+            "pumped",
+            "a pump says it kept the interface's state",
+        ),
+        (
+            "kernel_backend",
+            "StoreBackend for MemoryBackend",
+            "a key a unit wrote is not kept over in memory either",
+        ),
+        ("local_store", "keep", "a key a unit wrote is not kept over"),
+        ("local_store", "keep", "a kept value is canonical"),
         (
             "kernel_agents",
             "refused",

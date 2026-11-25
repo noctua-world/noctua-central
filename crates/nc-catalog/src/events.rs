@@ -479,6 +479,26 @@ pub const EVENTS: &[EventSpec] = &[
         ],
     },
     EventSpec {
+        name: "kernel.shell_discarded",
+        description: "The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "found",
+            kind: FieldKind::U64,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "kernel.shell_unkept",
+        description: "The kernel could not save the interface's state to the local store, and will try again at the next pump",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
+    },
+    EventSpec {
         name: "kernel.step_reversed",
         description: "A step of a person's history was undone or redone, and the unit that did it was kept",
         level: Level::Info,

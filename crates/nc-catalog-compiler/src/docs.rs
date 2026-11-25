@@ -294,7 +294,9 @@ const fn what_undoing_costs(
     // `irreversible` command is one a human must confirm **each time**, and a
     // scheduled pruner cannot ask.
     match reversibility {
-        crate::model::Reversibility::Read => "nothing to undo — it changes nothing",
+        crate::model::Reversibility::Read => {
+            "nothing to undo — it makes no step, so undo passes over it (§11.5)"
+        }
         crate::model::Reversibility::Write if the_history => {
             "yes, for what the kernel keeps — its `store` writes and the blobs it made — \
              through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot \
@@ -917,8 +919,8 @@ fn kernel(catalog: &Catalog) -> String {
     let mut out = String::new();
     out.push_str("\n## Kernel\n\n");
     out.push_str(
-        "The bounds the local kernel holds every plugin to (`§11.3`), and every agent a \
-         person makes (`§14.6`), read from `[kernel]` and from nowhere else: a plugin's \
+        "The bounds the local kernel holds every plugin to (`§11.3`), every agent a \
+         person makes (`§14.6`) and the interface's own state (`§12.1`), read from `[kernel]` and from nowhere else: a plugin's \
          manifest may lower some of them for itself and raise none. How many keys one plugin may keep and how many writes one unit may \
          record are not here — they are `store_entries` and `store_writes` under **Tables**, \
          where their writer refuses at them, so each is one number held in one place.\n\n\
@@ -951,7 +953,14 @@ fn kernel(catalog: &Catalog) -> String {
          lines of `log_line_bytes` each, and what a person gives an agent to spend to \
          `agent_budget_max` and how long a grant to one runs to \
          `agent_grant_minutes_max`, through the schemas of `agents.create` and \
-         `agents.grant`, which a test holds to them. **`agents.list`'s answer is not held \
+         `agents.grant`, which a test holds to them; and the interface's own state \
+         (`§12.1`) to `shell_windows_max` windows, `shell_pages_max` pages open, \
+         `shell_drawer_pages_max` of them in the drawer, each `shell_trail_max` \
+         sub-pages deep at most, `shell_seats_max` seats, a prompt's draft and an info \
+         line's message of `shell_text_bytes` each, a window no smaller than \
+         `shell_window_min_width` by `shell_window_min_height` and a drawer of at most \
+         `shell_drawer_share_max` percent of the height it shares with the workspace \
+         area. **`agents.list`'s answer is not held \
          to `payload_bytes`**: the widest list of agents a profile of the shipped world can \
          hold is longer than a payload, and a test holds it within one frame, so a plugin \
          that dispatches it can be handed more than it may answer with itself.\n\n",
@@ -1556,8 +1565,8 @@ fn mcp_tools(catalog: &Catalog) -> String {
          naming it is read back to the command through the one parser of a command's name; \
          its description is the command's line and paragraph; its input schema is the \
          command's argument schema, as the kernel holds a dispatch to it; and its one \
-         annotation, `readOnlyHint`, is true exactly when the command changes nothing. Each \
-         is written once for each locale, by the one function the MCP server lists its tools \
+         annotation, `readOnlyHint`, is true exactly when the command is not `mutating` — \
+         a read, which makes no step. Each is written once for each locale, by the one function the MCP server lists its tools \
          with.\n\n\
          **A session sees only the tools it may dispatch**: a session lists those of these \
          whose resource is known without their arguments, that are not irreversible, and \
@@ -1800,7 +1809,9 @@ mod tests {
         ] {
             for (the_history, taken_back_whole) in [(false, false), (true, false), (false, true)] {
                 let meant = match reversibility {
-                    Reversibility::Read => "nothing to undo — it changes nothing",
+                    Reversibility::Read => {
+                        "nothing to undo — it makes no step, so undo passes over it (§11.5)"
+                    }
                     Reversibility::Write if the_history => {
                         "yes, for what the kernel keeps — its `store` writes and the blobs it \
                          made — through `kernel.undo` and `kernel.redo`; a step that left the \

@@ -594,6 +594,48 @@ impl Event for KernelRevertFailed {
     }
 }
 
+/// `kernel.shell_discarded` — The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's
+#[derive(Debug, Clone)]
+pub struct KernelShellDiscarded {
+    /// A count.
+    pub found: u64,
+}
+
+impl crate::sealed::Sealed for KernelShellDiscarded {}
+
+impl Event for KernelShellDiscarded {
+    fn name(&self) -> &'static str {
+        "kernel.shell_discarded"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("found", self.found.to_field())]
+    }
+}
+
+/// `kernel.shell_unkept` — The kernel could not save the interface's state to the local store, and will try again at the next pump
+#[derive(Debug, Clone)]
+pub struct KernelShellUnkept {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for KernelShellUnkept {}
+
+impl Event for KernelShellUnkept {
+    fn name(&self) -> &'static str {
+        "kernel.shell_unkept"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
+    }
+}
+
 /// `kernel.step_reversed` — A step of a person's history was undone or redone, and the unit that did it was kept
 #[derive(Debug, Clone)]
 pub struct KernelStepReversed {

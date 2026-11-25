@@ -74,11 +74,12 @@
 # chain, pruning a table that has passed its limit, stepping back and forward
 # through a person's own history, proposing and reading a file's name, finding
 # a command by any word of its names and tags, reading and switching a setting
-# of the channel, and making, listing, granting and ending what a person's
-# agents may do. The
+# of the channel, making, listing, granting and ending what a person's
+# agents may do, and every action of the desktop interface. The
 # kernel registers every one as its own — a command in the namespaces it keeps,
-# `agents.`, `kernel.`, `journal.`, `limits.`, `naming.` and `settings.`, is the
-# kernel's — decides each at its decision point as it decides
+# `agents.`, `kernel.`, `journal.`, `limits.`, `naming.` and `settings.`, and the
+# interface's `drawer.`, `footer.`, `info.`, `leader.`, `page.`, `prompt.`,
+# `shell.`, `sidebar.` and `window.`, is the kernel's — decides each at its decision point as it decides
 # a plugin's, and runs each one it allows itself: every command here has a
 # handler in `crates/nc-kernel/src/builtin.rs`, and that file's test holds the
 # two lists to each other both ways. A plugin's commands are not written here:
@@ -360,3 +361,503 @@ reversibility = "write"
 mutating = true
 args_schema = """
 {"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false}"""
+
+# The interface's own state (`NOCTUA.md §12.1`): every action the desktop
+# interface performs is one of these, so the CLI and MCP reach it from this one
+# declaration (§2.8, §20.1). The kernel holds the state — the windows and each
+# one's page stack, the drawer, the sidebar, the footer, the info line, the
+# prompt and each seat's focus, hover, selection and drag — in memory, saves it
+# to the channel's local store outside every unit, and reads it back when it
+# opens (`crates/nc-kernel/src/shell.rs`). Each is decided on the platform's
+# `interface` feature — `Read` for `shell.read` and `Write` for the rest, which
+# the family pack gives every person of the realm and no agent or device — and
+# **each is a read, its reversibility `read` and not mutating, on
+# purpose**: what the interface shows is not state a person's undo should take
+# back, so none opens a unit, none is a step, and an undo passes over them all
+# to the person's last real change — the precedent is `naming.propose`, a read
+# that advances the machine's minter, and a surface a read renders. Each is
+# journaled once all the same, its entry naming the command and the feature and
+# never the arguments, and what it changes is held until its call tree ends with
+# its entries taken, as a surface is. What changes at the rate the interface
+# draws — a scroll, the draft, a hover — reaches the daemon as a note, which is
+# no command; these are the same changes asked one at a time.
+#
+# The bounds: a seat is at most `[kernel] shell_seats_max`; a window is never
+# narrower than `shell_window_min_width` nor shorter than
+# `shell_window_min_height`, in CSS pixels, its size held to the 16 bits an X
+# window's size is written in and its place to the 16 bits of its position;
+# the drawer takes at most `shell_drawer_share_max` percent; a topic, a hover's
+# or a drag's target and a parameter's name are at most 64 characters of
+# letters, digits and `-_.:/`, a command's name at most
+# `nc_schema::descriptor::NAME_MAX`, and the draft and the info line's message at
+# most `shell_text_bytes` — each schema bound held equal to its limit by a test
+# beside the commands. Stage 17's workspaces, layout modes and page arrangement
+# are not here.
+
+[[command]]
+name = "shell.read"
+title = "command.shell.read.title"
+description = "command.shell.read.description"
+paragraph = "command.shell.read.paragraph"
+tags = "command.shell.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "shell.focus"
+title = "command.shell.focus.title"
+description = "command.shell.focus.description"
+paragraph = "command.shell.focus.paragraph"
+tags = "command.shell.focus.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false}"""
+
+[[command]]
+name = "shell.hover"
+title = "command.shell.hover.title"
+description = "command.shell.hover.description"
+paragraph = "command.shell.hover.paragraph"
+tags = "command.shell.hover.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"by":{"type":"string","enum":["pointer","keyboard"]},"target":{"type":"string","minLength":1,"maxLength":64}},"required":["by"],"additionalProperties":false}"""
+
+[[command]]
+name = "shell.drag"
+title = "command.shell.drag.title"
+description = "command.shell.drag.description"
+paragraph = "command.shell.drag.paragraph"
+tags = "command.shell.drag.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"target":{"type":"string","minLength":1,"maxLength":64}},"additionalProperties":false}"""
+
+[[command]]
+name = "window.open"
+title = "command.window.open.title"
+description = "command.window.open.description"
+paragraph = "command.window.open.paragraph"
+tags = "command.window.open.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "window.show"
+title = "command.window.show.title"
+description = "command.window.show.description"
+paragraph = "command.window.show.paragraph"
+tags = "command.window.show.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "window.hide"
+title = "command.window.hide.title"
+description = "command.window.hide.description"
+paragraph = "command.window.hide.paragraph"
+tags = "command.window.hide.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "window.close"
+title = "command.window.close.title"
+description = "command.window.close.description"
+paragraph = "command.window.close.paragraph"
+tags = "command.window.close.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "window.move"
+title = "command.window.move.title"
+description = "command.window.move.description"
+paragraph = "command.window.move.paragraph"
+tags = "command.window.move.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1},"x":{"type":"integer","minimum":-32768,"maximum":32767},"y":{"type":"integer","minimum":-32768,"maximum":32767}},"required":["x","y"],"additionalProperties":false}"""
+
+[[command]]
+name = "window.resize"
+title = "command.window.resize.title"
+description = "command.window.resize.description"
+paragraph = "command.window.resize.paragraph"
+tags = "command.window.resize.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1},"width":{"type":"integer","minimum":320,"maximum":65535},"height":{"type":"integer","minimum":240,"maximum":65535}},"required":["width","height"],"additionalProperties":false}"""
+
+[[command]]
+name = "leader.tap"
+title = "command.leader.tap.title"
+description = "command.leader.tap.description"
+paragraph = "command.leader.tap.paragraph"
+tags = "command.leader.tap.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4}},"additionalProperties":false}"""
+
+[[command]]
+name = "page.open"
+title = "command.page.open.title"
+description = "command.page.open.description"
+paragraph = "command.page.open.paragraph"
+tags = "command.page.open.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"kind":{"type":"string","enum":["home","settings","help","dev","surface","leader","commands","shortcuts","actions"]},"topic":{"type":"string","minLength":1,"maxLength":64},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["kind"],"additionalProperties":false}"""
+
+[[command]]
+name = "page.close"
+title = "command.page.close.title"
+description = "command.page.close.description"
+paragraph = "command.page.close.paragraph"
+tags = "command.page.close.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "page.focus"
+title = "command.page.focus.title"
+description = "command.page.focus.description"
+paragraph = "command.page.focus.paragraph"
+tags = "command.page.focus.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["page"],"additionalProperties":false}"""
+
+[[command]]
+name = "page.next"
+title = "command.page.next.title"
+description = "command.page.next.description"
+paragraph = "command.page.next.paragraph"
+tags = "command.page.next.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "page.previous"
+title = "command.page.previous.title"
+description = "command.page.previous.description"
+paragraph = "command.page.previous.paragraph"
+tags = "command.page.previous.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "page.into"
+title = "command.page.into.title"
+description = "command.page.into.description"
+paragraph = "command.page.into.paragraph"
+tags = "command.page.into.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"topic":{"type":"string","minLength":1,"maxLength":64}},"required":["topic"],"additionalProperties":false}"""
+
+[[command]]
+name = "page.back"
+title = "command.page.back.title"
+description = "command.page.back.description"
+paragraph = "command.page.back.paragraph"
+tags = "command.page.back.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
+
+[[command]]
+name = "page.scroll"
+title = "command.page.scroll.title"
+description = "command.page.scroll.description"
+paragraph = "command.page.scroll.paragraph"
+tags = "command.page.scroll.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"to":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["to"],"additionalProperties":false}"""
+
+[[command]]
+name = "drawer.collapse"
+title = "command.drawer.collapse.title"
+description = "command.drawer.collapse.description"
+paragraph = "command.drawer.collapse.paragraph"
+tags = "command.drawer.collapse.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "drawer.expand"
+title = "command.drawer.expand.title"
+description = "command.drawer.expand.description"
+paragraph = "command.drawer.expand.paragraph"
+tags = "command.drawer.expand.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "drawer.back"
+title = "command.drawer.back.title"
+description = "command.drawer.back.description"
+paragraph = "command.drawer.back.paragraph"
+tags = "command.drawer.back.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "drawer.toward"
+title = "command.drawer.toward.title"
+description = "command.drawer.toward.description"
+paragraph = "command.drawer.toward.paragraph"
+tags = "command.drawer.toward.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"region":{"type":"string","enum":["workspace","drawer"]}},"required":["region"],"additionalProperties":false}"""
+
+[[command]]
+name = "drawer.resize"
+title = "command.drawer.resize.title"
+description = "command.drawer.resize.description"
+paragraph = "command.drawer.resize.paragraph"
+tags = "command.drawer.resize.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"share":{"type":"integer","minimum":1,"maximum":49}},"required":["share"],"additionalProperties":false}"""
+
+[[command]]
+name = "sidebar.show"
+title = "command.sidebar.show.title"
+description = "command.sidebar.show.description"
+paragraph = "command.sidebar.show.paragraph"
+tags = "command.sidebar.show.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "sidebar.hide"
+title = "command.sidebar.hide.title"
+description = "command.sidebar.hide.description"
+paragraph = "command.sidebar.hide.paragraph"
+tags = "command.sidebar.hide.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "sidebar.cycle"
+title = "command.sidebar.cycle.title"
+description = "command.sidebar.cycle.description"
+paragraph = "command.sidebar.cycle.paragraph"
+tags = "command.sidebar.cycle.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4}},"additionalProperties":false}"""
+
+[[command]]
+name = "footer.show"
+title = "command.footer.show.title"
+description = "command.footer.show.description"
+paragraph = "command.footer.show.paragraph"
+tags = "command.footer.show.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "footer.hide"
+title = "command.footer.hide.title"
+description = "command.footer.hide.description"
+paragraph = "command.footer.hide.paragraph"
+tags = "command.footer.hide.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "info.say"
+title = "command.info.say.title"
+description = "command.info.say.description"
+paragraph = "command.info.say.paragraph"
+tags = "command.info.say.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"text":{"type":"string","minLength":1,"maxLength":4096}},"required":["text"],"additionalProperties":false}"""
+
+[[command]]
+name = "info.clear"
+title = "command.info.clear.title"
+description = "command.info.clear.description"
+paragraph = "command.info.clear.paragraph"
+tags = "command.info.clear.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "info.expand"
+title = "command.info.expand.title"
+description = "command.info.expand.description"
+paragraph = "command.info.expand.paragraph"
+tags = "command.info.expand.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "info.collapse"
+title = "command.info.collapse.title"
+description = "command.info.collapse.description"
+paragraph = "command.info.collapse.paragraph"
+tags = "command.info.collapse.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "prompt.set"
+title = "command.prompt.set.title"
+description = "command.prompt.set.description"
+paragraph = "command.prompt.set.paragraph"
+tags = "command.prompt.set.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false}"""
+
+[[command]]
+name = "prompt.ask"
+title = "command.prompt.ask.title"
+description = "command.prompt.ask.description"
+paragraph = "command.prompt.ask.paragraph"
+tags = "command.prompt.ask.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"parameter":{"type":"string","minLength":1,"maxLength":64}},"required":["command"],"additionalProperties":false}"""
+
+[[command]]
+name = "prompt.clear"
+title = "command.prompt.clear.title"
+description = "command.prompt.clear.description"
+paragraph = "command.prompt.clear.paragraph"
+tags = "command.prompt.clear.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""

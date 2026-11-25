@@ -71,11 +71,12 @@ const CORE_POLICIES: [&str; 7] = [
 /// Compared with the pack on disk in both directions, like `CORE_POLICIES`: a
 /// name here that is not in the pack is a rule somebody removed, and one in the
 /// pack that is not here is a rule nobody wrote down.
-const PACK_RULES: [&str; 16] = [
+const PACK_RULES: [&str; 17] = [
     "family.a_frozen_account_acts_on_nothing",
     "family.a_guardian_administers_the_realm",
     "family.a_guardian_prunes_the_realm",
     "family.a_guardian_reads_the_realm",
+    "family.a_member_drives_the_interface",
     "family.a_member_finds_commands",
     "family.a_member_keeps_their_agents",
     "family.a_member_names_files",
@@ -948,7 +949,7 @@ fn what_the_case_asserts(case: &nc_policy::Case) -> String {
 
 /// How many cases the pack's own suite runs — see
 /// [`the_cases_are_the_written_number`], which is where the argument for it is.
-const CASES: usize = 120;
+const CASES: usize = 128;
 
 /// Every entity `policy/world.json` declares, and every attribute it carries.
 ///
@@ -969,7 +970,7 @@ const CASES: usize = 120;
 /// as an attribute is. An entity carrying nothing gets one row with two empty
 /// fields, so that deleting it is a row that went rather than nothing at all.
 #[cfg(test)]
-const THE_WORLD: [(&str, &str, &str); 142] = [
+const THE_WORLD: [(&str, &str, &str); 144] = [
     (
         "Agent::\"ana-assistant\"",
         "<parent>",
@@ -1153,6 +1154,12 @@ const THE_WORLD: [(&str, &str, &str); 142] = [
         "{\"type\":\"Realm\",\"id\":\"home\"}",
     ),
     ("Feature::\"gallery\"", "tier", "\"included\""),
+    (
+        "Feature::\"interface\"",
+        "<parent>",
+        "{\"type\":\"Realm\",\"id\":\"home\"}",
+    ),
+    ("Feature::\"interface\"", "tier", "\"included\""),
     (
         "Feature::\"mcp\"",
         "<parent>",
@@ -1486,7 +1493,7 @@ const THE_WORLD: [(&str, &str, &str); 142] = [
     ("User::\"mallory\"", "status", "\"active\""),
 ];
 
-/// The same 120, by what each one asks.
+/// The same 128, by what each one asks.
 ///
 /// **A total is satisfied by any cases that add up to it, and so is a count per
 /// file.** The one thing `CASES` exists to protect is a case that records
@@ -1535,7 +1542,7 @@ const THE_WORLD: [(&str, &str, &str); 142] = [
 /// The context is the whole Cedar JSON, sorted, because a field left out of
 /// this row is a field a case can be moved along. Changing any of the six is an
 /// edit somebody reads.
-const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
+const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 128] = [
     (
         "policy/core/tests/agent_authority.toml",
         "a person acting unmarked is not impersonating",
@@ -1943,6 +1950,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
     ),
     (
         "policy/packs/family/tests/features.toml",
+        "a child of the house drives their interface too",
+        "User::\"bruno\"",
+        "Action::\"Write\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_drives_the_interface",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
         "a child of the house finds a command too",
         "User::\"bruno\"",
         "Action::\"Read\"",
@@ -1976,6 +1992,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
         "Feature::\"naming\"",
         "{\"actor_chain_depth\":1,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":true}",
         "Deny/outside=family.an_agent_names_files/boundary=principal",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "a device of the house drives no interface, however attested",
+        "Device::\"ana-laptop\"",
+        "Action::\"Write\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_drives_the_interface/boundary=principal",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -2024,6 +2049,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
     ),
     (
         "policy/packs/family/tests/features.toml",
+        "a member of the house drives their interface",
+        "User::\"carla\"",
+        "Action::\"Write\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_drives_the_interface",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
         "a member of the house finds a command",
         "User::\"carla\"",
         "Action::\"Read\"",
@@ -2051,6 +2085,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
     ),
     (
         "policy/packs/family/tests/features.toml",
+        "a member of the house reads what their interface shows",
+        "User::\"carla\"",
+        "Action::\"Read\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_drives_the_interface",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
         "a member of the house reads whether MCP is on in their channel",
         "User::\"carla\"",
         "Action::\"Read\"",
@@ -2066,6 +2109,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
         "Feature::\"mcp\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Allow/because=family.a_member_switches_mcp",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "an agent drives no interface, not even its person's",
+        "Agent::\"ana-assistant\"",
+        "Action::\"Write\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":1,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":true}",
+        "Deny/outside=family.a_member_drives_the_interface/boundary=principal",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -2111,6 +2163,15 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
         "Feature::\"mcp\"",
         "{\"actor_chain_depth\":1,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":true}",
         "Deny/outside=family.a_member_switches_mcp/boundary=principal",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "an outsider drives an interface, which only the decision point refuses",
+        "User::\"mallory\"",
+        "Action::\"Write\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Allow/because=family.a_member_drives_the_interface",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -2210,6 +2271,24 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
         "Feature::\"agents\"",
         "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
         "Allow/because=family.a_member_keeps_their_agents",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "driving the interface deletes nothing of the feature",
+        "User::\"carla\"",
+        "Action::\"Delete\"",
+        "Feature::\"interface\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_drives_the_interface/boundary=action",
+    ),
+    (
+        "policy/packs/family/tests/features.toml",
+        "driving the interface reaches no other feature",
+        "User::\"carla\"",
+        "Action::\"Write\"",
+        "Feature::\"registry\"",
+        "{\"actor_chain_depth\":0,\"confirmed_by_human\":false,\"grant\":{\"__entity\":{\"type\":\"Grant\",\"id\":\"g.current\"}},\"now\":{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-08-26T00:00:00Z\"}},\"policy_epoch\":7,\"quorum_met\":true,\"via_agent\":false}",
+        "Deny/outside=family.a_member_drives_the_interface",
     ),
     (
         "policy/packs/family/tests/features.toml",
@@ -2620,7 +2699,7 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
 
 /// Every clause a case pins, held against the number written down.
 ///
-/// **80, and what the clauses behind it are.** The frozen-account floor names
+/// **83, and what the clauses behind it are.** The frozen-account floor names
 /// the states that may act — `active`, `dormant` and `presumed_inactive`, three
 /// comparisons, and a case for each state notices one deleted. Listing the
 /// states that may not, `suspended` and `deceased`, allows any other value of a
@@ -2675,9 +2754,9 @@ const THE_CASES: [(&str, &str, &str, &str, &str, &str, &str); 120] = [
 /// *why* the number is what it is.
 /// `the_written_number_is_the_number` reads this comment and requires the two to
 /// agree, in the shape `xtask/canaries/README.md` calls one rule written twice.
-const PINNED: usize = 80;
+const PINNED: usize = 83;
 
-/// The same 80, by the policy each clause belongs to.
+/// The same 83, by the policy each clause belongs to.
 ///
 /// **A count is not a set, and every policy here shares one number.** `PINNED`
 /// is a total: a policy gaining a pinned conjunct pays for another losing one,
@@ -2692,7 +2771,7 @@ const PINNED: usize = 80;
 /// that reason — its conjuncts are all guards, which
 /// `guards_a_dereference` excuses by name — and a zero row says so where an
 /// absent row would say nothing.
-const PINNED_BY_POLICY: [(&str, usize); 27] = [
+const PINNED_BY_POLICY: [(&str, usize); 28] = [
     ("core.an_agent_never_impersonates", 2),
     ("core.budget_is_a_permission", 2),
     ("core.chain_depth_is_bounded", 2),
@@ -2708,6 +2787,7 @@ const PINNED_BY_POLICY: [(&str, usize); 27] = [
     ("family.a_guardian_administers_the_realm", 2),
     ("family.a_guardian_prunes_the_realm", 4),
     ("family.a_guardian_reads_the_realm", 3),
+    ("family.a_member_drives_the_interface", 3),
     ("family.a_member_finds_commands", 3),
     ("family.a_member_keeps_their_agents", 3),
     ("family.a_member_names_files", 3),
@@ -4430,8 +4510,8 @@ mod tests {
         // written name goes with that case and nothing notices.
         assert_eq!(
             super::PACK_RULES.len(),
-            16,
-            "the family pack ships sixteen rules; one deleted with its only denial case \
+            17,
+            "the family pack ships seventeen rules; one deleted with its only denial case \
              moved every count down together and left the run green"
         );
         assert_eq!(

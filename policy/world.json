@@ -289,6 +289,21 @@
   },
   {
     "uid": {
+      "type": "Feature",
+      "id": "interface"
+    },
+    "attrs": {
+      "tier": "included"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
       "type": "Content",
       "id": "photo"
     },

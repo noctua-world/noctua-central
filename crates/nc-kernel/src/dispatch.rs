@@ -671,6 +671,15 @@ impl CallTree {
             .collect()
     }
 
+    /// The interface's state the tree holds and has not released: its
+    /// unit's, which is newer, before its own (`crate::shell`).
+    pub(crate) fn shell_held(&self) -> Option<&crate::shell::Held> {
+        self.unit
+            .as_ref()
+            .and_then(|unit| unit.later().shell_held())
+            .or_else(|| self.put_off.shell_held())
+    }
+
     /// How many timers the tree holds for the plugin in `owner`: its own,
     /// and its unit's.
     pub(crate) fn timers_held_for(&self, owner: PluginSlot) -> usize {
@@ -2600,6 +2609,7 @@ async fn builtin<E: Environment>(
             let began = lock(tree).began();
             crate::agents::listed(shared, asked.acting.principal(), began).await
         }
+        Some(Builtin::Shell(verb)) => crate::shell::ran(shared, tree, verb, &asked.json),
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

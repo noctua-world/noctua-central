@@ -454,3 +454,86 @@ action = "Write"
 resource = 'Feature::"agents"'
 decision = "allow"
 because = "family.a_member_keeps_their_agents"
+
+[[case]]
+name = "a member of the house reads what their interface shows"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Feature::"interface"'
+decision = "allow"
+because = "family.a_member_drives_the_interface"
+
+[[case]]
+name = "a member of the house drives their interface"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"interface"'
+decision = "allow"
+because = "family.a_member_drives_the_interface"
+
+[[case]]
+# A child as much as an adult.
+name = "a child of the house drives their interface too"
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'Feature::"interface"'
+decision = "allow"
+because = "family.a_member_drives_the_interface"
+
+[[case]]
+# **The verb.** A `Delete`: the permit gives the two verbs the interface's
+# commands are decided under, and with its action dropped a member would be
+# given every verb over the feature.
+name = "driving the interface deletes nothing of the feature"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Delete"
+resource = 'Feature::"interface"'
+decision = "deny"
+no_permit_matched = "family.a_member_drives_the_interface"
+
+[[case]]
+# **Who is asking**: an agent, marked as one acting for its person, so no core
+# `forbid` refuses it and only `principal is User` does — the case that fails
+# the day an agent's permit grows wide enough to reach this feature.
+name = "an agent drives no interface, not even its person's"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Feature::"interface"'
+context = { via_agent = true, actor_chain_depth = 1 }
+decision = "deny"
+no_permit_matched = "family.a_member_drives_the_interface"
+
+[[case]]
+# **And a device.** Ana's laptop is attested, so no floor refuses it; the
+# permit's `principal is User` is what does.
+name = "a device of the house drives no interface, however attested"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Write"
+resource = 'Feature::"interface"'
+decision = "deny"
+no_permit_matched = "family.a_member_drives_the_interface"
+
+[[case]]
+# **The feature it names.** With the resource constraint dropped, the permit
+# would let a member write every feature the realm holds.
+name = "driving the interface reaches no other feature"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Feature::"registry"'
+decision = "deny"
+no_permit_matched = "family.a_member_drives_the_interface"
+
+[[case]]
+# **Cedar's answer without the directory, pinned** as the naming permit's is:
+# the permit asks no membership, so over the whole world a person of another
+# realm is allowed it, and only the decision point's slice of `home` denies
+# them.
+name = "an outsider drives an interface, which only the decision point refuses"
+principal = 'User::"mallory"'
+action = "Write"
+resource = 'Feature::"interface"'
+decision = "allow"
+because = "family.a_member_drives_the_interface"

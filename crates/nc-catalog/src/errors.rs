@@ -317,6 +317,10 @@ pub enum ErrorCode {
     KernelOnlyAtTheTop,
     /// NC-KERN-0026 — A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone
     KernelCompensationForAnAgent,
+    /// NC-KERN-0027 — A command of the interface named a window or a page the interface does not hold, or the page in focus where none is
+    KernelShellUnknown,
+    /// NC-KERN-0028 — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit
+    KernelShellFull,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -534,6 +538,8 @@ impl ErrorCode {
         Self::KernelCompensationUngranted,
         Self::KernelOnlyAtTheTop,
         Self::KernelCompensationForAnAgent,
+        Self::KernelShellUnknown,
+        Self::KernelShellFull,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -711,6 +717,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => "NC-KERN-0024",
             Self::KernelOnlyAtTheTop => "NC-KERN-0025",
             Self::KernelCompensationForAnAgent => "NC-KERN-0026",
+            Self::KernelShellUnknown => "NC-KERN-0027",
+            Self::KernelShellFull => "NC-KERN-0028",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -889,6 +897,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => "KERN",
             Self::KernelOnlyAtTheTop => "KERN",
             Self::KernelCompensationForAnAgent => "KERN",
+            Self::KernelShellUnknown => "KERN",
+            Self::KernelShellFull => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -1275,6 +1285,12 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => {
                 "A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
             }
+            Self::KernelShellUnknown => {
+                "A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
+            }
+            Self::KernelShellFull => {
+                "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit"
+            }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
             Self::PluginCapabilityDenied => {
@@ -1519,6 +1535,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => "error.kernel.compensation-ungranted",
             Self::KernelOnlyAtTheTop => "error.kernel.only-at-the-top",
             Self::KernelCompensationForAnAgent => "error.kernel.compensation-for-an-agent",
+            Self::KernelShellUnknown => "error.kernel.shell-unknown",
+            Self::KernelShellFull => "error.kernel.shell-full",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1697,6 +1715,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => Severity::Warning,
             Self::KernelOnlyAtTheTop => Severity::Warning,
             Self::KernelCompensationForAnAgent => Severity::Warning,
+            Self::KernelShellUnknown => Severity::Warning,
+            Self::KernelShellFull => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1875,6 +1895,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => false,
             Self::KernelOnlyAtTheTop => false,
             Self::KernelCompensationForAnAgent => false,
+            Self::KernelShellUnknown => false,
+            Self::KernelShellFull => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -2053,6 +2075,8 @@ impl ErrorCode {
             Self::KernelCompensationUngranted => &[],
             Self::KernelOnlyAtTheTop => &[],
             Self::KernelCompensationForAnAgent => &[],
+            Self::KernelShellUnknown => &[],
+            Self::KernelShellFull => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

@@ -294,7 +294,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session, the watch, a note and a display, and the client every program asks through (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
-│   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
+│   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11), and the interface's own state (§12.1)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
 │   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine and the agents a person made in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
@@ -480,6 +480,7 @@ fails a gate a minute or two later.
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
 | an agent permit | `policy/packs/<profile>/features.cedar` — `principal is Agent`, one verb, `resource == Feature::"<id>"` — beside the person's permit on the same feature, with its cases in `policy/packs/<profile>/tests/features.toml` | it is half of what an agent is answered: the decision point asks the same request again as the agent's operator, so the person's permit on the feature is the other half, and an agent reaches the feature only once its person grants it that feature with `agents.grant` — a grant may name any feature of the realm, and one no agent permit names allows nothing. Its cases ask as an agent marked `via_agent`, one link from its person: its kind of principal is refused with a `Device` so marked (`the_principal_is_the_boundary`), since a person is let in by the person's permit and an unmarked agent is refused by the core; the other half is a case asked as the person so marked; and an outsider's agent pins Cedar's answer over the whole world, which moves the lists the *policy* row names. A feature whose commands change who may act for a person takes none: the person's permits on `agents` and `mcp` ask `principal is User`, and the `agents.*` that change and a setting's set run at the top of a call tree only (`only_at_the_top` in `crates/nc-kernel/src/registry.rs`), refused nested with `[NC-KERN-0025]` |
 | a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it — and in `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes its step back, as `of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone` in `crates/nc-kernel/src/history.rs` holds the kernel to; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
+| a part of the interface's state, or a command that changes it | `crates/nc-kernel/src/shell.rs` — a field of `State`, its writing in `to_value`, its strict reading in `from_value` and its rules in `holds` — and, for a command, a `Verb` with its arm in `Change::made`, `catalog/commands.toml` on `feature:interface` as a read, both locales | a field written and not read back strictly, or read and not held by `holds`, is a saved state trusted or set aside wrongly: `what_is_kept_is_read_back_as_itself` and `rule_breakers` in the module's tests take the field, and a shape that changes what a saved state means is a new `SHAPE`, which sets every older one aside. A command is a variant of `Verb` in its `ALL`, named as the catalog names it, with what it reads in `reads`, which `the_declared_commands_of_the_interface_are_the_ones_this_module_implements` holds to `Command::arguments` both ways; its namespace, if new, a row of `RESERVED` in `crates/nc-kernel/src/registry.rs` and of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled`; a row of `FITTING` in `crates/nc-kernel/tests/the_decision_point.rs` and of `ROWS` in `apps/daemon/tests/every_command_from_the_cli.rs`; and a bound in its schema held equal to its `[kernel]` limit in `every_bound_the_schemas_declare_is_the_catalogs`. Never `mutating`: a change of what a window shows is no step (`NOCTUA.md §12.1`) |
 | a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
 | a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher is brought to in Stage 16 (`NOCTUA-PLAN.md`), so a rule changed without a row is one that implementation will not learn. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
 | a wiki text | `catalog/wiki/<locale>/<registry>/<name>.<ext>`, one in every locale | it is found, never declared: its extension, lower case, is its format — `txt`, `md` or `typ` — and every locale writes one in the same format, or the build fails naming the file; it is compiled into `nc_catalog::WIKI`, its entry's generated `wiki` field names its format, and its registry's page — `docs/commands.md` or `docs/external-identifiers.md` — links it. A text names an entry of the registry it sits under, `commands` or `external-identifiers`, and of no other. Only `md` ships, and only for commands, so the first `txt` or `typ` text is also its kind added to the `catalog` row of `WHAT_MAY_SIT_UNDER` in `xtask/src/check.rs`, which refuses a kind allowed and worn by nothing; a registry of its own is a row of `REGISTRIES` and of `names_by_registry` in `crates/nc-catalog-compiler/src/metadata.rs`. The citation and path gates read every Markdown file, so a `§` in one must resolve and a backticked path must exist |
@@ -1863,6 +1864,66 @@ install is on in that one alone.
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
 the person's undo of a switch-off, and what an agent's tree set going while it was on,
 which switching it off does not end.
+
+### What the interface shows is the kernel's, changed by commands that are no step, and read back only as written
+
+**Guaranteed.** The interface's own state (`NOCTUA.md §12.1`) is the kernel's
+(`crates/nc-kernel/src/shell.rs`): the windows and each one's stack of pages, every page
+open, the drawer, the sidebar, the footer, the info line, the prompt and each seat's focus,
+hover, selection and drag.
+
+- **Every change is a command, decided at the one door and journaled.** The commands of
+  `shell.`, `window.`, `leader.`, `page.`, `drawer.`, `sidebar.`, `footer.`, `info.` and
+  `prompt.` — namespaces the kernel keeps, refused to every plugin — are `Read`
+  (`shell.read`) and `Write` on `Feature::"interface"`, which
+  `family.a_member_drives_the_interface` gives every person of the realm, a child
+  included. An agent and a device are refused by the permit's `principal is User`, pinned
+  by cases; a frozen account by the floor; and a person's grant of the feature to an agent
+  allows nothing, since no agent permit names it.
+- **No step, and nothing undo takes back.** Each is declared a read: it opens no unit and
+  makes no step, so an undo passes over every one to the person's last real change, and
+  `docs/commands.md` says so of each. Each is still journaled once, its entry naming the
+  command and the feature and never the arguments.
+- **Held until its call tree ends.** What a command changes is its call tree's until the
+  tree ends with every entry it gave the journal taken — or, nested in a command that
+  writes, until that unit is kept — so a tree the journal refused leaves the state as it
+  was. The next command of the same tree reads the change back, and a state held is
+  released only over the one it was computed from, never over one released since.
+- **Bounded.** The windows, the pages, the drawer's pages, a page's sub-pages, the seats,
+  the prompt's draft and the info line's message are each held to their `[kernel]` limit,
+  refused past it with `[NC-KERN-0028]`; a window is never smaller than
+  `shell_window_min_width` by `shell_window_min_height`; a window, a page or a seat's
+  window the state does not hold is refused with `[NC-KERN-0027]`; and the widest state
+  there can be is an answer within `payload_bytes`.
+- **Kept outside every unit, and never trusted when it is read back.** The pump saves the
+  state when it changed, through the store's one write outside every unit
+  (`LocalStore::keep`, under the kernel's own holder, at a revision no unit hands out, and
+  refused over a key a unit wrote), and a kernel that opens reads it back. A saved state
+  of another shape, or one that breaks any rule a command keeps it to, is set aside whole,
+  logged as `kernel.shell_discarded`, and the kernel begins from the first run's state,
+  which shows nothing but the footer.
+- **A Leader tap follows `NOCTUA.md §12.8`'s three rules in order**: with the leader menu
+  open it sends the next page to the other place, with the seat's keyboard on the prompt of
+  a window shown it opens the menu, and otherwise it shows the window and the footer and
+  puts the keyboard on the prompt. **It never hides the interface.**
+
+**Enforced by** the tests beside `crates/nc-kernel/src/shell.rs` — the declarations and
+every schema's bound held to what the module reads and the catalog's limits, each
+command's change and refusal, the three rules of a tap, every rule a saved state is held
+to broken one at a time, the widest state within a payload, and a release over the state
+it was computed from alone; `crates/nc-kernel/tests/the_decision_point.rs` over the real
+pack and world — a person driving the interface in no unit, a frozen account and a device
+refused, a change whose entry the journal refused never made, an undo passing over the
+interface to a note, the state kept and read back by a kernel opened again, one of another
+shape set aside, and a plugin driving it twice in one tree from a read and from a write;
+`crates/nc-kernel/tests/both_stores_answer_alike.rs` and
+`crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` for the keep;
+`policy/packs/family/tests/features.toml`; `apps/daemon/tests/every_command_from_the_cli.rs`,
+through `nc_cli::run` against a real daemon; and the operators over the module in
+`xtask/mutants.py`.
+
+**Not answered:** see "What is deliberately not claimed": one journal row for each command,
+the revision's scope, and a plugin driving the interface as its person.
 
 ### A tool is named as its command and read back to it alone, and its one hint is one the kernel holds
 
@@ -4753,6 +4814,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   Dependencies table): already in the graph, and still the developer's to confirm.
 
 **The kernel and the local database**
+
+- **Every command of the interface is one journal row for good**, in a table no pruner
+  takes from: what moves at the rate an interface draws — a scroll, the draft, a hover —
+  is meant to reach the daemon as a note, which is no command, and the commands are the
+  same changes asked one at a time, for the CLI, MCP and a plugin. The state's revision
+  is one kernel's start's, and a plugin that runs as its person may drive that person's
+  interface from inside its command, as the decision point allows the person. Not taken:
+  a bound of the interface's own on the journal, and a refusal of these commands below the
+  top of a call tree (`crates/nc-kernel/src/shell.rs`).
 
 - **The kernel decides a person as themselves and an agent through its session, through
   test doors for the rest.** A caller is decided unmarked with an empty actor chain, and an

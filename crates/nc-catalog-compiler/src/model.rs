@@ -346,6 +346,26 @@ pub struct KernelLimits {
     pub agent_budget_max: u32,
     /// How long a grant to an agent may run at most.
     pub agent_grant_minutes_max: u32,
+    /// How many windows the interface may hold.
+    pub shell_windows_max: u32,
+    /// How many pages the interface may hold open, in every window and in
+    /// the drawer together.
+    pub shell_pages_max: u32,
+    /// How many pages the drawer may hold.
+    pub shell_drawer_pages_max: u32,
+    /// How many sub-pages deep one page may be.
+    pub shell_trail_max: u32,
+    /// How many seats the interface tells apart.
+    pub shell_seats_max: u32,
+    /// How long the prompt's draft or the info line's message may be.
+    pub shell_text_bytes: u64,
+    /// How narrow a window of the interface may be.
+    pub shell_window_min_width: u32,
+    /// How short a window of the interface may be.
+    pub shell_window_min_height: u32,
+    /// How much of the height the drawer shares with the workspace area it
+    /// may take.
+    pub shell_drawer_share_max: u32,
 }
 
 /// What one kernel limit is counted in.
@@ -361,6 +381,10 @@ pub enum Unit {
     Ticks,
     /// Minutes.
     Minutes,
+    /// CSS pixels, which a window of the interface is laid out in.
+    CssPixels,
+    /// Percent.
+    Percent,
     /// Things, counted.
     Count,
 }
@@ -374,6 +398,8 @@ impl Unit {
             Self::Fuel => Some("units of fuel"),
             Self::Ticks => Some("ticks of the epoch"),
             Self::Minutes => Some("minutes"),
+            Self::CssPixels => Some("CSS pixels"),
+            Self::Percent => Some("percent"),
             Self::Count => None,
         }
     }
@@ -458,6 +484,15 @@ impl KernelLimits {
             confirmation_ttl_ms,
             agent_budget_max,
             agent_grant_minutes_max,
+            shell_windows_max,
+            shell_pages_max,
+            shell_drawer_pages_max,
+            shell_trail_max,
+            shell_seats_max,
+            shell_text_bytes,
+            shell_window_min_width,
+            shell_window_min_height,
+            shell_drawer_share_max,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -743,6 +778,60 @@ impl KernelLimits {
                 wide: false,
                 unit: Unit::Minutes,
                 bounds: "How long a grant to an agent may run at most",
+            },
+            narrow(
+                "shell_windows_max",
+                shell_windows_max,
+                "How many windows the interface may hold",
+            ),
+            narrow(
+                "shell_pages_max",
+                shell_pages_max,
+                "How many pages the interface may hold open, in every window and in the \
+                 drawer together",
+            ),
+            narrow(
+                "shell_drawer_pages_max",
+                shell_drawer_pages_max,
+                "How many pages the drawer may hold",
+            ),
+            narrow(
+                "shell_trail_max",
+                shell_trail_max,
+                "How many sub-pages deep one page may be",
+            ),
+            narrow(
+                "shell_seats_max",
+                shell_seats_max,
+                "How many seats the interface tells apart",
+            ),
+            wide(
+                "shell_text_bytes",
+                shell_text_bytes,
+                Unit::Bytes,
+                "How long the prompt's draft or the info line's message may be",
+            ),
+            NamedLimit {
+                name: "shell_window_min_width",
+                value: u64::from(shell_window_min_width),
+                wide: false,
+                unit: Unit::CssPixels,
+                bounds: "How narrow a window of the interface may be",
+            },
+            NamedLimit {
+                name: "shell_window_min_height",
+                value: u64::from(shell_window_min_height),
+                wide: false,
+                unit: Unit::CssPixels,
+                bounds: "How short a window of the interface may be",
+            },
+            NamedLimit {
+                name: "shell_drawer_share_max",
+                value: u64::from(shell_drawer_share_max),
+                wide: false,
+                unit: Unit::Percent,
+                bounds: "How much of the height the drawer shares with the workspace area it \
+                         may take",
             },
         ]
     }

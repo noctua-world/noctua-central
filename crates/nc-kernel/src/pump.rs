@@ -3,14 +3,15 @@
 //!
 //! **In one order, one tree at a time.** [`crate::Kernel::pump`] takes the bus
 //! every top-level dispatch takes, so nothing it runs interleaves with a
-//! command, and does three things in turn: it fires every timer due, oldest
+//! command, and does four things in turn: it fires every timer due, oldest
 //! due first (`crate::timers`); it delivers the events that were queued when it
 //! began, oldest first, each once (`crate::events`) — so what a callback
-//! publishes while it runs waits for the next pump; and it runs the one
+//! publishes while it runs waits for the next pump; it runs the one
 //! pruner over the local database, which removes rows only from a table past
 //! its bound (`NOCTUA.md §15.8`) — once every unit this kernel left committed
-//! in the store and open in the journal is reverted, and not while one stays.
-//! It answers [`Pumped`], what each came to.
+//! in the store and open in the journal is reverted, and not while one stays;
+//! and it saves the interface's state to the store when it changed since it
+//! was last saved (`crate::shell`). It answers [`Pumped`], what each came to.
 //!
 //! **A callback is a call tree of its own, decided before it runs.** Each
 //! timer fired and each event heard by each plugin that subscribed runs in a
@@ -92,6 +93,12 @@ pub struct Pumped {
     /// **Or what refused a reversal still owed**, when the pruner was not run
     /// because a unit the journal holds open is committed in the store.
     pub prune_refused: Option<ErrorCode>,
+    /// Whether the interface's state, changed since it was last kept, was
+    /// saved to the store.
+    pub shell_kept: bool,
+    /// The code the store refused the interface's state with, when it
+    /// refused it: the state is saved again at the next pump.
+    pub shell_refused: Option<ErrorCode>,
 }
 
 /// What a callback is called with.
@@ -119,6 +126,11 @@ pub(crate) async fn pumped<E: Environment>(shared: &Arc<Shared<E>>) -> Pumped {
         fired(&shared, &mut pumped).await;
         delivered(&shared, queued, &mut pumped).await;
         pruned(&shared, &mut pumped).await;
+        match crate::shell::kept(&shared).await {
+            Some(Ok(())) => pumped.shell_kept = true,
+            Some(Err(code)) => pumped.shell_refused = Some(code),
+            None => {}
+        }
         pumped
     };
     tokio::spawn(pumping).await.unwrap_or_default()

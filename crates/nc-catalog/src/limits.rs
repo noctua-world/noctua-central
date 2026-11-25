@@ -438,6 +438,24 @@ pub struct KernelLimits {
     pub agent_budget_max: u32,
     /// How long a grant to an agent may run at most, in minutes.
     pub agent_grant_minutes_max: u32,
+    /// How many windows the interface may hold.
+    pub shell_windows_max: u32,
+    /// How many pages the interface may hold open, in every window and in the drawer together.
+    pub shell_pages_max: u32,
+    /// How many pages the drawer may hold.
+    pub shell_drawer_pages_max: u32,
+    /// How many sub-pages deep one page may be.
+    pub shell_trail_max: u32,
+    /// How many seats the interface tells apart.
+    pub shell_seats_max: u32,
+    /// How long the prompt's draft or the info line's message may be, in bytes.
+    pub shell_text_bytes: u64,
+    /// How narrow a window of the interface may be, in CSS pixels.
+    pub shell_window_min_width: u32,
+    /// How short a window of the interface may be, in CSS pixels.
+    pub shell_window_min_height: u32,
+    /// How much of the height the drawer shares with the workspace area it may take, in percent.
+    pub shell_drawer_share_max: u32,
 }
 
 /// The kernel's limits, as `catalog/limits.toml` declares them under `[kernel]`.
@@ -489,6 +507,15 @@ pub const KERNEL: KernelLimits = KernelLimits {
     confirmation_ttl_ms: 60_000,
     agent_budget_max: 100_000,
     agent_grant_minutes_max: 43_200,
+    shell_windows_max: 4,
+    shell_pages_max: 64,
+    shell_drawer_pages_max: 16,
+    shell_trail_max: 16,
+    shell_seats_max: 4,
+    shell_text_bytes: 4_096,
+    shell_window_min_width: 320,
+    shell_window_min_height: 240,
+    shell_drawer_share_max: 49,
 };
 
 /// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).

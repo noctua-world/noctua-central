@@ -259,6 +259,26 @@ Level: `error`
 | `unit` | Snowflake, written as its Crockford base32 text | no |
 | `code` | code from the error registry | no |
 
+## `kernel.shell_discarded`
+
+The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's
+
+Level: `warn`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `found` | count | no |
+
+## `kernel.shell_unkept`
+
+The kernel could not save the interface's state to the local store, and will try again at the next pump
+
+Level: `warn`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
+
 ## `kernel.step_reversed`
 
 A step of a person's history was undone or redone, and the unit that did it was kept

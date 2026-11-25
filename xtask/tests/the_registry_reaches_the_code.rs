@@ -2474,6 +2474,35 @@ fn every_capability_carries_its_interface_its_functions_and_its_sentence() {
     assert!(given > 0, "no interface given to every plugin was compared");
 }
 
+/// The limits of the interface's own state, field by field, as
+/// [`the_kernels_limits_are_the_ones_the_registry_declares`] compares the
+/// rest — lifted out of it at clippy's hundred-line bound.
+fn the_interfaces_limits_are_the_ones_declared(catalog: &Catalog) {
+    let declared = catalog.limits.kernel;
+    let generated = nc_catalog::KERNEL;
+    assert_eq!(generated.shell_windows_max, declared.shell_windows_max);
+    assert_eq!(generated.shell_pages_max, declared.shell_pages_max);
+    assert_eq!(
+        generated.shell_drawer_pages_max,
+        declared.shell_drawer_pages_max
+    );
+    assert_eq!(generated.shell_trail_max, declared.shell_trail_max);
+    assert_eq!(generated.shell_seats_max, declared.shell_seats_max);
+    assert_eq!(generated.shell_text_bytes, declared.shell_text_bytes);
+    assert_eq!(
+        generated.shell_window_min_width,
+        declared.shell_window_min_width
+    );
+    assert_eq!(
+        generated.shell_window_min_height,
+        declared.shell_window_min_height
+    );
+    assert_eq!(
+        generated.shell_drawer_share_max,
+        declared.shell_drawer_share_max
+    );
+}
+
 #[test]
 fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // **Written out field by field, like the key-derivation costs above.** The
@@ -2561,12 +2590,13 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
         generated.agent_grant_minutes_max,
         declared.agent_grant_minutes_max
     );
+    the_interfaces_limits_are_the_ones_declared(&catalog);
     // **And every one of them is a row the compiler hands the emitter**, so a
     // limit this test reads and `KernelLimits::each` dropped is not a limit
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        47,
+        56,
         "a kernel limit was added or lost"
     );
 }

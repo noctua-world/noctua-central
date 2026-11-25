@@ -272,6 +272,26 @@ fields = [
 ]
 
 [[event]]
+name = "kernel.shell_discarded"
+description = "The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's"
+level = "warn"
+fields = [
+  # The shape the saved state named: an older build's number, or zero when it
+  # named none or was not read whole — never anything of the state itself,
+  # which holds what the person typed.
+  { name = "found", type = "u64" },
+]
+
+[[event]]
+name = "kernel.shell_unkept"
+description = "The kernel could not save the interface's state to the local store, and will try again at the next pump"
+level = "warn"
+fields = [
+  # The store's code for what refused the write.
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
 name = "kernel.step_reversed"
 description = "A step of a person's history was undone or redone, and the unit that did it was kept"
 level = "info"
