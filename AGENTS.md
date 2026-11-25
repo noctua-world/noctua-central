@@ -4052,10 +4052,12 @@ On X11 the client is this crate's own, in safe Rust: it dials the display `DISPL
 on this machine's sockets and refuses a name with a host in it, one that is set and is not
 a text, and a socket whose file is neither this user's nor root's — asked before a byte is
 sent, and never gone round by the abstract socket, which is tried only where no file is at
-the path and never for a display named by its socket's path; sends the
+the path and never for a display named by its socket's path, so a file nothing listens at,
+which a server that was killed leaves, is a display with no server; sends the
 `MIT-MAGIC-COOKIE-1` of this machine and this display, from the file `XAUTHORITY` names or
 `.Xauthority` under `HOME`, read up to a bound and believed only when it ends where an entry
-does; bounds every read and write of a registration in time; reads every length the server sends under
+does; bounds every read and write of a registration to five seconds, and lifts the bound
+once the chord is granted, since the wait for a press has none; reads every length the server sends under
 a bound, before a byte of that length is read or allocated; reads which modifier Alt, Super
 and Num Lock are from the server's own map, by physical key, and refuses a map that cannot
 tell the chord's modifiers apart; grabs the one key with exactly the chord's modifiers on
@@ -4087,18 +4089,26 @@ in memory, which keeps every byte it was sent and runs on every system
 `a_chord_another_client_keeps_is_lost_and_its_loss_is_told`,
 `a_server_gone_with_the_chord_held_is_a_loss_told`); against sockets of the test's own,
 where a socket is a file — one that never answers holding a registration for its bound
-alone, a display named by a path not reached by an abstract socket of that name, a socket
+alone, a bound lifted from a socket no longer ending its reads
+(`a_bound_lifted_from_a_socket_no_longer_ends_its_reads`), a display named by a path not
+reached by an abstract socket of that name, a socket file nothing listens at refused with
+something listening at the abstract name of its path, which answers once the file is gone
+(`a_socket_file_nothing_listens_at_is_not_gone_round_by_an_abstract_name`), a socket
 dialled as another account refused, and a `DISPLAY` that is not a text refused as
-unreadable; by
+unreadable; the figures written here — five seconds, a quarter of a second, twenty times —
+by `the_usual_pace_is_the_one_written_down`; by
 `this_system_grants_the_chord_hears_it_and_gives_it_back` in `leader.rs`, which every
 system runs against what it has — on Linux a real `Xvfb`, started with no socket in
-`/tmp`, where the chord is heard once, held past the server's repeat and with Caps Lock
+`/tmp`, where what each press is handed to panics once it has said so and every press
+after the first is heard all the same, the panic caught by the registration; the chord is
+heard once, held past the server's repeat and with Caps Lock
 on; a chord short of a modifier, with one more or on another key is not heard, pressed
 once the grabs are made again and followed by a press that is; a key pressed with the
 Leader held reaches a window that has the focus; a second registration is refused as taken
 while the key is up and granted while it is down, after which the first has the chord back
 when the second lets it go and is told of its loss when the second keeps it; a dropped
-registration is given back; and a server started to admit by cookie alone refuses a
+registration is given back; a registration left idle past the bound on its answers still
+hears the chord and is told of no loss; and a server started to admit by cookie alone refuses a
 registration that names no file and grants one whose `XAUTHORITY` names the server's; on
 Windows a registration, the message Windows sends for it
 posted to its thread, a second registration refused and the first given back; on macOS a
@@ -4118,7 +4128,8 @@ seconds this client asks again — `Refused::Taken` is the answer only while the
 is up, and "held" means until `on_lost` says otherwise; an X server that does not
 number its keys as Linux's do; on macOS, whether the system refuses a chord another
 application registered, which was not measured, and a press itself, which a test may not
-send there; and on Windows, a layout switched after the registration, which leaves the
+send there and says it did not, as `skipped, not applicable on` the system, in its own
+output; and on Windows, a layout switched after the registration, which leaves the
 chord at the virtual key the old one had. Whether the Leader was tapped or held is the
 window's to decide (`NOCTUA.md §12.8`), and who pressed it is nobody's to know.
 
@@ -6417,7 +6428,7 @@ here, and `crossterm` on 2026-11-17, for the `checkouts` picker.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate — and the arguments the CLI holds to it, read back from their canonical text as the kernel reads them |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
-| `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half alone and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`); a process held to its PID record and signalled through it — a pidfd on Linux (`pidfd_open`, `pidfd_send_signal`), signal 0 and `kill` on macOS — and the user the process runs as (`getuid`, and `geteuid` where no private directory is at hand to probe); and the group a test reads back (`getpgid`), all through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
+| `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half and, for one call, its X client, and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`); a process held to its PID record and signalled through it — a pidfd on Linux (`pidfd_open`, `pidfd_send_signal`), signal 0 and `kill` on macOS — and the user the process runs as (`getuid`, and `geteuid` where no private directory is at hand to probe, and in `x11.rs`, the X client every system compiles, which asks it for whose socket file a server's may be); and the group a test reads back (`getpgid`), all through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
 | `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
 | `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); when this process started, which its PID record holds (`GetProcessTimes`); a process held to its PID record through one handle — opened to query, terminate and wait for it (`OpenProcess`), its creation time, its image's path (`QueryFullProcessImageNameW`) and its token's user read through it, and it ended and waited for through it (`TerminateProcess`, `WaitForSingleObject`), and one this user may not hold read through a handle opened to query it alone, which is never held; and its own standard handles kept from every child but as the handles a spawn hands one (`SetHandleInformation`); and, behind the test doors alone, a descriptor written onto one path or one process through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`), and a thread made to act as this user holding no privilege (`CreateRestrictedToken`, `ImpersonateLoggedOnUser`, `RevertToSelf`); and the Leader's hotkey, registered on a thread that reads its own message queue (`RegisterHotKey`, `UnregisterHotKey`, `MapVirtualKeyW`, `PeekMessageW`, `GetMessageW`, `PostThreadMessageW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held — the other `unsafe` this tree writes is around Carbon's hotkey calls, which the macOS half declares itself |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |

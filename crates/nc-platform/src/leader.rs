@@ -1146,9 +1146,17 @@ mod tests {
     /// holds — posts the message Windows sends for a hotkey, and holds a
     /// second registration to the refusal. macOS registers the same chord
     /// through Carbon, twice over, and sends no press, since a test may not
-    /// send one there.
+    /// send one there — which it prints, as `skipped, not applicable on`
+    /// the system, for the press and the refusal it leaves unasked.
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the part of this a system does not run is said in the test's own output, by \
+                  the system's name, as a suite that stands aside says it"
+    )]
     fn this_system_grants_the_chord_hears_it_and_gives_it_back() {
+        use std::io::Write as _;
+
         if crate::clipboard::SYSTEM == System::Linux {
             crate::x11::served::a_real_server_grants_the_chord_hears_it_and_gives_it_back();
             return;
@@ -1187,6 +1195,15 @@ mod tests {
                     register(free).0.err(),
                     Some(Refused::Taken),
                     "a chord held is refused to the next to ask, this process included"
+                );
+            } else {
+                let mut out = std::io::stdout().lock();
+                let _ = writeln!(
+                    out,
+                    "skipped, not applicable on {}: a test may send no press of a hotkey here, \
+                     so the press and the refusal of a chord held are not asked, and the Windows \
+                     and Linux jobs ask them",
+                    std::env::consts::OS
                 );
             }
             drop(held);

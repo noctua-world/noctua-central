@@ -9182,6 +9182,9 @@ WEAKENINGS = [
     ("platform_leader", "guarded", "a panic in what a press is handed to goes no further",
      "        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&on_press));",
      "        on_press();"),
+    ("platform_leader", "register", "a panic in a caller's function is caught by the registration it was handed to",
+     "        guarded(on_press),\n",
+     "        Box::new(on_press),\n"),
     ("platform_x11", "parse", "a display on another machine is never dialled",
      "            _ => Err(unreadable()),",
      "            _ => Ok(Self { path: None, number }),"),
@@ -9290,12 +9293,27 @@ WEAKENINGS = [
     ("platform_x11", "answers_for", "a socket file is spoken to when it is this user's or root's",
      "    owner == me || owner == 0\n",
      "    owner == me || owner != 0\n"),
-    ("platform_x11", "dial_as", "a socket another account made is sent nothing",
+    ("platform_x11", "dial_at", "a socket another account made is sent nothing",
      "        && !answers_for(found.uid(), me)\n",
      "        && !answers_for(found.uid(), me)\n        && false\n"),
-    ("platform_x11", "dial_as", "a display named by its socket's path is reached by no abstract name",
-     "        if display.path.is_some() {\n            return Err(error);\n        }\n",
+    ("platform_x11", "dial_at", "a display named by its socket's path is reached by no abstract name",
+     "        if !by_name_too {\n            return Err(error);\n        }\n",
      ""),
+    ("platform_x11", "dial_at", "a socket file nothing listens at is not gone round by an abstract name",
+     "        if error.kind() != std::io::ErrorKind::NotFound {\n            return Err(error);\n        }\n",
+     ""),
+    ("platform_x11", "bounded", "a bound lifted from a socket is lifted from its reads",
+     "    socket.set_read_timeout(bound)?;\n",
+     "    if bound.is_some() {\n        socket.set_read_timeout(bound)?;\n    }\n"),
+    ("platform_x11", "WITHIN", "a registration's reads and writes are bounded to the time written down",
+     "WITHIN: Duration = Duration::from_secs(5);",
+     "WITHIN: Duration = Duration::from_secs(60);"),
+    ("platform_x11", "TRIED_EVERY", "a chord found taken is asked for again as often as is written down",
+     "TRIED_EVERY: Duration = Duration::from_millis(250);",
+     "TRIED_EVERY: Duration = Duration::from_millis(100);"),
+    ("platform_x11", "TRIES", "a chord found taken is asked for as many times as is written down",
+     "TRIES: u32 = 20;",
+     "TRIES: u32 = 4;"),
     ("platform_x11", "register_paced", "a display that is not a text is not read around what does not read",
      "        let Some(named) = named.to_str() else {\n            return Err(Display::unreadable(&named.to_string_lossy()));\n        };\n",
      "        let named = named.to_string_lossy();\n        let named = &*named;\n"),
@@ -10476,7 +10494,9 @@ ELSEWHERE = {
     "platform_service": ["cargo", "test", "-q", "-p", "nc-platform", "--", "service::", "--skip", "with_the_manager"],
     "platform_clipboard": ["cargo", "test", "-q", "-p", "nc-platform", "--", "clipboard::"],
     # **Not the test that asks this system itself**, which on Linux starts a
-    # real X server and decides no clause the others do not.
+    # real X server: it decides one clause the others do not — that a
+    # registration guards the function it is handed — and is in `ALSO_RUN`
+    # for that, run only where these let a weakening through.
     "platform_leader": ["cargo", "test", "-q", "-p", "nc-platform", "--", "leader::", "--skip", "this_system_grants"],
     "platform_x11": ["cargo", "test", "-q", "-p", "nc-platform", "--", "x11::"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
@@ -10629,6 +10649,11 @@ ALSO_RUN = {
     "platform": ["cargo", "test", "-q", "-p", "nc-local"],
     "platform_unix": ["cargo", "test", "-q", "-p", "nc-local"],
     "platform_testing": ["cargo", "test", "-q", "-p", "nc-local"],
+    # **The registration itself, against a real X server.** That `register`
+    # hands the system a function with its panics caught is seen only where a
+    # press arrives through one: the unit tests hold the guard, and this the
+    # registration that applies it. It needs `Xvfb` on `PATH`.
+    "platform_leader": ["cargo", "test", "-q", "-p", "nc-platform", "--", "this_system_grants"],
     # **The suite the CLI's grammar is excused by**: every catalog and
     # reference-plugin schema read from a command line, which the module's own
     # filter selects nothing of.

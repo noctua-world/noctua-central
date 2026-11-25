@@ -15,12 +15,14 @@
 //!    other: `:N`, `unix:N` or a socket's path, a screen after it or none. A
 //!    name with a host in it is refused — this dials no network — and so is
 //!    one that does not read.
-//! 2. **The socket** is `/tmp/.X11-unix/X<N>`, and where nothing answers
-//!    there, on Linux, the abstract socket of the same name, which is how a
+//! 2. **The socket** is `/tmp/.X11-unix/X<N>`, and where no file is at that
+//!    path, on Linux, the abstract socket of the same name, which is how a
 //!    server is reached from a mount namespace that has another `/tmp`. A
 //!    socket that is a file is spoken to only when the file is this user's or
-//!    root's, asked before anything is sent; a display named by its socket's
-//!    path is reached at that path or not at all.
+//!    root's, asked before anything is sent; a file nothing listens at — what
+//!    a server that was killed leaves — is no server, and is not gone round
+//!    by the abstract name; and a display named by its socket's path is
+//!    reached at that path or not at all.
 //! 3. **Who this is**: the `MIT-MAGIC-COOKIE-1` the file `XAUTHORITY` names
 //!    holds for this machine and this display, or `.Xauthority` under `HOME`.
 //!    With no cookie the setup is sent with none, which a server that admits
@@ -95,7 +97,9 @@
 //!   server holds it and no file is at the socket's path in `/tmp`: an
 //!   abstract name is anyone's to bind and has no owner to ask after, so that
 //!   account is sent this display's cookie, if the file still holds one, and
-//!   can send presses. It reaches no key the person types.
+//!   can send presses. It reaches no key the person types. A socket file a
+//!   server that is gone left at the path is not such a case: it is never
+//!   gone round.
 //! - **A server that numbers its keys another way** — the retired `kbd`
 //!   driver, a server of another system — where the keycode sent is another
 //!   key's. Every server a Linux session runs today numbers them as above.
@@ -756,34 +760,54 @@ pub(crate) const fn answers_for(owner: u32, me: u32) -> bool {
 }
 
 /// A connection to the server of `display`: its socket in `/tmp`, and
-/// on Linux, where nothing answers there, the abstract socket of that name.
+/// on Linux, where no file is at that path, the abstract socket of that name.
 ///
 /// # Errors
 ///
-/// [`Refused::Failed`] when nothing answers at either, and when the socket's
-/// file is another account's.
+/// [`Refused::Failed`] when nothing answers at either, when a file is at the
+/// path and nothing listens at it, and when the socket's file is another
+/// account's.
 #[cfg(unix)]
 pub(crate) fn dial(display: &Display) -> Result<Socket, Refused> {
-    dial_as(display, rustix::process::geteuid().as_raw())
+    dial_at(
+        &display.socket(),
+        display.path.is_none(),
+        rustix::process::geteuid().as_raw(),
+    )
 }
 
-/// As [`dial`], for the user numbered `me`.
+/// A connection to the server listening at the path `socket`, for the user
+/// numbered `me`, and on Linux, where `by_name_too` and no file is at that
+/// path, to the one listening at the abstract name of the same bytes.
 ///
 /// **A socket file is judged by its owner before it is connected to**
-/// ([`answers_for`]), and one refused is not gone round: the abstract socket
-/// is tried only where no file answers at all. The file is read and then
-/// connected to, two steps, and what stands between them is the directory's
-/// sticky bit, under which only a file's owner replaces it.
+/// ([`answers_for`]), and one refused is not gone round. The file is read and
+/// then connected to, two steps, and what stands between them is the
+/// directory's sticky bit, under which only a file's owner replaces it.
+///
+/// **The abstract name is tried only where the system says no file is at the
+/// path**, which is the connection's own refusal and so one answer, not two
+/// questions. An abstract name is anyone's to bind, and whoever answers there
+/// is sent this display's cookie; a file that is there and refuses — what a
+/// server that crashed or was killed leaves behind, this user's or root's —
+/// is a display with no server, never a reason to ask at a name with no
+/// owner.
 ///
 /// # Errors
 ///
 /// As [`dial`].
 #[cfg(unix)]
-pub(crate) fn dial_as(display: &Display, me: u32) -> Result<Socket, Refused> {
+#[cfg_attr(
+    not(target_os = "linux"),
+    expect(
+        unused_variables,
+        reason = "only Linux has a socket's abstract name to ask at as well"
+    )
+)]
+pub(crate) fn dial_at(socket: &str, by_name_too: bool, me: u32) -> Result<Socket, Refused> {
     use std::os::unix::fs::MetadataExt as _;
 
-    let socket = display.socket();
-    if let Ok(found) = std::fs::metadata(&socket)
+    if let Ok(found) = std::fs::metadata(socket)
         && !answers_for(found.uid(), me)
     {
         return Err(Refused::Failed(format!(
@@ -792,11 +816,14 @@ pub(crate) fn dial_as(display: &Display, me: u32) -> Result<Socket, Refused> {
             found.uid()
         )));
     }
-    let by_path = Socket::connect(&socket);
+    let by_path = Socket::connect(socket);
     #[cfg(target_os = "linux")]
     let by_path = by_path.or_else(|error| {
         use std::os::linux::net::SocketAddrExt as _;
-        if display.path.is_some() {
+        if !by_name_too {
+            return Err(error);
+        }
+        if error.kind() != std::io::ErrorKind::NotFound {
             return Err(error);
         }
         std::os::unix::net::SocketAddr::from_abstract_name(socket.as_bytes())
@@ -2785,8 +2812,11 @@ pub(crate) mod served {
         use std::ffi::OsString;
         use std::path::Path;
 
+        use std::io::{Read as _, Write as _};
+        use std::time::Duration;
+
         use crate::leader::Refused;
-        use crate::x11::Display;
+        use crate::x11::{Display, Socket, Wire as _};
 
         /// A socket listening at `path` for as long as what is answered is
         /// kept, which takes a connection and never answers it.
@@ -2823,6 +2853,50 @@ pub(crate) mod served {
             None
         }
 
+        /// What dialling the socket at `path`, and the abstract name of the
+        /// same bytes where there is no file, is answered twice: with a
+        /// socket file there that nothing listens at, which this makes, and
+        /// with that file gone.
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn dialled_stale_then_gone(path: &Path) -> Option<[Result<(), Refused>; 2]> {
+            use std::os::unix::fs::MetadataExt as _;
+
+            drop(std::os::unix::net::UnixListener::bind(path).expect("bound"));
+            let me = std::fs::metadata(path)
+                .expect("a listener that is gone leaves its file")
+                .uid();
+            let dialled = || crate::x11::dial_at(&path.to_string_lossy(), true, me).map(|_| ());
+            let stale = dialled();
+            std::fs::remove_file(path).expect("removed");
+            Some([stale, dialled()])
+        }
+
+        /// Whether a read bounded to `bound` ended with nothing sent, and
+        /// how many bytes a read with the bound lifted then read, one byte
+        /// sent six times the bound later.
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn read_bounded_then_not(bound: Duration) -> Option<(bool, Option<usize>)> {
+            let (mut near, mut far) = Socket::pair().expect("a pair of sockets");
+            let mut byte = [0_u8; 1];
+            near.within(Some(bound)).expect("bounded");
+            let ended = near.read(&mut byte).is_err();
+            near.within(None).expect("lifted");
+            let sender = std::thread::spawn(move || {
+                std::thread::sleep(6 * bound);
+                far.write_all(b"x").expect("sent");
+                far
+            });
+            let read = near.read(&mut byte).ok();
+            drop(sender.join());
+            Some((ended, read))
+        }
+
         /// Who owns the socket of `display`, and what dialling it as the
         /// user numbered one past its owner is answered.
         #[expect(
@@ -2833,7 +2907,12 @@ pub(crate) mod served {
             use std::os::unix::fs::MetadataExt as _;
 
             let owner = std::fs::metadata(display.socket()).expect("a socket").uid();
-            let dialled = crate::x11::dial_as(display, owner.wrapping_add(1)).map(|_| ());
+            let dialled = crate::x11::dial_at(
+                &display.socket(),
+                display.path.is_none(),
+                owner.wrapping_add(1),
+            )
+            .map(|_| ());
             Some((owner, dialled))
         }
 
@@ -2854,6 +2933,8 @@ pub(crate) mod served {
         use std::ffi::OsString;
         use std::path::Path;
 
+        use std::time::Duration;
+
         use crate::leader::Refused;
         use crate::x11::Display;
 
@@ -2864,6 +2945,16 @@ pub(crate) mod served {
 
         /// Nothing: no socket here has an abstract name.
         pub(super) fn listening_by_name(_name: &str) -> Option<Box<dyn Any>> {
+            None
+        }
+
+        /// Nothing: no socket here is a file to be left behind.
+        pub(super) fn dialled_stale_then_gone(_path: &Path) -> Option<[Result<(), Refused>; 2]> {
+            None
+        }
+
+        /// Nothing: no socket here has a value to read.
+        pub(super) fn read_bounded_then_not(_bound: Duration) -> Option<(bool, Option<usize>)> {
             None
         }
 
@@ -2972,6 +3063,71 @@ pub(crate) mod served {
         if a_socket_is_a_file() {
             assert!(why.contains("no X server answers at"), "{why}");
         }
+    }
+
+    /// A socket file nothing listens at is a display with no server, and is
+    /// not gone round by the abstract name, which is asked only where no
+    /// file is at the path.
+    ///
+    /// Something listens at the abstract name of the path throughout, where
+    /// the system has such names: with the file there it is never reached,
+    /// and with the file gone it is. Where the system has none, nothing
+    /// answers either time.
+    #[test]
+    fn a_socket_file_nothing_listens_at_is_not_gone_round_by_an_abstract_name() {
+        let scratch = Scratch::new("stale");
+        let path = scratch.0.join("s");
+        let named = sockets::listening_by_name(&path.to_string_lossy());
+        let Some([stale, gone]) = sockets::dialled_stale_then_gone(&path) else {
+            assert!(!a_socket_is_a_file(), "only where no socket is a file");
+            return;
+        };
+        let why = failure(stale);
+        assert!(why.contains("no X server answers at"), "{why}");
+        assert_eq!(
+            gone.is_ok(),
+            named.is_some(),
+            "with no file at the path the abstract name is asked, where the system has one: \
+             {gone:?}"
+        );
+    }
+
+    /// A bound lifted from a socket no longer ends its reads: the wait for a
+    /// press, which may be hours, is not the wait for an answer.
+    #[test]
+    fn a_bound_lifted_from_a_socket_no_longer_ends_its_reads() {
+        let Some((ended, read)) = sockets::read_bounded_then_not(Duration::from_millis(50)) else {
+            assert!(!a_socket_is_a_file(), "only where no socket has a value");
+            return;
+        };
+        assert!(ended, "a bounded read ends with nothing sent");
+        assert_eq!(
+            read,
+            Some(1),
+            "a read with no bound waits for what is sent, however long past the bound it had"
+        );
+    }
+
+    /// The pace of every session outside a test is the one the documents
+    /// state.
+    ///
+    /// `AGENTS.md` and `NOCTUA.md §12.8` say a chord found taken is asked for
+    /// again every quarter of a second, twenty times in all — five seconds —
+    /// and the crate's own headers say each read and write of a registration
+    /// is bounded to five seconds; a figure changed here changes there.
+    #[test]
+    fn the_usual_pace_is_the_one_written_down() {
+        let Pace {
+            within,
+            asked_every,
+            tried_every,
+            tries,
+        } = Pace::USUAL;
+        assert_eq!(within, Duration::from_secs(5));
+        assert_eq!(asked_every, Duration::from_millis(10));
+        assert_eq!(tried_every, Duration::from_millis(250));
+        assert_eq!(tries, 20);
+        assert_eq!(tried_every * tries, Duration::from_secs(5));
     }
 
     /// A socket another account made is sent nothing, and is not gone round.
@@ -3233,6 +3389,11 @@ pub(crate) mod served {
 
     /// The Leader registered on the display `named`, through
     /// [`crate::leader::register`].
+    ///
+    /// **What it hands each press to panics once it has said so**, as a
+    /// caller's function may: a registration that let the panic through
+    /// would end the thread its presses arrive on, and every press after the
+    /// first would go unheard with no loss told.
     fn register_on(named: &str) -> Registered {
         let (said, presses) = mpsc::channel();
         let (gone, lost) = mpsc::channel();
@@ -3241,6 +3402,7 @@ pub(crate) mod served {
             &|name| (name == "DISPLAY").then(|| named.into()),
             move || {
                 let _ = said.send(());
+                std::panic::resume_unwind(Box::new("a panic with no message printed"));
             },
             move |why| {
                 let _ = gone.send(why);
@@ -3343,8 +3505,9 @@ pub(crate) mod served {
     ///
     /// The chord is nobody's while the key is down. The first asks again
     /// once the key is up, has the chord back when the second let it go, and
-    /// is told when the second kept it; and a dropped registration gives the
-    /// chord back.
+    /// is told when the second kept it; a dropped registration gives the
+    /// chord back; and a registration left idle past the bound on its answers
+    /// still hears the chord.
     fn a_real_server_grants_a_chord_held_down_and_tells_its_loss() {
         let (mut server, named) = a_real_server(&[]);
         let environment = |name: &str| (name == "DISPLAY").then(|| named.clone().into());
@@ -3386,13 +3549,23 @@ pub(crate) mod served {
             Pace {
                 tried_every: Duration::from_millis(20),
                 tries: 3,
-                ..Pace::USUAL
+                ..brisk()
             },
             told,
         )
         .expect("a dropped registration gave the chord back");
+        // Left idle well past the bound its answers were held to, which was
+        // lifted once the chord was granted: the wait for a press has none.
+        std::thread::sleep(3 * brisk().within);
+        assert_eq!(
+            lost.try_recv(),
+            Err(mpsc::TryRecvError::Empty),
+            "a server that sends nothing while no key is pressed is no server gone"
+        );
         keyboard.down(&[alt, meta, SPACE]);
-        presses.recv_timeout(SOON).expect("the chord is heard");
+        presses
+            .recv_timeout(SOON)
+            .expect("the chord is heard, however long after it was granted");
         std::thread::sleep(SETTLED);
         let (keeper, kept, _) = register();
         let keeper = keeper.expect("granted while the key is down");

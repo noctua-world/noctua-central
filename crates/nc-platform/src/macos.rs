@@ -252,7 +252,8 @@ impl HotKey {
         })
     }
 
-    /// Nothing: a test may not send a press on macOS, and says so.
+    /// Nothing: a test may not send a press on macOS, which the test that
+    /// asks says in its output, by the system's name.
     #[cfg(test)]
     #[expect(
         clippy::unused_self,

@@ -19794,7 +19794,7 @@ mod the_frozen_path_rule {
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 105, 4),
         ("nc-platform/windows.rs", 153, 15),
-        ("nc-platform/x11.rs", 192, 38),
+        ("nc-platform/x11.rs", 199, 38),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22625,8 +22625,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 899 scratches this tree
-    /// builds, 811 of the 899 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 900 scratches this tree
+    /// builds, 812 of the 900 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22748,7 +22748,7 @@ mod the_frozen_path_rule {
         ("nc-platform/lib.rs", 32, 32),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
-        ("nc-platform/x11.rs", 6, 6),
+        ("nc-platform/x11.rs", 7, 7),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 9, 9),
@@ -25791,7 +25791,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22407;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22418;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25810,7 +25810,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6246;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6251;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25827,7 +25827,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2113;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2116;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25861,7 +25861,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29586;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29608;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25915,7 +25915,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 29,586 are accepted by the first-line
+    /// rules the gates apply: **519 of 29,608 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25948,7 +25948,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2113 of
+    /// this tree offers, **2116 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38018,7 +38018,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2876] = [
+    static OPERATORS: [(&str, &str, &str); 2882] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49604,6 +49604,11 @@ Options:
             "a panic in what a press is handed to goes no further",
         ),
         (
+            "platform_leader",
+            "register",
+            "a panic in a caller's function is caught by the registration it was handed to",
+        ),
+        (
             "platform_x11",
             "parse",
             "a display on another machine is never dialled",
@@ -49781,13 +49786,38 @@ Options:
         ),
         (
             "platform_x11",
-            "dial_as",
+            "dial_at",
             "a socket another account made is sent nothing",
         ),
         (
             "platform_x11",
-            "dial_as",
+            "dial_at",
             "a display named by its socket's path is reached by no abstract name",
+        ),
+        (
+            "platform_x11",
+            "dial_at",
+            "a socket file nothing listens at is not gone round by an abstract name",
+        ),
+        (
+            "platform_x11",
+            "bounded",
+            "a bound lifted from a socket is lifted from its reads",
+        ),
+        (
+            "platform_x11",
+            "WITHIN",
+            "a registration's reads and writes are bounded to the time written down",
+        ),
+        (
+            "platform_x11",
+            "TRIED_EVERY",
+            "a chord found taken is asked for again as often as is written down",
+        ),
+        (
+            "platform_x11",
+            "TRIES",
+            "a chord found taken is asked for as many times as is written down",
         ),
         (
             "platform_x11",
