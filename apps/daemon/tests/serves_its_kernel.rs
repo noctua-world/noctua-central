@@ -594,7 +594,11 @@ fn changed(answer: Answer) -> (u64, Option<Value>) {
 /// are both in the next answer; a watch waiting the whole bound is answered
 /// when another note is told, with that note; one waiting when a stop is
 /// asked on the other connection is refused as stopping (`NC-DMN-0010`), and
-/// the daemon ends well without waiting the watch out. **Nothing told was
+/// the daemon ends well without waiting the watch out. **That the watch was
+/// waiting is given time, not observed**: one that reached the daemon only
+/// after the stop finds its connection closed between two requests, and is
+/// lost unanswered, which this test takes as well — the refusal of a watch
+/// known to be waiting is the server's own test. **Nothing told was
 /// journaled**: the stopped daemon's journal holds no entry. And the daemon
 /// started again answers a watch that names the old revision with its own
 /// state, empty, at revision zero — another revision, and nothing kept.
@@ -652,18 +656,27 @@ async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_pa
     );
     assert_eq!(noted, Answer::Noted);
     assert_eq!(changed(heard), (3, Some(held("b"))));
-    let (heard, stopping) = tokio::join!(asked(&mut watcher, watch(Some(3))), async {
-        // The watch is waiting by the time the stop is asked.
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        asked(&mut teller, Request::Stop).await
-    });
+    let request = watch(Some(3));
+    let (heard, stopping) = tokio::join!(
+        tokio::time::timeout(PATIENCE, watcher.ask(&request)),
+        async {
+            // Time for the watch to reach the daemon and wait there, which
+            // nothing the daemon answers tells this test it did.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            asked(&mut teller, Request::Stop).await
+        }
+    );
     assert_eq!(stopping, Answer::Stopping);
-    // Refused by the one code whether the watch was waiting, or — on a
-    // machine that kept the watcher back — reached the daemon after the
-    // stop did. A watch waited out would be answered that nothing changed.
-    match heard {
-        Answer::Refused(refusal) => assert_eq!(refusal.code, ErrorCode::DaemonStopping),
-        other => panic!("a watch waiting when a stop was asked was answered with {other:?}"),
+    // Refused as stopping when the watch was waiting, which is what that
+    // time is for. On a machine that kept the watch back past it, the stop
+    // found the watcher's connection between two requests and closed it, so
+    // the watch is lost unanswered: the other outcome of a stop, and not this
+    // test's to refuse. A watch waited out would be answered that nothing
+    // changed, and is neither.
+    match heard.expect("the watch ended in time") {
+        Ok(Answer::Refused(refusal)) => assert_eq!(refusal.code, ErrorCode::DaemonStopping),
+        Err(nc_ipc::IpcError::Lost(_)) => {}
+        other => panic!("a watch asked as a stop was asked ended with {other:?}"),
     }
     assert_eq!(daemon.ended().await, Some(0), "the daemon did not end well");
     let store = nc_local::LocalStore::open(&installed.layout.data)
