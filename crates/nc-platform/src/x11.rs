@@ -98,7 +98,9 @@
 //! - **A server whose map cannot say which modifier Alt or Super is**, for a
 //!   chord that holds it, or puts the two in one, for a chord that holds
 //!   either, is refused: grabbing by a guess would grab another chord. A
-//!   chord that holds neither asks the map for neither.
+//!   chord that holds neither asks the map for neither. And a map that puts
+//!   Num Lock in Alt's modifier or in Super's has no Num Lock to grab with,
+//!   for any chord: the chord with that modifier added is another chord.
 //!
 //! # What it does not
 //!
@@ -660,8 +662,9 @@ fn modifier_holding(map: &[u8], per: usize, keycode: u8) -> Option<u16> {
 pub(crate) struct Masks {
     /// The chord's own modifiers, and no other.
     pub(crate) chord: u16,
-    /// The modifier Num Lock is, where the server has one apart from the
-    /// chord's.
+    /// The modifier Num Lock is, where the server has one apart from Alt's
+    /// and from Super's, held by the chord or not: with either, the chord
+    /// with Num Lock on would be another chord.
     pub(crate) num_lock: Option<u16>,
 }
 
@@ -717,7 +720,13 @@ impl Masks {
                     .to_owned(),
             ));
         }
-        let num_lock = found(EVDEV_NUM_LOCK).filter(|bit| chord & bit == 0);
+        // Against Alt's and Super's modifiers whether the chord holds them or
+        // not: a chord with Num Lock's modifier added is another chord where
+        // that modifier is also Alt's or Super's, and grabbing it would
+        // report that other chord's press as the Leader's.
+        let num_lock = found(EVDEV_NUM_LOCK)
+            .filter(|bit| found(EVDEV_LEFT_ALT) != Some(*bit))
+            .filter(|bit| found(EVDEV_LEFT_SUPER) != Some(*bit));
         Ok(Self { chord, num_lock })
     }
 
@@ -1892,6 +1901,29 @@ mod tests {
         );
         assert_eq!(read_as(&[("XAUTHORITY", &named)], None), None);
 
+        let two = scratch.0.join("two");
+        let mut entries = an_entry(256, b"here", b"0", magic, b"the first display's");
+        entries.extend(an_entry(256, b"here", b"1", magic, b"the second display's"));
+        std::fs::write(&two, entries).expect("written");
+        let of = |named: &str| {
+            cookie_in(
+                &Display::parse(named).expect("a display"),
+                &|name| (name == "XAUTHORITY").then(|| two.clone().into_os_string()),
+                Some(b"here"),
+            )
+        };
+        assert_eq!(
+            of(":1").as_deref(),
+            Some(&b"the second display's"[..]),
+            "the cookie read is the one of the display that was named"
+        );
+        assert_eq!(of(":0").as_deref(), Some(&b"the first display's"[..]));
+        assert_eq!(
+            of(":2"),
+            None,
+            "a display the file has no entry for has no cookie"
+        );
+
         let entry = an_entry(256, b"here", b"0", magic, b"0123456789abcdef");
         let bound = usize::try_from(AUTHORITY_BYTES_MAX).expect("a megabyte");
         assert_ne!(bound % entry.len(), 0, "the bound falls inside an entry");
@@ -2247,7 +2279,8 @@ mod tests {
     /// map whose length is not its header's is not read.
     ///
     /// The first is one with Alt or Super in no modifier, in one of the
-    /// protocol's fixed three, or both in one.
+    /// protocol's fixed three, or both in one. A Num Lock in the modifier of
+    /// either is refused nothing, and is no lock the chord is grabbed with.
     #[test]
     fn a_map_that_cannot_tell_the_chord_apart_is_refused() {
         let both = Modifiers::of(&[Modifier::Alt, Modifier::Super]);
@@ -2313,17 +2346,25 @@ mod tests {
         );
         let mut locked = without(77);
         locked[3 * 2 + 1] = 77;
-        assert_eq!(
-            Masks::read(both, 2, &locked).expect("read").num_lock,
-            None,
-            "a Num Lock that is one of the chord's own modifiers is no variant of it"
-        );
-        assert_eq!(
-            Masks::read(Modifiers::of(&[Modifier::Super]), 2, &locked)
-                .expect("read")
-                .num_lock,
-            Some(ALT)
-        );
+        let mut beside_super = without(77);
+        beside_super[6 * 2 + 1] = 77;
+        for held in [
+            both,
+            Modifiers::of(&[Modifier::Alt]),
+            Modifiers::of(&[Modifier::Super]),
+            Modifiers::of(&[Modifier::Control]),
+            Modifiers::of(&[Modifier::Shift, Modifier::Control]),
+        ] {
+            for (map, shared) in [(&locked, "Alt"), (&beside_super, "Super")] {
+                let read = Masks::read(held, 2, map).expect("read");
+                assert_eq!(
+                    read.num_lock, None,
+                    "{held:?}: a Num Lock in {shared}'s modifier is no variant of any chord, \
+                     held by it or not: the chord with it on would be another chord"
+                );
+                assert_eq!(read.variants(), [read.chord, read.chord | 2], "{held:?}");
+            }
+        }
         for (per, map) in [
             (2, vec![0_u8; 15]),
             (2, vec![0; 17]),
@@ -2491,6 +2532,9 @@ pub(crate) mod served {
     /// mapping, which no client asks for.
     const MAPPING_NOTIFY: u8 = 34;
 
+    /// The error a server answers a request it failed at with.
+    const BAD_IMPLEMENTATION: u8 = 17;
+
     /// One end of a connection made of two channels, which every system has.
     struct End {
         /// What the other end sent and has not been read: the channel, and
@@ -2593,6 +2637,18 @@ pub(crate) mod served {
         repeats: bool,
         /// What it sends that was not asked.
         unasked: Unasked,
+        /// What it answers the request for the keys' state with.
+        keys: Keys,
+    }
+
+    /// What a server written here answers the request for the keys' state
+    /// with.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Keys {
+        /// A reply that says which keys are down.
+        Said,
+        /// An error.
+        Refused,
     }
 
     /// What a server written here sends that was not asked.
@@ -2616,6 +2672,7 @@ pub(crate) mod served {
         taken: false,
         repeats: false,
         unasked: Unasked::Nothing,
+        keys: Keys::Said,
     };
 
     /// A server written here, at the other end of a [`Pipe`].
@@ -2753,6 +2810,9 @@ pub(crate) mod served {
                     send(&an_error(BAD_ACCESS, sequence))?;
                 }
                 43 => send(&a_reply(sequence, 0, &[], &[]))?,
+                44 if answers.keys == Keys::Refused => {
+                    send(&an_error(BAD_IMPLEMENTATION, sequence))?;
+                }
                 44 => {
                     // This thread alone counts down, and a test stores a
                     // count only while the client waits for a press.
@@ -2938,6 +2998,95 @@ pub(crate) mod served {
             Err(mpsc::TryRecvError::Disconnected),
             "a registration dropped is not one lost: what a loss is told to was dropped untold"
         );
+    }
+
+    /// The keyboard a firing grab handed over is handed back, and every grab
+    /// let go, before the caller is told of the press.
+    ///
+    /// What the caller is told with is its own function, and takes the time
+    /// it takes: told first, it would hold every key the person types grabbed
+    /// for that long. The function here does not return until the server has
+    /// been seen to hear everything let go, so a client that tells first is
+    /// one the server hears nothing more from.
+    ///
+    /// **The function is let return before anything is asserted.** A
+    /// registration dropped waits for its reading thread, which is inside
+    /// that function: an assertion failing first would unwind into that drop
+    /// and wait for ever, and the test would hold its suite where it should
+    /// fail it.
+    #[test]
+    fn everything_is_let_go_before_the_caller_is_told_of_the_press() {
+        let (server, client) = Server::start(WILLING);
+        let (telling, is_told) = mpsc::channel();
+        let (go_on, may_go_on) = mpsc::channel::<()>();
+        let (gone, _lost) = mpsc::channel();
+        let told = Told {
+            on_press: Box::new(move || {
+                let _ = telling.send(());
+                let _ = may_go_on.recv();
+            }),
+            on_lost: Box::new(move |why| {
+                let _ = gone.send(why);
+            }),
+        };
+        let held = over(
+            client,
+            Some(b"a cookie"),
+            57,
+            Modifiers::of(&[Modifier::Alt, Modifier::Super]),
+            Pace::USUAL,
+            told,
+        )
+        .expect("grabbed");
+        // Named again after the registration, so that a panic below drops
+        // it first: the function returns, and the registration's drop has a
+        // reading thread that ends to wait for.
+        let go_on = go_on;
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        is_told
+            .recv_timeout(SOON)
+            .expect("the caller is told of the press");
+        let mut expected = the_registration();
+        expected.extend(the_letting_go());
+        let heard = server.heard_once(expected.len());
+        drop(go_on);
+        assert_eq!(
+            heard, expected,
+            "the keyboard is handed back and every grab let go while the caller's function \
+             has yet to return: before it was called"
+        );
+        drop(held);
+    }
+
+    /// An error to the request for the keys' state ends the wait for the key
+    /// to go up, and the registration with it: the loss is told, with what
+    /// was asked, and the key is not taken as up.
+    #[test]
+    fn a_server_that_will_not_say_which_keys_are_down_is_a_loss_told() {
+        let (server, client) = Server::start(Answers {
+            keys: Keys::Refused,
+            ..WILLING
+        });
+        let (held, presses, lost) = grabbed_at(client, hurried(3));
+        let held = held.expect("grabbed");
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses.recv_timeout(SOON).expect("the press is heard");
+        let why = lost
+            .recv_timeout(SOON)
+            .expect("the loss is told: an error to the request is no answer that the key is up");
+        assert!(
+            matches!(&why, Refused::Failed(why) if why.contains("which keys are down")),
+            "{why:?}"
+        );
+        let mut expected = the_registration();
+        expected.extend(the_letting_go());
+        expected.push(query_keymap().to_vec());
+        assert_eq!(
+            server.ended(),
+            expected,
+            "no grab is made again on the word of an error, and the connection is closed"
+        );
+        drop(held);
     }
 
     /// What a server sends unasked is read past to the answer asked for.
@@ -3251,6 +3400,21 @@ pub(crate) mod served {
             use std::os::unix::fs::MetadataExt as _;
 
             drop(std::os::unix::net::UnixListener::bind(path).expect("bound"));
+            // **Dropped is not yet gone.** Another test's thread that starts
+            // a child between the bind and the drop leaves the child a copy
+            // of the listening socket until it runs its program, and for
+            // that long the file still takes a connection: measured, 291 of
+            // 20,000 dials of a listener just dropped were answered beside a
+            // thread starting children. So the file is stale once the system
+            // refuses a connection to it, which is waited for.
+            let waited = std::time::Instant::now();
+            while std::os::unix::net::UnixStream::connect(path).is_ok() {
+                assert!(
+                    waited.elapsed() < super::SOON,
+                    "a listener dropped is one nothing listens at, soon"
+                );
+                std::thread::sleep(Duration::from_millis(1));
+            }
             let me = std::fs::metadata(path)
                 .expect("a listener that is gone leaves its file")
                 .uid();
@@ -3263,6 +3427,12 @@ pub(crate) mod served {
         /// Whether a read bounded to `bound` ended with nothing sent, and
         /// how many bytes a read with the bound lifted then read, one byte
         /// sent six times the bound later.
+        ///
+        /// **The bounded read is sent a byte too, six times its bound
+        /// later, unless it has ended by then**: a bound that was never set
+        /// is then a read that ended with a byte, which is answered here,
+        /// and not a read that waits for ever on a socket nobody writes to,
+        /// which holds the suite and answers nothing.
         #[expect(
             clippy::unnecessary_wraps,
             reason = "one signature for both systems' halves, and the other has none to answer"
@@ -3271,7 +3441,16 @@ pub(crate) mod served {
             let (mut near, mut far) = Socket::pair().expect("a pair of sockets");
             let mut byte = [0_u8; 1];
             near.within(Some(bound)).expect("bounded");
+            let (over, is_over) = std::sync::mpsc::channel::<()>();
+            let rescuer = std::thread::spawn(move || {
+                if is_over.recv_timeout(6 * bound).is_err() {
+                    far.write_all(b"x").expect("sent");
+                }
+                far
+            });
             let ended = near.read(&mut byte).is_err();
+            let _ = over.send(());
+            let mut far = rescuer.join().expect("the other end is handed back");
             near.within(None).expect("lifted");
             let sender = std::thread::spawn(move || {
                 std::thread::sleep(6 * bound);
@@ -3298,6 +3477,27 @@ pub(crate) mod served {
                 crate::x11::dial_at(&socket, display.path.is_none(), owner.wrapping_add(1))
                     .map(|_| ());
             Some((owner, dialled))
+        }
+
+        /// Whether the system says no file is at `path`, as a display named
+        /// by a path is asked ([`crate::x11::absent`]).
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn absent(path: &Path) -> Option<bool> {
+            Some(crate::x11::absent(&path.to_string_lossy()))
+        }
+
+        /// Makes `path` a link that leads to itself, which no path through
+        /// it can be asked after.
+        #[expect(
+            clippy::unnecessary_wraps,
+            reason = "one signature for both systems' halves, and the other has none to answer"
+        )]
+        pub(super) fn linked_to_itself(path: &Path) -> Option<()> {
+            std::os::unix::fs::symlink(path, path).expect("linked");
+            Some(())
         }
 
         /// A display's name that is not a text, and would name a socket's
@@ -3344,6 +3544,16 @@ pub(crate) mod served {
 
         /// Nothing: no socket here has an owner to be another's.
         pub(super) fn dialled_as_another(_display: &Display) -> Option<(u32, Result<(), Refused>)> {
+            None
+        }
+
+        /// Nothing: no display here is named by a path to ask after.
+        pub(super) fn absent(_path: &Path) -> Option<bool> {
+            None
+        }
+
+        /// Nothing: no path here is asked after, through a link or not.
+        pub(super) fn linked_to_itself(_path: &Path) -> Option<()> {
             None
         }
 
@@ -3529,6 +3739,51 @@ pub(crate) mod served {
             named.is_some(),
             "with no file at the path the abstract name is asked, where the system has one: \
              {gone:?}"
+        );
+    }
+
+    /// No file is at a path where the system says there is none: nothing of
+    /// that name, or a file that is no directory on the way to it. A path the
+    /// system could not be asked after for another reason is not absent, so
+    /// it is dialled whole and refused there, never read as another path
+    /// with a screen after it.
+    ///
+    /// The two other reasons here are ones every account is given, the
+    /// system's included: a name longer than a file's may be, and a link
+    /// that leads to itself. Where no socket is a file, no path is asked
+    /// after.
+    #[test]
+    fn a_path_is_absent_only_where_the_system_says_no_file_is_there() {
+        let scratch = Scratch::new("absent");
+        std::fs::write(scratch.0.join("file"), b"").expect("written");
+        let Some(()) = sockets::linked_to_itself(&scratch.0.join("loop")) else {
+            assert!(!a_socket_is_a_file(), "only where no socket is a file");
+            return;
+        };
+        let absent = |name: &str| {
+            sockets::absent(&scratch.0.join(name)).expect("asked, where a socket is a file")
+        };
+        assert!(!absent("file"), "a file that is there");
+        assert!(!absent(""), "a directory that is there");
+        assert!(absent("nothing"), "no file of that name");
+        assert!(absent("nothing/s"), "no directory of that name");
+        assert!(
+            absent("file/s"),
+            "a file on the way that is no directory: nothing can be at a path through it"
+        );
+        let long = "n".repeat(300);
+        assert!(
+            std::fs::metadata(scratch.0.join(&long)).is_err(),
+            "a name of three hundred bytes is longer than this system gives a file"
+        );
+        assert!(
+            !absent(&long),
+            "a path that could not be asked after is not one the system says is absent"
+        );
+        assert!(std::fs::metadata(scratch.0.join("loop/s")).is_err());
+        assert!(
+            !absent("loop/s"),
+            "nor is one through a link that leads to itself"
         );
     }
 
@@ -3785,7 +4040,56 @@ pub(crate) mod served {
         std::io::BufReader::new(server.0.stdout.take().expect("piped"))
             .read_line(&mut number)
             .expect("Xvfb names its display");
-        (server, format!(":{}", number.trim()))
+        let number = number.trim();
+        if let Err(another) = is_this_servers_alone(std::path::Path::new("/tmp/.X11-unix"), number)
+        {
+            panic!("{another}");
+        }
+        (server, format!(":{number}"))
+    }
+
+    /// Whether the display numbered `number` can only be the server this
+    /// started, which listens at the abstract name alone: that no file is at
+    /// that display's path in `directory`, or the reason it is not.
+    ///
+    /// **A number free at the abstract name is not a number with no file at
+    /// its path.** `Xvfb` chooses a number nothing listens at by name and no
+    /// lock file holds; a server that listens at the file alone, and keeps no
+    /// lock file, holds neither. A display is dialled at its file first
+    /// ([`super::dial_at`]), so a test that went on would grab the chord on
+    /// that other server, a person's own session, and send it key presses.
+    fn is_this_servers_alone(directory: &std::path::Path, number: &str) -> Result<(), String> {
+        let path = directory.join(format!("X{number}"));
+        match std::fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            found => Err(format!(
+                "`Xvfb` chose display :{number}, which it listens at by its abstract name alone, \
+                 and `{}` is not known to be absent ({}): another server's file may be there, \
+                 and a display is dialled at its file first, so nothing was sent. End that \
+                 server or remove the file it left, and run again",
+                path.display(),
+                found.map_or_else(|error| error.to_string(), |_| "a file is there".to_owned()),
+            )),
+        }
+    }
+
+    /// A real server's display is this test's to press keys on only where a
+    /// file is known to be absent at that display's path: one that is there,
+    /// or a path that cannot be asked after, stops the test before anything is
+    /// sent.
+    #[test]
+    fn a_display_with_a_file_at_its_path_is_not_taken_for_the_server_started() {
+        let scratch = Scratch::new("alone");
+        assert_eq!(is_this_servers_alone(&scratch.0, "7"), Ok(()));
+        std::fs::write(scratch.0.join("X7"), b"").expect("written");
+        let another = is_this_servers_alone(&scratch.0, "7").expect_err("a file is there");
+        assert!(another.contains("chose display :7"), "{another}");
+        assert!(another.contains("a file is there"), "{another}");
+        assert_eq!(is_this_servers_alone(&scratch.0, "8"), Ok(()));
+        assert!(
+            is_this_servers_alone(&scratch.0.join("X7"), "7").is_err(),
+            "a path that could not be asked after is not known to be absent"
+        );
     }
 
     /// Alt, Super and Space: the development channel's default Leader.

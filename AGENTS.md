@@ -4070,7 +4070,9 @@ and Num Lock are from the server's own map, by physical key, once, as the chord 
 and refuses a map that cannot tell the chord's modifiers apart — Alt or Super in no modifier
 of its own for a chord that holds it, the two in one modifier for a chord that holds
 either, and neither asked of a chord that holds neither; grabs the one key with exactly the chord's modifiers on
-every root window, bare and with each lock; and at a press hands back the keyboard the grab
+every root window, bare and with each lock — Num Lock being one only where the map keeps it out
+of Alt's modifier and out of Super's, held by the chord or not, since the chord with that
+modifier added would be another chord; and at a press hands back the keyboard the grab
 handed over and lets the grabs go, asking the server only whether the Leader's own key is
 still down until it is not — one bit read of each answer — and then makes them again, so a
 held key is one press and the keys pressed with it reach the window that has the focus.
@@ -4119,7 +4121,8 @@ unreadable; the figures written here — five seconds, a quarter of a second, tw
 by `the_usual_pace_is_the_one_written_down`; by
 `this_system_grants_the_chord_hears_it_and_gives_it_back` in `leader.rs`, which every
 system runs against what it has — on Linux a real `Xvfb`, started with no socket in
-`/tmp`, where what each press is handed to panics once it has said so and every press
+`/tmp` and spoken to only where no file is at its display's path there, since a display is
+dialled at its file first and a file there is another server's, where what each press is handed to panics once it has said so and every press
 after the first is heard all the same, the panic caught by the registration; the chord is
 heard once, held past the server's repeat and with Caps Lock
 on; a chord short of a modifier, with one more or on another key is not heard, pressed

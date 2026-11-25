@@ -19818,7 +19818,7 @@ mod the_frozen_path_rule {
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 106, 4),
         ("nc-platform/windows.rs", 154, 15),
-        ("nc-platform/x11.rs", 214, 39),
+        ("nc-platform/x11.rs", 225, 39),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22649,8 +22649,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 901 scratches this tree
-    /// builds, 813 of the 901 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 903 scratches this tree
+    /// builds, 815 of the 903 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22772,7 +22772,7 @@ mod the_frozen_path_rule {
         ("nc-platform/lib.rs", 32, 32),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
-        ("nc-platform/x11.rs", 8, 8),
+        ("nc-platform/x11.rs", 10, 10),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 9, 9),
@@ -25815,7 +25815,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22458;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22477;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25834,7 +25834,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6269;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6277;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25851,7 +25851,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2122;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2126;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25885,7 +25885,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29679;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29707;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25939,7 +25939,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 29,679 are accepted by the first-line
+    /// rules the gates apply: **519 of 29,707 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25972,7 +25972,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2122 of
+    /// this tree offers, **2126 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38051,7 +38051,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2892] = [
+    static OPERATORS: [(&str, &str, &str); 2898] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49750,7 +49750,12 @@ Options:
         (
             "platform_x11",
             "read",
-            "a Num Lock that is the chord's own modifier is no variant of it",
+            "a Num Lock in Alt's modifier is no lock of any chord",
+        ),
+        (
+            "platform_x11",
+            "read",
+            "a Num Lock in Super's modifier is no lock of any chord",
         ),
         (
             "platform_x11",
@@ -49804,6 +49809,16 @@ Options:
         ),
         (
             "platform_x11",
+            "read_presses",
+            "everything is let go before the caller is told of the press",
+        ),
+        (
+            "platform_x11",
+            "read_presses",
+            "an error to the request for the keys' state is not the key gone up",
+        ),
+        (
+            "platform_x11",
             "pressed",
             "the press of another key is not the Leader's",
         ),
@@ -49831,6 +49846,11 @@ Options:
             "platform_x11",
             "cookie_in",
             "the authorization file is read up to its bound and no further",
+        ),
+        (
+            "platform_x11",
+            "cookie_in",
+            "the cookie read is the one of the display that was named",
         ),
         (
             "platform_x11",
@@ -49877,6 +49897,16 @@ Options:
             "platform_x11",
             "dial_at",
             "a socket file nothing listens at is not gone round by an abstract name",
+        ),
+        (
+            "platform_x11",
+            "absent",
+            "a path through a file that is no directory has no file at it",
+        ),
+        (
+            "platform_x11",
+            "absent",
+            "a path that could not be asked after is not absent",
         ),
         (
             "platform_x11",
