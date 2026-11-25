@@ -2463,6 +2463,11 @@ mod tests {
     ///
     /// **Run, not read for a bit**: this test binary is copied into one and
     /// started, which is what an installer's copy of the daemon is for.
+    ///
+    /// **Asked again**, for a bounded time, while the file just written is
+    /// busy: a child another test's thread started in between holds a copy of
+    /// the handle it was written through until that child is the program it
+    /// was started for, and the system runs no file something may still write.
     #[test]
     #[expect(
         clippy::disallowed_methods,
@@ -2482,13 +2487,24 @@ mod tests {
         .expect("written");
         drop(made);
         judge(&path, Kind::File, &user).expect("its owner's alone");
-        let ran = std::process::Command::new(&path)
-            .args(["--exact", "no::such::test"])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .expect("the copy runs");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let ran = loop {
+            let ran = std::process::Command::new(&path)
+                .args(["--exact", "no::such::test"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            match ran {
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::ExecutableFileBusy
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                ran => break ran.expect("the copy runs"),
+            }
+        };
         assert!(ran.success(), "{ran:?}");
         assert_eq!(
             super::create_private_executable(&path)

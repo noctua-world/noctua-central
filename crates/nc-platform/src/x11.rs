@@ -4077,6 +4077,13 @@ pub(crate) mod served {
     /// file is known to be absent at that display's path: one that is there,
     /// or a path that cannot be asked after, stops the test before anything is
     /// sent.
+    ///
+    /// **The path that cannot be asked after is one no system can be asked
+    /// after**: a name holding a NUL byte, which is refused before the system
+    /// is asked anything, on every system alike. A path through a file is not
+    /// that: Unix says the file is no directory, and Windows says the path
+    /// was not found, which is this helper's word for absent. So that one is
+    /// held where the system tells the two apart, and nowhere else.
     #[test]
     fn a_display_with_a_file_at_its_path_is_not_taken_for_the_server_started() {
         let scratch = Scratch::new("alone");
@@ -4086,10 +4093,23 @@ pub(crate) mod served {
         assert!(another.contains("chose display :7"), "{another}");
         assert!(another.contains("a file is there"), "{another}");
         assert_eq!(is_this_servers_alone(&scratch.0, "8"), Ok(()));
+        let unasked = std::fs::symlink_metadata(scratch.0.join("X9\0"))
+            .expect_err("a name holding a NUL byte is asked after on no system");
+        assert_ne!(
+            unasked.kind(),
+            std::io::ErrorKind::NotFound,
+            "and no system says of it that no file is there: {unasked}"
+        );
         assert!(
-            is_this_servers_alone(&scratch.0.join("X7"), "7").is_err(),
+            is_this_servers_alone(&scratch.0, "9\0").is_err(),
             "a path that could not be asked after is not known to be absent"
         );
+        if cfg!(unix) {
+            assert!(
+                is_this_servers_alone(&scratch.0.join("X7"), "7").is_err(),
+                "nor is a path through a file, where the system says the file is no directory"
+            );
+        }
     }
 
     /// Alt, Super and Space: the development channel's default Leader.
