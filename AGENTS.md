@@ -4049,18 +4049,27 @@ that stops delivering while it is held says so, once, through `on_lost` — on X
 system where one can, when the server goes away or the chord is lost to another client.
 
 On X11 the client is this crate's own, in safe Rust: it dials the display `DISPLAY` names
-on this machine's sockets and refuses a name with a host in it, one that is set and is not
+on this machine's sockets — `:N` or `unix:N`, or a socket's path read as X's own libraries
+read one, where a name that begins with `/`, or with `unix:` and then `/`, is the path whole, a `:` in it
+included, the first display of the server there, and a last `.<screen>` is read off it only
+where no file is at the whole of it and one is at the rest — and refuses a name with a host
+in it, a path that is not absolute, one that is set and is not
 a text, and a socket whose file is neither this user's nor root's — asked before a byte is
 sent, and never gone round by the abstract socket, which is tried only where no file is at
 the path and never for a display named by its socket's path, so a file nothing listens at,
 which a server that was killed leaves, is a display with no server; sends the
 `MIT-MAGIC-COOKIE-1` of this machine and this display, from the file `XAUTHORITY` names or
-`.Xauthority` under `HOME`, read up to a bound and believed only when it ends where an entry
+`.Xauthority` under `HOME` — a variable set to nothing naming no file, so never one in the
+directory the process is in — read up to a bound and believed only when it ends where an entry
 does; bounds every read and write of a registration to five seconds, and lifts the bound
 once the chord is granted, since the wait for a press has none; reads every length the server sends under
-a bound, before a byte of that length is read or allocated; reads which modifier Alt, Super
-and Num Lock are from the server's own map, by physical key, and refuses a map that cannot
-tell the chord's modifiers apart; grabs the one key with exactly the chord's modifiers on
+a bound, before a byte of that length is read or allocated; takes for the answer to a
+request the reply that carries the request's own number, read past the events a server
+sends every client unasked and past any other reply (`reply_to`); reads which modifier Alt, Super
+and Num Lock are from the server's own map, by physical key, once, as the chord is grabbed,
+and refuses a map that cannot tell the chord's modifiers apart — Alt or Super in no modifier
+of its own for a chord that holds it, the two in one modifier for a chord that holds
+either, and neither asked of a chord that holds neither; grabs the one key with exactly the chord's modifiers on
 every root window, bare and with each lock; and at a press hands back the keyboard the grab
 handed over and lets the grabs go, asking the server only whether the Leader's own key is
 still down until it is not — one bit read of each answer — and then makes them again, so a
@@ -4077,20 +4086,31 @@ caught, no two keys sharing a code in any system's list, and `Held` refused as `
 `compile_fail` doctest beside one that holds the same path to compiling, since a
 `compile_fail` block passes for any error — and of
 `crates/nc-platform/src/x11.rs`: every request against its bytes, the display and the
-authorization file read and cut short at every length, the file the environment names read
+authorization file read and cut short at every length, a display named by a path read whole
+and its screen read off only where no file is at the whole of it
+(`a_screen_is_read_off_a_path_only_where_no_file_is_at_the_whole_of_it`), the file the
+environment names (`the_authorization_file_is_the_one_the_environment_names`) read
 from a directory of the test's own and up to its bound
 (`the_cookie_is_read_from_the_file_the_environment_names_up_to_the_bound`), a message longer
-than any asked for refused unread, the masks read from the map, and the connection driven
+than any asked for refused unread, the answer to a request read past an event and another
+request's reply (`the_answer_to_a_request_is_the_reply_that_carries_its_number`), the masks
+read from the map, and the connection driven
 end to end against a server written beside the tests at the other end of a connection made
 in memory, which keeps every byte it was sent and runs on every system
 (`a_chord_is_grabbed_pressed_once_and_let_go`, `a_key_the_server_repeats_while_held_is_one_press`,
 `a_chord_another_client_holds_is_refused_as_taken`,
 `a_chord_taken_while_the_key_was_down_is_asked_for_again`,
 `a_chord_another_client_keeps_is_lost_and_its_loss_is_told`,
-`a_server_gone_with_the_chord_held_is_a_loss_told`); against sockets of the test's own,
+`a_server_gone_with_the_chord_held_is_a_loss_told`, and
+`what_a_server_sends_unasked_is_read_past_to_the_answer_asked_for`, where the server sends
+`MappingNotify` and another request's reply before its map and a reply that says every key
+is up before each answer about the keys); against sockets of the test's own,
 where a socket is a file — one that never answers holding a registration for its bound
 alone, a bound lifted from a socket no longer ending its reads
-(`a_bound_lifted_from_a_socket_no_longer_ends_its_reads`), a display named by a path not
+(`a_bound_lifted_from_a_socket_no_longer_ends_its_reads`), a display named by a path
+reached at that path whole, a `:` in it included, and at what stands before a screen only
+where no file is at the whole
+(`a_display_named_by_a_path_is_reached_at_that_path_whole`), and not
 reached by an abstract socket of that name, a socket file nothing listens at refused with
 something listening at the abstract name of its path, which answers once the file is gone
 (`a_socket_file_nothing_listens_at_is_not_gone_round_by_an_abstract_name`), a socket
@@ -4108,11 +4128,17 @@ Leader held reaches a window that has the focus; a second registration is refuse
 while the key is up and granted while it is down, after which the first has the chord back
 when the second lets it go and is told of its loss when the second keeps it; a dropped
 registration is given back; a registration left idle past the bound on its answers still
-hears the chord and is told of no loss; and a server started to admit by cookie alone refuses a
+hears the chord and is told of no loss; a server killed is a loss told, where what the loss
+is handed to panics once it has said so and what the panic carries is let go on the thread
+that told it with the registration still held, the panic caught by the registration; and a
+server started to admit by cookie alone refuses a
 registration that names no file and grants one whose `XAUTHORITY` names the server's; on
 Windows a registration, the message Windows sends for it
 posted to its thread, a second registration refused and the first given back; on macOS a
-registration made and given back through Carbon, twice; by the operators over both sources
+registration made and given back through Carbon, twice, the press standing aside there by
+`nc_platform::system::A_TEST_PRESSES_A_HOTKEY`, which the gate names (*A suite that needs
+what a system lacks asks `nc_platform::system`, and the gate names it*); by the operators
+over both sources
 in `xtask/mutants.py`; and by invariant 17's gates over the two files that write `unsafe`.
 
 **Not answered:** a process running as this user, which on every system can register the
@@ -4125,11 +4151,18 @@ which is for as long as the Leader is held, because kept they fire again for eac
 and take the keyboard from the window each time, so a program that asks for the chord then
 is granted it and not refused, and keeps it if it does not let it go within the five
 seconds this client asks again — `Refused::Taken` is the answer only while the holder's key
-is up, and "held" means until `on_lost` says otherwise; an X server that does not
+is up, and "held" means until `on_lost` says otherwise; **a modifier map changed after the
+registration**: the masks are read once, and the `MappingNotify` that tells of a change is
+dropped with every event that is not the Leader's press, so where a later `xmodmap` or
+layout moves Alt, Super or Num Lock to another modifier the grabs stay on the old map's
+bits and no loss is told, until the registration is dropped and made again; a display
+named by a path that is not absolute, which X's libraries read after `unix:` and this
+refuses; an X server that does not
 number its keys as Linux's do; on macOS, whether the system refuses a chord another
-application registered, which was not measured, and a press itself, which a test may not
-send there and says it did not, as `skipped, not applicable on` the system, in its own
-output; and on Windows, a layout switched after the registration, which leaves the
+application registered, which was not measured, and a press itself and the refusal of a
+chord held, which a test may not send or ask there: that part stands aside on macOS, named
+by the gate beside its verdict, and the Linux and Windows jobs ask it; and on Windows, a
+layout switched after the registration, which leaves the
 chord at the virtual key the old one had. Whether the Leader was tapped or held is the
 window's to decide (`NOCTUA.md §12.8`), and who pressed it is nobody's to know.
 
@@ -6133,8 +6166,9 @@ holds to each other.
 it.** The system's answer is a constant of that crate, fixed per system as
 `RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
 made, `A_POSIX_SHELL`, `POSIX_SESSIONS`, a session of the POSIX kind for a process to
-leave, and `NAMES_REACH_BY_LINKS`, a name in the bin directory reaching its program by a
-symbolic link — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
+leave, `NAMES_REACH_BY_LINKS`, a name in the bin directory reaching its program by a
+symbolic link, and `A_TEST_PRESSES_A_HOTKEY`, a press of a registered hotkey that a test
+may send — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
 `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every system. That module is compiled in every build, not behind `test-support`, because the
 gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
 cargo counts the test as passed and captures that line with the rest of a passing test's
@@ -6143,7 +6177,8 @@ same constants: before the tests, a `not applicable` line for each suite this sy
 aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
 system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
 `finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
-order on disk) and on Windows (that, the checkout script's guards, the two suites about
+order on disk, and the part of the Leader's suite that presses a registered hotkey) and on
+Windows (the order on disk, the checkout script's guards, the two suites about
 leaving a session, `nc-platform`'s and the daemon's, and `nc-platform`'s about the link a
 name in the bin directory reaches its program by) a suite that stopped saying so is a
 refusal, and

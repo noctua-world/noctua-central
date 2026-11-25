@@ -1104,13 +1104,20 @@ mod tests {
                 "{host}"
             );
         }
-        assert!(
-            matches!(
-                register(&[("DISPLAY", "/nonexistent/nc-platform/no-server:0")]),
-                Err(Refused::Failed(why)) if why.contains("no X server answers at")
-            ),
-            "a socket nothing listens at is no server"
-        );
+        for path in [
+            "/nonexistent/nc-platform/no-server",
+            "unix:/nonexistent/nc-platform/no-server",
+            "/nonexistent/nc-platform/no-server:0",
+            "/nonexistent/nc-platform/no-server.1",
+        ] {
+            assert!(
+                matches!(
+                    register(&[("DISPLAY", path)]),
+                    Err(Refused::Failed(why)) if why.contains("no X server answers at")
+                ),
+                "`{path}`: a display named by a path nothing listens at is no server"
+            );
+        }
         let not_a_text = crate::x11::served::a_display_that_is_not_a_text();
         let unreadable = |name: &str| (name == "DISPLAY").then(|| not_a_text.clone());
         assert_eq!(
@@ -1146,8 +1153,10 @@ mod tests {
     /// holds — posts the message Windows sends for a hotkey, and holds a
     /// second registration to the refusal. macOS registers the same chord
     /// through Carbon, twice over, and sends no press, since a test may not
-    /// send one there — which it prints, as `skipped, not applicable on`
-    /// the system, for the press and the refusal it leaves unasked.
+    /// send one there ([`crate::system::A_TEST_PRESSES_A_HOTKEY`]): the press
+    /// and the refusal it leaves unasked stand aside as every suite does
+    /// that needs what a system lacks, said here as `skipped, not applicable
+    /// on` the system and by the gate, which names it beside its verdict.
     #[test]
     #[expect(
         clippy::disallowed_methods,
@@ -1184,28 +1193,40 @@ mod tests {
                 Err(other) => panic!("the registration failed: {other}"),
             })
             .expect("one of four chords nothing ships bound is free to register");
+        if !crate::system::A_TEST_PRESSES_A_HOTKEY {
+            let mut out = std::io::stdout().lock();
+            let _ = writeln!(
+                out,
+                "skipped, not applicable on {}: a test may send no press of a hotkey here, \
+                 so the press and the refusal of a chord held are not asked, and the Windows \
+                 and Linux jobs ask them",
+                std::env::consts::OS
+            );
+            for _ in 0..2 {
+                let (held, _heard) = register(free);
+                let held = held.expect("a chord given back is granted again");
+                assert!(
+                    !held.registration.press(),
+                    "no press is sent where the system says a test may send none"
+                );
+            }
+            return;
+        }
         for _ in 0..2 {
             let (held, heard) = register(free);
             let held = held.expect("a chord given back is granted again");
-            if held.registration.press() {
-                heard
-                    .recv_timeout(std::time::Duration::from_secs(10))
-                    .expect("the hotkey's message reaches the caller");
-                assert_eq!(
-                    register(free).0.err(),
-                    Some(Refused::Taken),
-                    "a chord held is refused to the next to ask, this process included"
-                );
-            } else {
-                let mut out = std::io::stdout().lock();
-                let _ = writeln!(
-                    out,
-                    "skipped, not applicable on {}: a test may send no press of a hotkey here, \
-                     so the press and the refusal of a chord held are not asked, and the Windows \
-                     and Linux jobs ask them",
-                    std::env::consts::OS
-                );
-            }
+            assert!(
+                held.registration.press(),
+                "a press is sent where the system says a test may send one"
+            );
+            heard
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .expect("the hotkey's message reaches the caller");
+            assert_eq!(
+                register(free).0.err(),
+                Some(Refused::Taken),
+                "a chord held is refused to the next to ask, this process included"
+            );
             drop(held);
         }
     }

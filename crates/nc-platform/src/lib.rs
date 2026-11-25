@@ -343,6 +343,19 @@ pub mod system {
     /// there makes one. It says so in its own output, by the system's name,
     /// and the Linux and macOS jobs run it.
     pub const NAMES_REACH_BY_LINKS: bool = matches!(crate::REACH, crate::Reach::Link);
+
+    /// Whether a test here may send the press of a hotkey the system
+    /// registered ([`crate::leader`]): false on macOS.
+    ///
+    /// **What the part of the Leader's suite that presses it stands aside
+    /// for where it is false.** On Linux a test presses the chord on an X
+    /// server of its own, and on Windows it posts the hotkey's message to
+    /// the registration's own thread; on macOS a press is the system's alone
+    /// to send — a key posted there needs a permission of the person's that
+    /// no runner holds — so the press, and the refusal of a chord held, are
+    /// not asked there. The suite says so in its own output, by the system's
+    /// name, and the Linux and Windows jobs ask them.
+    pub const A_TEST_PRESSES_A_HOTKEY: bool = crate::imp::A_TEST_PRESSES_A_HOTKEY;
 }
 
 /// Whether [`sync_directory`] syncs anything here, and so can fail.
@@ -1209,18 +1222,19 @@ mod tests {
     #[test]
     fn linux_lacks_nothing_a_suite_stands_aside_for() {
         let expected = if cfg!(target_os = "linux") {
-            (Some("/dev/shm"), true, true, true)
+            (Some("/dev/shm"), true, true, true, true)
         } else if cfg!(windows) {
-            (None, false, false, false)
+            (None, false, false, false, true)
         } else {
-            (None, true, true, true)
+            (None, true, true, true, false)
         };
         assert_eq!(
             (
                 super::system::LISTED_AS_MADE,
                 super::system::A_POSIX_SHELL,
                 super::system::POSIX_SESSIONS,
-                super::system::NAMES_REACH_BY_LINKS
+                super::system::NAMES_REACH_BY_LINKS,
+                super::system::A_TEST_PRESSES_A_HOTKEY
             ),
             expected,
             "what this system lacks for a suite is not what it is written to lack"

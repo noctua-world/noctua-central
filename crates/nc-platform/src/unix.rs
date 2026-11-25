@@ -55,6 +55,10 @@ pub(crate) const A_POSIX_SHELL: bool = true;
 /// terminal's hangup reaches.
 pub(crate) const POSIX_SESSIONS: bool = true;
 
+/// A test presses a hotkey on an X server of its own on Linux; on macOS the
+/// press is the system's alone to send.
+pub(crate) const A_TEST_PRESSES_A_HOTKEY: bool = cfg!(target_os = "linux");
+
 /// Python 3 by the name a Unix system gives it.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";

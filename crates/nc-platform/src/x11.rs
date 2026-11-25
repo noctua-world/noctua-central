@@ -12,9 +12,11 @@
 //! # What is asked of the server, in order
 //!
 //! 1. **The display** is the one `DISPLAY` names, on this machine and no
-//!    other: `:N`, `unix:N` or a socket's path, a screen after it or none. A
-//!    name with a host in it is refused — this dials no network — and so is
-//!    one that does not read.
+//!    other: `:N` or `unix:N`, a screen after it or none, or a socket's path,
+//!    read as X's own libraries read one — a name that begins with `/`, or
+//!    with `unix:` and then `/`, is the socket's path whole, and the display
+//!    is its first. A name with a host in it is refused — this dials no
+//!    network — and so is one that does not read.
 //! 2. **The socket** is `/tmp/.X11-unix/X<N>`, and where no file is at that
 //!    path, on Linux, the abstract socket of the same name, which is how a
 //!    server is reached from a mount namespace that has another `/tmp`. A
@@ -22,14 +24,20 @@
 //!    root's, asked before anything is sent; a file nothing listens at — what
 //!    a server that was killed leaves — is no server, and is not gone round
 //!    by the abstract name; and a display named by its socket's path is
-//!    reached at that path or not at all.
+//!    reached at that path or not at all — the path whole, a `:` in it
+//!    included, or, only where no file is at the whole of it and one is at
+//!    what stands before a last `.<screen>`, at that.
 //! 3. **Who this is**: the `MIT-MAGIC-COOKIE-1` the file `XAUTHORITY` names
 //!    holds for this machine and this display, or `.Xauthority` under `HOME`.
 //!    With no cookie the setup is sent with none, which a server that admits
 //!    its own user by the socket's credentials accepts.
 //! 4. **Which modifier each key is**: the server's own map, asked for and read
 //!    by physical key — the modifier Left Alt is in, the one Left Super is in,
-//!    the one Num Lock is in — never the convention that Alt is `Mod1`.
+//!    the one Num Lock is in — never the convention that Alt is `Mod1`. The
+//!    answer is the reply to that request and no other message: a server
+//!    sends every client an event unasked when any client changes a mapping,
+//!    which a session's start is full of, and whatever arrives first is read
+//!    past ([`reply_to`]).
 //! 5. **The grab**: `GrabKey` on every screen's root window, of the Leader's
 //!    one key with its modifiers exactly, and again with Caps Lock, with Num
 //!    Lock and with both held, since the server matches the modifiers exactly
@@ -87,9 +95,10 @@
 //! - **A registration that stops delivering says so.** The caller is told
 //!   when the server went away and when the chord was lost to another
 //!   client, once, and no registration is left looking held.
-//! - **A server whose map cannot say which modifier Alt or Super is**, or
-//!   puts two of the chord's in one, is refused: grabbing by a guess would
-//!   grab another chord.
+//! - **A server whose map cannot say which modifier Alt or Super is**, for a
+//!   chord that holds it, or puts the two in one, for a chord that holds
+//!   either, is refused: grabbing by a guess would grab another chord. A
+//!   chord that holds neither asks the map for neither.
 //!
 //! # What it does not
 //!
@@ -119,6 +128,17 @@
 //!   twenty-five times a second while the key repeats.
 //! - **While the Leader is held, its own repeats**, which reach the window
 //!   with the focus as any key's do.
+//! - **A modifier map changed after the registration.** The masks are read
+//!   once, as the chord is grabbed. The server tells every client of a
+//!   change (`MappingNotify`), and here that event is dropped with every
+//!   other that is not the Leader's press: the grabs stay on the bits the
+//!   map had, so where a later `xmodmap` or layout moves Alt, Super or Num
+//!   Lock to another modifier the chord grabbed is the old map's — unheard,
+//!   or heard for other keys held — and no loss is told. Dropping the
+//!   registration and registering again reads the map anew.
+//! - **A display named by a path that is not absolute**, which X's libraries
+//!   read after `unix:` and this refuses: the socket dialled is never one
+//!   that depends on the directory this process happens to be in.
 
 use std::io::Read;
 
@@ -195,14 +215,24 @@ const fn padded(length: usize) -> usize {
 /// A display on this machine, as `DISPLAY` names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Display {
-    /// The socket's own path, when the name gave one.
+    /// The name itself, when it is a socket's path: the path whole, with
+    /// whatever screen may end it ([`Display::socket`]).
     pub(crate) path: Option<String>,
-    /// The display's number.
+    /// The display's number, which is zero for one named by its socket's
+    /// path: the first display of that socket's server.
     pub(crate) number: u16,
 }
 
 impl Display {
     /// The display `text` names.
+    ///
+    /// **A name that begins with `/`, or with `unix:` and then `/`, is a
+    /// socket's path, whole**, as libxcb reads one: nothing in it is a
+    /// display's number — a `:` is a character of the path, which is how a
+    /// socket named `…/org.xquartz:0` is reached — and the display is the
+    /// server's first.
+    /// Measured against libxcb 1.17: `/run/x/s` reads as that path and
+    /// `/run/x/s:0`, with the socket at `/run/x/s`, does not read at all.
     ///
     /// # Errors
     ///
@@ -210,6 +240,13 @@ impl Display {
     /// does not read as a display at all.
     pub(crate) fn parse(text: &str) -> Result<Self, Refused> {
         let unreadable = || Self::unreadable(text);
+        let named = text.strip_prefix("unix:").unwrap_or(text);
+        if named.starts_with('/') {
+            return Ok(Self {
+                path: Some(named.to_owned()),
+                number: 0,
+            });
+        }
         let (before, after) = text.rsplit_once(':').ok_or_else(unreadable)?;
         let number = after.split_once('.').map_or(after, |(number, screen)| {
             if screen.bytes().all(|byte| byte.is_ascii_digit()) && !screen.is_empty() {
@@ -224,10 +261,6 @@ impl Display {
         let number: u16 = number.parse().map_err(|_| unreadable())?;
         match before {
             "" | "unix" => Ok(Self { path: None, number }),
-            path if path.starts_with('/') => Ok(Self {
-                path: Some(path.to_owned()),
-                number,
-            }),
             _ => Err(unreadable()),
         }
     }
@@ -240,12 +273,31 @@ impl Display {
         ))
     }
 
-    /// The path of the socket a server of this display listens at.
-    pub(crate) fn socket(&self) -> String {
-        self.path
-            .clone()
-            .unwrap_or_else(|| format!("/tmp/.X11-unix/X{}", self.number))
+    /// The path of the socket a server of this display listens at; whether
+    /// no file is at a path is `absent`'s to say.
+    ///
+    /// **A display named by a path is that path, whole.** Only where no file
+    /// is at the whole of it, and one is at what stands before a last
+    /// `.<screen>`, is the screen read off — libxcb's rule, so `/run/x/s.1`
+    /// is the socket of that name where there is one, and otherwise the
+    /// second screen of the server at `/run/x/s`. Where neither is there the
+    /// name whole is what nothing answers at.
+    pub(crate) fn socket(&self, absent: &dyn Fn(&str) -> bool) -> String {
+        let Some(path) = &self.path else {
+            return format!("/tmp/.X11-unix/X{}", self.number);
+        };
+        match without_screen(path) {
+            Some(socket) if absent(path) && !absent(socket) => socket.to_owned(),
+            _ => path.clone(),
+        }
     }
+}
+
+/// What stands before the screen that ends `path`, a `.` and digits, where
+/// one does.
+fn without_screen(path: &str) -> Option<&str> {
+    let (socket, screen) = path.rsplit_once('.')?;
+    (!screen.is_empty() && screen.bytes().all(|byte| byte.is_ascii_digit())).then_some(socket)
 }
 
 /// The cookie `file` — an authorization file's bytes — holds for the display
@@ -624,7 +676,9 @@ impl Masks {
     ///
     /// [`Refused::Failed`] when the map's length is not eight rows of `per`,
     /// when Alt or Super is held and no modifier past the protocol's fixed
-    /// three holds its key, and when Alt and Super are one modifier.
+    /// three holds its key, and when either is held and the two are one
+    /// modifier. A chord that holds neither is refused for neither: Control
+    /// and Shift are the protocol's own bits, whatever the map says of Alt.
     pub(crate) fn read(modifiers: Modifiers, per: u8, map: &[u8]) -> Result<Self, Refused> {
         let per = usize::from(per);
         if map.len() != 8 * per {
@@ -649,8 +703,19 @@ impl Masks {
                 Modifier::Super => found(EVDEV_LEFT_SUPER).ok_or_else(|| unmapped("Super"))?,
             };
         }
-        if found(EVDEV_LEFT_ALT).is_some() && found(EVDEV_LEFT_ALT) == found(EVDEV_LEFT_SUPER) {
-            return Err(unmapped("Super"));
+        let holds_either = modifiers
+            .iter()
+            .any(|modifier| matches!(modifier, Modifier::Alt | Modifier::Super));
+        if holds_either
+            && found(EVDEV_LEFT_ALT).is_some()
+            && found(EVDEV_LEFT_ALT) == found(EVDEV_LEFT_SUPER)
+        {
+            return Err(Refused::Failed(
+                "the X server's modifier map puts the left Alt and the left Super keys in one \
+                 modifier, so a chord holding either cannot be told from one holding the other \
+                 and was not grabbed"
+                    .to_owned(),
+            ));
         }
         let num_lock = found(EVDEV_NUM_LOCK).filter(|bit| chord & bit == 0);
         Ok(Self { chord, num_lock })
@@ -665,6 +730,51 @@ impl Masks {
             variants.push(self.chord | LOCK | num_lock);
         }
         variants
+    }
+}
+
+/// What a reply carries, as far as this reads one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Answered {
+    /// The byte a reply carries beside its code.
+    pub(crate) detail: u8,
+    /// What its first thirty-two bytes carry past their header of eight.
+    pub(crate) head: [u8; 24],
+    /// What it carries past its first thirty-two bytes.
+    pub(crate) rest: Vec<u8>,
+}
+
+/// The server's reply to the request numbered `asked`, read from `from` past
+/// whatever it sends first; `what` is what was asked, for a refusal to name.
+///
+/// **The answer is the reply that carries the request's own number, and no
+/// message that merely arrives next.** An event is the server's to send at
+/// any time — `MappingNotify` goes to every client, unasked, when any client
+/// changes a mapping; measured on Xvfb 21.1, it is the first message a client
+/// reads after its `GetModifierMapping` where another client set the map
+/// meanwhile — and a reply or an error to another request is not this one's.
+/// Each is read past.
+///
+/// # Errors
+///
+/// [`Refused::Failed`] when the server answers that request with an error,
+/// and when the connection ends first.
+pub(crate) fn reply_to(from: &mut impl Read, asked: u16, what: &str) -> Result<Answered, Refused> {
+    loop {
+        match packet(from)? {
+            Packet::Reply {
+                sequence,
+                detail,
+                head,
+                rest,
+            } if sequence == asked => return Ok(Answered { detail, head, rest }),
+            Packet::Error { code, sequence } if sequence == asked => {
+                return Err(Refused::Failed(format!(
+                    "the X server refused to say {what}, with error {code}"
+                )));
+            }
+            Packet::Reply { .. } | Packet::Error { .. } | Packet::Event { .. } => {}
+        }
     }
 }
 
@@ -760,7 +870,9 @@ pub(crate) const fn answers_for(owner: u32, me: u32) -> bool {
 }
 
 /// A connection to the server of `display`: its socket in `/tmp`, and
-/// on Linux, where no file is at that path, the abstract socket of that name.
+/// on Linux, where no file is at that path, the abstract socket of that name;
+/// or, for a display named by its socket's path, the socket at that path
+/// ([`Display::socket`]) and nothing else.
 ///
 /// # Errors
 ///
@@ -770,10 +882,25 @@ pub(crate) const fn answers_for(owner: u32, me: u32) -> bool {
 #[cfg(unix)]
 pub(crate) fn dial(display: &Display) -> Result<Socket, Refused> {
     dial_at(
-        &display.socket(),
+        &display.socket(&absent),
         display.path.is_none(),
         rustix::process::geteuid().as_raw(),
     )
+}
+
+/// Whether the system says no file is at `path`: what decides that a display
+/// named by a path ends in a screen ([`Display::socket`]).
+///
+/// A path that could not be asked after for another reason is not absent:
+/// it is dialled whole, and refused there.
+#[cfg(unix)]
+pub(crate) fn absent(path: &str) -> bool {
+    std::fs::metadata(path).is_err_and(|error| {
+        matches!(
+            error.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+        )
+    })
 }
 
 /// A connection to the server listening at the path `socket`, for the user
@@ -885,7 +1012,7 @@ pub(crate) fn dial(display: &Display) -> Result<Socket, Refused> {
     Err(Refused::Failed(format!(
         "no X server answers at `{}`, the display `DISPLAY` names: this system has no such \
          socket",
-        display.socket()
+        display.socket(&|_| false)
     )))
 }
 
@@ -903,7 +1030,7 @@ pub(crate) mod session {
     use super::{
         AUTHORITY_BYTES_MAX, Display, KEY_PRESS, Masks, Packet, Socket, Wire, cookie, dial,
         get_input_focus, get_modifier_mapping, grab_key, grabs_answered, is_down, packet,
-        query_keymap, read_setup, setup_request, ungrab_key, ungrab_keyboard,
+        query_keymap, read_setup, reply_to, setup_request, ungrab_key, ungrab_keyboard,
     };
     use crate::leader::{OnLost, OnPress, Refused};
 
@@ -1045,12 +1172,30 @@ pub(crate) mod session {
         Some(name.trim_ascii().to_vec())
     }
 
+    /// The authorization file the environment `variable` reads names, if it
+    /// names one.
+    ///
+    /// **The one `XAUTHORITY` names, and `.Xauthority` under `HOME` only
+    /// where it names none; and a variable set to nothing names nothing.** An
+    /// empty `HOME` joined to the file's name would be a path with no root —
+    /// `.Xauthority` in whatever directory this process is in, which is
+    /// anyone's to have put there — so it names no file.
+    pub(crate) fn authority(variable: &dyn Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+        variable("XAUTHORITY")
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| {
+                variable("HOME")
+                    .filter(|home| !home.is_empty())
+                    .map(|home| PathBuf::from(home).join(".Xauthority"))
+            })
+    }
+
     /// The cookie this user's authorization file holds for `display` of the
     /// machine named `host`, if the environment `variable` reads names a file
     /// that holds one.
     ///
-    /// **The file is the one `XAUTHORITY` names, and `.Xauthority` under
-    /// `HOME` only where it names none**, and of either no more than
+    /// **The file is the one [`authority`] answers**, and no more of it than
     /// [`AUTHORITY_BYTES_MAX`] is read: a longer file is one cut short, which
     /// holds no cookie ([`cookie`]).
     pub(crate) fn cookie_in(
@@ -1058,14 +1203,7 @@ pub(crate) mod session {
         variable: &dyn Fn(&str) -> Option<OsString>,
         host: Option<&[u8]>,
     ) -> Option<Vec<u8>> {
-        let file = variable("XAUTHORITY")
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| {
-                variable("HOME")
-                    .filter(|home| !home.is_empty())
-                    .map(|home| PathBuf::from(home).join(".Xauthority"))
-            })?;
+        let file = authority(variable)?;
         let mut bytes = Vec::new();
         std::fs::File::open(file)
             .ok()?
@@ -1154,16 +1292,11 @@ pub(crate) mod session {
                 "the X server has no key numbered {keycode}, so the chord was not grabbed"
             )));
         }
-        writer
+        let asked = writer
             .send(&get_modifier_mapping())
             .map_err(|error| unsent(&error))?;
-        let Packet::Reply { detail, rest, .. } = packet(&mut reading)? else {
-            return Err(Refused::Failed(
-                "the X server did not answer with its modifier map, so the chord was not grabbed"
-                    .to_owned(),
-            ));
-        };
-        let masks = Masks::read(modifiers, detail, &rest)?;
+        let map = reply_to(&mut reading, asked, "which modifier each key is")?;
+        let masks = Masks::read(modifiers, map.detail, &map.rest)?;
         let grabs: Vec<(u32, u16, u8)> = setup
             .roots
             .iter()
@@ -1238,8 +1371,9 @@ pub(crate) mod session {
     /// **At a press everything is let go** — the keyboard the firing grab
     /// handed over, and the grabs themselves, which the server would fire
     /// again for each repeat — and the caller is told; then the server is
-    /// asked, every [`Pace::asked_every`], whether the key is still down, and
-    /// once it is not the grabs are made again ([`regrab`]).
+    /// asked, every [`Pace::asked_every`], whether the key is still down —
+    /// answered by the reply to that request and no other ([`reply_to`]) —
+    /// and once it is not the grabs are made again ([`regrab`]).
     ///
     /// # Errors
     ///
@@ -1266,18 +1400,8 @@ pub(crate) mod session {
                     .map_err(|_| gone())?
                     .send(&query_keymap())
                     .map_err(|error| unsent(&error))?;
-                let down = loop {
-                    if let Packet::Reply {
-                        sequence,
-                        head,
-                        rest,
-                        ..
-                    } = packet(reading)?
-                        && sequence == asked
-                    {
-                        break is_down(&head, &rest, keycode);
-                    }
-                };
+                let keys = reply_to(reading, asked, "which keys are down")?;
+                let down = is_down(&keys.head, &keys.rest, keycode);
                 if !down {
                     break;
                 }
@@ -1358,12 +1482,12 @@ pub(crate) mod session {
 mod tests {
     use nc_schema::keys::{Modifier, Modifiers};
 
-    use super::session::{cookie_in, host};
+    use super::session::{authority, cookie_in, host};
     use super::{
-        AUTHORITY_BYTES_MAX, BAD_ACCESS, Display, EXTRA_BYTES_MAX, GENERIC_EVENT, KEY_PRESS, Masks,
-        Packet, answers_for, cookie, get_input_focus, get_modifier_mapping, grab_key,
-        grabs_answered, is_down, keycode, packet, query_keymap, read_setup, setup_request,
-        ungrab_key, ungrab_keyboard,
+        AUTHORITY_BYTES_MAX, Answered, BAD_ACCESS, Display, EXTRA_BYTES_MAX, GENERIC_EVENT,
+        KEY_PRESS, Masks, Packet, answers_for, cookie, get_input_focus, get_modifier_mapping,
+        grab_key, grabs_answered, is_down, keycode, packet, query_keymap, read_setup, reply_to,
+        setup_request, ungrab_key, ungrab_keyboard,
     };
     use crate::leader::Refused;
 
@@ -1497,8 +1621,13 @@ mod tests {
         }
     }
 
-    /// A display is `:N`, `unix:N` or a socket's path, with a screen or none,
-    /// and its socket is the path, or the one in `/tmp` its number names.
+    /// A display is `:N` or `unix:N`, with a screen or none, whose socket is
+    /// the one in `/tmp` its number names; or a socket's path, which is the
+    /// name whole — after `unix:` or bare, a `:` in it and all — and the
+    /// first display of the server there.
+    ///
+    /// Each path is one libxcb 1.17 reads the same way, with a socket
+    /// at it.
     #[test]
     fn a_display_on_this_machine_is_read() {
         for (text, path, number, socket) in [
@@ -1507,13 +1636,71 @@ mod tests {
             ("unix:12", None, 12, "/tmp/.X11-unix/X12"),
             ("unix:12.3", None, 12, "/tmp/.X11-unix/X12"),
             (":65535", None, 65535, "/tmp/.X11-unix/X65535"),
-            ("/run/x/socket:0", Some("/run/x/socket"), 0, "/run/x/socket"),
-            ("/run/x:y/s:7.1", Some("/run/x:y/s"), 7, "/run/x:y/s"),
+            ("/run/x/socket", Some("/run/x/socket"), 0, "/run/x/socket"),
+            (
+                "unix:/run/x/socket",
+                Some("/run/x/socket"),
+                0,
+                "/run/x/socket",
+            ),
+            (
+                "/run/x/socket:0",
+                Some("/run/x/socket:0"),
+                0,
+                "/run/x/socket:0",
+            ),
+            (
+                "/private/tmp/com.apple.launchd.a1/org.xquartz:0",
+                Some("/private/tmp/com.apple.launchd.a1/org.xquartz:0"),
+                0,
+                "/private/tmp/com.apple.launchd.a1/org.xquartz:0",
+            ),
+            ("/run/x:7/s", Some("/run/x:7/s"), 0, "/run/x:7/s"),
+            ("/", Some("/"), 0, "/"),
         ] {
             let display = Display::parse(text).expect(text);
             assert_eq!(display.path.as_deref(), path, "{text}");
             assert_eq!(display.number, number, "{text}");
-            assert_eq!(display.socket(), socket, "{text}");
+            assert_eq!(
+                display.socket(&|at| at != socket),
+                socket,
+                "{text}, a socket at that path and nowhere else"
+            );
+        }
+    }
+
+    /// A display named by a path is the socket at that path, whole; a screen
+    /// is read off its end only where no file is at the whole of it and one
+    /// is at the rest.
+    ///
+    /// A display named by its number has the socket in `/tmp`, whatever is
+    /// or is not there.
+    #[test]
+    fn a_screen_is_read_off_a_path_only_where_no_file_is_at_the_whole_of_it() {
+        let socket_of = |text: &str, there: &[&str]| {
+            Display::parse(text)
+                .expect(text)
+                .socket(&|at| !there.contains(&at))
+        };
+        for (text, there, socket) in [
+            ("/run/x/s.1", &["/run/x/s"][..], "/run/x/s"),
+            ("unix:/run/x/s.12", &["/run/x/s"], "/run/x/s"),
+            ("/run/x/s.1", &["/run/x/s", "/run/x/s.1"], "/run/x/s.1"),
+            ("/run/x/s.1", &["/run/x/s.1"], "/run/x/s.1"),
+            ("/run/x/s.1", &[], "/run/x/s.1"),
+            ("/run/x/s.1.2", &["/run/x/s"], "/run/x/s.1.2"),
+            ("/run/x/s.1.2", &["/run/x/s.1"], "/run/x/s.1"),
+            ("/run/x/s.", &["/run/x/s"], "/run/x/s."),
+            ("/run/x/s.x", &["/run/x/s"], "/run/x/s.x"),
+            ("/run/x/s.1x", &["/run/x/s"], "/run/x/s.1x"),
+            ("/run/x/s.-1", &["/run/x/s"], "/run/x/s.-1"),
+            ("/run/x/s:0.1", &["/run/x/s"], "/run/x/s:0.1"),
+            ("/run/x/s:0.1", &["/run/x/s:0"], "/run/x/s:0"),
+            ("/run/x/s", &[], "/run/x/s"),
+            (":3.1", &[], "/tmp/.X11-unix/X3"),
+            (":3.1", &["/tmp/.X11-unix/X3.1"], "/tmp/.X11-unix/X3"),
+        ] {
+            assert_eq!(socket_of(text, there), socket, "{text} with {there:?}");
         }
     }
 
@@ -1539,8 +1726,14 @@ mod tests {
             "127.0.0.1:0",
             "::1:0",
             "relative/path:0",
-            "/run/x/socket",
+            "relative/path",
+            "./socket",
+            "unix:relative/path",
+            "unix:./socket",
+            "unix",
             "unix:",
+            " /run/x/socket",
+            "tcp:/run/x/socket",
         ] {
             let refused = why(Display::parse(text));
             assert!(
@@ -1717,6 +1910,56 @@ mod tests {
             None,
             "a file past the bound is read up to it, which is a file cut short"
         );
+    }
+
+    /// The authorization file is the one `XAUTHORITY` names, and the
+    /// file `.Xauthority` under `HOME` only where it names none; and a
+    /// variable set to nothing names no file.
+    ///
+    /// An empty `HOME` least of all: joined to the file's name it would be
+    /// `.Xauthority` in whatever directory this process is in. Asked of the
+    /// path itself, since a read of that file from a test's own directory
+    /// finds none there either way.
+    #[test]
+    fn the_authorization_file_is_the_one_the_environment_names() {
+        use std::path::{Path, PathBuf};
+
+        let named_by = |variables: &[(&str, &str)]| {
+            authority(&|name| {
+                variables
+                    .iter()
+                    .find(|(held, _)| *held == name)
+                    .map(|(_, value)| std::ffi::OsString::from(value))
+            })
+        };
+        assert_eq!(
+            named_by(&[("XAUTHORITY", "/run/user/1000/xauth"), ("HOME", "/home/a")]),
+            Some(PathBuf::from("/run/user/1000/xauth"))
+        );
+        for no_file_named in [
+            &[("HOME", "/home/a")][..],
+            &[("XAUTHORITY", ""), ("HOME", "/home/a")],
+        ] {
+            assert_eq!(
+                named_by(no_file_named),
+                Some(Path::new("/home/a").join(".Xauthority")),
+                "{no_file_named:?}"
+            );
+        }
+        for nothing in [
+            &[][..],
+            &[("HOME", "")],
+            &[("XAUTHORITY", ""), ("HOME", "")],
+            &[("XAUTHORITY", "")],
+            &[("USER", "a")],
+        ] {
+            assert_eq!(
+                named_by(nothing),
+                None,
+                "{nothing:?}: a variable set to nothing names no file, and never \
+                 `.Xauthority` in the directory this process is in"
+            );
+        }
     }
 
     /// This machine's name is the kernel's, where the kernel says it in the
@@ -2039,13 +2282,35 @@ mod tests {
         }
         let mut one = without(133);
         one[3 * 2 + 1] = 133;
-        for held in [both, Modifiers::of(&[Modifier::Alt])] {
+        for held in [
+            both,
+            Modifiers::of(&[Modifier::Alt]),
+            Modifiers::of(&[Modifier::Super]),
+            Modifiers::of(&[Modifier::Control, Modifier::Super]),
+        ] {
             let refused = why(Masks::read(held, 2, &one));
             assert!(
-                refused.contains("the left Super key in no modifier of its own"),
-                "{refused}"
+                refused.contains("the left Alt and the left Super keys in one modifier"),
+                "{held:?}: {refused}"
             );
         }
+        for held in [
+            Modifiers::of(&[Modifier::Control]),
+            Modifiers::of(&[Modifier::Shift]),
+            Modifiers::of(&[Modifier::Control, Modifier::Shift]),
+        ] {
+            let read = Masks::read(held, 2, &one).expect(
+                "a chord that holds neither Alt nor Super is told from every other by the \
+                 protocol's own bits, whatever modifier the map puts those two in",
+            );
+            assert_eq!(read.num_lock, Some(NUM_LOCK), "{held:?}");
+        }
+        assert_eq!(
+            Masks::read(Modifiers::of(&[Modifier::Control]), 2, &one)
+                .expect("read")
+                .chord,
+            4
+        );
         let mut locked = without(77);
         locked[3 * 2 + 1] = 77;
         assert_eq!(
@@ -2073,6 +2338,53 @@ mod tests {
         }
         let refused = why(Masks::read(both, 0, &[]));
         assert!(refused.contains("in no modifier of its own"), "{refused}");
+    }
+
+    /// The answer to a request is the reply that carries its number, read
+    /// past an event, another request's reply and another request's error.
+    ///
+    /// An error to the request itself is a refusal that names it, and a
+    /// connection that ends before the reply is one too.
+    #[test]
+    fn the_answer_to_a_request_is_the_reply_that_carries_its_number() {
+        let read = |messages: &[Vec<u8>]| reply_to(&mut &messages.concat()[..], 9, "the time");
+        let answer = Answered {
+            detail: 2,
+            head: [7; 24],
+            rest: vec![1, 2, 3, 4],
+        };
+        let the_reply = a_reply(9, 2, &[7; 24], &[1, 2, 3, 4]);
+        assert_eq!(read(core::slice::from_ref(&the_reply)), Ok(answer.clone()));
+        // `MappingNotify`, which a server sends every client when any client
+        // changes a mapping.
+        let mapping_notify = a_key_event(34, 0);
+        assert_eq!(
+            read(&[mapping_notify.clone(), the_reply.clone()]),
+            Ok(answer.clone()),
+            "an event that arrives before the reply is not the answer"
+        );
+        assert_eq!(
+            read(&[
+                a_reply(8, 0, &[], &[]),
+                a_reply(10, 5, &[1; 24], &[0; 8]),
+                an_error(BAD_ACCESS, 8),
+                an_error(2, 10),
+                mapping_notify,
+                the_reply.clone(),
+                a_reply(9, 0, &[], &[]),
+            ]),
+            Ok(answer),
+            "a reply or an error to another request is not this one's, and the first reply \
+             to this one is"
+        );
+        assert_eq!(
+            read(&[a_reply(8, 0, &[], &[]), an_error(3, 9), the_reply]),
+            Err(Refused::Failed(
+                "the X server refused to say the time, with error 3".to_owned()
+            ))
+        );
+        let refused = why(read(&[a_reply(8, 0, &[], &[]), a_reply(10, 0, &[], &[])]));
+        assert!(refused.contains("ended before its answer did"), "{refused}");
     }
 
     /// The server's answers to the grabs are read up to the reply asked for
@@ -2175,6 +2487,10 @@ pub(crate) mod served {
     /// How long a test waits for what a thread of the module's does.
     const SOON: Duration = Duration::from_secs(10);
 
+    /// The event a server sends every client when any client changes a
+    /// mapping, which no client asks for.
+    const MAPPING_NOTIFY: u8 = 34;
+
     /// One end of a connection made of two channels, which every system has.
     struct End {
         /// What the other end sent and has not been read: the channel, and
@@ -2275,6 +2591,22 @@ pub(crate) mod served {
         /// Whether it sends the key's press again before each answer that
         /// says the key is down, as a server repeating a held key does.
         repeats: bool,
+        /// What it sends that was not asked.
+        unasked: Unasked,
+    }
+
+    /// What a server written here sends that was not asked.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Unasked {
+        /// Nothing.
+        Nothing,
+        /// Before each answer that is a reply's, what is not that answer.
+        ///
+        /// Before its modifier map, the event every client is sent when
+        /// another changes a mapping and a reply to another request that
+        /// carries no map; before each answer about the keys, a reply to
+        /// another request that says every key is up.
+        Strays,
     }
 
     /// A server that accepts, has every key, and holds nothing.
@@ -2283,6 +2615,7 @@ pub(crate) mod served {
         highest: 255,
         taken: false,
         repeats: false,
+        unasked: Unasked::Nothing,
     };
 
     /// A server written here, at the other end of a [`Pipe`].
@@ -2406,7 +2739,13 @@ pub(crate) mod served {
             let opcode = request[0];
             heard.lock().expect("unpoisoned").push(request);
             match opcode {
-                119 => send(&a_reply(sequence, 2, &[], &a_modifier_map()))?,
+                119 => {
+                    if answers.unasked == Unasked::Strays {
+                        send(&a_key_event(MAPPING_NOTIFY, 0))?;
+                        send(&a_reply(sequence.wrapping_add(7), 0, &[], &[]))?;
+                    }
+                    send(&a_reply(sequence, 2, &[], &a_modifier_map()))?;
+                }
                 33 if answers.taken => send(&an_error(BAD_ACCESS, sequence))?,
                 // This thread alone counts down, as for the key below.
                 33 if taken_for.load(Ordering::SeqCst) > 0 => {
@@ -2428,6 +2767,9 @@ pub(crate) mod served {
                         if answers.repeats {
                             send(&a_key_event(KEY_PRESS, SPACE))?;
                         }
+                    }
+                    if answers.unasked == Unasked::Strays {
+                        send(&a_reply(sequence.wrapping_sub(1), 0, &[0; 24], &[0; 8]))?;
                     }
                     send(&a_reply(sequence, 0, &keys[..24], &keys[24..]))?;
                 }
@@ -2596,6 +2938,50 @@ pub(crate) mod served {
             Err(mpsc::TryRecvError::Disconnected),
             "a registration dropped is not one lost: what a loss is told to was dropped untold"
         );
+    }
+
+    /// What a server sends unasked is read past to the answer asked for.
+    ///
+    /// The modifier map is the reply to its own request, whatever event and
+    /// whatever other reply arrive before it — a registration at a session's
+    /// start, when other clients are setting the keyboard's mappings, is
+    /// sent `MappingNotify` first. And whether the key is still down is the
+    /// reply to that request: a reply to another, saying every key is up,
+    /// does not have the grabs made again while the key is down.
+    #[test]
+    fn what_a_server_sends_unasked_is_read_past_to_the_answer_asked_for() {
+        let (server, client) = Server::start(Answers {
+            unasked: Unasked::Strays,
+            ..WILLING
+        });
+        let (held, presses, lost) = grabbed_at(client, Pace::USUAL);
+        let held = held.expect(
+            "grabbed: the map is read past the event and the other request's reply before it",
+        );
+        let mut expected = the_registration();
+        assert_eq!(
+            server.heard(),
+            expected,
+            "the grabs are the ones the server's own map gives, not a stray reply's"
+        );
+        server.down_for.store(3, Ordering::SeqCst);
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses.recv_timeout(SOON).expect("the press is heard");
+        expected.extend(the_letting_go());
+        expected.extend(std::iter::repeat_n(query_keymap().to_vec(), 4));
+        expected.extend(the_registration().split_off(2));
+        assert_eq!(
+            server.heard_once(expected.len()),
+            expected,
+            "the key is asked after until the reply to that request says it is up: four times, \
+             a reply to another request that says so each time notwithstanding"
+        );
+        server.send(&a_key_event(KEY_PRESS, SPACE));
+        presses
+            .recv_timeout(SOON)
+            .expect("the grabs were made again, and the next press is heard");
+        assert_eq!(lost.try_recv(), Err(mpsc::TryRecvError::Empty));
+        drop(held);
     }
 
     /// A chord another client was granted while the key was down is asked
@@ -2906,13 +3292,11 @@ pub(crate) mod served {
         pub(super) fn dialled_as_another(display: &Display) -> Option<(u32, Result<(), Refused>)> {
             use std::os::unix::fs::MetadataExt as _;
 
-            let owner = std::fs::metadata(display.socket()).expect("a socket").uid();
-            let dialled = crate::x11::dial_at(
-                &display.socket(),
-                display.path.is_none(),
-                owner.wrapping_add(1),
-            )
-            .map(|_| ());
+            let socket = display.socket(&crate::x11::absent);
+            let owner = std::fs::metadata(&socket).expect("a socket").uid();
+            let dialled =
+                crate::x11::dial_at(&socket, display.path.is_none(), owner.wrapping_add(1))
+                    .map(|_| ());
             Some((owner, dialled))
         }
 
@@ -2921,7 +3305,7 @@ pub(crate) mod served {
         pub(super) fn not_a_text() -> OsString {
             use std::os::unix::ffi::OsStringExt as _;
 
-            OsString::from_vec(b"/nonexistent/nc-platform/\xff:0".to_vec())
+            OsString::from_vec(b"/nonexistent/nc-platform/\xff".to_vec())
         }
     }
 
@@ -2970,7 +3354,6 @@ pub(crate) mod served {
 
             let mut name: Vec<u16> = "/nonexistent/nc-platform/".encode_utf16().collect();
             name.push(0xD800);
-            name.extend(":0".encode_utf16());
             OsString::from_wide(&name)
         }
     }
@@ -3038,14 +3421,67 @@ pub(crate) mod served {
         let path = scratch.0.join("s");
         let listener = sockets::listening_at(&path);
         assert_eq!(listener.is_some(), a_socket_is_a_file());
-        let mut named = path.into_os_string();
-        named.push(":0");
         let began = Instant::now();
-        let why = failure(registered_briskly(named));
+        let why = failure(registered_briskly(path.into_os_string()));
         assert!(began.elapsed() < SOON, "refused within the bound");
         assert!(!why.starts_with("not a failure"), "{why}");
         if a_socket_is_a_file() {
             assert!(why.contains("ended before its answer did"), "{why}");
+        }
+    }
+
+    /// A display named by its socket's path is reached at that path whole,
+    /// as X's own libraries read one, and at what stands before a screen
+    /// only where no file is at the whole of it.
+    ///
+    /// The sockets here take a connection and never answer, so a display
+    /// that was reached is one whose answer ended early, and one that was
+    /// not is one nothing answers at — by the name that was dialled. Where
+    /// no socket is a file nothing is reached, and each is refused.
+    #[test]
+    fn a_display_named_by_a_path_is_reached_at_that_path_whole() {
+        let scratch = Scratch::new("whole");
+        let at = |name: &str| scratch.0.join(name).to_string_lossy().into_owned();
+        let listeners = [
+            sockets::listening_at(&scratch.0.join("s")),
+            sockets::listening_at(&scratch.0.join("t:0")),
+            sockets::listening_at(&scratch.0.join("u.2")),
+        ];
+        assert!(
+            listeners
+                .iter()
+                .all(|listener| listener.is_some() == a_socket_is_a_file())
+        );
+        for (named, reached) in [
+            (at("s"), true),
+            (format!("unix:{}", at("s")), true),
+            (at("s.1"), true),
+            (at("t:0"), true),
+            (at("t:0.3"), true),
+            (at("u.2"), true),
+            (at("s:0"), false),
+            (at("t"), false),
+            (at("u"), false),
+            (at("u.3"), false),
+            (at("s.x"), false),
+        ] {
+            let why = failure(registered_briskly(named.clone().into()));
+            assert!(!why.starts_with("not a failure"), "`{named}`: {why}");
+            if !a_socket_is_a_file() {
+                continue;
+            }
+            if reached {
+                assert!(
+                    why.contains("ended before its answer did"),
+                    "`{named}` names a socket that is there: {why}"
+                );
+            } else {
+                let whole = named.strip_prefix("unix:").unwrap_or(&named);
+                assert!(
+                    why.contains(&format!("no X server answers at `{whole}`")),
+                    "`{named}` names no socket, and is refused by its whole name: {why}"
+                );
+            }
         }
     }
 
@@ -3056,12 +3492,16 @@ pub(crate) mod served {
         let scratch = Scratch::new("named");
         let path = scratch.0.join("s");
         let _listener = sockets::listening_by_name(&path.to_string_lossy());
-        let mut named = path.into_os_string();
-        named.push(":0");
-        let why = failure(registered_briskly(named));
-        assert!(!why.starts_with("not a failure"), "{why}");
-        if a_socket_is_a_file() {
-            assert!(why.contains("no X server answers at"), "{why}");
+        for named in [
+            path.clone().into_os_string(),
+            format!("unix:{}", path.display()).into(),
+            format!("{}.1", path.display()).into(),
+        ] {
+            let why = failure(registered_briskly(named.clone()));
+            assert!(!why.starts_with("not a failure"), "{named:?}: {why}");
+            if a_socket_is_a_file() {
+                assert!(why.contains("no X server answers at"), "{named:?}: {why}");
+            }
         }
     }
 
@@ -3371,12 +3811,66 @@ pub(crate) mod served {
 
     /// Against real X servers, through [`crate::leader::register`]: what
     /// [`a_real_server_delivers_the_chord`],
-    /// [`a_real_server_grants_a_chord_held_down_and_tells_its_loss`] and
-    /// [`a_real_server_is_sent_the_cookie_of_this_users_file`] hold.
+    /// [`a_real_server_gone_is_a_loss_told_and_a_panic_in_the_telling_goes_no_further`],
+    /// [`a_real_server_grants_a_chord_held_down_and_tells_its_loss`]
+    /// and [`a_real_server_is_sent_the_cookie_of_this_users_file`] hold.
     pub(crate) fn a_real_server_grants_the_chord_hears_it_and_gives_it_back() {
         a_real_server_delivers_the_chord();
+        a_real_server_gone_is_a_loss_told_and_a_panic_in_the_telling_goes_no_further();
         a_real_server_grants_a_chord_held_down_and_tells_its_loss();
         a_real_server_is_sent_the_cookie_of_this_users_file();
+    }
+
+    /// What a panic raised in a test's function carries: it says, as it is
+    /// let go, which thread let it go.
+    struct Carried(mpsc::Sender<std::thread::ThreadId>);
+
+    impl Drop for Carried {
+        /// Says which thread this is let go on.
+        fn drop(&mut self) {
+            let _ = self.0.send(std::thread::current().id());
+        }
+    }
+
+    /// Against a real X server that goes away, the loss is told through
+    /// [`crate::leader::register`], and a panic in what it is told to goes no
+    /// further than the registration.
+    ///
+    /// **What the loss is handed to panics once it has said so**, as a
+    /// caller's function may, and what the panic carries is let go on the
+    /// thread that told the loss, while the registration is still held: the
+    /// registration caught it there. Let through, the panic would end that
+    /// thread and what it carries would be kept for whoever waits for the
+    /// thread, which is the drop of the registration — on this thread, and
+    /// not before.
+    fn a_real_server_gone_is_a_loss_told_and_a_panic_in_the_telling_goes_no_further() {
+        let (mut server, named) = a_real_server(&[]);
+        let (said, lost) = mpsc::channel();
+        let (let_go, ended) = mpsc::channel();
+        let held = crate::leader::register(
+            the_leader(),
+            &|name| (name == "DISPLAY").then(|| named.clone().into()),
+            || {},
+            move |why| {
+                let _ = said.send((why, std::thread::current().id()));
+                std::panic::resume_unwind(Box::new(Carried(let_go)));
+            },
+        )
+        .expect("a real server grants the chord");
+        let _ = server.0.kill();
+        let _ = server.0.wait();
+        let (why, told_on) = lost
+            .recv_timeout(SOON)
+            .expect("a server that went away is a loss told");
+        assert!(matches!(why, Refused::Failed(_)), "{why:?}");
+        assert_ne!(told_on, std::thread::current().id());
+        assert_eq!(
+            ended.recv_timeout(SOON),
+            Ok(told_on),
+            "the panic was caught where it was raised: what it carried was let go on the \
+             thread that told the loss, with the registration still held"
+        );
+        drop(held);
     }
 
     /// What [`register_on`] answers: the registration, the channel each press

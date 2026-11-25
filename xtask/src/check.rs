@@ -195,7 +195,7 @@ pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static
 /// a refusal on the system that stood it aside. On Linux the list is empty,
 /// which `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it`
 /// and `nothing_is_not_applicable_on_linux` hold.
-fn what_does_not_apply(stack: Stack, has: [bool; 5]) -> Vec<String> {
+fn what_does_not_apply(stack: Stack, has: [bool; 6]) -> Vec<String> {
     let mut parts: Vec<String> = the_parts_not_applicable(stack)
         .iter()
         .map(|part| (*part).to_owned())
@@ -5729,7 +5729,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 6] = [
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`]. On Linux none of these does, which
 /// `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
 /// since the Linux job is the one that runs them.
-const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 5] = [
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 6] = [
     // A directory listed in the order its entries were made, without which the
     // suite about the order on disk has two layouts in one order.
     (
@@ -5772,6 +5772,15 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 5] = [
         "skipped, not applicable on",
         1,
     ),
+    // A press of a registered hotkey that a test may send, which the part of
+    // the Leader's suite that presses it reads. `nc-platform`'s own, so named
+    // here by hand.
+    (
+        "crates/nc-platform/src/leader.rs",
+        "!crate::system::A_TEST_PRESSES_A_HOTKEY",
+        "skipped, not applicable on",
+        1,
+    ),
 ];
 
 /// Every suite a system stands aside where it lacks what the suite needs, by
@@ -5791,12 +5800,13 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 5] = [
 /// chooses it, in [`the_suites_the_system_stands_aside`], and
 /// `every_suite_a_system_stands_aside_says_so` drives that and holds what it
 /// prints to this list.
-pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 5] = [
+pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 6] = [
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
     "running the suite about leaving a session, which needs sessions of the POSIX kind",
     "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
     "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
+    "running the part of the Leader's suite that presses a registered hotkey, which needs a press a test may send",
 ];
 
 /// What this system has of what each suite of
@@ -5806,17 +5816,18 @@ pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 5] = [
 /// is the one place a system is asked what it has (`NOCTUA.md §2.7`), fixed
 /// when it is built, and each suite's guard asks the same constant, so the
 /// gate and a guard cannot disagree about which suite stood aside.
-const WHAT_THIS_SYSTEM_HAS: [bool; 5] = [
+const WHAT_THIS_SYSTEM_HAS: [bool; 6] = [
     nc_platform::system::LISTED_AS_MADE.is_some(),
     nc_platform::system::A_POSIX_SHELL,
     nc_platform::system::POSIX_SESSIONS,
     nc_platform::system::POSIX_SESSIONS,
     nc_platform::system::NAMES_REACH_BY_LINKS,
+    nc_platform::system::A_TEST_PRESSES_A_HOTKEY,
 ];
 
 /// The suites a system that has `has` stands aside, in order: each one whose
 /// need it lacks. Owned, for the reason [`what_does_not_apply`] gives.
-fn the_suites_not_applicable(has: [bool; 5]) -> Vec<String> {
+fn the_suites_not_applicable(has: [bool; 6]) -> Vec<String> {
     THE_SUITES_A_SYSTEM_STANDS_ASIDE
         .into_iter()
         .zip(has)
@@ -5833,13 +5844,14 @@ fn the_suites_not_applicable(has: [bool; 5]) -> Vec<String> {
 /// short. Its own function so a test can hand it each answer: each suite
 /// writes its sentence here, beside the answer that chooses it, and
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] writes it again for the verdict.
-fn the_suites_the_system_stands_aside(has: [bool; 5]) {
+fn the_suites_the_system_stands_aside(has: [bool; 6]) {
     let [
         listed_as_made,
         a_posix_shell,
         posix_sessions,
         daemon_sessions,
         names_reach_by_links,
+        a_test_presses_a_hotkey,
     ] = has;
     if !listed_as_made {
         ui::not_applicable(
@@ -5864,6 +5876,11 @@ fn the_suites_the_system_stands_aside(has: [bool; 5]) {
     if !names_reach_by_links {
         ui::not_applicable(
             "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
+        );
+    }
+    if !a_test_presses_a_hotkey {
+        ui::not_applicable(
+            "running the part of the Leader's suite that presses a registered hotkey, which needs a press a test may send",
         );
     }
 }
@@ -5894,7 +5911,7 @@ fn the_suites_the_system_stands_aside(has: [bool; 5]) {
 /// The names are written down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read
 /// out of the sources, as the database half of this same clause has its census
 /// and its reader.
-fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 5]) -> Vec<String> {
+fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 6]) -> Vec<String> {
     let mut caveats = Vec::new();
     if !stack.asked() {
         caveats.push("the ones that need a database".to_owned());
@@ -8019,7 +8036,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1076] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1077] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8246,6 +8263,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1076] = [
     "running the suite about leaving a session, which needs sessions of the POSIX kind",
     "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
     "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
+    "running the part of the Leader's suite that presses a registered hotkey, which needs a press a test may send",
     "the container stack, which this verb brings up and takes down",
     "not applicable here: {part}",
     "not run: {skip}",
@@ -16297,8 +16315,9 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     }
 
     /// The suites a system stands aside are the ones written down for it:
-    /// none on Linux, the suite about the order on disk on macOS, and that and
-    /// the checkout script's guards on Windows.
+    /// none on Linux; on macOS the suite about the order on disk and the part
+    /// of the Leader's suite that presses a registered hotkey; and on Windows
+    /// every one but that last.
     ///
     /// **Held per system**, as the verdict holds the stack's parts: each
     /// system's job runs this, so an answer moved on any of the three fails on
@@ -16313,12 +16332,13 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             ANNOUNCES_WHAT_THE_SYSTEM_LACKS, THE_SUITES_A_SYSTEM_STANDS_ASIDE as ASIDE,
             WHAT_THIS_SYSTEM_HAS, the_suites_not_applicable,
         };
+        let on_a_mac = [ASIDE[0], ASIDE[5]];
         let written: &[&str] = if cfg!(target_os = "linux") {
             &[]
         } else if cfg!(windows) {
-            &ASIDE
+            &ASIDE[..5]
         } else {
-            &ASIDE[..1]
+            &on_a_mac
         };
         assert_eq!(
             the_suites_not_applicable(WHAT_THIS_SYSTEM_HAS),
@@ -16326,13 +16346,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "the suites this system stands aside are not the ones written down for it"
         );
         for (has, aside) in [
-            ([true, true, true, true, true], &[][..]),
-            ([false, true, true, true, true], &ASIDE[..1]),
-            ([true, false, true, true, true], &ASIDE[1..2]),
-            ([true, true, false, true, true], &ASIDE[2..3]),
-            ([true, true, true, false, true], &ASIDE[3..4]),
-            ([true, true, true, true, false], &ASIDE[4..]),
-            ([false, false, false, false, false], &ASIDE[..]),
+            ([true, true, true, true, true, true], &[][..]),
+            ([false, true, true, true, true, true], &ASIDE[..1]),
+            ([true, false, true, true, true, true], &ASIDE[1..2]),
+            ([true, true, false, true, true, true], &ASIDE[2..3]),
+            ([true, true, true, false, true, true], &ASIDE[3..4]),
+            ([true, true, true, true, false, true], &ASIDE[4..5]),
+            ([true, true, true, true, true, false], &ASIDE[5..]),
+            ([false, false, false, false, false, false], &ASIDE[..]),
         ] {
             assert_eq!(
                 the_suites_not_applicable(has),
@@ -16365,14 +16386,16 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         };
         let _printing = crate::ui::printing();
         for has in [
-            [true, true, true, true, true],
-            [false, true, true, true, true],
-            [true, false, true, true, true],
-            [true, true, false, true, true],
-            [true, true, true, false, true],
-            [true, true, true, true, false],
-            [false, true, false, false, false],
-            [false, false, false, false, false],
+            [true, true, true, true, true, true],
+            [false, true, true, true, true, true],
+            [true, false, true, true, true, true],
+            [true, true, false, true, true, true],
+            [true, true, true, false, true, true],
+            [true, true, true, true, false, true],
+            [true, true, true, true, true, false],
+            [false, true, false, false, false, true],
+            [false, true, true, true, true, false],
+            [false, false, false, false, false, false],
         ] {
             let aside = the_suites_not_applicable(has);
             ui::forget_counts();
@@ -16429,24 +16452,25 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn the_count_line_names_what_it_leaves_out() {
         use super::{Stack, in_one_clause, what_the_count_leaves_out};
         assert!(
-            what_the_count_leaves_out(Stack::Asked, true, [true; 5]).is_empty(),
+            what_the_count_leaves_out(Stack::Asked, true, [true; 6]).is_empty(),
             "a run that left nothing out says it did"
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Offline, true, [true; 5]),
+            what_the_count_leaves_out(Stack::Offline, true, [true; 6]),
             ["the ones that need a database"]
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Asked, false, [true; 5]),
+            what_the_count_leaves_out(Stack::Asked, false, [true; 6]),
             ["the ones that need the workspace above this repository"]
         );
         for has in [
-            [false, true, true, true, true],
-            [true, false, true, true, true],
-            [true, true, false, true, true],
-            [true, true, true, false, true],
-            [true, true, true, true, false],
-            [false, false, false, false, false],
+            [false, true, true, true, true, true],
+            [true, false, true, true, true, true],
+            [true, true, false, true, true, true],
+            [true, true, true, false, true, true],
+            [true, true, true, true, false, true],
+            [true, true, true, true, true, false],
+            [false, false, false, false, false, false],
         ] {
             assert_eq!(
                 what_the_count_leaves_out(Stack::Asked, true, has),
@@ -16455,7 +16479,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                  does not say so"
             );
         }
-        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 5]);
+        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 6]);
         assert_eq!(
             in_one_clause(&every),
             "the ones that need a database, the ones that need the workspace above this \
@@ -19787,14 +19811,14 @@ mod the_frozen_path_rule {
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/leader.rs", 50, 7),
-        ("nc-platform/lib.rs", 111, 26),
+        ("nc-platform/lib.rs", 112, 26),
         ("nc-platform/macos.rs", 16, 10),
         ("nc-platform/process.rs", 46, 15),
         ("nc-platform/service.rs", 181, 21),
         ("nc-platform/testing.rs", 35, 4),
-        ("nc-platform/unix.rs", 105, 4),
-        ("nc-platform/windows.rs", 153, 15),
-        ("nc-platform/x11.rs", 199, 38),
+        ("nc-platform/unix.rs", 106, 4),
+        ("nc-platform/windows.rs", 154, 15),
+        ("nc-platform/x11.rs", 214, 39),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22625,8 +22649,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 900 scratches this tree
-    /// builds, 812 of the 900 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 901 scratches this tree
+    /// builds, 813 of the 901 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22748,7 +22772,7 @@ mod the_frozen_path_rule {
         ("nc-platform/lib.rs", 32, 32),
         ("nc-platform/process.rs", 2, 2),
         ("nc-platform/service.rs", 7, 7),
-        ("nc-platform/x11.rs", 7, 7),
+        ("nc-platform/x11.rs", 8, 8),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 9, 9),
@@ -25791,7 +25815,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22418;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22458;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25810,7 +25834,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6251;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6269;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25827,7 +25851,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2116;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2122;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25861,7 +25885,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 29608;
+    const THE_REARRANGEMENTS_JUDGED: usize = 29679;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25915,7 +25939,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 29,608 are accepted by the first-line
+    /// rules the gates apply: **519 of 29,679 are accepted by the first-line
     /// rule alone, and 273 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25948,7 +25972,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2116 of
+    /// this tree offers, **2122 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27624,6 +27648,7 @@ mod the_frozen_path_rule {
             doors,
             [
                 "A_POSIX_SHELL",
+                "A_TEST_PRESSES_A_HOTKEY",
                 "LISTED_AS_MADE",
                 "NAMES_REACH_BY_LINKS",
                 "POSIX_SESSIONS"
@@ -27649,6 +27674,10 @@ mod the_frozen_path_rule {
             (
                 "by its whole path",
                 "fn drive() { if !nc_platform::system::A_POSIX_SHELL { return; } }\n",
+            ),
+            (
+                "from inside the crate that defines it",
+                "fn drive() { if !crate::system::A_TEST_PRESSES_A_HOTKEY { return; } }\n",
             ),
         ] {
             assert!(
@@ -28642,7 +28671,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 511] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 512] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29427,6 +29456,10 @@ mod the_frozen_path_rule {
         (
             "if !names_reach_by_links",
             "running the suite about the link a name in the bin directory reaches its program by, which needs symbolic links a user may make",
+        ),
+        (
+            "if !a_test_presses_a_hotkey",
+            "running the part of the Leader's suite that presses a registered hotkey, which needs a press a test may send",
         ),
         (
             "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
@@ -38018,7 +38051,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2882] = [
+    static OPERATORS: [(&str, &str, &str); 2892] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43661,6 +43694,11 @@ Options:
             "check",
             "the_suites_the_system_stands_aside",
             "the suite about the link a name reaches its program by need not say so",
+        ),
+        (
+            "check",
+            "the_suites_the_system_stands_aside",
+            "the part of the Leader's suite that presses a hotkey need not say so",
         ),
         (
             "check",
@@ -49609,6 +49647,11 @@ Options:
             "a panic in a caller's function is caught by the registration it was handed to",
         ),
         (
+            "platform_leader",
+            "register",
+            "a panic in what a loss is told to is caught by the registration it was handed to",
+        ),
+        (
             "platform_x11",
             "parse",
             "a display on another machine is never dialled",
@@ -49617,6 +49660,26 @@ Options:
             "platform_x11",
             "parse",
             "a display's number is digits and nothing else",
+        ),
+        (
+            "platform_x11",
+            "parse",
+            "a display named by a path is its socket's path, whole",
+        ),
+        (
+            "platform_x11",
+            "socket",
+            "a path is its socket's whole where a file is at the whole of it",
+        ),
+        (
+            "platform_x11",
+            "socket",
+            "a screen is read off a path only where a file is at the rest",
+        ),
+        (
+            "platform_x11",
+            "without_screen",
+            "a screen is digits and nothing else",
         ),
         (
             "platform_x11",
@@ -49682,6 +49745,11 @@ Options:
         (
             "platform_x11",
             "read",
+            "a chord that holds neither Alt nor Super asks the map for neither",
+        ),
+        (
+            "platform_x11",
+            "read",
             "a Num Lock that is the chord's own modifier is no variant of it",
         ),
         (
@@ -49703,6 +49771,16 @@ Options:
             "platform_x11",
             "grabs_answered",
             "the reading stops at the reply asked for and no other",
+        ),
+        (
+            "platform_x11",
+            "reply_to",
+            "the answer to a request is the reply that carries its number",
+        ),
+        (
+            "platform_x11",
+            "reply_to",
+            "an error to the request itself is a refusal",
         ),
         (
             "platform_x11",
@@ -49756,19 +49834,20 @@ Options:
         ),
         (
             "platform_x11",
-            "cookie_in",
+            "authority",
             "the file `XAUTHORITY` names is the one the cookie is read from",
         ),
         (
             "platform_x11",
-            "cookie_in",
+            "authority",
             "an empty `XAUTHORITY` names no file",
         ),
         (
             "platform_x11",
-            "cookie_in",
+            "authority",
             "`.Xauthority` under `HOME` is read where no file is named",
         ),
+        ("platform_x11", "authority", "an empty `HOME` names no file"),
         (
             "platform_x11",
             "host",

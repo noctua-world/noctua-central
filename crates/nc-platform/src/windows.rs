@@ -127,6 +127,10 @@ pub(crate) const A_POSIX_SHELL: bool = false;
 /// No process here is in a session of the POSIX kind.
 pub(crate) const POSIX_SESSIONS: bool = false;
 
+/// A test posts the message Windows sends for a hotkey to the thread that
+/// registered it.
+pub(crate) const A_TEST_PRESSES_A_HOTKEY: bool = true;
+
 /// Python 3 by the name its installers give it here: `python3` is, where it
 /// is anything, the system's shortcut to its app store.
 #[cfg(any(test, feature = "test-support"))]
