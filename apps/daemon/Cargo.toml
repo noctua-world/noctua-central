@@ -70,8 +70,10 @@ nc-kernel = { workspace = true, features = ["test-support"] }
 # A stopped daemon's journal, read back where it kept it.
 nc-local = { workspace = true, features = ["test-support"] }
 # A connection a test serves in memory, its client taking one byte at a time
-# (`tokio::io::duplex`). Already in the graph with `io-util`.
-tokio = { workspace = true, features = ["io-util"] }
+# (`tokio::io::duplex`). Already in the graph with `io-util`. And a paused
+# clock a watch's waits are measured on rather than waited out
+# (`tokio::time::pause`), as `nc-ipc`'s suites take it.
+tokio = { workspace = true, features = ["io-util", "test-util"] }
 # The CLI, driven in-process against a real daemon by the suites that hold
 # every command and every exit code to what the daemon answers.
 nc-cli.workspace = true

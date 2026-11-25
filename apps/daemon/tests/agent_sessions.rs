@@ -637,10 +637,13 @@ async fn an_agent_is_held_to_its_own_rights_over_the_endpoint() {
 /// A session asks for its tools and dispatches commands, and for nothing else,
 /// and stays bound.
 ///
-/// **Refused and standing**: the registry, the status, a stop and a second
-/// session asked on a session are each `NC-DMN-0015`; the daemon still runs,
-/// its status answered on the person's connection; and the session's next
-/// dispatch is journaled as the same agent, acting for the person.
+/// **Refused and standing**: the registry, the status, a stop, a second
+/// session, a watch, a note and a display asked on a session are each
+/// `NC-DMN-0015`; the daemon still runs, its status answered on the person's
+/// connection, and holds nothing the session told it — the person's watch is
+/// answered a state that is empty, at the revision it started at; and the
+/// session's next dispatch is journaled as the same agent, acting for the
+/// person.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_session_asks_for_its_tools_and_dispatches_and_for_nothing_else_and_stays_bound() {
     let installed = Installed::new(Path::new(BINARY));
@@ -652,12 +655,37 @@ async fn a_session_asks_for_its_tools_and_dispatches_and_for_nothing_else_and_st
         Request::Status,
         Request::Stop,
         Request::Session { agent: other },
+        Request::Watch {
+            seen: None,
+            wait_ms: 0,
+        },
+        Request::Note(
+            nc_ipc::Note::new(Value::object([("draft", Value::text("an agent's"))]))
+                .expect("a note"),
+        ),
+        Request::Display(nc_ipc::Graphical::new([("DISPLAY", ":66")]).expect("an environment")),
     ] {
         refused_with(
             &asked(&mut session, request).await,
             ErrorCode::DaemonNotForASession,
         );
     }
+    let watched = asked(
+        &mut person,
+        Request::Watch {
+            seen: None,
+            wait_ms: 0,
+        },
+    )
+    .await;
+    assert_eq!(
+        watched,
+        Answer::Changed {
+            revision: 0,
+            state: Some(Value::object(Vec::<(&str, Value)>::new())),
+        },
+        "a session's note or display was held"
+    );
     match asked(&mut person, Request::Status).await {
         Answer::Status(status) => assert!(
             status.to_canonical().contains("\"state\":\"running\""),
@@ -691,8 +719,9 @@ const fn carries(answer: &Answer) -> &'static str {
         Answer::Result(_) => "what a command answered",
         Answer::Refused(_) => "a code, a kind and a sentence",
         Answer::Registry(_) | Answer::Tools(_) => "commands' entries",
-        Answer::Session | Answer::Stopping => "nothing",
+        Answer::Session | Answer::Stopping | Answer::Noted | Answer::Displayed => "nothing",
         Answer::Status(_) => "what the daemon is",
+        Answer::Changed { .. } => "a revision, and what the daemon holds of the interface",
     }
 }
 
@@ -723,9 +752,13 @@ async fn no_request_or_argument_of_a_session_presents_or_obtains_a_confirmation(
         let held = match answer {
             Answer::Result(payload) => vec![payload.clone()],
             Answer::Registry(entries) | Answer::Tools(entries) => entries.clone(),
-            Answer::Refused(_) | Answer::Session | Answer::Status(_) | Answer::Stopping => {
-                Vec::new()
-            }
+            Answer::Changed { state, .. } => state.iter().cloned().collect(),
+            Answer::Refused(_)
+            | Answer::Session
+            | Answer::Status(_)
+            | Answer::Stopping
+            | Answer::Noted
+            | Answer::Displayed => Vec::new(),
         };
         let fields: Vec<String> = held.iter().flat_map(fields_of).collect();
         assert!(

@@ -838,7 +838,7 @@ async fn status(found: &Found) -> Result<nc_canon::Value, Failure> {
                 }),
                 Err(unasked) => Err(Failure {
                     code: unasked.code(),
-                    exit: unasked.exit(),
+                    exit: client::exit_of(&unasked),
                     detail: unasked.detail(),
                 }),
             };
@@ -857,7 +857,7 @@ async fn status(found: &Found) -> Result<nc_canon::Value, Failure> {
     };
     Err(Failure {
         code: unasked.code(),
-        exit: unasked.exit(),
+        exit: client::exit_of(&unasked),
         detail: format!("{}; {said}", unasked.detail()),
     })
 }
@@ -869,8 +869,8 @@ mod tests {
 
     use super::{Recorded, Unanswered, when_unanswered};
     use crate::args::Control;
-    use crate::client::scripted::{Scratch, Script, Scripted};
     use crate::exit::Exit;
+    use nc_ipc::testing::{Scratch, Script, Scripted};
 
     /// Runs `verb` for `installed`'s install on a runtime of its own.
     fn controlled(

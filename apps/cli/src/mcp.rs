@@ -308,7 +308,7 @@ fn closes(refusal: &Refusal) -> bool {
 fn failure_of(unasked: &Unasked) -> Failure {
     Failure {
         code: unasked.code(),
-        exit: unasked.exit(),
+        exit: client::exit_of(unasked),
         detail: unasked.detail(),
     }
 }
@@ -911,9 +911,9 @@ mod tests {
 
     use super::{Engine, Heard, Lined, REVISIONS, Streams};
     use crate::client::Unasked;
-    use crate::client::scripted::{Scratch, Script, Scripted, entry};
     use crate::exit::Exit;
     use crate::render::{Env, Outcome};
+    use nc_ipc::testing::{Scratch, Script, Scripted, entry};
 
     /// An `initialize` asking for the newest revision, as a client writes one.
     const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"a client","version":"1"}}}"#;

@@ -79,6 +79,31 @@ impl Fields {
         }
     }
 
+    /// The field `key`, a count: a whole number that is not below zero.
+    fn count(&mut self, key: &str) -> Result<u64, IpcError> {
+        let kind = self.kind.clone();
+        u64::try_from(self.integer(key)?)
+            .map_err(|_| malformed(format!("a `{kind}` message whose `{key}` is below zero")))
+    }
+
+    /// The count `key`, or nothing where it is absent.
+    fn count_if_there(&mut self, key: &str) -> Result<Option<u64>, IpcError> {
+        if self.left.contains_key(key) {
+            self.count(key).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// The object field `key`, or nothing where it is absent.
+    fn object_if_there(&mut self, key: &str) -> Result<Option<Value>, IpcError> {
+        if self.left.contains_key(key) {
+            self.object(key).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// The object field `key`.
     fn object(&mut self, key: &str) -> Result<Value, IpcError> {
         match self.value(key)? {
@@ -355,6 +380,185 @@ impl State {
     }
 }
 
+/// A count as the wire writes one: a whole number, the largest JSON's
+/// integer holds where the count is past it.
+///
+/// **So a count past `i64::MAX` does not read back as itself**, and each
+/// count the protocol holds says why that loses nothing: a watch's wait is
+/// capped by the daemon at `ipc_watch_wait_ms` whatever it says, and a
+/// revision is the daemon's own count, which turns to zero after `i64::MAX`
+/// and so never passes it (`Watched` in `apps/daemon/src/server.rs`, held by
+/// `a_revision_turns_to_zero_after_the_wires_largest_integer` there). A
+/// client names as seen only a revision a daemon answered.
+fn counted(count: u64) -> Value {
+    Value::Integer(i64::try_from(count).unwrap_or(i64::MAX))
+}
+
+/// What an interface says at the rate it draws, as one object: where a page
+/// is scrolled to, what a prompt holds, what a pointer is over.
+///
+/// **Bounded where it is made and where it is read, by one rule**
+/// ([`Note::new`]): the object's canonical text is at most
+/// `ipc_note_max_bytes`, so no client sends one the daemon would refuse and
+/// no daemon reads one a client could not have made. What the object holds is
+/// its reader's to judge — the protocol reads it as a note and as nothing
+/// else: a note is journaled nowhere, dispatches nothing and confirms
+/// nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note(Value);
+
+impl Note {
+    /// The note `detail` is.
+    ///
+    /// # Errors
+    ///
+    /// [`IpcError::Malformed`] for a detail that is not one object, or whose
+    /// canonical text is longer than `ipc_note_max_bytes`.
+    pub fn new(detail: Value) -> Result<Self, IpcError> {
+        if !matches!(detail, Value::Object(_)) {
+            return Err(malformed("a note whose `detail` is not an object"));
+        }
+        let length = detail.to_canonical().len();
+        let most = nc_catalog::DAEMON.ipc_note_max_bytes;
+        if u64::try_from(length).unwrap_or(u64::MAX) > most {
+            return Err(malformed(format!(
+                "a note of {length} bytes, and `ipc_note_max_bytes` is {most}"
+            )));
+        }
+        Ok(Self(detail))
+    }
+
+    /// What the note says: one object.
+    #[must_use]
+    pub const fn detail(&self) -> &Value {
+        &self.0
+    }
+}
+
+/// The graphical environment a client announces: where a window opened for
+/// its person would be shown.
+///
+/// **A closed list of names, each value bounded and plain**
+/// ([`Graphical::new`]), made and read by one rule, so the daemon holds no
+/// environment a client of this build could not have announced, and no other
+/// variable of a client's environment reaches it by this message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Graphical(BTreeMap<&'static str, String>);
+
+impl Graphical {
+    /// Every variable an announcement may name: the X display and its
+    /// authority file, the Wayland display, and the runtime directory a
+    /// Wayland display's name is resolved in.
+    pub const NAMES: [&'static str; 4] = [
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XAUTHORITY",
+        "XDG_RUNTIME_DIR",
+    ];
+
+    /// The variables that name a display: an announcement holds one at least.
+    pub const DISPLAYS: [&'static str; 2] = ["DISPLAY", "WAYLAND_DISPLAY"];
+
+    /// The variables that hold a path, which is absolute.
+    pub const PATHS: [&'static str; 2] = ["XAUTHORITY", "XDG_RUNTIME_DIR"];
+
+    /// The environment `pairs` announce.
+    ///
+    /// **In order, the first refusal the answer**, for each pair: its name
+    /// is one of [`Graphical::NAMES`], written once; its value is not empty,
+    /// is at most `ipc_display_value_max_bytes` long, and holds no control
+    /// character — a NUL among them, which no environment can hold; and the
+    /// value of a name in [`Graphical::PATHS`] begins with `/`. Then the
+    /// whole names a display: one of [`Graphical::DISPLAYS`] at least.
+    ///
+    /// # Errors
+    ///
+    /// [`IpcError::Malformed`], saying which rule and which name.
+    pub fn new<Name, Text>(pairs: impl IntoIterator<Item = (Name, Text)>) -> Result<Self, IpcError>
+    where
+        Name: AsRef<str>,
+        Text: Into<String>,
+    {
+        let most = nc_catalog::DAEMON.ipc_display_value_max_bytes;
+        let mut held = BTreeMap::new();
+        for (name, value) in pairs {
+            let written = name.as_ref();
+            let Some(name) = Self::NAMES.into_iter().find(|name| *name == written) else {
+                return Err(malformed(format!(
+                    "an environment naming `{}`, which is none of {}",
+                    written.escape_debug(),
+                    Self::NAMES.join(", ")
+                )));
+            };
+            let value: String = value.into();
+            if value.is_empty() {
+                return Err(malformed(format!("an environment whose `{name}` is empty")));
+            }
+            if u64::try_from(value.len()).unwrap_or(u64::MAX) > most {
+                return Err(malformed(format!(
+                    "an environment whose `{name}` is {} bytes, and \
+                     `ipc_display_value_max_bytes` is {most}",
+                    value.len()
+                )));
+            }
+            if value.chars().any(char::is_control) {
+                return Err(malformed(format!(
+                    "an environment whose `{name}` holds a control character"
+                )));
+            }
+            if Self::PATHS.contains(&name) && !value.starts_with('/') {
+                return Err(malformed(format!(
+                    "an environment whose `{name}` is not an absolute path"
+                )));
+            }
+            if held.insert(name, value).is_some() {
+                return Err(malformed(format!("an environment naming `{name}` twice")));
+            }
+        }
+        if !Self::DISPLAYS.iter().any(|name| held.contains_key(name)) {
+            return Err(malformed(format!(
+                "an environment naming no display, neither {}",
+                Self::DISPLAYS.join(" nor ")
+            )));
+        }
+        Ok(Self(held))
+    }
+
+    /// The value announced for `name`, or nothing.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&str> {
+        self.0.get(name).map(String::as_str)
+    }
+
+    /// Every variable announced with its value, in the order of their names.
+    pub fn pairs(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.0.iter().map(|(name, value)| (*name, value.as_str()))
+    }
+
+    /// The object the wire writes it as: each name with its value.
+    fn as_object(&self) -> Value {
+        Value::object(self.pairs().map(|(name, value)| (name, Value::text(value))))
+    }
+
+    /// The environment the object `value` announces.
+    fn of_object(value: Value) -> Result<Self, IpcError> {
+        let fields = value
+            .into_object()
+            .ok_or_else(|| malformed("a `display` message whose `environment` is not an object"))?;
+        let mut pairs = Vec::new();
+        for (name, value) in fields {
+            let Some(value) = value.into_text() else {
+                return Err(malformed(format!(
+                    "an environment whose `{}` is not text",
+                    name.escape_debug()
+                )));
+            };
+            pairs.push((name, value));
+        }
+        Self::new(pairs)
+    }
+}
+
 /// What a client asks the daemon, one at a time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
@@ -398,6 +602,26 @@ pub enum Request {
     Status,
     /// Stop.
     Stop,
+    /// Answer once the state the daemon lets a client watch is at another
+    /// revision than `seen`, or once the wait is over.
+    ///
+    /// **The long-poll, and still one request with one answer**: the daemon
+    /// sends nothing nobody asked for, so a client that also asks other
+    /// things watches on a second connection. A watch that names no revision
+    /// has seen nothing and is answered at once.
+    Watch {
+        /// The revision of the state the client holds, or nothing where it
+        /// holds none.
+        seen: Option<u64>,
+        /// How long the client will wait, in milliseconds; the daemon waits
+        /// `ipc_watch_wait_ms` at most, whatever this says.
+        wait_ms: u64,
+    },
+    /// What an interface says at the rate it draws, which is journaled
+    /// nowhere.
+    Note(Note),
+    /// The graphical environment a window for the person would be shown in.
+    Display(Graphical),
 }
 
 /// The locale a request's `locale` field names, by its exact tag.
@@ -455,6 +679,17 @@ impl Request {
             ),
             Self::Status => message("status", Vec::new()),
             Self::Stop => message("stop", Vec::new()),
+            Self::Watch { seen, wait_ms } => {
+                let mut fields = vec![("wait_ms", counted(*wait_ms))];
+                if let Some(seen) = seen {
+                    fields.push(("seen", counted(*seen)));
+                }
+                message("watch", fields)
+            }
+            Self::Note(note) => message("note", vec![("detail", note.detail().clone())]),
+            Self::Display(environment) => {
+                message("display", vec![("environment", environment.as_object())])
+            }
         }
     }
 
@@ -477,6 +712,12 @@ impl Request {
             },
             "status" => Self::Status,
             "stop" => Self::Stop,
+            "watch" => Self::Watch {
+                seen: fields.count_if_there("seen")?,
+                wait_ms: fields.count("wait_ms")?,
+            },
+            "note" => Self::Note(Note::new(fields.value("detail")?)?),
+            "display" => Self::Display(Graphical::of_object(fields.value("environment")?)?),
             other => {
                 return Err(malformed(format!(
                     "a `{other}` message where a request is read"
@@ -571,6 +812,22 @@ pub enum Answer {
     Status(Value),
     /// The daemon is stopping.
     Stopping,
+    /// What a watch is answered: the revision the watched state is at, and
+    /// the state itself where that is not the revision the watch had seen.
+    ///
+    /// **No state is the wait being over with nothing changed**: the revision
+    /// is then the one the watch named.
+    Changed {
+        /// The revision the state is at.
+        revision: u64,
+        /// The state at that revision, as one object, or nothing where the
+        /// client holds it already.
+        state: Option<Value>,
+    },
+    /// The note was taken.
+    Noted,
+    /// The environment announced is the one the daemon holds.
+    Displayed,
 }
 
 impl Answer {
@@ -596,6 +853,15 @@ impl Answer {
             Self::Session => message("session", Vec::new()),
             Self::Status(status) => message("status", vec![("status", status.clone())]),
             Self::Stopping => message("stopping", Vec::new()),
+            Self::Changed { revision, state } => {
+                let mut fields = vec![("revision", counted(*revision))];
+                if let Some(state) = state {
+                    fields.push(("state", state.clone()));
+                }
+                message("changed", fields)
+            }
+            Self::Noted => message("noted", Vec::new()),
+            Self::Displayed => message("displayed", Vec::new()),
         }
     }
 
@@ -636,6 +902,12 @@ impl Answer {
             "session" => Self::Session,
             "status" => Self::Status(fields.object("status")?),
             "stopping" => Self::Stopping,
+            "changed" => Self::Changed {
+                revision: fields.count("revision")?,
+                state: fields.object_if_there("state")?,
+            },
+            "noted" => Self::Noted,
+            "displayed" => Self::Displayed,
             other => {
                 return Err(malformed(format!(
                     "a `{other}` message where an answer is read"
@@ -652,7 +924,7 @@ mod tests {
     use nc_canon::Value;
     use nc_catalog::Locale;
 
-    use super::{Answer, Request, message};
+    use super::{Answer, Graphical, Note, Request, message};
     use crate::IpcError;
 
     /// What a registry request written as `fields` is read back as.
@@ -807,7 +1079,9 @@ mod tests {
     /// holding a `confirmation`, a `confirmed_by_human` or an `approval` is
     /// refused as malformed, whatever it holds, so no client presents one; and
     /// every request is one of these, none of which holds anything a
-    /// confirmation could be.
+    /// confirmation could be — a watch, a note and an announced environment
+    /// each refuse the same three fields beside their own, and a note's
+    /// detail is read by nothing that dispatches.
     #[test]
     fn no_request_the_wire_reads_carries_a_confirmation() {
         for request in [
@@ -820,6 +1094,12 @@ mod tests {
             Request::Session { agent: minted() },
             Request::Status,
             Request::Stop,
+            Request::Watch {
+                seen: Some(7),
+                wait_ms: 1,
+            },
+            Request::Note(a_note()),
+            Request::Display(a_display()),
         ] {
             // Exhaustive and with no wildcard: a request added here is read
             // for what it carries before it compiles.
@@ -828,6 +1108,9 @@ mod tests {
                 Request::Registry { .. } | Request::Tools { .. } => "a locale",
                 Request::Session { .. } => "an agent",
                 Request::Status | Request::Stop => "nothing",
+                Request::Watch { .. } => "a revision seen and a wait",
+                Request::Note(_) => "what an interface draws, which nothing dispatches",
+                Request::Display(_) => "four variables of a graphical session",
             };
             let read = Request::from_value(request.to_value()).expect("read back");
             assert_eq!(read, request, "{carries}");
@@ -845,7 +1128,373 @@ mod tests {
                 &format!("a field the protocol does not read, `{field}`"),
                 field,
             );
+            for request in [
+                Request::Watch {
+                    seen: None,
+                    wait_ms: 0,
+                },
+                Request::Note(a_note()),
+                Request::Display(a_display()),
+            ] {
+                let mut written = request.to_value().into_object().expect("an object");
+                written.insert(field.to_owned(), Value::Bool(true));
+                refused_saying(
+                    Request::from_value(Value::Object(written)),
+                    &format!("a field the protocol does not read, `{field}`"),
+                    &format!("{request:?} with `{field}`"),
+                );
+            }
         }
+    }
+
+    /// A note, as an interface writes one.
+    fn a_note() -> Note {
+        Note::new(Value::object([("scroll", Value::Integer(120))])).expect("a note")
+    }
+
+    /// An environment naming an X display and its authority file.
+    fn a_display() -> Graphical {
+        Graphical::new([("DISPLAY", ":0"), ("XAUTHORITY", "/run/user/1000/xauth")])
+            .expect("an environment")
+    }
+
+    /// A watch names the revision it has seen, or none, and how long it
+    /// waits, and its answer the revision the state is at.
+    ///
+    /// **Each written one way and read back only so**: a watch that has seen
+    /// nothing writes no `seen`, and one whose `seen` or `wait_ms` is below
+    /// zero, not a whole number or missing is refused; an answer holds the
+    /// state as one object or none at all, and a revision below zero, a state
+    /// that is not an object and a field beside the two are refused.
+    #[test]
+    fn a_watch_names_the_revision_seen_and_its_answer_the_one_the_state_is_at() {
+        for (request, written) in [
+            (
+                Request::Watch {
+                    seen: None,
+                    wait_ms: 0,
+                },
+                r#"{"type":"watch","wait_ms":0}"#,
+            ),
+            (
+                Request::Watch {
+                    seen: Some(0),
+                    wait_ms: 8000,
+                },
+                r#"{"seen":0,"type":"watch","wait_ms":8000}"#,
+            ),
+            (
+                Request::Watch {
+                    seen: Some(41),
+                    wait_ms: 250,
+                },
+                r#"{"seen":41,"type":"watch","wait_ms":250}"#,
+            ),
+        ] {
+            assert_eq!(request.to_value().to_canonical(), written);
+            assert_eq!(
+                Request::from_value(request.to_value()).expect("read back"),
+                request
+            );
+        }
+        let watch = |fields: Vec<(&str, Value)>| Request::from_value(message("watch", fields));
+        for (fields, says) in [
+            (Vec::new(), "a `watch` message with no `wait_ms`"),
+            (
+                vec![("wait_ms", Value::Integer(-1))],
+                "a `watch` message whose `wait_ms` is below zero",
+            ),
+            (
+                vec![("wait_ms", Value::text("1"))],
+                "a `watch` message whose `wait_ms` is not a whole number",
+            ),
+            (
+                vec![("wait_ms", Value::Integer(1)), ("seen", Value::Integer(-1))],
+                "a `watch` message whose `seen` is below zero",
+            ),
+            (
+                vec![("wait_ms", Value::Integer(1)), ("seen", Value::Null)],
+                "a `watch` message whose `seen` is not a whole number",
+            ),
+            (
+                vec![("wait_ms", Value::Integer(1)), ("since", Value::Integer(1))],
+                "a field the protocol does not read, `since`",
+            ),
+        ] {
+            refused_saying(watch(fields.clone()), says, &format!("{fields:?}"));
+        }
+        let state = Value::object([("windows", Value::Array(Vec::new()))]);
+        for (answer, written) in [
+            (
+                Answer::Changed {
+                    revision: 42,
+                    state: Some(state.clone()),
+                },
+                r#"{"revision":42,"state":{"windows":[]},"type":"changed"}"#,
+            ),
+            (
+                Answer::Changed {
+                    revision: 41,
+                    state: None,
+                },
+                r#"{"revision":41,"type":"changed"}"#,
+            ),
+        ] {
+            assert_eq!(answer.to_value().to_canonical(), written);
+            assert_eq!(
+                Answer::from_value(answer.to_value()).expect("read back"),
+                answer
+            );
+        }
+        let changed = |fields: Vec<(&str, Value)>| Answer::from_value(message("changed", fields));
+        for (fields, says) in [
+            (Vec::new(), "a `changed` message with no `revision`"),
+            (
+                vec![("revision", Value::Integer(-1))],
+                "a `changed` message whose `revision` is below zero",
+            ),
+            (
+                vec![("revision", Value::Integer(1)), ("state", Value::Null)],
+                "a `changed` message whose `state` is not an object",
+            ),
+            (
+                vec![("revision", Value::Integer(1)), ("shell", state)],
+                "a field the protocol does not read, `shell`",
+            ),
+        ] {
+            refused_saying(changed(fields.clone()), says, &format!("{fields:?}"));
+        }
+    }
+
+    /// A count past what JSON's integer holds is written as the largest it
+    /// holds, never as a number below zero.
+    #[test]
+    fn a_count_past_the_wires_integer_is_written_as_the_largest_it_holds() {
+        assert_eq!(super::counted(0), Value::Integer(0));
+        assert_eq!(super::counted(41), Value::Integer(41));
+        assert_eq!(super::counted(u64::MAX), Value::Integer(i64::MAX));
+    }
+
+    /// A note is one object within its bound, made and read by one rule.
+    ///
+    /// **`ipc_note_max_bytes` of canonical text, exactly**: a note at the
+    /// bound is made, written and read back, and one a byte past it is
+    /// refused as it is made and as it is read off the wire; a detail that is
+    /// not an object, none at all, and a field beside it are refused; and its
+    /// answer holds nothing.
+    #[test]
+    fn a_note_is_one_object_within_its_bound_made_and_read_by_one_rule() {
+        let most = usize::try_from(nc_catalog::DAEMON.ipc_note_max_bytes).expect("a length");
+        // `{"draft":""}` is twelve bytes around the text.
+        let of = |length: usize| Value::object([("draft", Value::text("a".repeat(length - 12)))]);
+        assert_eq!(of(most).to_canonical().len(), most);
+        let note = Note::new(of(most)).expect("a note at its bound");
+        assert_eq!(note.detail(), &of(most));
+        let request = Request::Note(note);
+        assert_eq!(
+            Request::from_value(request.to_value()).expect("read back"),
+            request
+        );
+        assert_eq!(
+            Request::Note(a_note()).to_value().to_canonical(),
+            r#"{"detail":{"scroll":120},"type":"note"}"#
+        );
+        let past = format!(
+            "a note of {} bytes, and `ipc_note_max_bytes` is {most}",
+            most + 1
+        );
+        refused_saying(Note::new(of(most + 1)), &past, "made past its bound");
+        refused_saying(
+            Request::from_value(message("note", vec![("detail", of(most + 1))])),
+            &past,
+            "read past its bound",
+        );
+        for detail in [
+            Value::Array(Vec::new()),
+            Value::text("{}"),
+            Value::Null,
+            Value::Integer(1),
+        ] {
+            refused_saying(
+                Note::new(detail.clone()),
+                "a note whose `detail` is not an object",
+                &format!("{detail:?}"),
+            );
+            refused_saying(
+                Request::from_value(message("note", vec![("detail", detail.clone())])),
+                "a note whose `detail` is not an object",
+                &format!("{detail:?} on the wire"),
+            );
+        }
+        refused_saying(
+            Request::from_value(message("note", Vec::new())),
+            "a `note` message with no `detail`",
+            "no detail",
+        );
+        assert_eq!(
+            Answer::Noted.to_value().to_canonical(),
+            r#"{"type":"noted"}"#
+        );
+        assert_eq!(
+            Answer::from_value(Answer::Noted.to_value()).expect("read back"),
+            Answer::Noted
+        );
+        refused_saying(
+            Answer::from_value(message("noted", vec![("detail", of(13))])),
+            "a field the protocol does not read, `detail`",
+            "a noted answer holding a detail",
+        );
+    }
+
+    /// An announced environment names a display, by a closed list of names,
+    /// each value bounded and plain.
+    ///
+    /// **One rule where it is made and where it is read**: every name of the
+    /// list is announced and read back; a name outside it, a value empty,
+    /// past `ipc_display_value_max_bytes` by one byte, holding a NUL or
+    /// another control character, a path that is not absolute, a name
+    /// written twice and an environment naming no display are each refused,
+    /// from the constructor and off the wire alike.
+    #[test]
+    fn an_announced_environment_names_a_display_by_a_closed_list_bounded_and_plain() {
+        let all = [
+            ("DISPLAY", ":1"),
+            ("WAYLAND_DISPLAY", "wayland-1"),
+            ("XAUTHORITY", "/home/a/.Xauthority"),
+            ("XDG_RUNTIME_DIR", "/run/user/1000"),
+        ];
+        assert_eq!(all.map(|(name, _)| name), Graphical::NAMES);
+        let environment = Graphical::new(all).expect("every name announced");
+        assert_eq!(environment.pairs().collect::<Vec<_>>(), all);
+        assert_eq!(environment.get("WAYLAND_DISPLAY"), Some("wayland-1"));
+        assert_eq!(environment.get("PATH"), None);
+        let request = Request::Display(environment);
+        assert_eq!(
+            request.to_value().to_canonical(),
+            "{\"environment\":{\"DISPLAY\":\":1\",\"WAYLAND_DISPLAY\":\"wayland-1\",\
+             \"XAUTHORITY\":\"/home/a/.Xauthority\",\"XDG_RUNTIME_DIR\":\"/run/user/1000\"},\
+             \"type\":\"display\"}"
+        );
+        assert_eq!(
+            Request::from_value(request.to_value()).expect("read back"),
+            request
+        );
+        for alone in Graphical::DISPLAYS {
+            let one = Graphical::new([(alone, "a")]).expect("one display is an environment");
+            assert_eq!(one.pairs().collect::<Vec<_>>(), [(alone, "a")]);
+        }
+        let most =
+            usize::try_from(nc_catalog::DAEMON.ipc_display_value_max_bytes).expect("a length");
+        Graphical::new([("DISPLAY", "a".repeat(most))]).expect("a value at its bound");
+        let long = "a".repeat(most + 1);
+        let too_long = format!(
+            "an environment whose `DISPLAY` is {} bytes, and `ipc_display_value_max_bytes` is \
+             {most}",
+            most + 1
+        );
+        for (pairs, says) in [
+            (
+                vec![("DISPLAY", ":0"), ("LD_PRELOAD", "/tmp/a.so")],
+                "an environment naming `LD_PRELOAD`, which is none of DISPLAY, WAYLAND_DISPLAY, \
+                 XAUTHORITY, XDG_RUNTIME_DIR",
+            ),
+            (
+                vec![("display", ":0")],
+                "an environment naming `display`, which is none of",
+            ),
+            (
+                vec![("DISPLAY", "")],
+                "an environment whose `DISPLAY` is empty",
+            ),
+            (vec![("DISPLAY", long.as_str())], too_long.as_str()),
+            (
+                vec![("WAYLAND_DISPLAY", "wayland-0\0")],
+                "an environment whose `WAYLAND_DISPLAY` holds a control character",
+            ),
+            (
+                vec![("DISPLAY", ":0\n")],
+                "an environment whose `DISPLAY` holds a control character",
+            ),
+            (
+                vec![("DISPLAY", ":0"), ("XAUTHORITY", ".Xauthority")],
+                "an environment whose `XAUTHORITY` is not an absolute path",
+            ),
+            (
+                vec![("WAYLAND_DISPLAY", "wayland-0"), ("XDG_RUNTIME_DIR", "run")],
+                "an environment whose `XDG_RUNTIME_DIR` is not an absolute path",
+            ),
+            (
+                vec![("XAUTHORITY", "/a"), ("XDG_RUNTIME_DIR", "/run")],
+                "an environment naming no display, neither DISPLAY nor WAYLAND_DISPLAY",
+            ),
+            (
+                Vec::new(),
+                "an environment naming no display, neither DISPLAY nor WAYLAND_DISPLAY",
+            ),
+            (
+                vec![("DISPLAY", ":0"), ("DISPLAY", ":1")],
+                "an environment naming `DISPLAY` twice",
+            ),
+        ] {
+            refused_saying(
+                Graphical::new(pairs.clone()),
+                says,
+                &format!("{pairs:?} made"),
+            );
+            // An object names a key once, so the wire cannot write the last.
+            if pairs.len() == 2 && pairs[0].0 == pairs[1].0 {
+                continue;
+            }
+            let written = Value::object(
+                pairs
+                    .iter()
+                    .map(|(name, value)| (*name, Value::text(*value))),
+            );
+            refused_saying(
+                Request::from_value(message("display", vec![("environment", written)])),
+                says,
+                &format!("{pairs:?} read"),
+            );
+        }
+    }
+
+    /// A display message holds one object of texts, and its answer nothing.
+    ///
+    /// A value that is not text, an environment that is not an object or is
+    /// missing, and an answer holding anything are each refused.
+    #[test]
+    fn a_display_message_holds_one_object_of_texts_and_its_answer_nothing() {
+        let display = |environment: Value| {
+            Request::from_value(message("display", vec![("environment", environment)]))
+        };
+        refused_saying(
+            display(Value::object([("DISPLAY", Value::Integer(0))])),
+            "an environment whose `DISPLAY` is not text",
+            "a value that is not text",
+        );
+        refused_saying(
+            display(Value::text(":0")),
+            "a `display` message whose `environment` is not an object",
+            "an environment that is not an object",
+        );
+        refused_saying(
+            Request::from_value(message("display", Vec::new())),
+            "a `display` message with no `environment`",
+            "no environment",
+        );
+        assert_eq!(
+            Answer::Displayed.to_value().to_canonical(),
+            r#"{"type":"displayed"}"#
+        );
+        assert_eq!(
+            Answer::from_value(Answer::Displayed.to_value()).expect("read back"),
+            Answer::Displayed
+        );
+        refused_saying(
+            Answer::from_value(message("displayed", vec![("DISPLAY", Value::text(":0"))])),
+            "a field the protocol does not read, `DISPLAY`",
+            "a displayed answer holding a variable",
+        );
     }
 
     /// A registry request names its locale, read back as written, and one

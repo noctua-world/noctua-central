@@ -23,11 +23,41 @@
 //!   nothing a client did not already know and an impostor nothing at all.
 //!   The whole of it is bounded by `ipc_handshake_ms` at either end.
 //! - **Requests** ([`Request`], [`Answer`]): a dispatch, the registry, the
-//!   tools, a session, the status, or a stop, one at a time — a request
+//!   tools, a session, the status, a stop, a watch, a note, or a display, one
+//!   at a time — a request
 //!   before the last one was answered is refused, and so is an answer nobody
 //!   asked for. A dispatch is decided as the connection's principal: the
 //!   profile's person, or the agent of the session the connection opened, which
 //!   a session request names by the one spelling its identifier has.
+//! - **The watch** ([`Request::Watch`], [`Answer::Changed`]) is how a client
+//!   learns that something changed without the daemon ever sending a frame
+//!   nobody asked for: the client names the revision of the state it holds —
+//!   or none — and how long it will wait, and the daemon answers at once
+//!   where its state is at another revision, with that revision and the
+//!   state; otherwise at the first change, the same way; or once the wait is
+//!   over, with the revision alone. The daemon waits `ipc_watch_wait_ms` at
+//!   most, whatever the client names. **It is one request, so nothing else is
+//!   asked on its connection while it waits**: a client that also dispatches
+//!   holds a second connection for its watch. A revision is compared for
+//!   being another one, never for being later: it is one start's, it begins
+//!   at zero and turns to zero after the largest whole number the wire
+//!   writes, and a client holding one of a daemon that has since started
+//!   again may be holding the number the new one is at — so a client begins
+//!   each connection's watch having seen nothing
+//!   ([`client::Connection::watch`]). What the daemon serves of this, and
+//!   what the watched state holds, is its own to say
+//!   (`apps/daemon/src/server.rs`).
+//! - **A note** ([`Note`], [`Answer::Noted`]) is what an interface says at
+//!   the rate it draws — a scroll position, a prompt's draft, what a pointer
+//!   is over — as one object of `ipc_note_max_bytes` at most. It is not a
+//!   command: nothing of it is dispatched, decided or journaled. The daemon
+//!   holds the last one told, as part of what a watch is answered.
+//! - **A display** ([`Graphical`], [`Answer::Displayed`]) announces the
+//!   graphical environment a window for the person would be shown in: some of
+//!   `DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY` and `XDG_RUNTIME_DIR` and no
+//!   other name, one of the first two at least, each value at most
+//!   `ipc_display_value_max_bytes`, not empty and free of control characters,
+//!   and the two paths absolute. The daemon holds the one announced last.
 //! - **The heartbeat** ([`Client`], [`Served`]): each side pings after
 //!   `ipc_heartbeat_ms` of its own silence, while a dispatch runs as well as
 //!   between requests, and drops a peer silent for `ipc_silent_after_ms`, or
@@ -38,6 +68,35 @@
 //! code, so the other end refuses with the daemon's word rather than a closed
 //! connection. Every refusal is an [`IpcError`], which carries its code
 //! (`§15.1`).
+//!
+//! # The client ([`client`])
+//!
+//! What every program that asks a daemon shares — the CLI, and the desktop
+//! interface: the endpoint reached, the token read once its file is judged
+//! the user's alone, the handshake, the welcome held to the process the
+//! system shows and to the install's channel, and then each request with its
+//! answer held to the request's kind. [`testing`], behind `test-support`, is
+//! the scripted daemon their suites connect to.
+//!
+//! # What protocol 4 does not hold yet
+//!
+//! **Protocol 4 is unreleased while Stage 16 is built, and three messages
+//! join it under the same number**: `attach`, by which the desktop the daemon
+//! started proves it is that one, and `confirm` and `decline`, by which that
+//! desktop alone settles a call held for the person's confirmation. No build
+//! of this protocol reads them yet, and none is stubbed: until they are
+//! written, each is refused as every message no request is — malformed — and
+//! a command declared irreversible is refused as it was under protocol 3.
+//!
+//! **This is the one exception to a new message being a new number**, and
+//! `AGENTS.md` writes it beside the rule (*an IPC message*): it holds only
+//! for a protocol no release carries, and only until the Stage that builds
+//! it closes. **What it costs** is a development install whose daemon was
+//! built from an earlier commit of protocol 4 than its client: the two pass
+//! the handshake, and the daemon closes the connection at the first of the
+//! three it does not read. `cargo xtask dev --install` replaces both ends,
+//! and no released build is ever in that place — a release that carries 4
+//! carries all of it.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -66,28 +125,41 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod client;
 mod connection;
 pub mod frame;
 mod handshake;
 mod message;
+pub mod testing;
 
 pub use connection::{Client, Served};
 pub use handshake::{connect, serve};
-pub use message::{Answer, Refusal, RefusalKind, Request, State, Welcome};
+pub use message::{Answer, Graphical, Note, Refusal, RefusalKind, Request, State, Welcome};
 
 use nc_catalog::ErrorCode;
 
 /// The version of the protocol this build speaks, which each end names in its
 /// handshake and the other refuses unless it is its own.
 ///
-/// **3 since a connection may open an agent's session**, after which each
+/// **4 since a client may watch, note and announce a display**: a daemon of 3
+/// reads each of the three as malformed and closes the connection, and a
+/// client of 3 would be the one end of a channel that cannot be told what
+/// changed, so the two builds are refused at the handshake rather than break
+/// at the first watch. **What a client of 3 sees of a daemon of 4** is the
+/// refusal every other version sees, before it sends anything: the daemon's
+/// challenge names 4, the client reads that first and ends with
+/// [`IpcError::Protocol`] (`NC-IPC-0004`), saying the other end speaks
+/// version 4 and it speaks 3 — for the CLI, a connection refused, exit 10 —
+/// and a client of 4 ends the same way at a daemon of 3's challenge. A
+/// daemon handed a hello naming 3 refuses it by the same code and says so in
+/// its goodbye. `cargo xtask dev --install` replaces both.
+///
+/// (3 since a connection may open an agent's session, after which each
 /// dispatch on it is decided as the connection's principal — the session's
 /// agent — and a session asks for its tools: a client of 2 would mean a
-/// dispatch as the person on a connection the daemon decides as an agent, or
-/// read a request it does not know as malformed and close, so the two builds
-/// are refused at the handshake rather than disagree about whom a dispatch is
-/// for. (2 since the registry is asked in a locale.)
-pub const PROTOCOL: u32 = 3;
+/// dispatch as the person on a connection the daemon decides as an agent. 2
+/// since the registry is asked in a locale.)
+pub const PROTOCOL: u32 = 4;
 
 /// The secret a channel's connections are proven by: 32 bytes the daemon
 /// draws at each start, which neither end ever sends.

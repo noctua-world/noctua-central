@@ -283,6 +283,86 @@ async fn a_client_of_another_protocol_is_refused_as_that() {
     assert_eq!(goodbye, ErrorCode::IpcProtocol.code());
 }
 
+/// A client of protocol 3 is refused by a daemon of 4 at the handshake, and a
+/// client of 4 refuses a daemon of 3 at its challenge.
+///
+/// **The numbers written out**, since this is what a CLI built before the
+/// watch sees of a daemon built after it, and the other way round: the
+/// daemon's challenge names 4 before anything else is said, a hello naming 3
+/// is refused as another protocol's and told so by `NC-IPC-0004`, and a
+/// client that reads a challenge naming 3 ends there, having sent nothing but
+/// its goodbye — no hello, no proof.
+#[tokio::test(start_paused = true)]
+async fn a_client_and_a_daemon_of_protocol_3_are_refused_at_the_handshake() {
+    assert_eq!(ours(), 4, "this build speaks protocol 4");
+    let token = Token::fresh().expect("a token");
+    let welcome = welcome();
+    let (daemon, mut client) = tokio::io::duplex(1 << 12);
+    let of_three = async {
+        let challenge = frame::read(&mut client)
+            .await
+            .expect("read")
+            .expect("a challenge");
+        let hello = message(
+            "hello",
+            vec![
+                ("protocol", Value::Integer(3)),
+                ("nonce", random_hex()),
+                ("proof", random_hex()),
+            ],
+        );
+        frame::write(&mut client, &hello).await.expect("sent");
+        (challenge, the_goodbye(&mut client).await)
+    };
+    let (verdict, (challenge, goodbye)) = within("a client of protocol 3", async {
+        tokio::join!(nc_ipc::serve(daemon, &token, &welcome), of_three)
+    })
+    .await;
+    assert_eq!(field(&challenge, "protocol"), Value::Integer(4));
+    match verdict {
+        Err(refused @ IpcError::Protocol { theirs: 3 }) => {
+            assert_eq!(refused.code(), ErrorCode::IpcProtocol);
+            assert_eq!(
+                refused.to_string(),
+                format!(
+                    "[{}] the other end speaks version 3 of the protocol and this build speaks 4",
+                    ErrorCode::IpcProtocol.code()
+                )
+            );
+        }
+        other => panic!("a client of protocol 3 was {other:?}"),
+    }
+    assert_eq!(goodbye, ErrorCode::IpcProtocol.code());
+    let (mut daemon, client) = tokio::io::duplex(1 << 12);
+    let (recorded, written) = Recorded::new(client);
+    let of_three = async {
+        let challenge = message(
+            "challenge",
+            vec![("protocol", Value::Integer(3)), ("nonce", random_hex())],
+        );
+        frame::write(&mut daemon, &challenge).await.expect("sent");
+        the_goodbye(&mut daemon).await
+    };
+    let (verdict, goodbye) = within("a daemon of protocol 3", async {
+        tokio::join!(nc_ipc::connect(recorded, &token), of_three)
+    })
+    .await;
+    match verdict {
+        Err(IpcError::Protocol { theirs: 3 }) => {}
+        other => panic!("a daemon of protocol 3 was {other:?}"),
+    }
+    assert_eq!(goodbye, ErrorCode::IpcProtocol.code());
+    let bytes = written.lock().expect("the record").clone();
+    let sent = frames_of(&bytes).await;
+    assert_eq!(
+        sent.iter()
+            .map(|frame| field(frame, "type"))
+            .collect::<Vec<_>>(),
+        [Value::text("goodbye")],
+        "a client that refused a daemon's protocol sent it more than its goodbye"
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn either_end_gives_up_on_a_silent_other_at_the_handshakes_bound() {
     let bound = std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_handshake_ms);

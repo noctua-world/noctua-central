@@ -163,7 +163,7 @@ fn refused_by_the_cli(unread: &args::Unread) -> Failure {
 fn unasked(unasked: &Unasked) -> Failure {
     Failure {
         code: unasked.code(),
-        exit: unasked.exit(),
+        exit: client::exit_of(unasked),
         detail: unasked.detail(),
     }
 }
@@ -277,9 +277,9 @@ mod tests {
     use nc_ipc::{Answer, Refusal, RefusalKind, Request, Token};
     use std::io::Write as _;
 
-    use crate::client::scripted::{Scratch, Script, Scripted, entry};
     use crate::exit::Exit;
     use crate::render::Env;
+    use nc_ipc::testing::{Scratch, Script, Scripted, entry};
 
     fn argv(line: &[&str]) -> Vec<OsString> {
         line.iter().map(OsString::from).collect()

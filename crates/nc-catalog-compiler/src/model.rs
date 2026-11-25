@@ -773,6 +773,12 @@ pub struct DaemonLimits {
     pub ipc_connections_max: u32,
     /// How many agents' sessions the daemon holds open at once.
     pub sessions_max: u32,
+    /// How long a watch waits at most for what it watches to change.
+    pub ipc_watch_wait_ms: u64,
+    /// The most a note may carry, as its object's canonical text.
+    pub ipc_note_max_bytes: u64,
+    /// The most one value of an announced graphical environment may be.
+    pub ipc_display_value_max_bytes: u64,
     /// How often the daemon pumps its kernel.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds.
@@ -807,6 +813,9 @@ impl DaemonLimits {
             ipc_silent_after_ms,
             ipc_connections_max,
             sessions_max,
+            ipc_watch_wait_ms,
+            ipc_note_max_bytes,
+            ipc_display_value_max_bytes,
             pump_every_ms,
             sweep_every_ms,
             stop_drain_ms,
@@ -866,6 +875,24 @@ impl DaemonLimits {
                 unit: Unit::Count,
                 bounds: "How many agents' sessions the daemon holds open at once",
             },
+            wide(
+                "ipc_watch_wait_ms",
+                ipc_watch_wait_ms,
+                Unit::Milliseconds,
+                "How long a watch waits at most for what it watches to change",
+            ),
+            wide(
+                "ipc_note_max_bytes",
+                ipc_note_max_bytes,
+                Unit::Bytes,
+                "How much a note may carry, as its object's canonical text",
+            ),
+            wide(
+                "ipc_display_value_max_bytes",
+                ipc_display_value_max_bytes,
+                Unit::Bytes,
+                "How long one value of an announced graphical environment may be",
+            ),
             wide(
                 "pump_every_ms",
                 pump_every_ms,

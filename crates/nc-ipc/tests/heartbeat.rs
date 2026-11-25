@@ -17,7 +17,9 @@ use std::task::{Context, Poll};
 
 use nc_canon::Value;
 use nc_catalog::ErrorCode;
-use nc_ipc::{Answer, Client, IpcError, Request, Served, State, Token, Welcome, frame};
+use nc_ipc::{
+    Answer, Client, Graphical, IpcError, Note, Request, Served, State, Token, Welcome, frame,
+};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt as _};
 
 /// How long a peer may be silent: `ipc_silent_after_ms`.
@@ -601,6 +603,178 @@ async fn a_session_and_its_tools_cross_in_order() {
             "{refused}"
         ),
         other => panic!("a session answer naming an agent was read as {other:?}"),
+    }
+}
+
+/// A watch, a note and a display cross, each answered as asked, and one
+/// written by hand as the protocol does not read it is refused by the end that
+/// reads it.
+///
+/// **Through a real `serve` and `connect`**: a watch naming the revision it has
+/// seen and its wait, answered with the state at another revision and then
+/// that nothing changed; a note; and an announced environment. **By hand
+/// through the relay**: a watch with a wait below zero, a note whose detail is
+/// not an object, and a display naming a variable outside the list are each
+/// refused by the daemon's reader, the client left with a connection lost.
+#[tokio::test(start_paused = true)]
+async fn a_watch_a_note_and_a_display_cross_and_one_written_wrong_is_refused() {
+    let state = Value::object([("shown", Value::Bool(true))]);
+    let exchanges = [
+        (
+            Request::Watch {
+                seen: None,
+                wait_ms: 250,
+            },
+            Answer::Changed {
+                revision: 3,
+                state: Some(state),
+            },
+        ),
+        (
+            Request::Watch {
+                seen: Some(3),
+                wait_ms: 8_000,
+            },
+            Answer::Changed {
+                revision: 3,
+                state: None,
+            },
+        ),
+        (
+            Request::Note(
+                Note::new(Value::object([("hover", Value::text("page:1"))])).expect("a note"),
+            ),
+            Answer::Noted,
+        ),
+        (
+            Request::Display(
+                Graphical::new([
+                    ("WAYLAND_DISPLAY", "wayland-1"),
+                    ("XDG_RUNTIME_DIR", "/run/u"),
+                ])
+                .expect("an environment"),
+            ),
+            Answer::Displayed,
+        ),
+    ];
+    let (mut served, mut client) = directly().await;
+    for (request, answer) in &exchanges {
+        let (asked, ()) = within("a request of protocol 4", async {
+            tokio::join!(client.ask(request), async {
+                assert_eq!(served.next().await.expect("read"), Some(request.clone()));
+                served.answer(answer).await.expect("answered");
+            })
+        })
+        .await;
+        assert_eq!(&asked.expect("answered"), answer);
+    }
+    for (text, says) in [
+        (
+            r#"{"type":"watch","wait_ms":-1}"#,
+            "a `watch` message whose `wait_ms` is below zero",
+        ),
+        (
+            r#"{"detail":[],"type":"note"}"#,
+            "a note whose `detail` is not an object",
+        ),
+        (
+            r#"{"environment":{"DISPLAY":":0","PATH":"/bin"},"type":"display"}"#,
+            "an environment naming `PATH`, which is none of",
+        ),
+    ] {
+        let (mut served, mut client, relay) = through_a_relay().await;
+        relay.to_daemon.set(Rule::WriteTheNextAs(text));
+        let (asked, ()) = within("a request written by hand", async {
+            tokio::join!(client.ask(&Request::Status), async move {
+                match served.next().await {
+                    Err(refused @ IpcError::Malformed(_)) => {
+                        assert!(refused.to_string().contains(says), "{text}: {refused}");
+                    }
+                    other => panic!("{text} was read as {other:?}"),
+                }
+                served.close().await;
+            })
+        })
+        .await;
+        assert!(
+            matches!(asked, Err(IpcError::Lost(_))),
+            "the client of a request refused as malformed was {asked:?}"
+        );
+    }
+}
+
+/// A watch's answer holding a state that is not an object is refused by the
+/// client's reader, written by hand through the relay.
+#[tokio::test(start_paused = true)]
+async fn a_watchs_answer_whose_state_is_not_an_object_is_refused_by_the_client() {
+    let (mut served, mut client, relay) = through_a_relay().await;
+    relay.to_client.set(Rule::WriteTheNextAs(
+        r#"{"revision":4,"state":[],"type":"changed"}"#,
+    ));
+    let watch = &Request::Watch {
+        seen: None,
+        wait_ms: 250,
+    };
+    let (asked, ()) = within("a watch's answer written by hand", async {
+        tokio::join!(client.ask(watch), async {
+            served.next().await.expect("read").expect("a request");
+            served.answer(&Answer::Noted).await.expect("answered");
+        })
+    })
+    .await;
+    match asked {
+        Err(refused @ IpcError::Malformed(_)) => assert!(
+            refused
+                .to_string()
+                .contains("a `changed` message whose `state` is not an object"),
+            "{refused}"
+        ),
+        other => panic!("a state that is not an object was read as {other:?}"),
+    }
+}
+
+/// A note at its bound, and an environment naming every variable at its
+/// bound, each cross in one frame.
+///
+/// **In the bytes JSON doubles**: every value of the environment is
+/// backslashes, a path's first byte apart, so the frame is as long as an
+/// environment within its bounds can make one — which the catalog's compiler
+/// holds below `ipc_frame_max_bytes` and this sends.
+#[tokio::test(start_paused = true)]
+async fn a_note_and_an_environment_at_every_bound_cross_in_one_frame() {
+    let note = usize::try_from(nc_catalog::DAEMON.ipc_note_max_bytes).expect("a length");
+    let value = usize::try_from(nc_catalog::DAEMON.ipc_display_value_max_bytes).expect("a length");
+    // `{"draft":""}` is twelve bytes around the text.
+    let longest = Note::new(Value::object([(
+        "draft",
+        Value::text("a".repeat(note - 12)),
+    )]))
+    .expect("a note at its bound");
+    let doubled = "\\".repeat(value);
+    let path = format!("/{}", "\\".repeat(value - 1));
+    let widest = Graphical::new(Graphical::NAMES.map(|name| {
+        let value = if Graphical::PATHS.contains(&name) {
+            path.as_str()
+        } else {
+            doubled.as_str()
+        };
+        (name, value)
+    }))
+    .expect("every variable at its bound");
+    assert_eq!(widest.pairs().count(), Graphical::NAMES.len());
+    let (mut served, mut client) = directly().await;
+    for (request, answer) in [
+        (Request::Note(longest), Answer::Noted),
+        (Request::Display(widest), Answer::Displayed),
+    ] {
+        let (asked, ()) = within("a message at its bound", async {
+            tokio::join!(client.ask(&request), async {
+                assert_eq!(served.next().await.expect("read"), Some(request.clone()));
+                served.answer(&answer).await.expect("answered");
+            })
+        })
+        .await;
+        assert_eq!(asked.expect("answered"), answer);
     }
 }
 

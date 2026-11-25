@@ -598,7 +598,9 @@ and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, how th
 Leader reaches a process, `leader.rs`, and the X server's half of it, `x11.rs`, the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
-`message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
+`message.rs`, `handshake.rs` and `connection.rs`, the client every program asks a
+daemon through, its `client.rs`, and the scripted daemon that client's suites
+connect to, its `testing.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, a
 person's keybinding configuration and the other channels' read beside it,
 its `keys.rs`, the development checkouts installed beside an install, its

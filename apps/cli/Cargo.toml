@@ -62,6 +62,9 @@ crossterm.workspace = true
 nc-cli = { path = "." }
 # The doors a test stages a token another account can reach through.
 nc-platform = { workspace = true, features = ["test-support"] }
+# The scratch install and the scripted daemon this crate's tests connect to,
+# so none of them starts a daemon process.
+nc-ipc = { workspace = true, features = ["test-support"] }
 # The reference plugin's command table, whose every schema a command line is
 # read into: its host half, which holds no kernel.
 nc-plugin-reference.workspace = true

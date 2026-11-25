@@ -2,7 +2,9 @@
 //! §11.1`): the registry of its kernel and the plugins installed in its
 //! profile, its status, every dispatch decided by the kernel and journaled,
 //! the agents its person made held again by the next start and let in over an
-//! agent's session, the pump and the sweep on their schedule, one daemon to a
+//! agent's session, a watch answered when another connection tells a note or
+//! a display and nothing of either kept past a stop, the pump and the sweep on
+//! their schedule, one daemon to a
 //! profile, none of its spawner's handles held, a session of its own, and a
 //! stop that leaves nothing of the run.
 //!
@@ -571,6 +573,131 @@ async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() 
     assert_eq!(
         all.to_canonical(),
         format!(r#"{{"agent":"{agent}","ended":["{renewed}"]}}"#)
+    );
+    stopped(&mut client, &mut again).await;
+}
+
+/// What `answer` is when it is a watch's: its revision and its state.
+fn changed(answer: Answer) -> (u64, Option<Value>) {
+    match answer {
+        Answer::Changed { revision, state } => (revision, state),
+        other => panic!("a watch was answered with {other:?}"),
+    }
+}
+
+/// A real daemon answers a watch when another connection tells it a note or a
+/// display, refuses the watch that waits when it is stopped, and keeps nothing
+/// of either past the stop.
+///
+/// **Two connections of the person's**: the first watch is answered an empty
+/// state at revision zero; a display and a note told on the other connection
+/// are both in the next answer; a watch waiting the whole bound is answered
+/// when another note is told, with that note; one waiting when a stop is
+/// asked on the other connection is refused as stopping (`NC-DMN-0010`), and
+/// the daemon ends well without waiting the watch out. **That the watch was
+/// waiting is given time, not observed**: one that reached the daemon only
+/// after the stop finds its connection closed between two requests, and is
+/// lost unanswered, which this test takes as well — the refusal of a watch
+/// known to be waiting is the server's own test. **Nothing told was
+/// journaled**: the stopped daemon's journal holds no entry. And the daemon
+/// started again answers a watch that names the old revision with its own
+/// state, empty, at revision zero — another revision, and nothing kept.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_past_a_stop() {
+    use nc_journal::Store as _;
+    let installed = Installed::new(Path::new(BINARY));
+    let mut daemon = installed.spawn();
+    let (mut watcher, _) = daemon.connected().await;
+    let (mut teller, _) = daemon.connected().await;
+    once(&mut watcher, runs).await;
+    let most = nc_catalog::DAEMON.ipc_watch_wait_ms;
+    let watch = |seen: Option<u64>| Request::Watch {
+        seen,
+        wait_ms: most,
+    };
+    let empty = || Value::object(Vec::<(&str, Value)>::new());
+    let note = |draft: &str| {
+        nc_ipc::Note::new(Value::object([("draft", Value::text(draft))])).expect("a note")
+    };
+    let held = |draft: &str| {
+        Value::object([
+            (
+                "display",
+                Value::object([
+                    ("DISPLAY", Value::text(":7")),
+                    ("XAUTHORITY", Value::text("/run/user/1000/xauth")),
+                ]),
+            ),
+            ("note", Value::object([("draft", Value::text(draft))])),
+        ])
+    };
+    assert_eq!(
+        changed(asked(&mut watcher, watch(None)).await),
+        (0, Some(empty()))
+    );
+    let display =
+        nc_ipc::Graphical::new([("DISPLAY", ":7"), ("XAUTHORITY", "/run/user/1000/xauth")])
+            .expect("an environment");
+    assert_eq!(
+        asked(&mut teller, Request::Display(display)).await,
+        Answer::Displayed
+    );
+    assert_eq!(
+        asked(&mut teller, Request::Note(note("a"))).await,
+        Answer::Noted
+    );
+    assert_eq!(
+        changed(asked(&mut watcher, watch(Some(0))).await),
+        (2, Some(held("a")))
+    );
+    let (heard, noted) = tokio::join!(
+        asked(&mut watcher, watch(Some(2))),
+        asked(&mut teller, Request::Note(note("b")))
+    );
+    assert_eq!(noted, Answer::Noted);
+    assert_eq!(changed(heard), (3, Some(held("b"))));
+    let request = watch(Some(3));
+    let (heard, stopping) = tokio::join!(
+        tokio::time::timeout(PATIENCE, watcher.ask(&request)),
+        async {
+            // Time for the watch to reach the daemon and wait there, which
+            // nothing the daemon answers tells this test it did.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            asked(&mut teller, Request::Stop).await
+        }
+    );
+    assert_eq!(stopping, Answer::Stopping);
+    // Refused as stopping when the watch was waiting, which is what that
+    // time is for. On a machine that kept the watch back past it, the stop
+    // found the watcher's connection between two requests and closed it, so
+    // the watch is lost unanswered: the other outcome of a stop, and not this
+    // test's to refuse. A watch waited out would be answered that nothing
+    // changed, and is neither.
+    match heard.expect("the watch ended in time") {
+        Ok(Answer::Refused(refusal)) => assert_eq!(refusal.code, ErrorCode::DaemonStopping),
+        Err(nc_ipc::IpcError::Lost(_)) => {}
+        other => panic!("a watch asked as a stop was asked ended with {other:?}"),
+    }
+    assert_eq!(daemon.ended().await, Some(0), "the daemon did not end well");
+    let store = nc_local::LocalStore::open(&installed.layout.data)
+        .await
+        .expect("the stopped daemon's database opens");
+    let read = store.journal().from(0).await.expect("the journal reads");
+    store.close().await;
+    assert!(
+        read.entries.is_empty(),
+        "a watch, a note or a display was journaled: {:?}",
+        read.entries
+            .iter()
+            .map(|entry| &entry.record.action)
+            .collect::<Vec<_>>()
+    );
+    let mut again = installed.spawn();
+    let (mut client, _) = again.connected().await;
+    once(&mut client, runs).await;
+    assert_eq!(
+        changed(asked(&mut client, watch(Some(3))).await),
+        (0, Some(empty()))
     );
     stopped(&mut client, &mut again).await;
 }
