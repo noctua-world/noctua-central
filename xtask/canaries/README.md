@@ -594,7 +594,8 @@ which builds that plugin into what the kernel loads, the local database's
 `journal.rs`, and the agents a person made with their grants, `agents.rs`,
 what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
-and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, the program a service manager is told to
+and the test doors `testing.rs` — the clipboard's tool, `clipboard.rs`, how the
+Leader reaches a process, `leader.rs`, and the X server's half of it, `x11.rs`, the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,

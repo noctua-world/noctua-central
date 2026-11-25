@@ -30,6 +30,15 @@
 //! runs as with no private directory at hand ([`this_user`]). This crate is
 //! what they need, and no more.
 //!
+//! **And the Leader's delivery** ([`leader`]): which way the one chord that
+//! reaches the interface from anywhere reaches this process in the session it
+//! runs in — a hotkey the system registers, or a binding of the compositor's —
+//! and the registration where there is one. The X server's is this crate's own
+//! client of the protocol, in safe Rust (`x11.rs`); Windows' is in
+//! `windows.rs` and macOS's in `macos.rs`, which holds nothing else. Every
+//! decision of the three — which key, which modifiers, what a refusal means —
+//! is made in [`leader`], compiled on every system.
+//!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
 //! definition written in the format the manager reads, and the manager's tool
@@ -75,9 +84,9 @@
 //! local database and the blobs keep: what is created is created private in
 //! one call, with no moment in which it is anybody else's, and what is found
 //! is refused unless it already is. **`unsafe` is written here and nowhere
-//! else in this tree**, in `windows.rs` alone, each block beside the reason
-//! every pointer it hands the system is valid and where what the system
-//! allocated is freed.
+//! else in this tree**, in `windows.rs` and `macos.rs` alone, each block
+//! beside the reason every pointer it hands the system is valid and where
+//! what the system allocated is freed.
 //!
 //! # What it does not
 //!
@@ -99,20 +108,36 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod clipboard;
+pub mod leader;
 pub mod service;
 pub mod testing;
 mod unix;
-// **The one module of this tree that writes `unsafe`**, and the one place it
-// is allowed: the Win32 security calls take and hand back raw pointers, and
-// `windows-sys` declares each of them `unsafe`. Every block in it carries a
-// `// SAFETY:` comment, and the gate that refuses `unsafe` everywhere else
-// names this file as its one exception.
+// **One of the two modules of this tree that write `unsafe`**, and one of
+// the two places it is allowed: the Win32 security calls take and hand back
+// raw pointers, and `windows-sys` declares each of them `unsafe`. Every block
+// in it carries a `// SAFETY:` comment, and the gate that refuses `unsafe`
+// everywhere else names this file and `macos.rs` as its two exceptions.
 #[allow(
     unsafe_code,
     reason = "the Win32 security calls are `unsafe` to make, and this module is where they are \
               made; each block says why its pointers are valid and what it frees"
 )]
 mod windows;
+// **The other module that writes `unsafe`, and there is no third**: Carbon's
+// hotkey calls are C functions this module declares itself, which makes each
+// call `unsafe`. Admitted exactly as the Windows half is, by this one
+// attribute, and named beside it in the gate that refuses `unsafe` everywhere
+// else.
+#[allow(
+    unsafe_code,
+    reason = "Carbon's hotkey calls are `unsafe` to make, and this module is where they are \
+              made; each block says why its pointers are valid and what it frees"
+)]
+mod macos;
+// The X server's half of the Leader, in safe Rust. Compiled on every system,
+// so each system's job runs its tests; asked only where a session may be
+// X's, which is every Unix but macOS.
+mod x11;
 
 /// The endpoint a daemon is reached through: a socket or a pipe, this user's alone.
 pub mod ipc;
@@ -318,6 +343,19 @@ pub mod system {
     /// there makes one. It says so in its own output, by the system's name,
     /// and the Linux and macOS jobs run it.
     pub const NAMES_REACH_BY_LINKS: bool = matches!(crate::REACH, crate::Reach::Link);
+
+    /// Whether a test here may send the press of a hotkey the system
+    /// registered ([`crate::leader`]): false on macOS.
+    ///
+    /// **What the part of the Leader's suite that presses it stands aside
+    /// for where it is false.** On Linux a test presses the chord on an X
+    /// server of its own, and on Windows it posts the hotkey's message to
+    /// the registration's own thread; on macOS a press is the system's alone
+    /// to send — a key posted there needs a permission of the person's that
+    /// no runner holds — so the press, and the refusal of a chord held, are
+    /// not asked there. The suite says so in its own output, by the system's
+    /// name, and the Linux and Windows jobs ask them.
+    pub const A_TEST_PRESSES_A_HOTKEY: bool = crate::imp::A_TEST_PRESSES_A_HOTKEY;
 }
 
 /// Whether [`sync_directory`] syncs anything here, and so can fail.
@@ -1184,18 +1222,19 @@ mod tests {
     #[test]
     fn linux_lacks_nothing_a_suite_stands_aside_for() {
         let expected = if cfg!(target_os = "linux") {
-            (Some("/dev/shm"), true, true, true)
+            (Some("/dev/shm"), true, true, true, true)
         } else if cfg!(windows) {
-            (None, false, false, false)
+            (None, false, false, false, true)
         } else {
-            (None, true, true, true)
+            (None, true, true, true, false)
         };
         assert_eq!(
             (
                 super::system::LISTED_AS_MADE,
                 super::system::A_POSIX_SHELL,
                 super::system::POSIX_SESSIONS,
-                super::system::NAMES_REACH_BY_LINKS
+                super::system::NAMES_REACH_BY_LINKS,
+                super::system::A_TEST_PRESSES_A_HOTKEY
             ),
             expected,
             "what this system lacks for a suite is not what it is written to lack"
@@ -2424,6 +2463,11 @@ mod tests {
     ///
     /// **Run, not read for a bit**: this test binary is copied into one and
     /// started, which is what an installer's copy of the daemon is for.
+    ///
+    /// **Asked again**, for a bounded time, while the file just written is
+    /// busy: a child another test's thread started in between holds a copy of
+    /// the handle it was written through until that child is the program it
+    /// was started for, and the system runs no file something may still write.
     #[test]
     #[expect(
         clippy::disallowed_methods,
@@ -2443,13 +2487,24 @@ mod tests {
         .expect("written");
         drop(made);
         judge(&path, Kind::File, &user).expect("its owner's alone");
-        let ran = std::process::Command::new(&path)
-            .args(["--exact", "no::such::test"])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .expect("the copy runs");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let ran = loop {
+            let ran = std::process::Command::new(&path)
+                .args(["--exact", "no::such::test"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            match ran {
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::ExecutableFileBusy
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                ran => break ran.expect("the copy runs"),
+            }
+        };
         assert!(ran.success(), "{ran:?}");
         assert_eq!(
             super::create_private_executable(&path)
