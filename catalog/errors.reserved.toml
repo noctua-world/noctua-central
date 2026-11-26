@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "3a9076f2fc0f825ed0156bb0a801e3015670689331061186750f4c7b023d36da"
-count = 171
+checksum = "99c8f82146bc4209f6883f54f16b5c4a93a329fe3c27b1fdd5c2028c0ef43a41"
+count = 176
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -53,6 +53,9 @@ count = 171
 "NC-CHAN-0017" = "error.channel.keybindings-unjudged — error — retryable:false — params:[] — Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands"
 "NC-CHAN-0018" = "error.channel.key-the-system-uses — warning — retryable:false — params:[] — A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so"
 "NC-CHAN-0019" = "error.channel.key-unpressable — warning — retryable:false — params:[] — A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
+"NC-CHAN-0020" = "error.channel.leader-taken — warning — retryable:true — params:[] — Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
+"NC-CHAN-0021" = "error.channel.leader-no-session — warning — retryable:false — params:[] — The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
+"NC-CHAN-0022" = "error.channel.leader-unregistered — error — retryable:true — params:[] — The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
 "NC-CLI-0001" = "error.cli.command-line-unreadable — warning — retryable:false — params:[] — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
 "NC-CLI-0002" = "error.cli.token-not-private — critical — retryable:false — params:[] — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
 "NC-CLI-0003" = "error.cli.token-unreadable — error — retryable:true — params:[] — The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"
@@ -153,6 +156,8 @@ count = 171
 "NC-KERN-0024" = "error.kernel.compensation-ungranted — warning — retryable:false — params:[] — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
 "NC-KERN-0025" = "error.kernel.only-at-the-top — warning — retryable:false — params:[] — A command that switches a setting or makes, grants or ends an agent was dispatched from inside another command, where only a person's own call may run it"
 "NC-KERN-0026" = "error.kernel.compensation-for-an-agent — warning — retryable:false — params:[] — A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
+"NC-KERN-0027" = "error.kernel.shell-unknown — warning — retryable:false — params:[] — A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
+"NC-KERN-0028" = "error.kernel.shell-full — warning — retryable:false — params:[] — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
 "NC-LOG-0001" = "error.log.unreachable — warning — retryable:true — params:[] — The central log store did not accept a batch"
 "NC-LOG-0002" = "error.log.dropped — warning — retryable:false — params:[] — Log events were dropped because the queue was full"
 "NC-PLUG-0001" = "error.plugin.capability-denied — warning — retryable:false — params:[] — A plugin called a host function of a capability its manifest was not granted"

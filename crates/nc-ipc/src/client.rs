@@ -450,7 +450,9 @@ impl Connection {
     }
 
     /// Tells the daemon `note`: what an interface says at the rate it draws,
-    /// which is dispatched, decided and journaled nowhere.
+    /// which is dispatched and journaled nowhere — the daemon's kernel applies
+    /// it to the interface's state whole or not at all, each fact decided as
+    /// its command would be.
     ///
     /// # Errors
     ///

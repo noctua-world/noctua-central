@@ -59,11 +59,12 @@ pub(crate) const MCP_SET: &str = "settings.mcp.set";
 /// Whether MCP is on: the one field of MCP's setting.
 const ON: &str = "on";
 
-/// The holder the kernel keeps its settings under in the store.
+/// The holder the kernel keeps its settings under in the store: the store's
+/// own name for the kernel's holder.
 ///
 /// Never a plugin's identity, which is `<word>:<word>`, so no plugin reads or
 /// writes it.
-pub(crate) const HOLDER: &str = "kernel";
+pub(crate) const HOLDER: &str = nc_local::KERNEL;
 
 /// The key MCP's setting is kept under.
 const MCP: &str = "settings.mcp";

@@ -244,8 +244,8 @@ pub(crate) struct Ambient {
 }
 
 /// What a call tree puts off until it is kept: the events published in it,
-/// the timers set in it, the armed timers it cancels and what it did to the
-/// surfaces.
+/// the timers set in it, the armed timers it cancels, what it did to the
+/// surfaces and the interface's state it left.
 ///
 /// **A unit's, and a tree's that holds no unit.** A command that changes
 /// state holds what it puts off in its unit, kept with it; a tree that only
@@ -268,11 +268,15 @@ pub(crate) struct Later {
     /// What was done to the surfaces, in the order it was done, shown once
     /// it is released.
     shown: Vec<Shown>,
+    /// The interface's state as the tree left it, the kernel's once it is
+    /// released (`crate::shell`).
+    shell: Option<crate::shell::Held>,
     /// How often it was told to hold something for later.
     ///
-    /// Each event published, timer set, timer taken back, cancel held and
-    /// change to a surface counts once, and the count never goes back, so a frame that failed
-    /// having held anything is told from one that held nothing, as a write is.
+    /// Each event published, timer set, timer taken back, cancel held,
+    /// change to a surface and state of the interface counts once, and the
+    /// count never goes back, so a frame that failed having held anything is
+    /// told from one that held nothing, as a write is.
     held: u64,
 }
 
@@ -340,6 +344,24 @@ impl Later {
         self.held = self.held.saturating_add(1);
     }
 
+    /// The interface's state it holds, the newest the tree left.
+    pub(crate) const fn shell_held(&self) -> Option<&crate::shell::Held> {
+        self.shell.as_ref()
+    }
+
+    /// Holds `held`, the interface's state as a command left it, in place of
+    /// any it held, until it is released.
+    pub(crate) fn hold_shell(&mut self, held: crate::shell::Held) {
+        self.shell = Some(held);
+        self.held = self.held.saturating_add(1);
+    }
+
+    /// Takes out the interface's state it holds, which is then released by
+    /// whoever took it, or by nobody.
+    pub(crate) const fn shell_taken(&mut self) -> Option<crate::shell::Held> {
+        self.shell.take()
+    }
+
     /// Holds the cancel of the armed timer `id` until it is released,
     /// answering whether it was not held already.
     pub(crate) fn cancel_timer(&mut self, id: u64) -> bool {
@@ -353,7 +375,8 @@ impl Later {
 
     /// Releases what it holds: its events reach the event queue, in the order
     /// published, its timers are armed and cancelled as they were set and
-    /// cancelled, and what it did to the surfaces is shown, in the order done.
+    /// cancelled, what it did to the surfaces is shown, in the order done, and
+    /// the interface's state it holds becomes the kernel's.
     ///
     /// **No bound is asked again here.** Each event and timer was counted
     /// against its bound as already queued or armed when it was held, and no
@@ -376,6 +399,10 @@ impl Later {
         let mut surfaces = crate::dispatch::lock(&shared.surfaces);
         for shown in self.shown {
             surfaces.shown(shown);
+        }
+        drop(surfaces);
+        if let Some(held) = self.shell {
+            crate::shell::released(shared, held);
         }
     }
 }

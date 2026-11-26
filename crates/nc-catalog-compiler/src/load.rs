@@ -788,6 +788,7 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_rate_limits(limits, text, problems);
     check_kernel_nonzero(&limits.kernel, text, problems);
     check_kernel(&limits.kernel, text, problems);
+    check_kernel_interface(&limits.kernel, text, problems);
     check_daemon(limits.daemon, text, problems);
     check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
     check_daemon_interface(limits.daemon, text, problems);
@@ -1293,6 +1294,47 @@ fn check_kernel(kernel: &KernelLimits, text: &str, problems: &mut Vec<Problem>) 
              kernel accepts the arguments of and can never queue. Make `event_queue_bytes` \
              no smaller than their sum",
             "event-queue-smaller-than-an-event",
+        ),
+    ];
+    for (holds, what, fix, check) in relations {
+        if !holds {
+            push(problems, "catalog/limits.toml", line, what, fix, check);
+        }
+    }
+}
+
+/// The interface's limits that bound each other do (`crates/nc-kernel/src/
+/// shell.rs`), checked as [`check_kernel`] checks the rest: a drawer allowed
+/// half the height it shares or more is one as tall as the workspace area it
+/// is always shorter than, and a drawer allowed more pages than the interface
+/// holds is a bound the interface's own refuses first. The kernel asserts both
+/// again where it reads them, at compile time.
+fn check_kernel_interface(kernel: &KernelLimits, text: &str, problems: &mut Vec<Problem>) {
+    let line = line_of(text, "[kernel]", 1);
+    let relations = [
+        (
+            kernel.shell_drawer_share_max < 50,
+            format!(
+                "`[kernel] shell_drawer_share_max` is {}, so the drawer may take half the \
+                 height it shares with the workspace area or more",
+                kernel.shell_drawer_share_max
+            ),
+            "the drawer is always shorter than the workspace area (NOCTUA.md §12.11), and a \
+             share of half or more is a drawer as tall as it or taller. Make \
+             `shell_drawer_share_max` 49 or less",
+            "drawer-share-half-or-more",
+        ),
+        (
+            kernel.shell_drawer_pages_max <= kernel.shell_pages_max,
+            format!(
+                "`[kernel] shell_drawer_pages_max` is {} and `shell_pages_max` is {}, so the \
+                 drawer may hold more pages than the interface does",
+                kernel.shell_drawer_pages_max, kernel.shell_pages_max
+            ),
+            "every page in the drawer is one of the interface's pages, so a drawer allowed \
+             more than the interface is a bound the interface's own refuses first. Make \
+             `shell_drawer_pages_max` no larger than `shell_pages_max`",
+            "drawer-pages-past-the-pages",
         ),
     ];
     for (holds, what, fix, check) in relations {

@@ -800,11 +800,98 @@ fn said_installed(installed: &nc_cli::install::Installed) -> Result<(), String> 
             None => {}
         }
     }
+    let variable = |name: &str| std::env::var_os(name);
+    if let Some(Said::ToDo(said)) = leader_said(
+        &nc_platform::leader::delivery(&variable),
+        std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref(),
+        &installed.cli,
+        nc_channel::keys::effective(&installed.found).leader,
+    ) {
+        ui::warn(&said);
+    }
     ui::detail(&format!(
         "`{cli} stop` stops the daemon and keeps it down, whatever restores it, until \
          `{cli} start`; `{cli} help` lists every command"
     ));
     Ok(())
+}
+
+/// What `dev --install` says of the Leader, in a session whose delivery is
+/// `delivery` and whose desktop is `desktop` (`XDG_CURRENT_DESKTOP`), for the
+/// CLI installed at `cli` and the channel's Leader in force, `leader`.
+///
+/// **The line to add, and nothing edited** (`NOCTUA.md §12.8`): where a
+/// compositor's binding delivers the Leader — a Wayland session — it is one
+/// line of that compositor's own configuration running `<cli> leader` on the
+/// Leader, and an install of a development checkout changes no file of the
+/// person's desktop; so it is said, as lingering's command is. **In niri's
+/// syntax** where the session's desktop is niri, the one compositor whose own
+/// documentation this was written from; elsewhere the chord and the command
+/// to bind. A shell that names no session is told the same, for its Wayland
+/// sessions. A session the system registers a hotkey in says nothing here:
+/// the process that asks for it says what came of it (`nc_ipc::leader`).
+fn leader_said(
+    delivery: &Result<nc_platform::leader::Delivery, nc_platform::leader::Refused>,
+    desktop: Option<&str>,
+    cli: &Path,
+    leader: nc_schema::keys::Leader,
+) -> Option<Said> {
+    use nc_platform::leader::Delivery;
+    let chord = leader.written_for(nc_schema::keys::Keyboard::Linux);
+    let command = format!("`{} leader`", cli.display());
+    let niri = desktop.is_some_and(|desktop| {
+        desktop
+            .split(':')
+            .any(|named| named.eq_ignore_ascii_case("niri"))
+    });
+    match delivery {
+        Ok(Delivery::GlobalHotkey) => None,
+        Ok(Delivery::CompositorBinding) if niri => Some(Said::ToDo(format!(
+            "a Wayland compositor delivers the Leader, {chord}, by a key binding of its own, \
+             and nothing edits its configuration for you: add `{}` to the `binds` section of \
+             niri's",
+            niri_line(cli, leader)
+        ))),
+        Ok(Delivery::CompositorBinding) => Some(Said::ToDo(format!(
+            "a Wayland compositor delivers the Leader, {chord}, by a key binding of its own, \
+             and nothing edits its configuration for you: bind {chord} to run {command} there"
+        ))),
+        Err(_) => Some(Said::ToDo(format!(
+            "this shell names no graphical session, so how the Leader, {chord}, reaches Noctua \
+             is not known here; in a Wayland session, bind {chord} to run {command} in the \
+             compositor's configuration"
+        ))),
+    }
+}
+
+/// The line of niri's `binds` section that runs `<cli> leader` on `leader`:
+/// its modifiers as niri names them, then the key's XKB name, then the
+/// action — `Alt+Super+space { spawn "<cli>" "leader"; }`.
+///
+/// **Written from niri's own documentation** (`Configuration: Key Bindings`):
+/// a hotkey is modifiers joined by `+` — `Ctrl`, `Shift`, `Alt`, `Super` —
+/// followed by an XKB key name, and `spawn` takes the program and each
+/// argument as a string of its own, which KDL writes with `\` and `"`
+/// escaped.
+fn niri_line(cli: &Path, leader: nc_schema::keys::Leader) -> String {
+    use nc_schema::keys::Modifier;
+    let mut words: Vec<&str> = leader
+        .modifiers()
+        .into_iter()
+        .map(|modifier| match modifier {
+            Modifier::Control => "Ctrl",
+            Modifier::Alt => "Alt",
+            Modifier::Shift => "Shift",
+            Modifier::Super => "Super",
+        })
+        .collect();
+    words.push(nc_platform::leader::xkb_name(leader.key()));
+    let program = cli
+        .display()
+        .to_string()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    format!("{} {{ spawn \"{program}\" \"leader\"; }}", words.join("+"))
 }
 
 /// What logind answers of lingering for `install`, asked through `ask`.
@@ -1733,6 +1820,80 @@ mod tests {
             ]
             .join("\n")
         );
+    }
+
+    /// The channel's Leader, as a person's configuration might choose one.
+    fn leader(written: &str) -> nc_schema::keys::Leader {
+        nc_schema::keys::Leader::of(nc_schema::keys::Chord::parse(written).expect("a chord"))
+            .expect("a Leader")
+    }
+
+    /// The line niri is told is its modifiers, the key's XKB name and a
+    /// `spawn` of the CLI with `leader`, the program's path escaped as KDL
+    /// writes a string.
+    #[test]
+    fn the_niri_line_spawns_the_cli_with_leader_on_the_chord() {
+        assert_eq!(
+            super::niri_line(
+                std::path::Path::new("/home/a/bin/noctua-dev-0123abcd"),
+                leader("Alt+Super+Space")
+            ),
+            r#"Alt+Super+space { spawn "/home/a/bin/noctua-dev-0123abcd" "leader"; }"#
+        );
+        assert_eq!(
+            super::niri_line(
+                std::path::Path::new(r#"/a "b"\c"#),
+                leader("Control+Shift+PageUp")
+            ),
+            r#"Ctrl+Shift+Prior { spawn "/a \"b\"\\c" "leader"; }"#
+        );
+    }
+
+    /// `dev --install` tells a Wayland session the line to bind the Leader
+    /// with, and says nothing where the system registers it.
+    ///
+    /// **Nothing is edited**: niri, named among the session's desktops in any
+    /// case, is told its line; another compositor, and a shell that names no
+    /// session, the chord as a Linux board labels it and the command to
+    /// bind; a session that registers a hotkey, nothing.
+    #[test]
+    fn dev_install_says_how_a_wayland_session_binds_the_leader_and_edits_nothing() {
+        use nc_platform::leader::{Delivery, Refused};
+        let cli = std::path::Path::new("/home/a/bin/noctua-dev-0123abcd");
+        let development = leader("Alt+Super+Space");
+        let said =
+            |delivery: Result<Delivery, Refused>, desktop: Option<&str>| match super::leader_said(
+                &delivery,
+                desktop,
+                cli,
+                development,
+            ) {
+                Some(super::Said::ToDo(said)) => Some(said),
+                Some(super::Said::Done(said)) => panic!("said as done: {said}"),
+                None => None,
+            };
+        assert_eq!(said(Ok(Delivery::GlobalHotkey), Some("niri")), None);
+        for desktop in ["niri", "NIRI", "GNOME:niri"] {
+            let told = said(Ok(Delivery::CompositorBinding), Some(desktop)).expect("told");
+            assert!(
+                told.contains(&format!("`{}`", super::niri_line(cli, development)))
+                    && told.contains("nothing edits"),
+                "{desktop}: {told}"
+            );
+        }
+        for (delivery, desktop) in [
+            (Ok(Delivery::CompositorBinding), Some("sway")),
+            (Ok(Delivery::CompositorBinding), None),
+            (Err(Refused::NoSession), Some("niri")),
+        ] {
+            let told = said(delivery, desktop).expect("told");
+            assert!(
+                told.contains(
+                    "bind Alt+Super+Space to run `/home/a/bin/noctua-dev-0123abcd leader`"
+                ) && !told.contains("spawn"),
+                "{desktop:?}: {told}"
+            );
+        }
     }
 
     /// Lingering is said as done where logind keeps it or enabled it, and

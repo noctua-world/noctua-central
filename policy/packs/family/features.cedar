@@ -143,3 +143,26 @@ permit (
   action in [Action::"Read", Action::"Write", Action::"Grant", Action::"Revoke"],
   resource == Feature::"agents"
 );
+
+// Every person of the household drives their own interface.
+//
+// The commands of `shell.`, `window.`, `leader.`, `page.`, `drawer.`,
+// `sidebar.`, `footer.`, `info.` and `prompt.` are the desktop interface's own
+// actions (`NOCTUA.md §12.1`): which windows show, which pages are open in
+// them and in the drawer, what the prompt holds and where each seat is — what
+// the person's own windows show, and nothing of the realm's data. `Read`
+// answers that state and `Write` changes it. **A person, and only a person:
+// `principal is User` is this permit's own constraint.** An agent drives no
+// interface — no permit names `Agent` on this feature, so the agent's half of
+// every question about it is refused, and a person's grant of it to an agent
+// allows nothing — and a device is no person. A child of the house as much as
+// an adult. A frozen account is refused by
+// `family.a_frozen_account_acts_on_nothing`, as for every permit. A daemon
+// decides only as its profile's person, so the interface driven is always the
+// asker's own.
+@id("family.a_member_drives_the_interface")
+permit (
+  principal is User,
+  action in [Action::"Read", Action::"Write"],
+  resource == Feature::"interface"
+);

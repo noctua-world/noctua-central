@@ -107,6 +107,16 @@ pub struct EventSpec {
 /// Every event, in name order.
 pub const EVENTS: &[EventSpec] = &[
     EventSpec {
+        name: "daemon.leader_refused",
+        description: "The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
+    },
+    EventSpec {
         name: "daemon.plugin_refused",
         description: "A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it",
         level: Level::Error,
@@ -477,6 +487,26 @@ pub const EVENTS: &[EventSpec] = &[
                 optional: false,
             },
         ],
+    },
+    EventSpec {
+        name: "kernel.shell_discarded",
+        description: "The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "found",
+            kind: FieldKind::U64,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "kernel.shell_unkept",
+        description: "The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
     },
     EventSpec {
         name: "kernel.step_reversed",

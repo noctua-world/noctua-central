@@ -493,7 +493,7 @@ async fn as_changed(
 /// The local database held in memory, whose reads a test can make wait until
 /// it lets them go — announcing that one is waiting — whose commit of a
 /// reversal or of a step it can make refuse, and whose listing of a person's
-/// units and reading of one unit too.
+/// units and reading of one unit too, and the next keep of a kernel's key.
 #[derive(Debug, Clone)]
 struct Stalling {
     inner: LocalStore,
@@ -504,6 +504,8 @@ struct Stalling {
     refuses_steps: Arc<std::sync::atomic::AtomicBool>,
     refuses_history: Arc<std::sync::atomic::AtomicBool>,
     refuses_units: Arc<std::sync::atomic::AtomicBool>,
+    /// Whether the next keep is refused: once, and then kept again.
+    refuses_a_keep: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Stalling {
@@ -578,6 +580,26 @@ impl StoreBackend for Stalling {
         plugin: &str,
     ) -> impl Future<Output = Result<u64, nc_local::LocalError>> + Send {
         self.inner.count(realm, plugin)
+    }
+
+    fn keep(
+        &self,
+        realm: &nc_ids::OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), nc_local::CommitError>> + Send {
+        let refused = self.refuses_a_keep.swap(false, Ordering::SeqCst);
+        let kept = self.inner.keep(realm, key, value);
+        async move {
+            if refused {
+                return Err(nc_local::CommitError::Store(
+                    nc_local::LocalError::Unavailable(
+                        "the store refuses a keep, as the test made it".to_owned(),
+                    ),
+                ));
+            }
+            kept.await
+        }
     }
 
     fn commit(
@@ -916,6 +938,7 @@ fn stalling(store: LocalStore) -> Stalling {
         refuses_steps: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         refuses_history: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         refuses_units: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        refuses_a_keep: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     }
 }
 
@@ -1510,7 +1533,7 @@ fn only<'a>(entries: &'a [Entry], command: &str) -> &'a Entry {
 }
 
 /// Whether `refusal` is of `kind`, carrying `code`.
-fn is(refusal: &Result<String, Refusal>, kind: RefusalKind, code: ErrorCode) -> bool {
+fn is<T>(refusal: &Result<T, Refusal>, kind: RefusalKind, code: ErrorCode) -> bool {
     refusal
         .as_ref()
         .err()
@@ -9212,15 +9235,51 @@ const FITTING: &[(&str, &str)] = &[
     ),
     ("agents.list", "{}"),
     ("agents.revoke", r#"{"agent":"0000000000000"}"#),
+    ("drawer.back", "{}"),
+    ("drawer.collapse", "{}"),
+    ("drawer.expand", "{}"),
+    ("drawer.resize", r#"{"share":1}"#),
+    ("drawer.toward", r#"{"region":"drawer"}"#),
+    ("footer.hide", "{}"),
+    ("footer.show", "{}"),
+    ("info.clear", "{}"),
+    ("info.collapse", "{}"),
+    ("info.expand", "{}"),
+    ("info.say", r#"{"text":"a"}"#),
     ("journal.verify", r#"{"from":0}"#),
     ("kernel.find", r#"{"query":"a"}"#),
     ("kernel.redo", "{}"),
     ("kernel.undo", "{}"),
+    ("leader.tap", "{}"),
     ("limits.prune", r#"{"dry_run":true}"#),
     ("naming.propose", r#"{"title":"a"}"#),
     ("naming.read", r#"{"name":"a"}"#),
+    ("page.back", "{}"),
+    ("page.close", "{}"),
+    ("page.focus", r#"{"page":1}"#),
+    ("page.into", r#"{"topic":"a"}"#),
+    ("page.next", "{}"),
+    ("page.open", r#"{"kind":"home"}"#),
+    ("page.previous", "{}"),
+    ("page.scroll", r#"{"to":0}"#),
+    ("prompt.ask", r#"{"command":"a.b"}"#),
+    ("prompt.clear", "{}"),
+    ("prompt.set", r#"{"text":""}"#),
     ("settings.mcp.read", "{}"),
     ("settings.mcp.set", r#"{"on":true}"#),
+    ("shell.drag", "{}"),
+    ("shell.focus", r#"{"region":"prompt"}"#),
+    ("shell.hover", r#"{"by":"pointer"}"#),
+    ("shell.read", "{}"),
+    ("sidebar.cycle", "{}"),
+    ("sidebar.hide", "{}"),
+    ("sidebar.show", "{}"),
+    ("window.close", "{}"),
+    ("window.hide", "{}"),
+    ("window.move", r#"{"x":0,"y":0}"#),
+    ("window.open", "{}"),
+    ("window.resize", r#"{"height":240,"width":320}"#),
+    ("window.show", "{}"),
 ];
 
 /// A session may dispatch exactly the commands decided for it and its
@@ -10296,4 +10355,625 @@ async fn a_change_the_directory_cannot_answer_for_is_refused_and_changes_nothing
         .as_("carla", CREATE, &making(LABEL, 1))
         .await
         .expect("made once the directory answers");
+}
+
+/// The deciding `@id` of every command of the interface a person is allowed.
+const DRIVES_THE_INTERFACE: &str = "family.a_member_drives_the_interface";
+
+/// The entity every command of the interface is decided on.
+const ON_THE_INTERFACE: &str = r#"{"id":"interface","type":"Feature"}"#;
+
+/// The interface's state as the kernel holds it, and its revision.
+fn interface<J: nc_journal::Store + Debug + Send + Sync + 'static>(
+    fixture: &Fixture<J>,
+) -> (u64, Value) {
+    fixture.kernel.shell()
+}
+
+/// Whether the first window of `shell` is shown.
+fn shown_in(shell: &Value) -> bool {
+    shell
+        .to_canonical()
+        .contains(r#""id":1,"pages":[],"shown":true"#)
+}
+
+/// The interface is driven by a person alone, decided on its feature, each
+/// command journaled once and none in a unit.
+///
+/// **A person's permit, a child's included, and the denials beside it**
+/// (`NOCTUA.md §20.6`, `§12.1`): ana shows the window and bruno shows it
+/// again, which changes nothing, and `shell.read` answers the state at the
+/// revision the first moved it to — each decided on `Feature::"interface"` by
+/// the permit that gives every person the interface, `Write` for a change and
+/// `Read` for the read, journaled once and in no unit, since none is a step.
+/// A frozen account and a device are refused with the code alone, the journal
+/// naming what decided it, and a window the state does not hold is refused
+/// with `[NC-KERN-0027]` after it was allowed — and none of the three moves the
+/// state.
+#[tokio::test]
+async fn the_interface_is_driven_by_a_person_alone_decided_on_its_feature() {
+    let (fixture, _) = with(&[], "").await;
+    let (revision, first) = interface(&fixture);
+    assert_eq!(revision, 0);
+    assert!(
+        !shown_in(&first),
+        "the first run's window is hidden: {first:?}"
+    );
+    for person in ["ana", "bruno"] {
+        let answered = fixture
+            .as_(person, "window.show", "{}")
+            .await
+            .unwrap_or_else(|refused| panic!("{person}: {refused}"));
+        assert!(answered.starts_with(r#"{"shell":"#), "{answered}");
+    }
+    let read = fixture
+        .as_("carla", "shell.read", "{}")
+        .await
+        .expect("read");
+    assert!(read.starts_with(r#"{"revision":1,"shell":"#), "{read}");
+    let (revision, shell) = interface(&fixture);
+    assert_eq!(revision, 1, "showing a window shown changes nothing");
+    assert!(shown_in(&shell), "{shell:?}");
+    let entries = fixture.entries().await;
+    let decided = dispatched(&entries);
+    assert_eq!(decided.len(), 3, "{entries:#?}");
+    for entry in &decided {
+        assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
+        assert_eq!(deciding(entry), Some(DRIVES_THE_INTERFACE), "{entry:?}");
+        assert_eq!(
+            entity_of(entry).as_deref(),
+            Some(ON_THE_INTERFACE),
+            "{entry:?}"
+        );
+        assert_eq!(
+            entry.record.work_unit, None,
+            "a command of the interface ran in a unit"
+        );
+        let action = if command_of(entry).as_deref() == Some("shell.read") {
+            "Read"
+        } else {
+            "Write"
+        };
+        assert_eq!(entry.record.action, action, "{entry:?}");
+    }
+    assert_eq!(
+        brackets(&entries),
+        [] as [(&str, Outcome); 0],
+        "no unit was opened"
+    );
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        // Granted nothing in this world, so the core's provenance refuses it
+        // first; `policy/packs/family/tests/features.toml` pins the permit's own refusal of a
+        // device it was granted.
+        (PrincipalKind::Device, "ana-laptop", "core.provenance"),
+    ] {
+        let caller = Caller::new(fixture.world.principal(kind, id).expect("in the world"));
+        for (command, args) in [("window.hide", "{}"), ("shell.read", "{}")] {
+            let refused = fixture.kernel.dispatch(&caller, command, args).await;
+            assert!(
+                is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                "{id}: {command}: {refused:?}"
+            );
+            let entries = fixture.entries().await;
+            let entry = entries.last().expect("the denial was journaled");
+            assert_eq!(
+                (entry.record.result, command_of(entry).as_deref()),
+                (Outcome::Denied, Some(command))
+            );
+            assert_eq!(deciding(entry), Some(decided), "{id}: {command}");
+            assert_eq!(entity_of(entry).as_deref(), Some(ON_THE_INTERFACE));
+        }
+    }
+    let unknown = fixture.as_("ana", "window.hide", r#"{"window":9}"#).await;
+    assert!(
+        is(
+            &unknown,
+            RefusalKind::NotFound,
+            ErrorCode::KernelShellUnknown
+        ),
+        "{unknown:?}"
+    );
+    let entries = fixture.entries().await;
+    let failed = entries.last().expect("journaled");
+    assert_eq!(
+        (failed.record.result, deciding(failed)),
+        (Outcome::Failed, Some(DRIVES_THE_INTERFACE))
+    );
+    assert_eq!(
+        interface(&fixture),
+        (1, shell),
+        "nothing refused moved the state"
+    );
+}
+
+/// A change of the interface the journal did not take is never made, and the
+/// same change the journal takes is.
+///
+/// **What it holds against**: a change applied at once, so that a command
+/// whose answer was withheld, in no entry of the journal, would leave every
+/// window showing what nobody recorded asking for.
+#[tokio::test]
+async fn a_change_of_the_interface_the_journal_did_not_take_is_never_made() {
+    let (fixture, told) = with(&[], "").await;
+    told.lock().expect("nothing panics holding it").refuses =
+        Some(|entry: &Entry| command_of(entry).as_deref() == Some("window.show"));
+    let withheld = fixture.as_("ana", "window.show", "{}").await;
+    told.lock().expect("nothing panics holding it").refuses = None;
+    assert!(
+        is(
+            &withheld,
+            RefusalKind::Unavailable,
+            ErrorCode::JournalUnavailable
+        ),
+        "{withheld:?}"
+    );
+    let (revision, shell) = interface(&fixture);
+    assert_eq!(revision, 0);
+    assert!(
+        !shown_in(&shell),
+        "a change nobody journaled was made: {shell:?}"
+    );
+    fixture
+        .as_("ana", "window.show", "{}")
+        .await
+        .expect("a change the journal takes is made");
+    assert!(shown_in(&interface(&fixture).1));
+}
+
+/// A note of the four facts an interface tells at the rate it draws: seat 2's
+/// keyboard on the prompt line and its pointer on the modeline, the draft, and
+/// the first page opened scrolled.
+const FOUR_FACTS: &str = r#"{"draft":{"text":"ab"},"focus":{"region":"prompt","seat":2},"hover":{"by":"pointer","seat":2,"target":"modeline"},"scroll":{"page":2,"to":120}}"#;
+
+/// The note `text` holds.
+fn noted(text: &str) -> Value {
+    nc_canon::parse(text).expect("a note is canonical JSON")
+}
+
+/// A note applies its facts as their commands would, journaled nowhere, and
+/// the move of the revision is told.
+///
+/// **Against the commands themselves**: the state a note of all four facts
+/// leaves is the state `prompt.set`, `shell.focus`, `shell.hover` and
+/// `page.scroll` leave, dispatched with the same arguments on a kernel opened
+/// alike — at the next revision, which a receiver of the moves is told, and
+/// with no entry more in the journal. The same note again moves nothing and
+/// tells nothing.
+#[tokio::test]
+async fn a_note_applies_its_facts_as_their_commands_do_and_is_journaled_nowhere() {
+    let (fixture, _) = with(&[], "").await;
+    let (commanded, _) = with(&[], "").await;
+    for kernel in [&fixture, &commanded] {
+        kernel
+            .as_("ana", "page.open", r#"{"kind":"settings"}"#)
+            .await
+            .expect("opened");
+    }
+    for (command, args) in [
+        ("prompt.set", r#"{"text":"ab"}"#),
+        ("shell.focus", r#"{"region":"prompt","seat":2}"#),
+        (
+            "shell.hover",
+            r#"{"by":"pointer","seat":2,"target":"modeline"}"#,
+        ),
+        ("page.scroll", r#"{"page":2,"to":120}"#),
+    ] {
+        commanded
+            .as_("ana", command, args)
+            .await
+            .unwrap_or_else(|refused| panic!("{command}: {refused}"));
+    }
+    let ana = Caller::new(fixture.principal("ana"));
+    let mut moves = fixture.kernel.shell_moves();
+    assert_eq!(*moves.borrow_and_update(), 1);
+    let journaled = fixture.entries().await.len();
+    fixture
+        .kernel
+        .note(&ana, &noted(FOUR_FACTS))
+        .await
+        .expect("the note is applied");
+    let (revision, shell) = interface(&fixture);
+    assert_eq!(
+        shell,
+        interface(&commanded).1,
+        "a note left another state than its commands"
+    );
+    assert_eq!(revision, 2, "a note moves the revision once");
+    assert!(moves.has_changed().expect("told"), "the move was not told");
+    assert_eq!(*moves.borrow_and_update(), 2);
+    fixture
+        .kernel
+        .note(&ana, &noted(FOUR_FACTS))
+        .await
+        .expect("the same note again");
+    assert_eq!(interface(&fixture), (2, shell));
+    assert!(
+        !moves.has_changed().expect("told"),
+        "a note that changed nothing told a move"
+    );
+    assert_eq!(
+        fixture.entries().await.len(),
+        journaled,
+        "a note was journaled"
+    );
+}
+
+/// A note is applied whole or not at all, and only where its commands would
+/// be allowed.
+///
+/// **Nothing refused moves the state, tells a move or is journaled**: a note
+/// scrolling a page the state does not hold is refused with `[NC-KERN-0027]`
+/// and its draft, which it says first, is not made; a scroll the schema
+/// refuses, a fact that is none, a command's name for a fact and a note of no
+/// fact are refused with `[NC-VAL-0002]`; and a frozen account and a device,
+/// which the decision point does not allow the interface, with
+/// `[NC-POL-0001]`.
+#[tokio::test]
+async fn a_note_is_applied_whole_or_not_at_all_and_only_where_its_commands_are_allowed() {
+    let (fixture, _) = with(&[], "").await;
+    fixture
+        .as_("ana", "page.open", r#"{"kind":"settings"}"#)
+        .await
+        .expect("opened");
+    let shown = interface(&fixture);
+    let mut moves = fixture.kernel.shell_moves();
+    let _ = moves.borrow_and_update();
+    let journaled = fixture.entries().await.len();
+    let ana = Caller::new(fixture.principal("ana"));
+    for (note, kind, code) in [
+        (
+            r#"{"draft":{"text":"cd"},"scroll":{"page":9,"to":1}}"#,
+            RefusalKind::NotFound,
+            ErrorCode::KernelShellUnknown,
+        ),
+        (
+            r#"{"scroll":{"page":2,"to":-1}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            r#"{"zoom":{"to":2}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            r#"{"page.scroll":{"to":2}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            "{}",
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+    ] {
+        let refused = fixture.kernel.note(&ana, &noted(note)).await;
+        assert!(is(&refused, kind, code), "{note}: {refused:?}");
+    }
+    for (kind, id) in [
+        (PrincipalKind::User, "dora"),
+        (PrincipalKind::Device, "ana-laptop"),
+    ] {
+        let caller = Caller::new(fixture.world.principal(kind, id).expect("in the world"));
+        let refused = fixture
+            .kernel
+            .note(&caller, &noted(r#"{"draft":{"text":"cd"}}"#))
+            .await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{id}: {refused:?}"
+        );
+    }
+    assert_eq!(interface(&fixture), shown, "a refused note moved the state");
+    assert!(!moves.has_changed().expect("told"), "a refusal told a move");
+    assert_eq!(
+        fixture.entries().await.len(),
+        journaled,
+        "a refused note was journaled"
+    );
+}
+
+/// A note is made between two call trees, never inside one: it waits for the
+/// tree that runs.
+///
+/// **With a tree held inside a plugin's read of its store**: a note asked then
+/// is not made while the tree runs, so no change the tree holds is computed
+/// over a state the note moved; once the tree ends, it is.
+#[tokio::test]
+async fn a_note_is_made_between_two_call_trees() {
+    let fixture = reference_and_peer().await;
+    fixture.store.stalls.store(true, Ordering::SeqCst);
+    let read = note("photo", None);
+    tokio::select! {
+        answered = fixture.as_("ana", "peer.note.get", &read) => {
+            panic!("the stalled dispatch answered: {answered:?}")
+        }
+        () = fixture.store.reached.notified() => {}
+    }
+    fixture.store.stalls.store(false, Ordering::SeqCst);
+    let ana = Caller::new(fixture.principal("ana"));
+    let draft = noted(r#"{"draft":{"text":"ab"}}"#);
+    let mut noting = core::pin::pin!(fixture.kernel.note(&ana, &draft));
+    let waited = tokio::time::timeout(Duration::from_millis(200), noting.as_mut()).await;
+    assert!(waited.is_err(), "a note was made while a tree ran");
+    assert_eq!(interface(&fixture).0, 0);
+    fixture.store.released.notify_one();
+    noting.await.expect("made once the tree ended");
+    assert_eq!(interface(&fixture).0, 1);
+}
+
+/// The interface is no step: an undo passes over every change of it to the
+/// person's last real change, and takes none of them back.
+///
+/// **Reads that change what a window shows**, and nothing a person's undo
+/// should take back: ana writes a note, then shows the window and opens a
+/// page; her undo takes the note back, and the window stays shown with its
+/// page — no unit was opened for either, and none is a barrier.
+#[tokio::test]
+async fn the_interface_is_no_step_and_an_undo_passes_over_it_to_the_last_real_change() {
+    let (fixture, _) = reference().await;
+    fixture
+        .as_("ana", "reference.note.put", &note("photo", Some("kept")))
+        .await
+        .expect("written");
+    for (command, args) in [("window.show", "{}"), ("page.open", r#"{"kind":"help"}"#)] {
+        fixture
+            .as_("ana", command, args)
+            .await
+            .unwrap_or_else(|refused| panic!("{command}: {refused}"));
+    }
+    let steps = fixture.units_of("ana").await.len();
+    let shown = interface(&fixture);
+    fixture
+        .as_("ana", "kernel.undo", "{}")
+        .await
+        .expect("the undo passes over the interface to the note");
+    assert_eq!(fixture.held("noctua:reference", "note/photo").await, None);
+    assert_eq!(steps, 1, "the interface opened no unit of its own");
+    assert_eq!(
+        interface(&fixture),
+        shown,
+        "an undo took the interface back"
+    );
+}
+
+/// The interface is kept outside every unit and read back when the kernel
+/// opens again; and a kept state this build does not read is set aside.
+///
+/// **Across a kernel's stop**: ana shows the window and opens settings, the
+/// pump keeps the state and says so — once, with nothing left to keep after
+/// it — and a kernel opened over the same store shows the same state, at
+/// revision zero. **What is kept is never trusted**: a kept state of another
+/// shape is set aside, logged by the shape it named, and the kernel begins
+/// from the first run's state.
+#[tokio::test]
+async fn the_interface_is_kept_outside_every_unit_and_read_back_when_the_kernel_opens_again() {
+    let (fixture, _) = with(&[], "").await;
+    for (command, args) in [
+        ("window.show", "{}"),
+        ("page.open", r#"{"kind":"settings","topic":"mcp"}"#),
+    ] {
+        fixture
+            .as_("ana", command, args)
+            .await
+            .unwrap_or_else(|refused| panic!("{command}: {refused}"));
+    }
+    let pumped = fixture.kernel.pump().await;
+    assert!(
+        pumped.shell_kept && pumped.shell_refused.is_none(),
+        "{pumped:?}"
+    );
+    assert!(
+        !fixture.kernel.pump().await.shell_kept,
+        "nothing changed since"
+    );
+    assert_eq!(fixture.units_of("ana").await.len(), 0, "kept in no unit");
+    let (_, kept) = interface(&fixture);
+    let log = Arc::new(Captured::default());
+    let again = opening(
+        4,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert_eq!(interface(&again), (0, kept), "the state the kernel kept");
+    assert_eq!(log.named("kernel.shell_discarded").len(), 0);
+    fixture
+        .store
+        .inner
+        .keep(&home(), "shell.state", r#"{"shape":0}"#)
+        .await
+        .expect("an older build's state");
+    let log = Arc::new(Captured::default());
+    let older = opening(
+        5,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    .expect("the kernel opens over a state it does not read");
+    let (revision, shell) = interface(&older);
+    assert_eq!(revision, 0);
+    assert!(
+        !shown_in(&shell),
+        "a state of another shape was read: {shell:?}"
+    );
+    let discarded = log.named("kernel.shell_discarded");
+    assert_eq!(discarded.len(), 1, "{:?}", log.lines());
+    assert_eq!(discarded[0].text("found").as_deref(), Some("0"));
+}
+
+/// A save of the interface's state the store refuses is logged with the
+/// store's code and made at the next pump.
+///
+/// **What it holds against**: a refusal dropped — no line in the log, and
+/// the state marked kept, so no pump saves it again and the next start
+/// begins without the change. ana shows the window; the store refuses the
+/// next keep once, and the pump says so with the store's code and logs
+/// `kernel.shell_unkept` with it; the pump after it keeps the state, and a
+/// kernel opened over the store reads the window shown.
+#[tokio::test]
+async fn a_save_of_the_interface_the_store_refuses_is_logged_and_made_at_the_next_pump() {
+    let (fixture, _) = with(&[], "").await;
+    fixture
+        .as_("ana", "window.show", "{}")
+        .await
+        .expect("the window is shown");
+    fixture.store.refuses_a_keep.store(true, Ordering::SeqCst);
+    let refused = fixture.kernel.pump().await;
+    let code = nc_local::LocalError::Unavailable(String::new()).code();
+    assert_eq!(
+        (refused.shell_kept, refused.shell_refused),
+        (false, Some(code)),
+        "{refused:?}"
+    );
+    let unkept: Vec<Option<String>> = fixture
+        .log
+        .named("kernel.shell_unkept")
+        .iter()
+        .map(|line| line.text("code"))
+        .collect();
+    assert_eq!(unkept, [Some(code.code().to_owned())]);
+    let again = fixture.kernel.pump().await;
+    assert!(
+        again.shell_kept && again.shell_refused.is_none(),
+        "the state was not saved again: {again:?}"
+    );
+    let reopened = opening(
+        6,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::new(Captured::default()),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert!(
+        shown_in(&interface(&reopened).1),
+        "the state saved at the second pump"
+    );
+}
+
+/// The save a stop makes last keeps what changed since the last pump, and
+/// keeps nothing where nothing changed.
+///
+/// **What a daemon's stop asks of its kernel** (`Kernel::keep_interface`):
+/// with nothing changed it saves nothing; once ana shows the window it saves
+/// that, once — the pump after it has nothing to keep — and a kernel opened
+/// over the store reads the window shown.
+#[tokio::test]
+async fn the_save_a_stop_makes_keeps_what_changed_since_the_last_pump() {
+    let (fixture, _) = with(&[], "").await;
+    assert_eq!(
+        fixture.kernel.keep_interface().await,
+        None,
+        "nothing changed"
+    );
+    fixture
+        .as_("ana", "window.show", "{}")
+        .await
+        .expect("the window is shown");
+    assert_eq!(fixture.kernel.keep_interface().await, Some(Ok(())));
+    assert_eq!(fixture.kernel.keep_interface().await, None, "kept already");
+    assert!(
+        !fixture.kernel.pump().await.shell_kept,
+        "the pump found something left to keep"
+    );
+    let reopened = opening(
+        7,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::new(Captured::default()),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert!(
+        shown_in(&interface(&reopened).1),
+        "the state the stop saved"
+    );
+}
+
+/// The windows of `shell`, by their identifiers.
+fn windows_in(shell: &Value) -> usize {
+    shell
+        .to_canonical()
+        .matches(r#""shown":"#)
+        .count()
+        .saturating_sub(2)
+}
+
+/// A plugin drives the interface from inside its command as the person, and
+/// what it changed is the interface's once the command's unit is kept.
+///
+/// **Each change read back by the next in the same tree**: a read and a write
+/// of the plugin's each open a window twice, nested, and each tree leaves two
+/// windows more — so the second change was made over the first, in the tree's
+/// own hold and in its unit's alike.
+#[tokio::test]
+async fn a_plugin_drives_the_interface_from_inside_its_unit_as_the_person() {
+    let (fixture, _) = reference().await;
+    assert_eq!(windows_in(&interface(&fixture).1), 1);
+    fixture
+        .as_(
+            "ana",
+            "reference.relay.read",
+            &relay("window.open", "{}", Some(2)),
+        )
+        .await
+        .expect("relayed twice from a read");
+    assert_eq!(
+        windows_in(&interface(&fixture).1),
+        3,
+        "{:?}",
+        interface(&fixture)
+    );
+    for window in ["2", "3"] {
+        fixture
+            .as_("ana", "window.close", &format!(r#"{{"window":{window}}}"#))
+            .await
+            .expect("closed");
+    }
+    fixture
+        .as_(
+            "ana",
+            "reference.relay.write",
+            &relay("window.open", "{}", Some(2)),
+        )
+        .await
+        .expect("relayed twice from a write");
+    assert_eq!(
+        windows_in(&interface(&fixture).1),
+        3,
+        "{:?}",
+        interface(&fixture)
+    );
+    fixture
+        .as_(
+            "ana",
+            "reference.relay.write",
+            &relay("window.show", r#"{"window":1}"#, None),
+        )
+        .await
+        .expect("relayed");
+    assert!(
+        shown_in(&interface(&fixture).1),
+        "the unit was kept, and its change with it"
+    );
+    let entries = fixture.entries().await;
+    let nested = only(&entries, "window.show");
+    assert_eq!(
+        (nested.record.principal.as_str(), deciding(nested)),
+        ("ana", Some(DRIVES_THE_INTERFACE))
+    );
 }

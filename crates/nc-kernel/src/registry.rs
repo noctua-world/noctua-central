@@ -2,9 +2,9 @@
 //! plugin declared and the kernel admitted.
 //!
 //! **The kernel's own come from the catalog.** Every command of
-//! `catalog/commands.toml` whose namespace is one the kernel keeps —
-//! [`RESERVED`]: `agents.`, `journal.`, `kernel.`, `limits.`, `naming.`,
-//! `settings.` — is a built-in, registered when the registry is made. The ones
+//! `catalog/commands.toml` whose namespace is one the kernel keeps — a row
+//! of [`RESERVED`], the kernel's own and the interface's — is a built-in,
+//! registered when the registry is made. The ones
 //! that change a setting or a person's agents run only at the top of a call
 //! tree (`only_at_the_top`): the decision point refuses them dispatched from
 //! inside a command (`[NC-KERN-0025]`), so a plugin, a timer or an event run as
@@ -92,9 +92,11 @@ use nc_schema::selector::{REALM_TYPE, Selector};
 use crate::manifest::PluginManifest;
 use crate::{LoadProblem, PluginSlot};
 
-/// The namespaces the kernel keeps for its own commands.
-pub const RESERVED: [&str; 6] = [
-    "agents", "journal", "kernel", "limits", "naming", "settings",
+/// The namespaces the kernel keeps for its own commands: its own, and the
+/// interface's state's (`crate::shell`).
+pub const RESERVED: [&str; 15] = [
+    "agents", "drawer", "footer", "info", "journal", "kernel", "leader", "limits", "naming",
+    "page", "prompt", "settings", "shell", "sidebar", "window",
 ];
 
 /// The namespaces whose changes decide what may act for a person.

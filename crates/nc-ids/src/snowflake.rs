@@ -75,6 +75,14 @@ const TIMESTAMP_MASK: u64 = (1 << TIMESTAMP_BITS) - 1;
 pub struct Snowflake(u64);
 
 impl Snowflake {
+    /// Zero: before every identifier a minter mints, and never one itself
+    /// past the first millisecond of [`EPOCH_MS`].
+    ///
+    /// What names no unit where a unit's identifier is written — the
+    /// revision of a key the kernel keeps outside every unit
+    /// (`nc_local::KEPT`) — so it is never mistaken for one a unit handed out.
+    pub const ZERO: Self = Self(0);
+
     /// The raw value.
     #[must_use]
     pub const fn value(self) -> u64 {

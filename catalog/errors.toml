@@ -869,6 +869,33 @@ message = "error.kernel.compensation-for-an-agent"
 severity = "warning"
 retryable = false
 
+[[error]]
+# The interface's own state (`crates/nc-kernel/src/shell.rs`): a command of
+# `window.`, `page.` or `shell.` named a window or a page the kernel does not
+# hold — closed since, or never opened — or asked for the page that has focus
+# where none has. Not NC-VAL-0002: the arguments are well formed, and what they
+# name is what changed.
+code = "NC-KERN-0027"
+description = "A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
+message = "error.kernel.shell-unknown"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The interface's own state is held to `[kernel] shell_windows_max`,
+# `shell_pages_max`, `shell_drawer_pages_max` and `shell_trail_max`, and a
+# command that would pass one is refused whole — as is one that would number a
+# window or a page past the last number the state is written with, which only
+# a saved state edited outside the kernel comes near. A text past
+# `shell_text_bytes`, and a seat past `shell_seats_max`, are arguments, refused
+# with NC-VAL-0002 as their schema refuses them. Not NC-PLUG-0017, whose
+# description names a plugin.
+code = "NC-KERN-0028"
+description = "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
+message = "error.kernel.shell-full"
+severity = "warning"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer
@@ -1346,6 +1373,44 @@ description = "A key bound with the Leader held is the Leader's own key, which n
 message = "error.channel.key-unpressable"
 severity = "warning"
 retryable = false
+
+# --- The Leader asked of the system (§12.8) ---
+#
+# What a process of the install that asks the system for the channel's Leader
+# is refused, each by what refused it (`nc_ipc::leader::refusal`), so the
+# interface's info line says it in the person's language and a log is queried
+# by which it was (`§15.1`). **None stops anything**: the channel's Leader is
+# then not delivered to that process, and every other way the interface is
+# reached stands.
+
+[[error]]
+# Never shared and never taken from the program that holds it: X11's
+# `BadAccess` to the grab, Windows' `ERROR_HOTKEY_ALREADY_REGISTERED` and
+# Carbon's `eventHotKeyExistsErr`, and on X11 a chord another program was
+# granted while the Leader was held and kept.
+code = "NC-CHAN-0020"
+description = "Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
+message = "error.channel.leader-taken"
+severity = "warning"
+retryable = true
+
+[[error]]
+# A Linux environment that names no display, or one whose compositor delivers
+# the Leader by a binding of its own rather than a registration.
+code = "NC-CHAN-0021"
+description = "The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
+message = "error.channel.leader-no-session"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The system could not be asked, answered what is not read, or — on X11 — the
+# server holding the registration went away.
+code = "NC-CHAN-0022"
+description = "The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
+message = "error.channel.leader-unregistered"
+severity = "error"
+retryable = true
 
 # --- The daemon (§11.1, §16.2) ---
 #

@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
-//! noctua [--json] start | stop | restart | status
+//! noctua [--json] start | stop | restart | status | leader
 //! noctua [--json] checkouts [<checkout>]
 //! noctua mcp <agent>
 //! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers | keybindings]
@@ -14,8 +14,9 @@
 //!    renders the answer as one canonical document, `--help` asks for help,
 //!    and the first other word is a verb — one word, [`VERBS`] — or a
 //!    command's registered name, which is always dotted, so the two never
-//!    meet. `checkouts` takes at most one word after it, a checkout's digest,
-//!    and `mcp` exactly one, the agent it acts as, read only as the identifier
+//!    meet. `leader` takes nothing after it, `checkouts` at most one word, a
+//!    checkout's digest, and `mcp` exactly one, the agent it acts as, read only
+//!    as the identifier
 //!    `agents.create` answered is written and never under `--json`, whose
 //!    standard output is the protocol's. Nothing here asks the daemon
 //!    anything.
@@ -43,12 +44,15 @@ use nc_catalog::ErrorCode;
 use nc_schema::{Argument, Schema, Shape};
 
 /// The verbs the CLI answers itself, each one word: `help`, the verbs that
-/// control the daemon's process ([`Control`]), [`MCP`] and [`CHECKOUTS`].
+/// control the daemon's process ([`Control`]), [`MCP`], [`CHECKOUTS`] and
+/// [`LEADER`].
 ///
 /// **Undotted, and a registered command's name is always dotted**
 /// (`nc_schema::command_name_is_well_formed`), so a verb never shadows a
 /// command and a command never takes a verb's place.
-pub const VERBS: [&str; 7] = ["help", "start", "stop", "restart", "status", MCP, CHECKOUTS];
+pub const VERBS: [&str; 8] = [
+    "help", "start", "stop", "restart", "status", MCP, CHECKOUTS, LEADER,
+];
 
 /// The verb that serves an MCP client on the CLI's own standard streams, as
 /// one agent's session (`NOCTUA.md §20.3`).
@@ -63,6 +67,18 @@ pub const MCP: &str = "mcp";
 /// and chooses the one `noctua-dev` reaches: what only the CLI can do, since
 /// it needs no daemon and changes a name outside every profile.
 pub const CHECKOUTS: &str = "checkouts";
+
+/// The verb a Wayland compositor's key binding runs on the channel's Leader
+/// (`NOCTUA.md §12.8`): it announces the graphical environment it runs in,
+/// then taps the Leader.
+///
+/// **What only a process in the person's graphical session can do**: the
+/// environment a compositor's binding is run with names the display a window
+/// is shown on, which no registered command could carry for it — a command's
+/// arguments are what a person typed, not where they sit — so it is a word of
+/// the CLI's, the second verb that dispatches: `leader.tap`, as a hotkey's
+/// press does.
+pub const LEADER: &str = "leader";
 
 /// A verb that controls the daemon's process (`NOCTUA.md §17.1`), which no
 /// registered command can be: a daemon that is down dispatches nothing.
@@ -138,6 +154,9 @@ pub enum Asked {
     /// An MCP client served on the run's standard streams, as a session of
     /// the agent named, until its input ends.
     Mcp(nc_ids::Snowflake),
+    /// The Leader tapped, the graphical environment the run is in announced
+    /// first.
+    Leader,
     /// A registered command, and the words after its name, which are read
     /// against its schema once the registry has handed it.
     Command {
@@ -270,6 +289,15 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
                 }
             },
             Some((word, after)) if word == MCP => Asked::Mcp(agent_of(json, after)?),
+            Some((word, after)) if word == LEADER => match after.first() {
+                None => Asked::Leader,
+                Some(extra) => {
+                    return Err(unread(format!(
+                        "`{LEADER}` takes nothing after it, and `{}` follows it",
+                        shown(extra)
+                    )));
+                }
+            },
             Some((word, after)) if let Some(verb) = Control::of(word) => match after.first() {
                 None => Asked::Control(verb),
                 Some(extra) => {
@@ -751,7 +779,7 @@ mod tests {
             assert!(
                 matches!(
                     line(&[verb]).asked,
-                    Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(None)
+                    Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(None) | Asked::Leader
                 ),
                 "{verb}"
             );
@@ -828,7 +856,7 @@ mod tests {
     /// checkout, under `--json` too, and refused with a second word.
     #[test]
     fn checkouts_is_read_alone_or_with_one_digest() {
-        assert_eq!(VERBS.last(), Some(&super::CHECKOUTS));
+        assert_eq!(VERBS[6], super::CHECKOUTS);
         assert_eq!(line(&["checkouts"]).asked, Asked::Checkouts(None));
         assert_eq!(
             line(&["checkouts", "0123abcd"]).asked,
@@ -850,8 +878,8 @@ mod tests {
         );
     }
 
-    /// The verbs are `help`, the four that control the daemon, `mcp` and the
-    /// one that lists the checkouts.
+    /// The verbs are `help`, the four that control the daemon, `mcp`, the one
+    /// that lists the checkouts and the one that taps the Leader.
     ///
     /// Each is read as itself, under `--json` too, and a verb that controls
     /// the daemon is refused with a word after it.
@@ -863,6 +891,7 @@ mod tests {
             "the verbs are not help, the four that control the daemon, mcp and checkouts"
         );
         assert_eq!(VERBS[0], "help");
+        assert_eq!(VERBS.len(), 8, "{VERBS:?}");
         for verb in Control::ALL {
             assert_eq!(Control::of(verb.word()), Some(verb));
             assert_eq!(line(&[verb.word()]).asked, Asked::Control(verb));
@@ -880,6 +909,26 @@ mod tests {
         }
         assert_eq!(Control::of("help"), None);
         assert_eq!(Control::of("Stop"), None);
+    }
+
+    /// `leader` is read alone, under `--json` too, and refused with a word
+    /// after it; help on it is the verbs'.
+    #[test]
+    fn leader_is_read_alone() {
+        assert_eq!(VERBS.last(), Some(&super::LEADER));
+        assert_eq!(line(&["leader"]).asked, Asked::Leader);
+        let json = line(&["--json", "leader"]);
+        assert!(json.json && json.asked == Asked::Leader);
+        let refusal = refused(&["leader", "\u{1b}x"]);
+        assert_eq!(refusal.code(), ErrorCode::CliCommandLineUnreadable);
+        assert!(
+            refusal.detail().contains("`leader` takes nothing after it")
+                && refusal.detail().contains("\\u{1b}x"),
+            "{refusal:?}"
+        );
+        for asked in [&["help", "leader"][..], &["--help", "leader"]] {
+            assert_eq!(line(asked).asked, Asked::Help(Topic::Verbs), "{asked:?}");
+        }
     }
 
     /// `mcp` is read with its agent alone, and never with `--json`.

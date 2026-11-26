@@ -68,6 +68,12 @@ pub const fn what_it_does(verb: &str) -> &'static str {
              `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no \
              `--json`, in a picker filtered by typing; or by its digest"
         }
+        b"leader" => {
+            "tap this channel's Leader, as a Wayland compositor's key binding runs it: the \
+             graphical environment this runs in is announced to the daemon where it names a \
+             display, then `leader.tap` is dispatched, showing the interface or opening the \
+             leader menu; a stopped daemon is left stopped"
+        }
         _ => "",
     }
 }

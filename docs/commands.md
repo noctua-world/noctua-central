@@ -60,7 +60,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `feature:agents` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Categories | `noctua.settings` |
 | Glyph | `U+F0C0` |
 
@@ -97,6 +97,226 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false}
 ```
 
+## `drawer.back`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Go back in the drawer | Voltar na gaveta |
+| Line description | Leave a sub-page of the drawer's page, or close that page if it has none. | Sair de uma subpágina da página da gaveta, ou fechar a página se não houver. |
+| Paragraph | Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer. | Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta. |
+| Tags | drawer, back, escape, close, interface | gaveta, voltar, esc, fechar, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `drawer.collapse`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Collapse the drawer | Recolher a gaveta |
+| Line description | Hide the whole drawer, keeping every page open in it. | Esconder a gaveta inteira, mantendo abertas todas as páginas dela. |
+| Paragraph | Hides the drawer below the footer, keeping the pages open in it; the end of the modeline then shows how many there are. Expanding it brings everything back. | Esconde a gaveta abaixo do rodapé, mantendo abertas as páginas que há nela; o fim da linha de modo passa a mostrar quantas são. Expandi-la traz tudo de volta. |
+| Tags | drawer, collapse, hide, interface | gaveta, recolher, esconder, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `drawer.expand`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Expand the drawer | Expandir a gaveta |
+| Line description | Show the drawer again, with everything that was open in it. | Mostrar a gaveta de novo, com tudo o que estava aberto nela. |
+| Paragraph | Shows the drawer below the footer again, as it was when it was collapsed. | Mostra de novo a gaveta abaixo do rodapé, como estava quando foi recolhida. |
+| Tags | drawer, expand, show, interface | gaveta, expandir, mostrar, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `drawer.resize`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Resize the drawer | Redimensionar a gaveta |
+| Line description | Set how much of the height the drawer takes, below half. | Definir quanto da altura a gaveta ocupa, sempre menos da metade. |
+| Paragraph | Sets how much of the height the drawer shares with the workspace area it takes, in percent. It always stays shorter than the workspace area. | Define quanto da altura que a gaveta divide com a área de trabalho ela ocupa, em porcentagem. Ela sempre fica mais baixa que a área de trabalho. |
+| Tags | drawer, resize, height, size, interface | gaveta, redimensionar, altura, tamanho, interface |
+
+```json
+{"type":"object","properties":{"share":{"type":"integer","minimum":1,"maximum":49}},"required":["share"],"additionalProperties":false}
+```
+
+## `drawer.toward`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Choose where pages open | Escolher onde as páginas abrem |
+| Line description | Open the leader menu's pages in the workspace area or in the drawer. | Abrir as páginas do menu do Leader na área de trabalho ou na gaveta. |
+| Paragraph | Chooses where a page opened from the leader menu goes: the workspace area, where they go at first, or the drawer. The choice is kept until you change it. | Escolhe para onde vai uma página aberta pelo menu do Leader: a área de trabalho, para onde elas vão no início, ou a gaveta. A escolha fica guardada até você mudá-la. |
+| Tags | drawer, direction, workspace, leader menu, interface | gaveta, direção, área de trabalho, menu do leader, interface |
+
+```json
+{"type":"object","properties":{"region":{"type":"string","enum":["workspace","drawer"]}},"required":["region"],"additionalProperties":false}
+```
+
+## `footer.hide`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Hide the footer | Esconder o rodapé |
+| Line description | Let the footer hide again where the setting hides it. | Deixar o rodapé se esconder de novo onde a configuração o esconde. |
+| Paragraph | Lets the footer hide again where it is set to hide. Where it is set to always show, it stays. | Deixa o rodapé se esconder de novo onde ele está configurado para isso. Onde está configurado para aparecer sempre, ele fica. |
+| Tags | footer, hide, interface | rodapé, esconder, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `footer.show`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the footer | Mostrar o rodapé |
+| Line description | Show the footer's three lines now, even where the setting hides it. | Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde. |
+| Paragraph | Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more. | Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali. |
+| Tags | footer, show, modeline, prompt, interface | rodapé, mostrar, linha de modo, prompt, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `info.clear`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Clear the info line | Limpar a linha de informações |
+| Line description | Take the message off the info line. | Tirar a mensagem da linha de informações. |
+| Paragraph | Takes the message off the info line, which goes back to saying what each seat is on. | Tira a mensagem da linha de informações, que volta a dizer onde cada assento está. |
+| Tags | info line, clear, message, interface | linha de informações, limpar, mensagem, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `info.collapse`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Collapse the info line | Recolher a linha de informações |
+| Line description | Keep the info line to one line again. | Manter a linha de informações numa linha só de novo. |
+| Paragraph | Keeps the info line to one line again, cutting what does not fit. | Mantém a linha de informações numa linha só de novo, cortando o que não couber. |
+| Tags | info line, collapse, less, interface | linha de informações, recolher, menos, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `info.expand`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Expand the info line | Expandir a linha de informações |
+| Line description | Let the info line grow to show all it holds, each hover on a line of its own. | Deixar a linha de informações crescer para mostrar tudo o que tem. |
+| Paragraph | Lets the info line wrap and grow to show everything it holds, with what the pointer is over and what the keyboard is on each on a line of its own. | Deixa a linha de informações quebrar e crescer para mostrar tudo o que tem, com o que está sob o ponteiro e onde está o teclado, cada um numa linha própria. |
+| Tags | info line, expand, more, interface | linha de informações, expandir, mais, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `info.say`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Say something on the info line | Dizer algo na linha de informações |
+| Line description | Show a short message on the info line until it is cleared. | Mostrar uma mensagem curta na linha de informações até que seja limpa. |
+| Paragraph | Shows a message on the info line, the middle line of the footer, in place of the one before it. | Mostra uma mensagem na linha de informações, a linha do meio do rodapé, no lugar da anterior. |
+| Tags | info line, message, notify, say, interface | linha de informações, mensagem, avisar, dizer, interface |
+
+```json
+{"type":"object","properties":{"text":{"type":"string","minLength":1,"maxLength":4096}},"required":["text"],"additionalProperties":false}
+```
+
 ## `journal.verify`
 
 | | |
@@ -104,7 +324,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `realm` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Categories | `noctua.history` |
 | Glyph | `U+F058` |
 | Wiki | Markdown (`.md`): [en](../catalog/wiki/en/commands/journal.verify.md), [pt-BR](../catalog/wiki/pt-BR/commands/journal.verify.md) |
@@ -127,7 +347,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `feature:registry` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Glyph | `U+F002` |
 
 | | en | pt-BR |
@@ -186,6 +406,26 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{},"additionalProperties":false}
 ```
 
+## `leader.tap`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Tap the Leader | Tocar a tecla Leader |
+| Line description | Do what one tap of the Leader key does in the interface. | Fazer o que um toque da tecla Leader faz na interface. |
+| Paragraph | Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round. | Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário. |
+| Tags | leader, leader key, shortcut, menu, interface | leader, tecla leader, atalho, menu, interface |
+
+```json
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4}},"additionalProperties":false}
+```
+
 ## `limits.prune`
 
 | | |
@@ -215,7 +455,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `feature:naming` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Categories | `noctua.files` |
 | Glyph | `U+F040` |
 
@@ -237,7 +477,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `feature:naming` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Categories | `noctua.files` |
 | Glyph | `U+F06E` |
 
@@ -252,6 +492,226 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}
 ```
 
+## `page.back`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Go back in a page | Voltar dentro de uma página |
+| Line description | Return from a sub-page to the page it was opened from. | Sair de uma subpágina e voltar para a página de onde ela foi aberta. |
+| Paragraph | Goes back one step inside a page — the one in focus, unless you name another. A page that is not inside a sub-page stays as it is. | Volta um passo dentro de uma página — a que está em foco, a menos que você indique outra. Uma página que não está numa subpágina fica como está. |
+| Tags | back, sub-page, navigate, return, interface | voltar, subpágina, navegar, retornar, interface |
+
+```json
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `page.close`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Close a page | Fechar uma página |
+| Line description | Close a page of the interface, in one place or everywhere it is shown. | Fechar uma página da interface, num lugar ou em todos os lugares onde aparece. |
+| Paragraph | Closes the page in focus in a window's workspace area or in the drawer, or the page you name — from the place you say, or from everywhere it is shown. A page nothing shows any more is closed for good; anything it started keeps running. | Fecha a página em foco na área de trabalho de uma janela ou na gaveta, ou a página que você indicar — do lugar que você disser, ou de todos os lugares onde aparece. Uma página que nada mais mostra é fechada de vez; o que ela começou continua rodando. |
+| Tags | page, close, interface, tab | página, fechar, interface, aba |
+
+```json
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `page.focus`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Bring a page to the front | Trazer uma página para a frente |
+| Line description | Show a page that is open, in the workspace area or in the drawer. | Mostrar uma página aberta, na área de trabalho ou na gaveta. |
+| Paragraph | Brings a page that is already open to the front of the place that shows it: a window's workspace area, or the drawer, which is expanded if it was collapsed. | Traz para a frente uma página que já está aberta, no lugar que a mostra: a área de trabalho de uma janela, ou a gaveta, que é expandida se estava recolhida. |
+| Tags | page, focus, switch, show, interface | página, foco, alternar, mostrar, interface |
+
+```json
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["page"],"additionalProperties":false}
+```
+
+## `page.into`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Go into a sub-page | Entrar numa subpágina |
+| Line description | Open a sub-page inside a page, such as one topic of help. | Abrir uma subpágina dentro de uma página, como um tópico da ajuda. |
+| Paragraph | Goes one step deeper inside a page — the one in focus, unless you name another — to the topic given, so going back returns to where it was. A page goes only so many steps deep. | Avança um passo para dentro de uma página — a que está em foco, a menos que você indique outra — até o tópico indicado, para que voltar retorne a onde estava. Uma página só desce um número limitado de passos. |
+| Tags | sub-page, navigate, open, topic, interface | subpágina, navegar, abrir, tópico, interface |
+
+```json
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"topic":{"type":"string","minLength":1,"maxLength":64}},"required":["topic"],"additionalProperties":false}
+```
+
+## `page.next`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the next page | Mostrar a próxima página |
+| Line description | Bring the next page of a window's stack to the front. | Trazer para a frente a próxima página da pilha de uma janela. |
+| Paragraph | Brings to the front the page after the one in focus in a window's workspace area. At the last page, nothing changes. | Traz para a frente a página que vem depois da que está em foco na área de trabalho de uma janela. Na última página, nada muda. |
+| Tags | page, next, switch, forward, interface | página, próxima, alternar, avançar, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `page.open`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open a page | Abrir uma página |
+| Line description | Open a page of the interface: settings, help, dev, a surface or a list. | Abrir uma página: configurações, ajuda, dev, uma superfície ou uma lista. |
+| Paragraph | Opens a page in the workspace area of a window or in the drawer — where the drawer's direction says, unless you choose. A page already open is shown again where it is asked for, as one more view of the same page. Opening a page closes the leader menu. | Abre uma página na área de trabalho de uma janela ou na gaveta — onde a direção da gaveta indicar, a menos que você escolha. Uma página que já está aberta aparece de novo onde for pedida, como mais uma vista da mesma página. Abrir uma página fecha o menu do Leader. |
+| Tags | page, open, settings, help, dev, interface | página, abrir, configurações, ajuda, dev, interface |
+
+```json
+{"type":"object","properties":{"kind":{"type":"string","enum":["home","settings","help","dev","surface","leader","commands","shortcuts","actions"]},"topic":{"type":"string","minLength":1,"maxLength":64},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["kind"],"additionalProperties":false}
+```
+
+## `page.previous`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the previous page | Mostrar a página anterior |
+| Line description | Bring the previous page of a window's stack to the front. | Trazer para a frente a página anterior da pilha de uma janela. |
+| Paragraph | Brings to the front the page before the one in focus in a window's workspace area. At the first page, nothing changes. | Traz para a frente a página que vem antes da que está em foco na área de trabalho de uma janela. Na primeira página, nada muda. |
+| Tags | page, previous, switch, back, interface | página, anterior, alternar, voltar, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `page.scroll`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Scroll a page | Rolar uma página |
+| Line description | Set how far a page is scrolled, so it reopens where it was. | Definir até onde uma página está rolada, para que reabra onde estava. |
+| Paragraph | Sets how far down a page is scrolled, in CSS pixels — the page in focus, unless you name another — so every window shows it there and reopening it brings you back to the same place. | Define até onde uma página está rolada para baixo, em pixels CSS — a página em foco, a menos que você indique outra — para que todas as janelas a mostrem ali e reabri-la leve você de volta ao mesmo ponto. |
+| Tags | scroll, page, position, interface | rolar, página, posição, interface |
+
+```json
+{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"to":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["to"],"additionalProperties":false}
+```
+
+## `prompt.ask`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Ask for a command's parameters | Pedir os parâmetros de um comando |
+| Line description | Keep the prompt line on a command, asking for its parameters. | Manter a linha do prompt num comando, pedindo os parâmetros dele. |
+| Paragraph | Keeps the prompt line on the command you chose, offering its parameters — on the one you name, when you name one — so what you type next is a parameter's value. | Mantém a linha do prompt no comando que você escolheu, oferecendo os parâmetros dele — no que você indicar, quando indicar um — para que o que você digitar em seguida seja o valor de um parâmetro. |
+| Tags | prompt, parameters, command, arguments, interface | prompt, parâmetros, comando, argumentos, interface |
+
+```json
+{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"parameter":{"type":"string","minLength":1,"maxLength":64}},"required":["command"],"additionalProperties":false}
+```
+
+## `prompt.clear`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Clear the prompt line | Limpar a linha do prompt |
+| Line description | Empty the prompt line and stop asking for anything. | Esvaziar a linha do prompt e parar de pedir qualquer coisa. |
+| Paragraph | Empties the prompt line and stops asking for a command or its parameters, closing the list of commands in the drawer. | Esvazia a linha do prompt e para de pedir um comando ou os parâmetros dele, fechando a lista de comandos na gaveta. |
+| Tags | prompt, clear, empty, cancel, interface | prompt, limpar, esvaziar, cancelar, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `prompt.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Type into the prompt line | Digitar na linha do prompt |
+| Line description | Set what the prompt line holds, as if it were typed there. | Definir o que a linha do prompt contém, como se fosse digitado ali. |
+| Paragraph | Sets the text of the prompt line, the bottom line of the footer. Text that begins with a semicolon or a colon opens the list of commands in the drawer, and the rest of it filters the list. | Define o texto da linha do prompt, a última linha do rodapé. Um texto que começa com ponto e vírgula ou dois-pontos abre a lista de comandos na gaveta, e o resto dele filtra a lista. |
+| Tags | prompt, type, text, command list, interface | prompt, digitar, texto, lista de comandos, interface |
+
+```json
+{"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false}
+```
+
 ## `settings.mcp.read`
 
 | | |
@@ -259,7 +719,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Read` |
 | Resource selector | `feature:mcp` |
 | Mutating | no |
-| Can it be undone | nothing to undo — it changes nothing |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
 | Categories | `noctua.settings` |
 | Glyph | `U+F1E6` |
 
@@ -294,5 +754,265 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}
+```
+
+## `shell.drag`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Say what a seat drags | Dizer o que um assento arrasta |
+| Line description | Record what a seat is dragging, or that it stopped. | Registrar o que um assento está arrastando, ou que parou de arrastar. |
+| Paragraph | Records what one seat is dragging in the interface, so every window shows it being dragged; naming nothing says the drag ended. | Registra o que um assento está arrastando na interface, para que todas as janelas mostrem isso sendo arrastado; sem indicar nada, diz que o arraste terminou. |
+| Tags | drag, pointer, seat, interface, move | arrastar, ponteiro, assento, interface, mover |
+
+```json
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"target":{"type":"string","minLength":1,"maxLength":64}},"additionalProperties":false}
+```
+
+## `shell.focus`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Move a seat's focus | Mover o foco de um assento |
+| Line description | Give a seat's keyboard to a part of an interface window. | Levar o teclado de um assento para uma parte de uma janela da interface. |
+| Paragraph | Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it. | Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham. |
+| Tags | focus, keyboard, seat, interface, move focus | foco, teclado, assento, interface, mudar o foco |
+
+```json
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false}
+```
+
+## `shell.hover`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Say what a seat points at | Dizer para onde um assento aponta |
+| Line description | Record what a seat's pointer hovers, or what its keyboard selection is on. | Registrar o que está sob o ponteiro de um assento, ou a seleção do teclado dele. |
+| Paragraph | Records what one seat's pointer is over, or what its keyboard selection is on, so the info line can say what it is; naming nothing clears it. The info line shows whichever of the two changed last. | Registra o que está sob o ponteiro de um assento, ou onde está a seleção do teclado dele, para que a linha de informações diga o que é; sem indicar nada, limpa o registro. A linha de informações mostra o que mudou por último entre os dois. |
+| Tags | hover, pointer, selection, info line, seat | sobrevoar, ponteiro, seleção, linha de informações, assento |
+
+```json
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"by":{"type":"string","enum":["pointer","keyboard"]},"target":{"type":"string","minLength":1,"maxLength":64}},"required":["by"],"additionalProperties":false}
+```
+
+## `shell.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the interface's state | Ler o estado da interface |
+| Line description | Show all the interface holds: its windows, pages, drawer, prompt and seats. | Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt. |
+| Paragraph | Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing. | Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada. |
+| Tags | interface, window, state, layout, what is open | interface, janela, estado, disposição, o que está aberto |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `sidebar.cycle`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show, focus or hide the sidebar | Mostrar, focar ou esconder a barra |
+| Line description | Do what Leader Space does: show the sidebar, focus it, or hide it. | Fazer o que Leader Espaço faz: mostrar a barra lateral, focá-la ou escondê-la. |
+| Paragraph | Shows the sidebar when it is hidden, puts a seat's keyboard on it when it is shown, and hides it when the keyboard is already there. | Mostra a barra lateral quando está escondida, leva o teclado de um assento até ela quando está visível, e a esconde quando o teclado já está nela. |
+| Tags | sidebar, leader space, toggle, focus, interface | barra lateral, leader espaço, alternar, foco, interface |
+
+```json
+{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4}},"additionalProperties":false}
+```
+
+## `sidebar.hide`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Hide the sidebar | Esconder a barra lateral |
+| Line description | Hide the list of what is open in the interface. | Esconder a lista do que está aberto na interface. |
+| Paragraph | Hides the sidebar; a seat whose keyboard was on it goes back to the workspace area. | Esconde a barra lateral; um assento cujo teclado estava nela volta para a área de trabalho. |
+| Tags | sidebar, hide, interface | barra lateral, esconder, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `sidebar.show`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the sidebar | Mostrar a barra lateral |
+| Line description | Show the list of what is open in the interface. | Mostrar a lista do que está aberto na interface. |
+| Paragraph | Shows the sidebar, the list of everything open in the interface. | Mostra a barra lateral, a lista de tudo o que está aberto na interface. |
+| Tags | sidebar, show, list, interface | barra lateral, mostrar, lista, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `window.close`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Close a window | Fechar uma janela |
+| Line description | Close a window of the interface, or hide it when it is the last one. | Fechar uma janela da interface, ou escondê-la quando for a última. |
+| Paragraph | Closes a window of the desktop interface — the one you are using, unless you name another — with the pages only it showed. The last window is hidden instead, so the interface is always ready to show again. Nothing that runs in Noctua stops. | Fecha uma janela da interface — a que você está usando, a menos que indique outra — com as páginas que só ela mostrava. A última janela é escondida em vez de fechada, para que a interface esteja sempre pronta para aparecer. Nada do que roda no Noctua para. |
+| Tags | window, close, interface | janela, fechar, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `window.hide`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Hide a window | Esconder uma janela |
+| Line description | Hide a window of the interface, keeping everything in it. | Esconder uma janela da interface, mantendo tudo o que há nela. |
+| Paragraph | Hides a window of the desktop interface — the one you are using, unless you name another. Nothing stops: what was open in it is kept, and showing it again brings it all back. | Esconde uma janela da interface — a que você está usando, a menos que indique outra. Nada para: o que estava aberto nela é mantido, e mostrá-la de novo traz tudo de volta. |
+| Tags | window, hide, minimize, interface | janela, esconder, minimizar, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `window.move`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Move a window | Mover uma janela |
+| Line description | Place a window of the interface at a position on the screen. | Colocar uma janela da interface numa posição da tela. |
+| Paragraph | Moves a window of the desktop interface — the one you are using, unless you name another — so its top left corner is at the position given, in the screen's own units. Under a tiling window manager, the manager may place it elsewhere. | Move uma janela da interface — a que você está usando, a menos que indique outra — para que o canto superior esquerdo fique na posição indicada, nas unidades da própria tela. Num gerenciador de janelas em mosaico, ele pode colocá-la em outro lugar. |
+| Tags | window, move, position, place, interface | janela, mover, posição, lugar, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1},"x":{"type":"integer","minimum":-32768,"maximum":32767},"y":{"type":"integer","minimum":-32768,"maximum":32767}},"required":["x","y"],"additionalProperties":false}
+```
+
+## `window.open`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open another window | Abrir outra janela |
+| Line description | Open one more window of the interface, showing the same state. | Abrir mais uma janela da interface, mostrando o mesmo estado. |
+| Paragraph | Opens another window of the desktop interface, shown at once. Every window shows the same drawer, prompt and footer, and each keeps a stack of pages of its own. The interface holds only so many windows. | Abre mais uma janela da interface, já visível. Todas as janelas mostram a mesma gaveta, o mesmo prompt e o mesmo rodapé, e cada uma tem a sua própria pilha de páginas. A interface comporta um número limitado de janelas. |
+| Tags | window, new window, open, interface | janela, nova janela, abrir, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `window.resize`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Resize a window | Redimensionar uma janela |
+| Line description | Give a window of the interface a new width and height. | Dar a uma janela da interface uma nova largura e uma nova altura. |
+| Paragraph | Resizes a window of the desktop interface — the one you are using, unless you name another — in CSS pixels. A window is never made smaller than the smallest size every page is built for. | Redimensiona uma janela da interface — a que você está usando, a menos que indique outra — em pixels CSS. Uma janela nunca fica menor que o menor tamanho para o qual todas as páginas são feitas. |
+| Tags | window, resize, size, width, height, interface | janela, redimensionar, tamanho, largura, altura, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1},"width":{"type":"integer","minimum":320,"maximum":65535},"height":{"type":"integer","minimum":240,"maximum":65535}},"required":["width","height"],"additionalProperties":false}
+```
+
+## `window.show`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show a window | Mostrar uma janela |
+| Line description | Show a window of the interface that is hidden. | Mostrar uma janela da interface que está escondida. |
+| Paragraph | Shows a window of the desktop interface — the one you are using, unless you name another — exactly as it was when it was hidden. | Mostra uma janela da interface — a que você está usando, a menos que indique outra — exatamente como estava quando foi escondida. |
+| Tags | window, show, bring back, interface | janela, mostrar, trazer de volta, interface |
+
+```json
+{"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}
 ```
 

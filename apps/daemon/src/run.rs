@@ -73,7 +73,8 @@ pub struct Stopped {
     /// How long it ran.
     pub ran: Duration,
     /// How many dispatches, pumps and sweeps were still running when
-    /// `stop_drain_ms` ran out.
+    /// `stop_drain_ms` ran out, and the save of the interface's state, when
+    /// it was given up on with them.
     pub abandoned: u32,
 }
 
@@ -260,7 +261,7 @@ struct Started<'a> {
 
 /// The run on the runtime: the endpoint bound and served, the kernel opened
 /// beside it, and the stop; answers how many dispatches, pumps and sweeps the
-/// stop gave up on.
+/// stop gave up on, the last save of the interface's state counted with them.
 async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> {
     let (found, instance) = (started.found, started.instance);
     let layout = &found.layout;
@@ -299,13 +300,28 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
         let server = Arc::clone(&server);
         async move { crate::schedule::sweeping(kernel, done, server.stopping()).await }
     });
+    // Asked where the daemon is the process that asks for the Leader, and
+    // given back before the drain, so no press is heard once a stop began.
+    let leader = crate::leader::listened(found, &server, &tokio::runtime::Handle::current());
     server.stopping().await;
+    if let Some(leader) = leader {
+        let _ = tokio::task::spawn_blocking(move || leader.given_back()).await;
+    }
     // The dispatches running, the pump and the sweep each inside a run or
     // between two, and every connection's last answer, waited for within one
     // bound: a run is call trees as a dispatch is, and the store closes under
     // none the stop did not give up on.
     let deadline = the_drain_from_now();
     let abandoned = server.wound_down(vec![pumping, sweeping], deadline).await;
+    // **The interface's state saved last**, once nothing the stop waited for
+    // runs: a pump saves it only every `pump_every_ms`, and a change made
+    // since — by a dispatch or a note the daemon answered as made, the ones
+    // the drain waited for included — would go with the run. Within what is
+    // left of the drain, since a dispatch the stop gave up on may still hold
+    // the kernel between its trees; a save given up on is one more thing the
+    // stop abandoned, and one the store refused is the kernel's to log.
+    let saved = tokio::time::timeout_at(deadline, kernel.keep_interface()).await;
+    let abandoned = abandoned.saturating_add(u32::from(saved.is_err()));
     // The exact high-water mark, so a clean restart waits for nothing. A
     // settle that failed leaves the ceiling the last raise wrote, which no
     // identifier was handed out past.

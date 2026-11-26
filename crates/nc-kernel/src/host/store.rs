@@ -350,6 +350,15 @@ mod tests {
             core::future::ready(Err(LocalError::Unavailable("not asked".to_owned())))
         }
 
+        fn keep(
+            &self,
+            _: &nc_ids::OpaqueId,
+            _: &str,
+            _: &str,
+        ) -> impl Future<Output = Result<(), nc_local::CommitError>> + Send {
+            core::future::ready(Err(nc_local::CommitError::Invalid("not asked".to_owned())))
+        }
+
         fn commit(
             &self,
             _: &nc_local::UnitRecord,

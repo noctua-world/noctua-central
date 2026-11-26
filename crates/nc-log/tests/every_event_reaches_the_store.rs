@@ -176,6 +176,11 @@ fn every_value_is_spelled_as_its_field_says(lines: &[String]) {
         ("journal.broken", "\"sequence\":\"92\"".to_owned()),
         ("journal.verified", "\"entries\":\"93\"".to_owned()),
         ("journal.verified", "\"from\":\"86\"".to_owned()),
+        ("kernel.shell_discarded", "\"found\":\"63\"".to_owned()),
+        (
+            "kernel.shell_unkept",
+            expected_code(ErrorCode::DbUnreachable),
+        ),
         ("log.dropped", "\"dropped\":\"94\"".to_owned()),
         ("log.store_unreachable", "\"status\":\"503\"".to_owned()),
         ("prune.pruned", "\"table\":\"rows_over_time\"".to_owned()),
@@ -400,14 +405,20 @@ fn record_one_of_each(log: &nc_log::Log) {
     record_the_daemons(log, unit);
 }
 
-/// One of each event the daemon and its endpoint log, with a distinguishable
-/// value in every field — the rest of [`record_one_of_each`], split from it at
-/// clippy's line bound — and `agent`, the identifier that one minted, for an
-/// agent's session.
+/// One of each event the daemon and its endpoint log, and the two the kernel
+/// logs of the interface's state it keeps, with a distinguishable value in
+/// every field — the rest of [`record_one_of_each`], split from it at clippy's
+/// line bound — and `agent`, the identifier that one minted, for an agent's
+/// session.
 fn record_the_daemons(log: &nc_log::Log, agent: nc_ids::Snowflake) {
     use core::time::Duration;
     use nc_catalog::ErrorCode;
     use nc_log::events;
+
+    log.record(&events::KernelShellDiscarded { found: 63 });
+    log.record(&events::KernelShellUnkept {
+        code: ErrorCode::DbUnreachable,
+    });
 
     log.record(&events::DaemonStarted {
         pid: 71,
@@ -432,5 +443,8 @@ fn record_the_daemons(log: &nc_log::Log, agent: nc_ids::Snowflake) {
     log.record(&events::DaemonSessionEnded { agent });
     log.record(&events::DaemonSessionRefused {
         code: ErrorCode::DaemonTooManySessions,
+    });
+    log.record(&events::DaemonLeaderRefused {
+        code: ErrorCode::ChannelLeaderTaken,
     });
 }

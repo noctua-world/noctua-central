@@ -3,14 +3,15 @@
 //!
 //! **In one order, one tree at a time.** [`crate::Kernel::pump`] takes the bus
 //! every top-level dispatch takes, so nothing it runs interleaves with a
-//! command, and does three things in turn: it fires every timer due, oldest
+//! command, and does four things in turn: it fires every timer due, oldest
 //! due first (`crate::timers`); it delivers the events that were queued when it
 //! began, oldest first, each once (`crate::events`) — so what a callback
-//! publishes while it runs waits for the next pump; and it runs the one
+//! publishes while it runs waits for the next pump; it runs the one
 //! pruner over the local database, which removes rows only from a table past
 //! its bound (`NOCTUA.md §15.8`) — once every unit this kernel left committed
-//! in the store and open in the journal is reverted, and not while one stays.
-//! It answers [`Pumped`], what each came to.
+//! in the store and open in the journal is reverted, and not while one stays;
+//! and it saves the interface's state to the store when it changed since it
+//! was last saved (`crate::shell`). It answers [`Pumped`], what each came to.
 //!
 //! **A callback is a call tree of its own, decided before it runs.** Each
 //! timer fired and each event heard by each plugin that subscribed runs in a
@@ -92,6 +93,12 @@ pub struct Pumped {
     /// **Or what refused a reversal still owed**, when the pruner was not run
     /// because a unit the journal holds open is committed in the store.
     pub prune_refused: Option<ErrorCode>,
+    /// Whether the interface's state, changed since it was last kept, was
+    /// saved to the store.
+    pub shell_kept: bool,
+    /// The code the store refused the interface's state with, when it
+    /// refused it: the state is saved again at the next pump.
+    pub shell_refused: Option<ErrorCode>,
 }
 
 /// What a callback is called with.
@@ -119,6 +126,11 @@ pub(crate) async fn pumped<E: Environment>(shared: &Arc<Shared<E>>) -> Pumped {
         fired(&shared, &mut pumped).await;
         delivered(&shared, queued, &mut pumped).await;
         pruned(&shared, &mut pumped).await;
+        match crate::shell::kept(&shared).await {
+            Some(Ok(())) => pumped.shell_kept = true,
+            Some(Err(code)) => pumped.shell_refused = Some(code),
+            None => {}
+        }
         pumped
     };
     tokio::spawn(pumping).await.unwrap_or_default()
@@ -324,14 +336,40 @@ async fn called_back<E: Environment>(
             false
         }
     };
-    let put_off = lock(&tree).put_off_taken();
+    // **The interface's state the tree holds waits for its unit**: a state
+    // the unit holds was computed over it and carries it
+    // (`CallTree::kept_over_its_own`). Released first, the tree's own would
+    // leave the unit's computed over a state older than the kernel's,
+    // refused, and the change of a kept unit lost; released after it, the
+    // tree's own is the older one, and refused alone, unless no unit was kept
+    // holding one. The rest of what the tree put off goes first, in the order
+    // it was held.
+    let mut put_off = lock(&tree).put_off_taken();
+    let own = put_off.as_mut().and_then(units::Later::shell_taken);
     if let Some(later) = put_off {
         later.released(shared);
     }
     let unit = lock(&tree).unit_taken();
-    let Some(ambient) = unit else {
-        return ran;
+    let ended_well = match unit {
+        None => ran,
+        Some(ambient) => kept_or_let_go(shared, slot, acting, ran, ambient).await,
     };
+    if let Some(held) = own {
+        crate::shell::released(shared, held);
+    }
+    ended_well
+}
+
+/// Keeps the unit a callback began, `ambient`, when the callback `ran` to its
+/// end and nothing doomed the unit, and lets it go otherwise, answering
+/// whether it was kept.
+async fn kept_or_let_go<E: Environment>(
+    shared: &Arc<Shared<E>>,
+    slot: PluginSlot,
+    acting: &Acting,
+    ran: bool,
+    ambient: units::Ambient,
+) -> bool {
     match (ran, ambient.doomed_for()) {
         (true, None) => {
             let label = shared.plugin_of(slot).unwrap_or_default();

@@ -13,6 +13,27 @@ use nc_catalog::Level;
 
 use crate::{Event, Field, LogValue as _};
 
+/// `daemon.leader_refused` — The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader
+#[derive(Debug, Clone)]
+pub struct DaemonLeaderRefused {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for DaemonLeaderRefused {}
+
+impl Event for DaemonLeaderRefused {
+    fn name(&self) -> &'static str {
+        "daemon.leader_refused"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
+    }
+}
+
 /// `daemon.plugin_refused` — A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it
 #[derive(Debug, Clone)]
 pub struct DaemonPluginRefused {
@@ -591,6 +612,48 @@ impl Event for KernelRevertFailed {
             ("unit", self.unit.to_field()),
             ("code", self.code.to_field()),
         ]
+    }
+}
+
+/// `kernel.shell_discarded` — The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read
+#[derive(Debug, Clone)]
+pub struct KernelShellDiscarded {
+    /// A count.
+    pub found: u64,
+}
+
+impl crate::sealed::Sealed for KernelShellDiscarded {}
+
+impl Event for KernelShellDiscarded {
+    fn name(&self) -> &'static str {
+        "kernel.shell_discarded"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("found", self.found.to_field())]
+    }
+}
+
+/// `kernel.shell_unkept` — The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save
+#[derive(Debug, Clone)]
+pub struct KernelShellUnkept {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for KernelShellUnkept {}
+
+impl Event for KernelShellUnkept {
+    fn name(&self) -> &'static str {
+        "kernel.shell_unkept"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
     }
 }
 

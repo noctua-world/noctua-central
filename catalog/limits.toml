@@ -451,6 +451,26 @@ confirmation_ttl_ms = 60_000
 # commands holds equal, so the kernel refuses past it before anything is made.
 agent_budget_max = 100_000
 agent_grant_minutes_max = 43_200
+# The interface's own state (§12.1), which the kernel holds for every window
+# that shows it (`crates/nc-kernel/src/shell.rs`): the windows the interface
+# may hold, the pages open in all of them and in the drawer, how deep a page's
+# sub-pages go, and the seats it tells apart — the seat a command names is at
+# most `shell_seats_max`, which the schemas declare and a test beside the
+# commands holds equal. A window is never smaller than the smallest size every
+# page is built for, in CSS pixels, which `window.resize`'s schema declares as
+# its minimum; the drawer takes at most `shell_drawer_share_max` percent of the
+# height it shares with the workspace area, below half, so it is always the
+# shorter (§12.11); and the prompt's draft and the info line's message are each
+# held to `shell_text_bytes`.
+shell_windows_max = 4
+shell_pages_max = 64
+shell_drawer_pages_max = 16
+shell_trail_max = 16
+shell_seats_max = 4
+shell_text_bytes = 4_096
+shell_window_min_width = 320
+shell_window_min_height = 240
+shell_drawer_share_max = 49
 
 # --- The daemon (§11.1, §16.2) ---
 #

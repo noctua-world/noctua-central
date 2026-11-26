@@ -64,6 +64,7 @@ mod policy;
 mod references;
 mod release;
 mod sections;
+mod sha256;
 mod store;
 mod wall;
 mod workflow;

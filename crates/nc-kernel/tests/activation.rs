@@ -967,7 +967,8 @@ fn sized(bytes: &[u8]) -> Vec<u8> {
 async fn a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled() {
     let kernel = kernel::<InMemory>(MemoryBackend::default()).await;
     for namespace in [
-        "agents", "journal", "kernel", "limits", "naming", "settings",
+        "agents", "drawer", "footer", "info", "journal", "kernel", "leader", "limits", "naming",
+        "page", "prompt", "settings", "shell", "sidebar", "window",
     ] {
         let refused = kernel
             .load(
@@ -1175,6 +1176,15 @@ impl StoreBackend for Waiting {
         plugin: &str,
     ) -> impl Future<Output = Result<u64, LocalError>> + Send {
         self.inner.count(realm, plugin)
+    }
+
+    fn keep(
+        &self,
+        realm: &nc_ids::OpaqueId,
+        key: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<(), nc_local::CommitError>> + Send {
+        self.inner.keep(realm, key, value)
     }
 
     fn commit(

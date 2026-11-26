@@ -5,7 +5,7 @@
 
 What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its verbs, its exit codes, and what its help says of every command the catalog declares. The CLI is named for its channel (`§17.1`), and this page writes production's name, `noctua`.
 
-**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
+**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it is asked to dispatch — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and two that carry dispatches: `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent, and `leader`, which announces the graphical environment a compositor's binding runs it in and dispatches the Leader's tap as the person — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
 
 ## Usage
 
@@ -34,6 +34,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | `status` | say how this channel's daemon is, or why it does not answer |
 | `mcp` | serve an MCP client on standard input and output as the agent named, once MCP is switched on in this channel: its tools are the commands that agent's session may dispatch, each decided as the agent and for its person, and standard output carries the protocol alone |
 | `checkouts` | list the development checkouts installed beside this one, and choose the one `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no `--json`, in a picker filtered by typing; or by its digest |
+| `leader` | tap this channel's Leader, as a Wayland compositor's key binding runs it: the graphical environment this runs in is announced to the daemon where it names a display, then `leader.tap` is dispatched, showing the interface or opening the leader menu; a stopped daemon is left stopped |
 
 ## Exit codes
 
@@ -224,6 +225,446 @@ Arguments:
   --feature <text, from 1 to 64 characters>
 ```
 
+## `drawer.back`
+
+In `en`:
+
+```text
+drawer.back — Go back in the drawer
+Leave a sub-page of the drawer's page, or close that page if it has none.
+
+Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.
+
+Categories: none
+Tags: drawer, back, escape, close, interface
+
+Usage:
+  noctua drawer.back [arguments]
+  noctua drawer.back -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+drawer.back — Voltar na gaveta
+Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.
+
+Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.
+
+Categories: none
+Tags: gaveta, voltar, esc, fechar, interface
+
+Usage:
+  noctua drawer.back [arguments]
+  noctua drawer.back -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `drawer.collapse`
+
+In `en`:
+
+```text
+drawer.collapse — Collapse the drawer
+Hide the whole drawer, keeping every page open in it.
+
+Hides the drawer below the footer, keeping the pages open in it; the end of the modeline then shows how many there are. Expanding it brings everything back.
+
+Categories: none
+Tags: drawer, collapse, hide, interface
+
+Usage:
+  noctua drawer.collapse [arguments]
+  noctua drawer.collapse -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+drawer.collapse — Recolher a gaveta
+Esconder a gaveta inteira, mantendo abertas todas as páginas dela.
+
+Esconde a gaveta abaixo do rodapé, mantendo abertas as páginas que há nela; o fim da linha de modo passa a mostrar quantas são. Expandi-la traz tudo de volta.
+
+Categories: none
+Tags: gaveta, recolher, esconder, interface
+
+Usage:
+  noctua drawer.collapse [arguments]
+  noctua drawer.collapse -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `drawer.expand`
+
+In `en`:
+
+```text
+drawer.expand — Expand the drawer
+Show the drawer again, with everything that was open in it.
+
+Shows the drawer below the footer again, as it was when it was collapsed.
+
+Categories: none
+Tags: drawer, expand, show, interface
+
+Usage:
+  noctua drawer.expand [arguments]
+  noctua drawer.expand -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+drawer.expand — Expandir a gaveta
+Mostrar a gaveta de novo, com tudo o que estava aberto nela.
+
+Mostra de novo a gaveta abaixo do rodapé, como estava quando foi recolhida.
+
+Categories: none
+Tags: gaveta, expandir, mostrar, interface
+
+Usage:
+  noctua drawer.expand [arguments]
+  noctua drawer.expand -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `drawer.resize`
+
+In `en`:
+
+```text
+drawer.resize — Resize the drawer
+Set how much of the height the drawer takes, below half.
+
+Sets how much of the height the drawer shares with the workspace area it takes, in percent. It always stays shorter than the workspace area.
+
+Categories: none
+Tags: drawer, resize, height, size, interface
+
+Usage:
+  noctua drawer.resize [arguments]
+  noctua drawer.resize -- '<one JSON object>'
+
+Arguments:
+  --share <whole number, from 1 to 49>  required
+```
+
+In `pt-BR`:
+
+```text
+drawer.resize — Redimensionar a gaveta
+Definir quanto da altura a gaveta ocupa, sempre menos da metade.
+
+Define quanto da altura que a gaveta divide com a área de trabalho ela ocupa, em porcentagem. Ela sempre fica mais baixa que a área de trabalho.
+
+Categories: none
+Tags: gaveta, redimensionar, altura, tamanho, interface
+
+Usage:
+  noctua drawer.resize [arguments]
+  noctua drawer.resize -- '<one JSON object>'
+
+Arguments:
+  --share <whole number, from 1 to 49>  required
+```
+
+## `drawer.toward`
+
+In `en`:
+
+```text
+drawer.toward — Choose where pages open
+Open the leader menu's pages in the workspace area or in the drawer.
+
+Chooses where a page opened from the leader menu goes: the workspace area, where they go at first, or the drawer. The choice is kept until you change it.
+
+Categories: none
+Tags: drawer, direction, workspace, leader menu, interface
+
+Usage:
+  noctua drawer.toward [arguments]
+  noctua drawer.toward -- '<one JSON object>'
+
+Arguments:
+  --region <one of: workspace, drawer>  required
+```
+
+In `pt-BR`:
+
+```text
+drawer.toward — Escolher onde as páginas abrem
+Abrir as páginas do menu do Leader na área de trabalho ou na gaveta.
+
+Escolhe para onde vai uma página aberta pelo menu do Leader: a área de trabalho, para onde elas vão no início, ou a gaveta. A escolha fica guardada até você mudá-la.
+
+Categories: none
+Tags: gaveta, direção, área de trabalho, menu do leader, interface
+
+Usage:
+  noctua drawer.toward [arguments]
+  noctua drawer.toward -- '<one JSON object>'
+
+Arguments:
+  --region <one of: workspace, drawer>  required
+```
+
+## `footer.hide`
+
+In `en`:
+
+```text
+footer.hide — Hide the footer
+Let the footer hide again where the setting hides it.
+
+Lets the footer hide again where it is set to hide. Where it is set to always show, it stays.
+
+Categories: none
+Tags: footer, hide, interface
+
+Usage:
+  noctua footer.hide [arguments]
+  noctua footer.hide -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+footer.hide — Esconder o rodapé
+Deixar o rodapé se esconder de novo onde a configuração o esconde.
+
+Deixa o rodapé se esconder de novo onde ele está configurado para isso. Onde está configurado para aparecer sempre, ele fica.
+
+Categories: none
+Tags: rodapé, esconder, interface
+
+Usage:
+  noctua footer.hide [arguments]
+  noctua footer.hide -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `footer.show`
+
+In `en`:
+
+```text
+footer.show — Show the footer
+Show the footer's three lines now, even where the setting hides it.
+
+Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.
+
+Categories: none
+Tags: footer, show, modeline, prompt, interface
+
+Usage:
+  noctua footer.show [arguments]
+  noctua footer.show -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+footer.show — Mostrar o rodapé
+Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.
+
+Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.
+
+Categories: none
+Tags: rodapé, mostrar, linha de modo, prompt, interface
+
+Usage:
+  noctua footer.show [arguments]
+  noctua footer.show -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `info.clear`
+
+In `en`:
+
+```text
+info.clear — Clear the info line
+Take the message off the info line.
+
+Takes the message off the info line, which goes back to saying what each seat is on.
+
+Categories: none
+Tags: info line, clear, message, interface
+
+Usage:
+  noctua info.clear [arguments]
+  noctua info.clear -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+info.clear — Limpar a linha de informações
+Tirar a mensagem da linha de informações.
+
+Tira a mensagem da linha de informações, que volta a dizer onde cada assento está.
+
+Categories: none
+Tags: linha de informações, limpar, mensagem, interface
+
+Usage:
+  noctua info.clear [arguments]
+  noctua info.clear -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `info.collapse`
+
+In `en`:
+
+```text
+info.collapse — Collapse the info line
+Keep the info line to one line again.
+
+Keeps the info line to one line again, cutting what does not fit.
+
+Categories: none
+Tags: info line, collapse, less, interface
+
+Usage:
+  noctua info.collapse [arguments]
+  noctua info.collapse -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+info.collapse — Recolher a linha de informações
+Manter a linha de informações numa linha só de novo.
+
+Mantém a linha de informações numa linha só de novo, cortando o que não couber.
+
+Categories: none
+Tags: linha de informações, recolher, menos, interface
+
+Usage:
+  noctua info.collapse [arguments]
+  noctua info.collapse -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `info.expand`
+
+In `en`:
+
+```text
+info.expand — Expand the info line
+Let the info line grow to show all it holds, each hover on a line of its own.
+
+Lets the info line wrap and grow to show everything it holds, with what the pointer is over and what the keyboard is on each on a line of its own.
+
+Categories: none
+Tags: info line, expand, more, interface
+
+Usage:
+  noctua info.expand [arguments]
+  noctua info.expand -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+info.expand — Expandir a linha de informações
+Deixar a linha de informações crescer para mostrar tudo o que tem.
+
+Deixa a linha de informações quebrar e crescer para mostrar tudo o que tem, com o que está sob o ponteiro e onde está o teclado, cada um numa linha própria.
+
+Categories: none
+Tags: linha de informações, expandir, mais, interface
+
+Usage:
+  noctua info.expand [arguments]
+  noctua info.expand -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `info.say`
+
+In `en`:
+
+```text
+info.say — Say something on the info line
+Show a short message on the info line until it is cleared.
+
+Shows a message on the info line, the middle line of the footer, in place of the one before it.
+
+Categories: none
+Tags: info line, message, notify, say, interface
+
+Usage:
+  noctua info.say [arguments]
+  noctua info.say -- '<one JSON object>'
+
+Arguments:
+  --text <text, from 1 to 4096 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+info.say — Dizer algo na linha de informações
+Mostrar uma mensagem curta na linha de informações até que seja limpa.
+
+Mostra uma mensagem na linha de informações, a linha do meio do rodapé, no lugar da anterior.
+
+Categories: none
+Tags: linha de informações, mensagem, avisar, dizer, interface
+
+Usage:
+  noctua info.say [arguments]
+  noctua info.say -- '<one JSON object>'
+
+Arguments:
+  --text <text, from 1 to 4096 characters>  required
+```
+
 ## `journal.verify`
 
 In `en`:
@@ -386,6 +827,46 @@ Arguments:
   none
 ```
 
+## `leader.tap`
+
+In `en`:
+
+```text
+leader.tap — Tap the Leader
+Do what one tap of the Leader key does in the interface.
+
+Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.
+
+Categories: none
+Tags: leader, leader key, shortcut, menu, interface
+
+Usage:
+  noctua leader.tap [arguments]
+  noctua leader.tap -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+```
+
+In `pt-BR`:
+
+```text
+leader.tap — Tocar a tecla Leader
+Fazer o que um toque da tecla Leader faz na interface.
+
+Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.
+
+Categories: none
+Tags: leader, tecla leader, atalho, menu, interface
+
+Usage:
+  noctua leader.tap [arguments]
+  noctua leader.tap -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+```
+
 ## `limits.prune`
 
 In `en`:
@@ -516,6 +997,478 @@ Arguments:
   --name <text, from 1 to 255 characters>  required
 ```
 
+## `page.back`
+
+In `en`:
+
+```text
+page.back — Go back in a page
+Return from a sub-page to the page it was opened from.
+
+Goes back one step inside a page — the one in focus, unless you name another. A page that is not inside a sub-page stays as it is.
+
+Categories: none
+Tags: back, sub-page, navigate, return, interface
+
+Usage:
+  noctua page.back [arguments]
+  noctua page.back -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.back — Voltar dentro de uma página
+Sair de uma subpágina e voltar para a página de onde ela foi aberta.
+
+Volta um passo dentro de uma página — a que está em foco, a menos que você indique outra. Uma página que não está numa subpágina fica como está.
+
+Categories: none
+Tags: voltar, subpágina, navegar, retornar, interface
+
+Usage:
+  noctua page.back [arguments]
+  noctua page.back -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+## `page.close`
+
+In `en`:
+
+```text
+page.close — Close a page
+Close a page of the interface, in one place or everywhere it is shown.
+
+Closes the page in focus in a window's workspace area or in the drawer, or the page you name — from the place you say, or from everywhere it is shown. A page nothing shows any more is closed for good; anything it started keeps running.
+
+Categories: none
+Tags: page, close, interface, tab
+
+Usage:
+  noctua page.close [arguments]
+  noctua page.close -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.close — Fechar uma página
+Fechar uma página da interface, num lugar ou em todos os lugares onde aparece.
+
+Fecha a página em foco na área de trabalho de uma janela ou na gaveta, ou a página que você indicar — do lugar que você disser, ou de todos os lugares onde aparece. Uma página que nada mais mostra é fechada de vez; o que ela começou continua rodando.
+
+Categories: none
+Tags: página, fechar, interface, aba
+
+Usage:
+  noctua page.close [arguments]
+  noctua page.close -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+## `page.focus`
+
+In `en`:
+
+```text
+page.focus — Bring a page to the front
+Show a page that is open, in the workspace area or in the drawer.
+
+Brings a page that is already open to the front of the place that shows it: a window's workspace area, or the drawer, which is expanded if it was collapsed.
+
+Categories: none
+Tags: page, focus, switch, show, interface
+
+Usage:
+  noctua page.focus [arguments]
+  noctua page.focus -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>  required
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.focus — Trazer uma página para a frente
+Mostrar uma página aberta, na área de trabalho ou na gaveta.
+
+Traz para a frente uma página que já está aberta, no lugar que a mostra: a área de trabalho de uma janela, ou a gaveta, que é expandida se estava recolhida.
+
+Categories: none
+Tags: página, foco, alternar, mostrar, interface
+
+Usage:
+  noctua page.focus [arguments]
+  noctua page.focus -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>  required
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+## `page.into`
+
+In `en`:
+
+```text
+page.into — Go into a sub-page
+Open a sub-page inside a page, such as one topic of help.
+
+Goes one step deeper inside a page — the one in focus, unless you name another — to the topic given, so going back returns to where it was. A page goes only so many steps deep.
+
+Categories: none
+Tags: sub-page, navigate, open, topic, interface
+
+Usage:
+  noctua page.into [arguments]
+  noctua page.into -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+  --topic <text, from 1 to 64 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+page.into — Entrar numa subpágina
+Abrir uma subpágina dentro de uma página, como um tópico da ajuda.
+
+Avança um passo para dentro de uma página — a que está em foco, a menos que você indique outra — até o tópico indicado, para que voltar retorne a onde estava. Uma página só desce um número limitado de passos.
+
+Categories: none
+Tags: subpágina, navegar, abrir, tópico, interface
+
+Usage:
+  noctua page.into [arguments]
+  noctua page.into -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+  --topic <text, from 1 to 64 characters>  required
+```
+
+## `page.next`
+
+In `en`:
+
+```text
+page.next — Show the next page
+Bring the next page of a window's stack to the front.
+
+Brings to the front the page after the one in focus in a window's workspace area. At the last page, nothing changes.
+
+Categories: none
+Tags: page, next, switch, forward, interface
+
+Usage:
+  noctua page.next [arguments]
+  noctua page.next -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.next — Mostrar a próxima página
+Trazer para a frente a próxima página da pilha de uma janela.
+
+Traz para a frente a página que vem depois da que está em foco na área de trabalho de uma janela. Na última página, nada muda.
+
+Categories: none
+Tags: página, próxima, alternar, avançar, interface
+
+Usage:
+  noctua page.next [arguments]
+  noctua page.next -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+## `page.open`
+
+In `en`:
+
+```text
+page.open — Open a page
+Open a page of the interface: settings, help, dev, a surface or a list.
+
+Opens a page in the workspace area of a window or in the drawer — where the drawer's direction says, unless you choose. A page already open is shown again where it is asked for, as one more view of the same page. Opening a page closes the leader menu.
+
+Categories: none
+Tags: page, open, settings, help, dev, interface
+
+Usage:
+  noctua page.open [arguments]
+  noctua page.open -- '<one JSON object>'
+
+Arguments:
+  --kind <one of: home, settings, help, dev, surface, leader, commands, shortcuts, actions>  required
+  --topic <text, from 1 to 64 characters>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.open — Abrir uma página
+Abrir uma página: configurações, ajuda, dev, uma superfície ou uma lista.
+
+Abre uma página na área de trabalho de uma janela ou na gaveta — onde a direção da gaveta indicar, a menos que você escolha. Uma página que já está aberta aparece de novo onde for pedida, como mais uma vista da mesma página. Abrir uma página fecha o menu do Leader.
+
+Categories: none
+Tags: página, abrir, configurações, ajuda, dev, interface
+
+Usage:
+  noctua page.open [arguments]
+  noctua page.open -- '<one JSON object>'
+
+Arguments:
+  --kind <one of: home, settings, help, dev, surface, leader, commands, shortcuts, actions>  required
+  --topic <text, from 1 to 64 characters>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+```
+
+## `page.previous`
+
+In `en`:
+
+```text
+page.previous — Show the previous page
+Bring the previous page of a window's stack to the front.
+
+Brings to the front the page before the one in focus in a window's workspace area. At the first page, nothing changes.
+
+Categories: none
+Tags: page, previous, switch, back, interface
+
+Usage:
+  noctua page.previous [arguments]
+  noctua page.previous -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+page.previous — Mostrar a página anterior
+Trazer para a frente a página anterior da pilha de uma janela.
+
+Traz para a frente a página que vem antes da que está em foco na área de trabalho de uma janela. Na primeira página, nada muda.
+
+Categories: none
+Tags: página, anterior, alternar, voltar, interface
+
+Usage:
+  noctua page.previous [arguments]
+  noctua page.previous -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+## `page.scroll`
+
+In `en`:
+
+```text
+page.scroll — Scroll a page
+Set how far a page is scrolled, so it reopens where it was.
+
+Sets how far down a page is scrolled, in CSS pixels — the page in focus, unless you name another — so every window shows it there and reopening it brings you back to the same place.
+
+Categories: none
+Tags: scroll, page, position, interface
+
+Usage:
+  noctua page.scroll [arguments]
+  noctua page.scroll -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+  --to <whole number, from 0 to 4294967295>  required
+```
+
+In `pt-BR`:
+
+```text
+page.scroll — Rolar uma página
+Definir até onde uma página está rolada, para que reabra onde estava.
+
+Define até onde uma página está rolada para baixo, em pixels CSS — a página em foco, a menos que você indique outra — para que todas as janelas a mostrem ali e reabri-la leve você de volta ao mesmo ponto.
+
+Categories: none
+Tags: rolar, página, posição, interface
+
+Usage:
+  noctua page.scroll [arguments]
+  noctua page.scroll -- '<one JSON object>'
+
+Arguments:
+  --page <whole number, at least 1>
+  --in <one of: workspace, drawer>
+  --window <whole number, at least 1>
+  --to <whole number, from 0 to 4294967295>  required
+```
+
+## `prompt.ask`
+
+In `en`:
+
+```text
+prompt.ask — Ask for a command's parameters
+Keep the prompt line on a command, asking for its parameters.
+
+Keeps the prompt line on the command you chose, offering its parameters — on the one you name, when you name one — so what you type next is a parameter's value.
+
+Categories: none
+Tags: prompt, parameters, command, arguments, interface
+
+Usage:
+  noctua prompt.ask [arguments]
+  noctua prompt.ask -- '<one JSON object>'
+
+Arguments:
+  --command <text, from 1 to 96 characters>  required
+  --parameter <text, from 1 to 64 characters>
+```
+
+In `pt-BR`:
+
+```text
+prompt.ask — Pedir os parâmetros de um comando
+Manter a linha do prompt num comando, pedindo os parâmetros dele.
+
+Mantém a linha do prompt no comando que você escolheu, oferecendo os parâmetros dele — no que você indicar, quando indicar um — para que o que você digitar em seguida seja o valor de um parâmetro.
+
+Categories: none
+Tags: prompt, parâmetros, comando, argumentos, interface
+
+Usage:
+  noctua prompt.ask [arguments]
+  noctua prompt.ask -- '<one JSON object>'
+
+Arguments:
+  --command <text, from 1 to 96 characters>  required
+  --parameter <text, from 1 to 64 characters>
+```
+
+## `prompt.clear`
+
+In `en`:
+
+```text
+prompt.clear — Clear the prompt line
+Empty the prompt line and stop asking for anything.
+
+Empties the prompt line and stops asking for a command or its parameters, closing the list of commands in the drawer.
+
+Categories: none
+Tags: prompt, clear, empty, cancel, interface
+
+Usage:
+  noctua prompt.clear [arguments]
+  noctua prompt.clear -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+prompt.clear — Limpar a linha do prompt
+Esvaziar a linha do prompt e parar de pedir qualquer coisa.
+
+Esvazia a linha do prompt e para de pedir um comando ou os parâmetros dele, fechando a lista de comandos na gaveta.
+
+Categories: none
+Tags: prompt, limpar, esvaziar, cancelar, interface
+
+Usage:
+  noctua prompt.clear [arguments]
+  noctua prompt.clear -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `prompt.set`
+
+In `en`:
+
+```text
+prompt.set — Type into the prompt line
+Set what the prompt line holds, as if it were typed there.
+
+Sets the text of the prompt line, the bottom line of the footer. Text that begins with a semicolon or a colon opens the list of commands in the drawer, and the rest of it filters the list.
+
+Categories: none
+Tags: prompt, type, text, command list, interface
+
+Usage:
+  noctua prompt.set [arguments]
+  noctua prompt.set -- '<one JSON object>'
+
+Arguments:
+  --text <text, at most 4096 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+prompt.set — Digitar na linha do prompt
+Definir o que a linha do prompt contém, como se fosse digitado ali.
+
+Define o texto da linha do prompt, a última linha do rodapé. Um texto que começa com ponto e vírgula ou dois-pontos abre a lista de comandos na gaveta, e o resto dele filtra a lista.
+
+Categories: none
+Tags: prompt, digitar, texto, lista de comandos, interface
+
+Usage:
+  noctua prompt.set [arguments]
+  noctua prompt.set -- '<one JSON object>'
+
+Arguments:
+  --text <text, at most 4096 characters>  required
+```
+
 ## `settings.mcp.read`
 
 In `en`:
@@ -594,5 +1547,543 @@ Usage:
 
 Arguments:
   --on  (a boolean: true when given alone, `=false` says false)  required
+```
+
+## `shell.drag`
+
+In `en`:
+
+```text
+shell.drag — Say what a seat drags
+Record what a seat is dragging, or that it stopped.
+
+Records what one seat is dragging in the interface, so every window shows it being dragged; naming nothing says the drag ended.
+
+Categories: none
+Tags: drag, pointer, seat, interface, move
+
+Usage:
+  noctua shell.drag [arguments]
+  noctua shell.drag -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --target <text, from 1 to 64 characters>
+```
+
+In `pt-BR`:
+
+```text
+shell.drag — Dizer o que um assento arrasta
+Registrar o que um assento está arrastando, ou que parou de arrastar.
+
+Registra o que um assento está arrastando na interface, para que todas as janelas mostrem isso sendo arrastado; sem indicar nada, diz que o arraste terminou.
+
+Categories: none
+Tags: arrastar, ponteiro, assento, interface, mover
+
+Usage:
+  noctua shell.drag [arguments]
+  noctua shell.drag -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --target <text, from 1 to 64 characters>
+```
+
+## `shell.focus`
+
+In `en`:
+
+```text
+shell.focus — Move a seat's focus
+Give a seat's keyboard to a part of an interface window.
+
+Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.
+
+Categories: none
+Tags: focus, keyboard, seat, interface, move focus
+
+Usage:
+  noctua shell.focus [arguments]
+  noctua shell.focus -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --window <whole number, at least 1>
+  --region <one of: workspace, drawer, prompt, sidebar, info, modeline>  required
+```
+
+In `pt-BR`:
+
+```text
+shell.focus — Mover o foco de um assento
+Levar o teclado de um assento para uma parte de uma janela da interface.
+
+Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.
+
+Categories: none
+Tags: foco, teclado, assento, interface, mudar o foco
+
+Usage:
+  noctua shell.focus [arguments]
+  noctua shell.focus -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --window <whole number, at least 1>
+  --region <one of: workspace, drawer, prompt, sidebar, info, modeline>  required
+```
+
+## `shell.hover`
+
+In `en`:
+
+```text
+shell.hover — Say what a seat points at
+Record what a seat's pointer hovers, or what its keyboard selection is on.
+
+Records what one seat's pointer is over, or what its keyboard selection is on, so the info line can say what it is; naming nothing clears it. The info line shows whichever of the two changed last.
+
+Categories: none
+Tags: hover, pointer, selection, info line, seat
+
+Usage:
+  noctua shell.hover [arguments]
+  noctua shell.hover -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --by <one of: pointer, keyboard>  required
+  --target <text, from 1 to 64 characters>
+```
+
+In `pt-BR`:
+
+```text
+shell.hover — Dizer para onde um assento aponta
+Registrar o que está sob o ponteiro de um assento, ou a seleção do teclado dele.
+
+Registra o que está sob o ponteiro de um assento, ou onde está a seleção do teclado dele, para que a linha de informações diga o que é; sem indicar nada, limpa o registro. A linha de informações mostra o que mudou por último entre os dois.
+
+Categories: none
+Tags: sobrevoar, ponteiro, seleção, linha de informações, assento
+
+Usage:
+  noctua shell.hover [arguments]
+  noctua shell.hover -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+  --by <one of: pointer, keyboard>  required
+  --target <text, from 1 to 64 characters>
+```
+
+## `shell.read`
+
+In `en`:
+
+```text
+shell.read — Read the interface's state
+Show all the interface holds: its windows, pages, drawer, prompt and seats.
+
+Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing.
+
+Categories: none
+Tags: interface, window, state, layout, what is open
+
+Usage:
+  noctua shell.read [arguments]
+  noctua shell.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+shell.read — Ler o estado da interface
+Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt.
+
+Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada.
+
+Categories: none
+Tags: interface, janela, estado, disposição, o que está aberto
+
+Usage:
+  noctua shell.read [arguments]
+  noctua shell.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `sidebar.cycle`
+
+In `en`:
+
+```text
+sidebar.cycle — Show, focus or hide the sidebar
+Do what Leader Space does: show the sidebar, focus it, or hide it.
+
+Shows the sidebar when it is hidden, puts a seat's keyboard on it when it is shown, and hides it when the keyboard is already there.
+
+Categories: none
+Tags: sidebar, leader space, toggle, focus, interface
+
+Usage:
+  noctua sidebar.cycle [arguments]
+  noctua sidebar.cycle -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+```
+
+In `pt-BR`:
+
+```text
+sidebar.cycle — Mostrar, focar ou esconder a barra
+Fazer o que Leader Espaço faz: mostrar a barra lateral, focá-la ou escondê-la.
+
+Mostra a barra lateral quando está escondida, leva o teclado de um assento até ela quando está visível, e a esconde quando o teclado já está nela.
+
+Categories: none
+Tags: barra lateral, leader espaço, alternar, foco, interface
+
+Usage:
+  noctua sidebar.cycle [arguments]
+  noctua sidebar.cycle -- '<one JSON object>'
+
+Arguments:
+  --seat <whole number, from 1 to 4>
+```
+
+## `sidebar.hide`
+
+In `en`:
+
+```text
+sidebar.hide — Hide the sidebar
+Hide the list of what is open in the interface.
+
+Hides the sidebar; a seat whose keyboard was on it goes back to the workspace area.
+
+Categories: none
+Tags: sidebar, hide, interface
+
+Usage:
+  noctua sidebar.hide [arguments]
+  noctua sidebar.hide -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+sidebar.hide — Esconder a barra lateral
+Esconder a lista do que está aberto na interface.
+
+Esconde a barra lateral; um assento cujo teclado estava nela volta para a área de trabalho.
+
+Categories: none
+Tags: barra lateral, esconder, interface
+
+Usage:
+  noctua sidebar.hide [arguments]
+  noctua sidebar.hide -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `sidebar.show`
+
+In `en`:
+
+```text
+sidebar.show — Show the sidebar
+Show the list of what is open in the interface.
+
+Shows the sidebar, the list of everything open in the interface.
+
+Categories: none
+Tags: sidebar, show, list, interface
+
+Usage:
+  noctua sidebar.show [arguments]
+  noctua sidebar.show -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+sidebar.show — Mostrar a barra lateral
+Mostrar a lista do que está aberto na interface.
+
+Mostra a barra lateral, a lista de tudo o que está aberto na interface.
+
+Categories: none
+Tags: barra lateral, mostrar, lista, interface
+
+Usage:
+  noctua sidebar.show [arguments]
+  noctua sidebar.show -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `window.close`
+
+In `en`:
+
+```text
+window.close — Close a window
+Close a window of the interface, or hide it when it is the last one.
+
+Closes a window of the desktop interface — the one you are using, unless you name another — with the pages only it showed. The last window is hidden instead, so the interface is always ready to show again. Nothing that runs in Noctua stops.
+
+Categories: none
+Tags: window, close, interface
+
+Usage:
+  noctua window.close [arguments]
+  noctua window.close -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+window.close — Fechar uma janela
+Fechar uma janela da interface, ou escondê-la quando for a última.
+
+Fecha uma janela da interface — a que você está usando, a menos que indique outra — com as páginas que só ela mostrava. A última janela é escondida em vez de fechada, para que a interface esteja sempre pronta para aparecer. Nada do que roda no Noctua para.
+
+Categories: none
+Tags: janela, fechar, interface
+
+Usage:
+  noctua window.close [arguments]
+  noctua window.close -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+## `window.hide`
+
+In `en`:
+
+```text
+window.hide — Hide a window
+Hide a window of the interface, keeping everything in it.
+
+Hides a window of the desktop interface — the one you are using, unless you name another. Nothing stops: what was open in it is kept, and showing it again brings it all back.
+
+Categories: none
+Tags: window, hide, minimize, interface
+
+Usage:
+  noctua window.hide [arguments]
+  noctua window.hide -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+window.hide — Esconder uma janela
+Esconder uma janela da interface, mantendo tudo o que há nela.
+
+Esconde uma janela da interface — a que você está usando, a menos que indique outra. Nada para: o que estava aberto nela é mantido, e mostrá-la de novo traz tudo de volta.
+
+Categories: none
+Tags: janela, esconder, minimizar, interface
+
+Usage:
+  noctua window.hide [arguments]
+  noctua window.hide -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+## `window.move`
+
+In `en`:
+
+```text
+window.move — Move a window
+Place a window of the interface at a position on the screen.
+
+Moves a window of the desktop interface — the one you are using, unless you name another — so its top left corner is at the position given, in the screen's own units. Under a tiling window manager, the manager may place it elsewhere.
+
+Categories: none
+Tags: window, move, position, place, interface
+
+Usage:
+  noctua window.move [arguments]
+  noctua window.move -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+  --x <whole number, from -32768 to 32767>  required
+  --y <whole number, from -32768 to 32767>  required
+```
+
+In `pt-BR`:
+
+```text
+window.move — Mover uma janela
+Colocar uma janela da interface numa posição da tela.
+
+Move uma janela da interface — a que você está usando, a menos que indique outra — para que o canto superior esquerdo fique na posição indicada, nas unidades da própria tela. Num gerenciador de janelas em mosaico, ele pode colocá-la em outro lugar.
+
+Categories: none
+Tags: janela, mover, posição, lugar, interface
+
+Usage:
+  noctua window.move [arguments]
+  noctua window.move -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+  --x <whole number, from -32768 to 32767>  required
+  --y <whole number, from -32768 to 32767>  required
+```
+
+## `window.open`
+
+In `en`:
+
+```text
+window.open — Open another window
+Open one more window of the interface, showing the same state.
+
+Opens another window of the desktop interface, shown at once. Every window shows the same drawer, prompt and footer, and each keeps a stack of pages of its own. The interface holds only so many windows.
+
+Categories: none
+Tags: window, new window, open, interface
+
+Usage:
+  noctua window.open [arguments]
+  noctua window.open -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+window.open — Abrir outra janela
+Abrir mais uma janela da interface, mostrando o mesmo estado.
+
+Abre mais uma janela da interface, já visível. Todas as janelas mostram a mesma gaveta, o mesmo prompt e o mesmo rodapé, e cada uma tem a sua própria pilha de páginas. A interface comporta um número limitado de janelas.
+
+Categories: none
+Tags: janela, nova janela, abrir, interface
+
+Usage:
+  noctua window.open [arguments]
+  noctua window.open -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `window.resize`
+
+In `en`:
+
+```text
+window.resize — Resize a window
+Give a window of the interface a new width and height.
+
+Resizes a window of the desktop interface — the one you are using, unless you name another — in CSS pixels. A window is never made smaller than the smallest size every page is built for.
+
+Categories: none
+Tags: window, resize, size, width, height, interface
+
+Usage:
+  noctua window.resize [arguments]
+  noctua window.resize -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+  --width <whole number, from 320 to 65535>  required
+  --height <whole number, from 240 to 65535>  required
+```
+
+In `pt-BR`:
+
+```text
+window.resize — Redimensionar uma janela
+Dar a uma janela da interface uma nova largura e uma nova altura.
+
+Redimensiona uma janela da interface — a que você está usando, a menos que indique outra — em pixels CSS. Uma janela nunca fica menor que o menor tamanho para o qual todas as páginas são feitas.
+
+Categories: none
+Tags: janela, redimensionar, tamanho, largura, altura, interface
+
+Usage:
+  noctua window.resize [arguments]
+  noctua window.resize -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+  --width <whole number, from 320 to 65535>  required
+  --height <whole number, from 240 to 65535>  required
+```
+
+## `window.show`
+
+In `en`:
+
+```text
+window.show — Show a window
+Show a window of the interface that is hidden.
+
+Shows a window of the desktop interface — the one you are using, unless you name another — exactly as it was when it was hidden.
+
+Categories: none
+Tags: window, show, bring back, interface
+
+Usage:
+  noctua window.show [arguments]
+  noctua window.show -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
+```
+
+In `pt-BR`:
+
+```text
+window.show — Mostrar uma janela
+Mostrar uma janela da interface que está escondida.
+
+Mostra uma janela da interface — a que você está usando, a menos que indique outra — exatamente como estava quando foi escondida.
+
+Categories: none
+Tags: janela, mostrar, trazer de volta, interface
+
+Usage:
+  noctua window.show [arguments]
+  noctua window.show -- '<one JSON object>'
+
+Arguments:
+  --window <whole number, at least 1>
 ```
 

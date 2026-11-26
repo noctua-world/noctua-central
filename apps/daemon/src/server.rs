@@ -37,12 +37,16 @@
 //! # What a person's connection watches, notes and announces
 //!
 //! **The daemon holds one watched state, at a revision** (`Watched`): the
-//! graphical environment a person's connection announced last and the last
-//! note one told, as one object — `display`, the environment's variables by
-//! name, and `note`, the note's object, each only once there is one. It is
-//! the daemon's own and this process's alone: no command reads or writes it,
-//! nothing of it is journaled or stored, and a daemon that starts again holds
-//! none of it, at revision zero.
+//! graphical environment a person's connection announced last, the
+//! interface's state as the kernel holds it (`NOCTUA.md §12.1`), and what
+//! came of the daemon's asking the system for the Leader where it is the
+//! process that asks (`crate::leader`), as one object — `display`, the
+//! environment's variables by name; `shell`, the object `shell.read` answers
+//! as `shell`; and `leader`, `{"held":true}` or the `refused` code and
+//! sentence — each only once there is one. The revision is this process's
+//! alone: a daemon that starts again begins at zero, holding no environment
+//! and no Leader's outcome of the last one's, and the interface's state is
+//! the kernel's, which keeps it between starts.
 //!
 //! - **A watch** names the revision its client has seen, or none, and how
 //!   long it will wait. A state at another revision — smaller or larger, the
@@ -54,10 +58,21 @@
 //!   watch. Any number of connections may watch, and one change answers them
 //!   all. **Nothing of a connection is read while its watch waits**, so a
 //!   watcher that went away is found only when the answer is written.
-//! - **A note** replaces the one held and **a display** the environment
-//!   held, each moving the revision by one — and neither moves it when it
-//!   says what is held already. Both were read strictly, within their bounds,
-//!   by `nc_ipc` before they reached this.
+//! - **The kernel's state is taken in when a watch is asked and each time the
+//!   kernel tells it moved** (`nc_kernel::Kernel::shell_moves`), the move
+//!   marked seen before the state is read, so no move is missed: a state the
+//!   kernel holds at a revision newer than the one taken in last moves the
+//!   watched revision by one, and so answers every watch that waits — and
+//!   an older one a slower watch read, taken in after it, moves nothing.
+//! - **A note is the kernel's to apply** (`nc_kernel::Kernel::note`): the
+//!   facts of the interface's state it says, each decided for the person as
+//!   the command it is the equivalent of would be, journaled nowhere and made
+//!   whole or not at all. It is admitted as a dispatch is, so a stop drains it
+//!   or refuses it, and what the kernel refuses is its answer; what it moved
+//!   reaches every watch as any move of the kernel's state does.
+//! - **A display** replaces the environment held, moving the revision by one
+//!   — and not when it says what is held already. It was read strictly,
+//!   within its bounds, by `nc_ipc` before it reached this.
 //! - **The revision starts at zero and turns to zero after `i64::MAX`**, the
 //!   largest whole number the wire writes, so every revision crosses as it
 //!   is.
@@ -443,16 +458,10 @@ impl Server {
                 self.admitted_dispatch(&person, &command, &args).await
             }
             Request::Watch { seen, wait_ms } => match self.kernel_if_running() {
-                Ok(_) => self.watch(seen, wait_ms).await,
+                Ok(kernel) => self.watch(&*kernel, seen, wait_ms).await,
                 Err(refusal) => Answer::Refused(refusal),
             },
-            Request::Note(note) => match self.kernel_if_running() {
-                Ok(_) => {
-                    self.note(note);
-                    Answer::Noted
-                }
-                Err(refusal) => Answer::Refused(refusal),
-            },
+            Request::Note(note) => self.noted(&person, &note).await,
             Request::Display(environment) => {
                 self.display(environment);
                 Answer::Displayed
@@ -462,42 +471,84 @@ impl Server {
     }
 
     /// The answer to a watch that names `seen` and waits `wait_ms`, while the
-    /// kernel runs.
+    /// kernel runs, the interface's state read from `shown`.
     ///
-    /// **In order**: a state at another revision than `seen` is answered at
-    /// once, whole; otherwise the first change is, whole, or a stop asked for
+    /// **In order**: the state `shown` holds is taken in, its move marked seen
+    /// first; a state at another revision than `seen` is answered at once,
+    /// whole; otherwise the first change is, whole — a move `shown` tells is
+    /// taken in, and answers once it moved the revision — or a stop asked for
     /// meanwhile refuses the watch as stopping (`NC-DMN-0010`), or the wait
     /// ends — the shorter of `wait_ms` and `ipc_watch_wait_ms` — and the
     /// answer is the revision alone. **Nothing of the connection is read
     /// while this waits**, so a watcher that went away is found only when the
     /// answer is written.
-    async fn watch(&self, seen: Option<u64>, wait_ms: u64) -> Answer {
+    async fn watch(&self, shown: &impl Shown, seen: Option<u64>, wait_ms: u64) -> Answer {
         let mut watching = self.watched.subscribe();
+        let mut moves = shown.moves();
         let wait = Duration::from_millis(wait_ms.min(nc_catalog::DAEMON.ipc_watch_wait_ms));
-        let answer = tokio::select! {
-            biased;
-            another = watching.wait_for(|watched| Some(watched.revision) != seen) => {
-                another.ok().map(|watched| watched.told(seen))
-            }
-            () = self.stopping() => Some(Answer::Refused(as_stopping(
-                "the daemon is stopping, and the watch that was waiting ends with it",
-            ))),
-            () = tokio::time::sleep(wait) => None,
-        };
-        answer.unwrap_or_else(|| self.watched.borrow().told(seen))
+        let until = tokio::time::Instant::now() + wait;
+        let mut told = true;
+        loop {
+            moves.borrow_and_update();
+            self.took_in(shown.now());
+            let answer = tokio::select! {
+                biased;
+                another = watching.wait_for(|watched| Some(watched.revision) != seen) => {
+                    another.ok().map(|watched| watched.told(seen))
+                }
+                () = self.stopping() => Some(Answer::Refused(as_stopping(
+                    "the daemon is stopping, and the watch that was waiting ends with it",
+                ))),
+                heard = moves.changed(), if told => {
+                    // A kernel gone tells nothing more, and the watch waits
+                    // on what else may change.
+                    told = heard.is_ok();
+                    continue;
+                }
+                () = tokio::time::sleep_until(until) => None,
+            };
+            return answer.unwrap_or_else(|| self.watched.borrow().told(seen));
+        }
     }
 
-    /// Holds `note` as the last one told, at a new revision — or changes
-    /// nothing where it is the one held.
-    fn note(&self, note: Note) {
+    /// Takes in the interface's state `now` holds, at a new revision — or
+    /// changes nothing where the kernel's revision is not newer than the one
+    /// taken in last.
+    ///
+    /// **Newer, never merely another**: two watches read the kernel's state
+    /// each outside the channel's lock, so one that read before a move may
+    /// take its state in after a watch that read after it; taken in, that
+    /// older state would move the watched revision forward with content gone
+    /// back, answer every watch waiting with it, and stay until the next
+    /// move. The kernel's revision only moves forward in one run, which is
+    /// the one kernel this server serves.
+    fn took_in(&self, (revision, shell): (u64, Value)) {
         self.watched.send_if_modified(|watched| {
-            let another = watched.note.as_ref() != Some(&note);
+            let another = watched
+                .shell
+                .as_ref()
+                .is_none_or(|(taken, _)| *taken < revision);
             if another {
-                watched.note = Some(note);
+                watched.shell = Some((revision, shell));
                 watched.moved();
             }
             another
         });
+    }
+
+    /// The answer to `note`, told on a connection that is the person's: the
+    /// kernel's to apply, admitted as a dispatch is.
+    async fn noted(&self, person: &Caller, note: &Note) -> Answer {
+        let (kernel, admitted) = match self.admitted() {
+            Ok(admitted) => admitted,
+            Err(refusal) => return Answer::Refused(refusal),
+        };
+        let applied = kernel.note(person, note.detail()).await;
+        drop(admitted);
+        match applied {
+            Ok(()) => Answer::Noted,
+            Err(refusal) => Answer::Refused(refused_by_kernel(&refusal)),
+        }
     }
 
     /// Holds `environment` as the graphical environment announced, at a new
@@ -812,7 +863,54 @@ impl Server {
                 )]),
             ));
         }
+        if let Some(leader) = self.watched.borrow().leader.clone() {
+            fields.push(("leader", leader));
+        }
         Value::object(fields)
+    }
+
+    /// Holds what came of the daemon's asking the system for the Leader,
+    /// `asked`, where it is the process that asks (`crate::leader`): held, or
+    /// the refusal — of the registration, or of one held and lost.
+    ///
+    /// **A refusal is never silent**: it is logged as `daemon.leader_refused`
+    /// by its code, and held, with its sentence, in the watched state the
+    /// interface's info line says it from, and in the status. What is held
+    /// already moves no revision.
+    pub fn leader_asked(&self, asked: Result<(), &Refusal>) {
+        let said = match asked {
+            Ok(()) => Value::object([("held", Value::Bool(true))]),
+            Err(refusal) => {
+                self.log
+                    .record(&nc_log::events::DaemonLeaderRefused { code: refusal.code });
+                Value::object([(
+                    "refused",
+                    Value::object([
+                        ("code", Value::text(refusal.code.code())),
+                        ("sentence", Value::text(refusal.sentence.as_str())),
+                    ]),
+                )])
+            }
+        };
+        self.watched.send_if_modified(|watched| {
+            let another = watched.leader.as_ref() != Some(&said);
+            if another {
+                watched.leader = Some(said);
+                watched.moved();
+            }
+            another
+        });
+    }
+
+    /// A press of the Leader the daemon heard: `leader.tap` dispatched as the
+    /// person for the system's own seat (`nc_ipc::leader`), admitted as every
+    /// dispatch is, so a stop drains it or refuses it, and journaled as every
+    /// dispatch is.
+    pub async fn leader_pressed(&self) {
+        let person = Caller::new(self.named.person.clone());
+        let _ = self
+            .admitted_dispatch(&person, nc_ipc::leader::TAP, &nc_ipc::leader::tap())
+            .await;
     }
 }
 
@@ -829,9 +927,11 @@ fn as_stopping(sentence: &str) -> Refusal {
 /// What a client may watch (`Request::Watch`): what the daemon holds of the
 /// interface, and the revision it is at.
 ///
-/// **What it holds at this protocol** is what a person's connection told it
-/// and no command did: the graphical environment announced last, and the
-/// last note. Neither is the kernel's, journaled, or kept past this process.
+/// **What it holds at this protocol**: the graphical environment a person's
+/// connection announced last, the interface's state the kernel held when it
+/// was last taken in, and what came of the daemon's asking for the Leader.
+/// The first and the last are this process's alone, journaled and kept
+/// nowhere.
 ///
 /// **A revision is one of this start's, and never past what the wire's
 /// integer holds**: it starts at zero, each change moves it by one, and after
@@ -844,8 +944,12 @@ struct Watched {
     revision: u64,
     /// The graphical environment announced last.
     display: Option<Graphical>,
-    /// The last note told.
-    note: Option<Note>,
+    /// The interface's state as the kernel held it when it was taken in, and
+    /// the kernel's revision of it.
+    shell: Option<(u64, Value)>,
+    /// What came of the daemon's asking for the Leader, where it asks
+    /// (`crate::leader`).
+    leader: Option<Value>,
 }
 
 impl Watched {
@@ -863,8 +967,8 @@ impl Watched {
     }
 
     /// What is held, as the one object a watch is answered: `display`, the
-    /// environment's variables by name, and `note`, the note's object, each
-    /// only once there is one.
+    /// environment's variables by name; `shell`, the interface's state; and
+    /// `leader`, what came of asking for it — each only once there is one.
     fn state(&self) -> Value {
         let mut fields = Vec::new();
         if let Some(display) = &self.display {
@@ -877,8 +981,11 @@ impl Watched {
                 ),
             ));
         }
-        if let Some(note) = &self.note {
-            fields.push(("note", note.detail().clone()));
+        if let Some((_, shell)) = &self.shell {
+            fields.push(("shell", shell.clone()));
+        }
+        if let Some(leader) = &self.leader {
+            fields.push(("leader", leader.clone()));
         }
         Value::object(fields)
     }
@@ -890,6 +997,24 @@ impl Watched {
             revision: self.revision,
             state: (seen != Some(self.revision)).then(|| self.state()),
         }
+    }
+}
+
+/// What a watch reads of the interface's state: the kernel's, in the daemon.
+trait Shown {
+    /// Each move of the state to another revision, from now on.
+    fn moves(&self) -> tokio::sync::watch::Receiver<u64>;
+    /// The state now, and the revision it is at.
+    fn now(&self) -> (u64, Value);
+}
+
+impl Shown for Kernel<Daemon> {
+    fn moves(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.shell_moves()
+    }
+
+    fn now(&self) -> (u64, Value) {
+        self.shell()
     }
 }
 
@@ -1287,9 +1412,52 @@ mod tests {
         }
     }
 
-    /// A note holding `draft`.
+    /// A note setting the prompt's draft to `draft`.
     fn a_note(draft: &str) -> nc_ipc::Note {
-        nc_ipc::Note::new(Value::object([("draft", Value::text(draft))])).expect("a note")
+        nc_ipc::Note::new(Value::object([(
+            "draft",
+            Value::object([("text", Value::text(draft))]),
+        )]))
+        .expect("a note")
+    }
+
+    /// An interface's state a test moves, read by a watch as the kernel's is.
+    struct Moving {
+        /// What a move is told through.
+        moves: tokio::sync::watch::Sender<u64>,
+        /// The state now, and its revision.
+        now: std::sync::Mutex<(u64, Value)>,
+    }
+
+    impl Moving {
+        /// A state holding `draft`, at revision zero.
+        fn new(draft: &str) -> Self {
+            Self {
+                moves: tokio::sync::watch::Sender::new(0),
+                now: std::sync::Mutex::new((0, shell(draft))),
+            }
+        }
+
+        /// The state moved to `revision`, holding `draft`, and the move told.
+        fn moved(&self, revision: u64, draft: &str) {
+            *self.now.lock().expect("nothing panics holding it") = (revision, shell(draft));
+            self.moves.send_replace(revision);
+        }
+    }
+
+    impl super::Shown for Moving {
+        fn moves(&self) -> tokio::sync::watch::Receiver<u64> {
+            self.moves.subscribe()
+        }
+
+        fn now(&self) -> (u64, Value) {
+            self.now.lock().expect("nothing panics holding it").clone()
+        }
+    }
+
+    /// An interface's state as a test writes one: its draft alone.
+    fn shell(draft: &str) -> Value {
+        Value::object([("draft", Value::text(draft))])
     }
 
     /// An announced environment whose display is `display`.
@@ -1939,8 +2107,8 @@ mod tests {
     ///
     /// **In every state a start goes through**, `Running` with no kernel open
     /// among them: a watch and a note are `NC-DMN-0009`, the connection going
-    /// on, and nothing of the note is held; once a stop was asked for they
-    /// are `NC-DMN-0010`. A display is answered in each, and what it
+    /// on, and nothing of the interface is taken in; once a stop was asked for
+    /// they are `NC-DMN-0010`. A display is answered in each, and what it
     /// announced is what the daemon holds.
     #[tokio::test]
     async fn a_watch_and_a_note_wait_for_the_kernel_and_a_display_does_not() {
@@ -1978,81 +2146,92 @@ mod tests {
                 "{state:?}: {answered:?}"
             );
             assert_eq!(server.announced(), Some(display), "{state:?}");
-            assert_eq!(server.watched.borrow().note, None, "{state:?}");
+            assert_eq!(server.watched.borrow().shell, None, "{state:?}");
         }
     }
 
     /// A watch waits the shorter of the wait it names and
     /// `ipc_watch_wait_ms`, and not at all for a state it has not seen.
     ///
-    /// **On a paused clock**, each wait measured: a watch that has seen
-    /// nothing, or names another revision than the state's — a larger one as
-    /// much as a smaller — is answered the state at once; one that names the
-    /// state's revision waits what it names when that is within the bound, no
-    /// time for a wait of none, and the bound itself for every wait past it,
-    /// and is then answered the revision alone.
+    /// **On a paused clock**, each wait measured, once the interface's state
+    /// was taken in at revision 1: a watch that has seen nothing, or names
+    /// another revision than the state's — a larger one as much as a smaller
+    /// — is answered the state at once; one that names the state's revision
+    /// waits what it names when that is within the bound, no time for a wait
+    /// of none, and the bound itself for every wait past it, and is then
+    /// answered the revision alone.
     #[tokio::test(start_paused = true)]
     async fn a_watch_waits_the_shorter_of_its_wait_and_the_bound() {
         let server = a_server(nc_channel::Channel::Staging);
+        let still = Moving::new("a");
         let most = nc_catalog::DAEMON.ipc_watch_wait_ms;
-        let empty = Value::object(Vec::<(&str, Value)>::new());
+        let state = Value::object([("shell", shell("a"))]);
         for (seen, wait_ms, waited, state) in [
-            (None, most, 0, Some(empty.clone())),
-            (None, 0, 0, Some(empty.clone())),
-            (Some(7), u64::MAX, 0, Some(empty.clone())),
-            (Some(super::Watched::LAST), most, 0, Some(empty)),
-            (Some(0), 0, 0, None),
-            (Some(0), 250, 250, None),
-            (Some(0), most - 1, most - 1, None),
-            (Some(0), most, most, None),
-            (Some(0), most + 1, most, None),
-            (Some(0), u64::MAX, most, None),
+            (None, most, 0, Some(state.clone())),
+            (None, 0, 0, Some(state.clone())),
+            (Some(7), u64::MAX, 0, Some(state.clone())),
+            (Some(0), most, 0, Some(state.clone())),
+            (Some(super::Watched::LAST), most, 0, Some(state)),
+            (Some(1), 0, 0, None),
+            (Some(1), 250, 250, None),
+            (Some(1), most - 1, most - 1, None),
+            (Some(1), most, most, None),
+            (Some(1), most + 1, most, None),
+            (Some(1), u64::MAX, most, None),
         ] {
             let before = tokio::time::Instant::now();
-            let answer = server.watch(seen, wait_ms).await;
+            let answer = server.watch(&still, seen, wait_ms).await;
             assert_eq!(
                 before.elapsed(),
                 Duration::from_millis(waited),
                 "{seen:?} waiting {wait_ms}"
             );
-            assert_eq!(changed(answer), (0, state), "{seen:?} waiting {wait_ms}");
+            assert_eq!(changed(answer), (1, state), "{seen:?} waiting {wait_ms}");
         }
     }
 
-    /// A note or a display another connection tells answers every watch that
+    /// A move of the interface's state or a display answers every watch that
     /// waits, and one that says what is held already answers none.
     ///
-    /// **On a paused clock**: two watches waiting on revision 0 are both
-    /// answered at the moment a note is told, with revision 1 and the note;
-    /// the same note told again moves nothing, so a watch naming 1 waits its
-    /// whole wait and is answered the revision alone; a display moves it to
-    /// 2, the state holding both; the same display again moves nothing; and
-    /// another note replaces the one held.
+    /// **On a paused clock**: two watches waiting on revision 1 are both
+    /// answered at the moment the kernel tells its state moved, with revision
+    /// 2 and that state; the kernel telling the revision taken in again moves
+    /// nothing, so a watch naming 2 waits its whole wait and is answered the
+    /// revision alone; a display moves it to 3, the state holding both; the
+    /// same display again moves nothing; and the kernel's next move moves it
+    /// to 4. **A watch hears every move the kernel tells while it waits**: one
+    /// told the revision taken in already, and then a move, is answered at the
+    /// second, at revision 5.
     #[tokio::test(start_paused = true)]
-    async fn a_note_or_a_display_answers_every_watch_and_what_is_held_already_none() {
+    async fn a_move_of_the_interface_or_a_display_answers_every_watch_and_what_is_held_none() {
         let server = a_server(nc_channel::Channel::Staging);
+        let moving = Moving::new("a");
         let most = nc_catalog::DAEMON.ipc_watch_wait_ms;
+        assert_eq!(changed(server.watch(&moving, None, 0).await).0, 1);
         let before = tokio::time::Instant::now();
         let (first, second, ()) = tokio::join!(
-            server.watch(Some(0), most),
-            server.watch(Some(0), u64::MAX),
+            server.watch(&moving, Some(1), most),
+            server.watch(&moving, Some(1), u64::MAX),
             async {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                server.note(a_note("a"));
+                moving.moved(1, "b");
             }
         );
         assert_eq!(before.elapsed(), Duration::from_millis(100));
-        let noted = Value::object([("note", Value::object([("draft", Value::text("a"))]))]);
-        assert_eq!(changed(first), (1, Some(noted.clone())));
-        assert_eq!(changed(second), (1, Some(noted)));
+        let moved = Value::object([("shell", shell("b"))]);
+        assert_eq!(changed(first), (2, Some(moved.clone())));
+        assert_eq!(changed(second), (2, Some(moved)));
 
-        server.note(a_note("a"));
+        moving.moved(1, "b");
         let before = tokio::time::Instant::now();
-        assert_eq!(changed(server.watch(Some(1), 300).await), (1, None));
+        assert_eq!(
+            changed(server.watch(&moving, Some(2), 300).await),
+            (2, None)
+        );
         assert_eq!(before.elapsed(), Duration::from_millis(300));
 
         let before = tokio::time::Instant::now();
-        let (watched, ()) = tokio::join!(server.watch(Some(1), most), async {
+        let (watched, ()) = tokio::join!(server.watch(&moving, Some(2), most), async {
             tokio::time::sleep(Duration::from_millis(50)).await;
             server.display(a_display(":1"));
         });
@@ -2060,18 +2239,55 @@ mod tests {
         let both = |draft: &str| {
             Value::object([
                 ("display", Value::object([("DISPLAY", Value::text(":1"))])),
-                ("note", Value::object([("draft", Value::text(draft))])),
+                ("shell", shell(draft)),
             ])
         };
-        assert_eq!(changed(watched), (2, Some(both("a"))));
+        assert_eq!(changed(watched), (3, Some(both("b"))));
         server.display(a_display(":1"));
-        assert_eq!(changed(server.watch(Some(2), 0).await), (2, None));
-        server.note(a_note("b"));
+        assert_eq!(changed(server.watch(&moving, Some(3), 0).await), (3, None));
+        moving.moved(2, "c");
         assert_eq!(
-            changed(server.watch(Some(2), most).await),
-            (3, Some(both("b")))
+            changed(server.watch(&moving, Some(3), most).await),
+            (4, Some(both("c")))
         );
+        let before = tokio::time::Instant::now();
+        let (watched, ()) = tokio::join!(server.watch(&moving, Some(4), most), async {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            moving.moved(2, "c");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            moving.moved(3, "d");
+        });
+        assert_eq!(before.elapsed(), Duration::from_millis(100));
+        assert_eq!(changed(watched), (5, Some(both("d"))));
         assert_eq!(server.announced(), Some(a_display(":1")));
+    }
+
+    /// A state of the kernel's read before a newer one was taken in is never
+    /// taken in after it.
+    ///
+    /// **Two watches racing a move** (`NOCTUA.md §11.1`: a state newer than
+    /// the revision a watch names answers it): the kernel at revision 3 is
+    /// taken in by one watch, and then a slower watch's read of revision 2,
+    /// made before the move, reaches the channel. It moves nothing — the
+    /// state held and the revision watched are the newer one's — and a watch
+    /// naming the revision watched waits it out, answered the revision alone.
+    #[tokio::test(start_paused = true)]
+    async fn a_state_read_before_a_newer_one_was_taken_in_is_never_taken_in_after_it() {
+        let server = a_server(nc_channel::Channel::Staging);
+        let moving = Moving::new("a");
+        moving.moved(3, "c");
+        let fresh = Value::object([("shell", shell("c"))]);
+        assert_eq!(
+            changed(server.watch(&moving, None, 0).await),
+            (1, Some(fresh))
+        );
+        server.took_in((2, shell("b")));
+        assert_eq!(
+            server.watched.borrow().shell,
+            Some((3, shell("c"))),
+            "an older state was taken in"
+        );
+        assert_eq!(changed(server.watch(&moving, Some(1), 0).await), (1, None));
     }
 
     /// A watch that was waiting when a stop began is refused as stopping, at
@@ -2079,8 +2295,9 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn a_watch_waiting_when_a_stop_begins_is_refused_as_stopping() {
         let server = a_server(nc_channel::Channel::Staging);
+        let still = Moving::new("a");
         let before = tokio::time::Instant::now();
-        let (answer, ()) = tokio::join!(server.watch(Some(0), u64::MAX), async {
+        let (answer, ()) = tokio::join!(server.watch(&still, Some(1), u64::MAX), async {
             tokio::time::sleep(Duration::from_millis(100)).await;
             server.stop();
         });
@@ -2116,16 +2333,22 @@ mod tests {
         assert_eq!(watched.revision, 0, "a revision past the last was kept");
     }
 
+    /// The interface's state the kernel holds, as a watch answers it.
+    fn kernels(serving: &Serving) -> Value {
+        serving.kernel.shell().1
+    }
+
     /// A person's connections watch, note and announce through a daemon whose
     /// kernel runs, and a revision crosses the wire as it is at its largest.
     ///
     /// **Through connections the server serves**: a first watch is answered
-    /// the state, empty; a note told on a second connection answers the watch
-    /// waiting on the first, with the note; a display told then is in the
-    /// next answer beside it. With the state at the last revision the wire
-    /// writes, a watch reads that revision whole, and the note told after it
-    /// is answered at revision zero to a watch naming the last — another
-    /// revision, though a smaller one.
+    /// the kernel's state; a note told on a second connection is applied by
+    /// the kernel — its draft is the state's — and answers the watch waiting
+    /// on the first with it; a display told then is in the next answer
+    /// beside it. With the state at the last revision the wire writes, a watch
+    /// reads that revision whole, and the note told after it is answered at
+    /// revision zero to a watch naming the last — another revision, though a
+    /// smaller one.
     #[tokio::test]
     async fn a_persons_connections_watch_note_and_announce_through_the_daemon() {
         let serving = Serving::new().await;
@@ -2140,17 +2363,21 @@ mod tests {
         let first = over(&mut watcher, watch(None)).await.expect("answered");
         assert_eq!(
             changed(first),
-            (0, Some(Value::object(Vec::<(&str, Value)>::new())))
+            (1, Some(Value::object([("shell", kernels(&serving))])))
         );
         let (heard, noted) = tokio::join!(
-            over(&mut watcher, watch(Some(0))),
+            over(&mut watcher, watch(Some(1))),
             over(&mut teller, Request::Note(a_note("a")))
         );
         assert_eq!(noted.expect("answered"), Answer::Noted);
-        let note = |draft: &str| ("note", Value::object([("draft", Value::text(draft))]));
+        let drafted = ("shell", kernels(&serving));
+        assert!(
+            drafted.1.to_canonical().contains(r#""draft":"a""#),
+            "the note was not applied: {drafted:?}"
+        );
         assert_eq!(
             changed(heard.expect("answered")),
-            (1, Some(Value::object([note("a")])))
+            (2, Some(Value::object([drafted.clone()])))
         );
         assert_eq!(
             over(&mut teller, Request::Display(a_display(":7")))
@@ -2160,16 +2387,16 @@ mod tests {
         );
         let display = ("display", Value::object([("DISPLAY", Value::text(":7"))]));
         assert_eq!(
-            changed(over(&mut watcher, watch(Some(1))).await.expect("answered")),
-            (2, Some(Value::object([display.clone(), note("a")])))
+            changed(over(&mut watcher, watch(Some(2))).await.expect("answered")),
+            (3, Some(Value::object([display.clone(), drafted.clone()])))
         );
         let last = super::Watched::LAST;
         server
             .watched
             .send_modify(|watched| watched.revision = last);
         assert_eq!(
-            changed(over(&mut watcher, watch(Some(2))).await.expect("answered")),
-            (last, Some(Value::object([display.clone(), note("a")])))
+            changed(over(&mut watcher, watch(Some(3))).await.expect("answered")),
+            (last, Some(Value::object([display.clone(), drafted])))
         );
         let (heard, noted) = tokio::join!(
             over(&mut watcher, watch(Some(last))),
@@ -2178,12 +2405,326 @@ mod tests {
         assert_eq!(noted.expect("answered"), Answer::Noted);
         assert_eq!(
             changed(heard.expect("answered")),
-            (0, Some(Value::object([display, note("b")])))
+            (
+                0,
+                Some(Value::object([display, ("shell", kernels(&serving))]))
+            )
         );
         drop((watcher, teller));
         let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
         assert_eq!(server.closed(tokio::time::Instant::now() + bound).await, 0);
         serving.closed().await;
+    }
+
+    /// A note the kernel refuses is answered with its refusal, the connection
+    /// going on, and moves nothing; and a note is journaled nowhere.
+    ///
+    /// **Through a connection the server serves**: a note naming no fact is
+    /// `[NC-VAL-0002]`, invalid, and one scrolling a page the state does not
+    /// hold `[NC-KERN-0027]`, not found; the state and its revision are as
+    /// they were, the next note on the same connection is applied, and the
+    /// journal holds no entry of any of them.
+    #[tokio::test]
+    async fn a_note_the_kernel_refuses_is_answered_with_its_refusal_and_none_is_journaled() {
+        let serving = Serving::new().await;
+        let mut teller = a_client_of(&serving.server).await;
+        let journaled = serving
+            .kernel
+            .journal_for_tests()
+            .await
+            .expect("the journal reads")
+            .len();
+        let before = serving.kernel.shell();
+        for (detail, code, kind) in [
+            (
+                Value::object([("zoom", Value::object([("to", Value::Integer(2))]))]),
+                ErrorCode::ValidationArgumentsInvalid,
+                RefusalKind::Invalid,
+            ),
+            (
+                Value::object([(
+                    "scroll",
+                    Value::object([("page", Value::Integer(9)), ("to", Value::Integer(1))]),
+                )]),
+                ErrorCode::KernelShellUnknown,
+                RefusalKind::NotFound,
+            ),
+        ] {
+            let note = nc_ipc::Note::new(detail).expect("a note");
+            match over(&mut teller, Request::Note(note))
+                .await
+                .expect("answered")
+            {
+                Answer::Refused(refusal) => {
+                    assert_eq!((refusal.code, refusal.kind), (code, kind), "{refusal:?}");
+                }
+                other => panic!("a note was answered with {other:?}"),
+            }
+        }
+        assert_eq!(
+            serving.kernel.shell(),
+            before,
+            "a refused note moved the state"
+        );
+        assert_eq!(
+            over(&mut teller, Request::Note(a_note("c")))
+                .await
+                .expect("answered"),
+            Answer::Noted
+        );
+        assert_eq!(serving.kernel.shell().0, before.0 + 1);
+        assert_eq!(
+            serving
+                .kernel
+                .journal_for_tests()
+                .await
+                .expect("the journal reads")
+                .len(),
+            journaled,
+            "a note was journaled"
+        );
+        drop(teller);
+        serving.closed().await;
+    }
+
+    /// The Leader the daemon holds is said held, each press it hears is a tap
+    /// the person made, and it is given back when the daemon stops.
+    ///
+    /// **With a registration a test grants**: once asked, the watched state
+    /// and the status say `{"held":true}`, at a new revision; a press is
+    /// `leader.tap` dispatched as the profile's person — the window it shows
+    /// moves the kernel's state — and journaled as theirs; and giving the
+    /// Leader back drops the registration, after which no press is heard.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_leader_the_daemon_holds_is_said_held_and_each_press_is_the_persons_tap() {
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        let pressed: Pressed = Arc::default();
+        let dropped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut watching = server.watched.subscribe();
+        let held = {
+            let (pressed, dropped) = (Arc::clone(&pressed), Arc::clone(&dropped));
+            crate::leader::listening(
+                Arc::clone(server),
+                &tokio::runtime::Handle::current(),
+                move |on_press, _on_lost| {
+                    *pressed.lock().expect("nothing panics holding it") = Some(on_press);
+                    Ok(nc_ipc::leader::Listening::Held(DroppedOnce(dropped)))
+                },
+            )
+        };
+        let said = Value::object([("held", Value::Bool(true))]);
+        tokio::time::timeout(
+            crate::testing::PATIENCE,
+            watching.wait_for(|watched| watched.leader.as_ref() == Some(&said)),
+        )
+        .await
+        .expect("said in time")
+        .expect("held");
+        assert!(
+            server
+                .status()
+                .to_canonical()
+                .contains(r#""leader":{"held":true}"#),
+            "{}",
+            server.status().to_canonical()
+        );
+        let mut moves = serving.kernel.shell_moves();
+        let _ = moves.borrow_and_update();
+        (pressed
+            .lock()
+            .expect("nothing panics holding it")
+            .as_ref()
+            .expect("handed a press"))();
+        tokio::time::timeout(crate::testing::PATIENCE, moves.changed())
+            .await
+            .expect("tapped in time")
+            .expect("told");
+        let person = server.named.person.id().as_str().to_owned();
+        assert_eq!(serving.decided("leader.tap").await, [(person, Vec::new())]);
+        assert!(
+            !dropped.load(Ordering::SeqCst),
+            "the registration was given back before the daemon gave it"
+        );
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        assert!(
+            dropped.load(Ordering::SeqCst),
+            "the registration was not given back"
+        );
+        serving.closed().await;
+    }
+
+    /// Where a test keeps the press a registration was handed.
+    type Pressed = Arc<std::sync::Mutex<Option<Box<dyn Fn() + Send>>>>;
+
+    /// A registration a test grants, which says when it is dropped.
+    struct DroppedOnce(Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for DroppedOnce {
+        fn drop(&mut self) {
+            assert!(!self.0.swap(true, Ordering::SeqCst), "dropped twice");
+        }
+    }
+
+    /// The refusal `refused` is told as.
+    fn refusal_of(refused: &nc_platform::leader::Refused) -> Refusal {
+        nc_ipc::leader::refusal(refused)
+    }
+
+    /// What the watched state holds of a Leader refused as `refusal`.
+    fn refused_as(refusal: &Refusal) -> Value {
+        Value::object([(
+            "refused",
+            Value::object([
+                ("code", Value::text(refusal.code.code())),
+                ("sentence", Value::text(refusal.sentence.as_str())),
+            ]),
+        )])
+    }
+
+    /// A Leader the daemon was refused, or lost, is held in the watched state
+    /// and the status, said once.
+    ///
+    /// **With a registration a test refuses, and one it grants and loses**: a
+    /// refusal as taken is held as `refused` with `[NC-CHAN-0020]` and the
+    /// sentence, at a new revision, and the same refusal again moves nothing;
+    /// a registration granted is held, and its loss, the server gone away, is
+    /// held with `[NC-CHAN-0022]` in its place and shown in the status.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_refused_or_lost_is_held_in_the_watched_state_and_the_status() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let taken = refusal_of(&nc_platform::leader::Refused::Taken);
+        let told = taken.clone();
+        crate::leader::listening(
+            Arc::clone(&server),
+            &tokio::runtime::Handle::current(),
+            move |_on_press, _on_lost| Err::<nc_ipc::leader::Listening<()>, _>(told),
+        )
+        .given_back();
+        let held = server.watched.borrow().clone();
+        assert_eq!(held.revision, 1);
+        assert_eq!(held.leader, Some(refused_as(&taken)));
+        assert_eq!(taken.code, ErrorCode::ChannelLeaderTaken);
+        server.leader_asked(Err(&taken));
+        assert_eq!(server.watched.borrow().revision, 1, "what is held moved");
+        let lost = Arc::new(std::sync::Mutex::new(None));
+        let losing = Arc::clone(&lost);
+        let held = crate::leader::listening(
+            Arc::clone(&server),
+            &tokio::runtime::Handle::current(),
+            move |_on_press, on_lost| {
+                *losing.lock().expect("nothing panics holding it") = Some(on_lost);
+                Ok(nc_ipc::leader::Listening::Held(()))
+            },
+        );
+        let mut watching = server.watched.subscribe();
+        tokio::time::timeout(
+            crate::testing::PATIENCE,
+            watching.wait_for(|watched| watched.revision == 2),
+        )
+        .await
+        .expect("held in time")
+        .expect("held");
+        let gone = nc_platform::leader::Refused::Failed("the X server went away".to_owned());
+        let lost_as = refusal_of(&gone);
+        (lost
+            .lock()
+            .expect("nothing panics holding it")
+            .take()
+            .expect("handed a loss"))(gone);
+        assert_eq!(server.watched.borrow().leader, Some(refused_as(&lost_as)));
+        assert_eq!(lost_as.code, ErrorCode::ChannelLeaderUnregistered);
+        assert!(
+            server
+                .status()
+                .to_canonical()
+                .contains(&refused_as(&lost_as).to_canonical()),
+            "{}",
+            server.status().to_canonical()
+        );
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+    }
+
+    /// The variable that tells this test binary, run as a child, to say what
+    /// a refused Leader is logged as.
+    const TELLS: &str = "NC_DAEMON_SERVER_LEADER_TELLS";
+
+    /// A Leader the daemon was refused, or lost, is logged as
+    /// `daemon.leader_refused` with its code, each time.
+    ///
+    /// **Through the test binary run as a child**, whose log, told of no
+    /// store, goes to its standard error: a refusal as taken, the same again
+    /// and a loss are three lines, with `[NC-CHAN-0020]` twice and then
+    /// `[NC-CHAN-0022]`.
+    #[test]
+    fn a_leader_refused_or_lost_is_logged_by_its_code() {
+        if std::env::var_os(TELLS).is_some() {
+            let world = a_world();
+            let server = Server::new(
+                Named {
+                    pid: 4242,
+                    instance: [9; 16],
+                    channel: nc_channel::Channel::Staging,
+                    realm: world.realm().as_str().to_owned(),
+                    person: world.person().clone(),
+                    since: 1_767_225_600_000,
+                },
+                nc_ipc::Token::fresh().expect("a token"),
+                Arc::new(std::sync::Mutex::new(nc_log::Log::to_standard_error(
+                    crate::environment::origin(),
+                ))),
+            );
+            let taken = refusal_of(&nc_platform::leader::Refused::Taken);
+            server.leader_asked(Err(&taken));
+            server.leader_asked(Err(&taken));
+            server.leader_asked(Err(&refusal_of(&nc_platform::leader::Refused::Failed(
+                "the X server went away".to_owned(),
+            ))));
+            return;
+        }
+        let this = std::env::current_exe().expect("this test binary");
+        let installed = crate::testing::Installed::new(&this);
+        let mut child = installed.spawn_as(
+            &this,
+            &[
+                "--exact",
+                "server::tests::a_leader_refused_or_lost_is_logged_by_its_code",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            &[(TELLS, std::ffi::OsStr::new("1"))],
+        );
+        let ended = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("a runtime")
+            .block_on(child.ended());
+        assert_eq!(ended, Some(0), "{}", installed.standard_error());
+        let codes: Vec<String> = installed
+            .standard_error()
+            .lines()
+            .filter_map(|line| {
+                let mut fields = nc_canon::parse(line.trim_start_matches("nc-log: "))
+                    .ok()?
+                    .into_object()?;
+                (fields.remove("_msg")? == Value::text("daemon.leader_refused"))
+                    .then(|| fields.remove("code")?.into_text())?
+            })
+            .collect();
+        assert_eq!(
+            codes,
+            [
+                ErrorCode::ChannelLeaderTaken.code(),
+                ErrorCode::ChannelLeaderTaken.code(),
+                ErrorCode::ChannelLeaderUnregistered.code(),
+            ],
+            "{}",
+            installed.standard_error()
+        );
     }
 
     /// A watcher that went away is found only when its answer is written, and
@@ -2208,9 +2749,9 @@ mod tests {
         )
         .await
         .expect("answered");
-        assert_eq!(changed(first).0, 0);
+        assert_eq!(changed(first).0, 1);
         let waiting = Request::Watch {
-            seen: Some(0),
+            seen: Some(1),
             wait_ms: most,
         };
         let gone = tokio::time::timeout(Duration::from_millis(200), watcher.ask(&waiting)).await;

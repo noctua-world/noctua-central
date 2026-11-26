@@ -112,11 +112,14 @@ pub(crate) fn cli(catalog: &Catalog, surfaces: &Surfaces) -> String {
              declares. The CLI is named for its channel (`§17.1`), and this page writes \
              production's name, `{}`.\n\n\
              **A verb is one word and every command's name is dotted**, so the two never \
-             meet: a verb is what the CLI does itself rather than a command it dispatches — \
-             help, its own channel's daemon started, stopped and asked how it is, the \
-             development checkouts, and `mcp`, which serves an MCP client and sends each \
-             call it makes to be decided as its session's agent — while a command is \
-             dispatched by the daemon, decided and journaled. **Each command \
+             meet: a verb is what the CLI does itself rather than a command it is asked to \
+             dispatch — help, its own channel's daemon started, stopped and asked how it \
+             is, the development checkouts, and two that carry dispatches: `mcp`, which \
+             serves an MCP client and sends each call it makes to be decided as its \
+             session's agent, and `leader`, which announces the graphical environment a \
+             compositor's binding runs it in and dispatches the Leader's tap as the \
+             person — while a command is dispatched by the daemon, decided and journaled. \
+             **Each command \
              below is what help prints of it**, in each language the environment can name, \
              laid out by the one function help lays it out with: the CLI's own words in \
              English, the command's texts from its entry. A plugin's commands are not on \

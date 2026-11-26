@@ -585,25 +585,38 @@ fn changed(answer: Answer) -> (u64, Option<Value>) {
     }
 }
 
+/// What a watch's `state` holds as `field` of the interface's state, then as
+/// each name of `path` in turn.
+fn held_at(state: Option<&Value>, field: &str, path: &[&str]) -> Option<Value> {
+    let mut held = state?.clone().into_object()?.remove(field)?;
+    for name in path {
+        held = held.into_object()?.remove(*name)?;
+    }
+    Some(held)
+}
+
 /// A real daemon answers a watch when another connection tells it a note or a
-/// display, refuses the watch that waits when it is stopped, and keeps nothing
-/// of either past the stop.
+/// display, refuses the watch that waits when it is stopped, and keeps no
+/// display past the stop.
 ///
-/// **Two connections of the person's**: the first watch is answered an empty
-/// state at revision zero; a display and a note told on the other connection
-/// are both in the next answer; a watch waiting the whole bound is answered
-/// when another note is told, with that note; one waiting when a stop is
-/// asked on the other connection is refused as stopping (`NC-DMN-0010`), and
-/// the daemon ends well without waiting the watch out. **That the watch was
-/// waiting is given time, not observed**: one that reached the daemon only
-/// after the stop finds its connection closed between two requests, and is
-/// lost unanswered, which this test takes as well — the refusal of a watch
-/// known to be waiting is the server's own test. **Nothing told was
-/// journaled**: the stopped daemon's journal holds no entry. And the daemon
-/// started again answers a watch that names the old revision with its own
-/// state, empty, at revision zero — another revision, and nothing kept.
+/// **Two connections of the person's**: the first watch is answered the
+/// interface's state the kernel holds, its draft empty, at revision 1 and
+/// with no display; a display and a note told on the other connection are
+/// both in the next answer — the note as the draft the kernel's state holds;
+/// a watch waiting the whole bound is answered when another note is told,
+/// with its draft; one waiting when a stop is asked on the other connection
+/// is refused as stopping (`NC-DMN-0010`), and the daemon ends well without
+/// waiting the watch out. **That the watch was waiting is given time, not
+/// observed**: one that reached the daemon only after the stop finds its
+/// connection closed between two requests, and is lost unanswered, which this
+/// test takes as well — the refusal of a watch known to be waiting is the
+/// server's own test. **Nothing told was journaled**: the stopped daemon's
+/// journal holds no entry. And the daemon started again answers a watch that
+/// names the old revision with its own state at revision 1 — another revision
+/// — holding no display: the environment is one start's, and the interface's
+/// state the kernel's.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_past_a_stop() {
+async fn a_watch_is_answered_what_another_connection_told_and_no_display_is_kept_past_a_stop() {
     use nc_journal::Store as _;
     let installed = Installed::new(Path::new(BINARY));
     let mut daemon = installed.spawn();
@@ -615,25 +628,28 @@ async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_pa
         seen,
         wait_ms: most,
     };
-    let empty = || Value::object(Vec::<(&str, Value)>::new());
     let note = |draft: &str| {
-        nc_ipc::Note::new(Value::object([("draft", Value::text(draft))])).expect("a note")
+        nc_ipc::Note::new(Value::object([(
+            "draft",
+            Value::object([("text", Value::text(draft))]),
+        )]))
+        .expect("a note")
     };
-    let held = |draft: &str| {
-        Value::object([
-            (
-                "display",
-                Value::object([
-                    ("DISPLAY", Value::text(":7")),
-                    ("XAUTHORITY", Value::text("/run/user/1000/xauth")),
-                ]),
-            ),
-            ("note", Value::object([("draft", Value::text(draft))])),
-        ])
+    let announced = Value::object([
+        ("DISPLAY", Value::text(":7")),
+        ("XAUTHORITY", Value::text("/run/user/1000/xauth")),
+    ]);
+    let read = |answer: Answer| {
+        let (revision, state) = changed(answer);
+        (
+            revision,
+            held_at(state.as_ref(), "shell", &["prompt", "draft"]),
+            held_at(state.as_ref(), "display", &[]),
+        )
     };
     assert_eq!(
-        changed(asked(&mut watcher, watch(None)).await),
-        (0, Some(empty()))
+        read(asked(&mut watcher, watch(None)).await),
+        (1, Some(Value::text("")), None)
     );
     let display =
         nc_ipc::Graphical::new([("DISPLAY", ":7"), ("XAUTHORITY", "/run/user/1000/xauth")])
@@ -647,16 +663,16 @@ async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_pa
         Answer::Noted
     );
     assert_eq!(
-        changed(asked(&mut watcher, watch(Some(0))).await),
-        (2, Some(held("a")))
+        read(asked(&mut watcher, watch(Some(1))).await),
+        (3, Some(Value::text("a")), Some(announced.clone()))
     );
     let (heard, noted) = tokio::join!(
-        asked(&mut watcher, watch(Some(2))),
+        asked(&mut watcher, watch(Some(3))),
         asked(&mut teller, Request::Note(note("b")))
     );
     assert_eq!(noted, Answer::Noted);
-    assert_eq!(changed(heard), (3, Some(held("b"))));
-    let request = watch(Some(3));
+    assert_eq!(read(heard), (4, Some(Value::text("b")), Some(announced)));
+    let request = watch(Some(4));
     let (heard, stopping) = tokio::join!(
         tokio::time::timeout(PATIENCE, watcher.ask(&request)),
         async {
@@ -695,9 +711,51 @@ async fn a_watch_is_answered_what_another_connection_told_and_nothing_is_kept_pa
     let mut again = installed.spawn();
     let (mut client, _) = again.connected().await;
     once(&mut client, runs).await;
+    let (revision, state) = changed(asked(&mut client, watch(Some(4))).await);
+    assert_eq!(revision, 1);
+    assert_eq!(held_at(state.as_ref(), "display", &[]), None, "{state:?}");
     assert_eq!(
-        changed(asked(&mut client, watch(Some(3))).await),
-        (0, Some(empty()))
+        held_at(state.as_ref(), "shell", &["prompt", "draft"]),
+        Some(Value::text("b")),
+        "the interface's state noted before the stop: {state:?}"
+    );
+    stopped(&mut client, &mut again).await;
+}
+
+/// The interface's state a note changed just before a stop is the one the
+/// next start holds.
+///
+/// **The stop saves it last** (`nc_kernel::Kernel::keep_interface`): a pump
+/// saves the state only every `pump_every_ms`, and a stop asked at once after
+/// a note — answered as made — leaves no pump between the two. Without the
+/// save the next start begins from the state the last pump kept, its draft
+/// empty.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_interfaces_state_noted_just_before_a_stop_is_the_next_starts() {
+    let installed = Installed::new(Path::new(BINARY));
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    once(&mut client, runs).await;
+    let drafted = "kept across a restart";
+    let note = nc_ipc::Note::new(Value::object([(
+        "draft",
+        Value::object([("text", Value::text(drafted))]),
+    )]))
+    .expect("a note");
+    assert_eq!(asked(&mut client, Request::Note(note)).await, Answer::Noted);
+    stopped(&mut client, &mut daemon).await;
+    let mut again = installed.spawn();
+    let (mut client, _) = again.connected().await;
+    once(&mut client, runs).await;
+    let watch = Request::Watch {
+        seen: None,
+        wait_ms: 0,
+    };
+    let (_, state) = changed(asked(&mut client, watch).await);
+    assert_eq!(
+        held_at(state.as_ref(), "shell", &["prompt", "draft"]),
+        Some(Value::text(drafted)),
+        "{state:?}"
     );
     stopped(&mut client, &mut again).await;
 }

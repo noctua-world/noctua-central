@@ -557,7 +557,8 @@ and
 the two stores that need a database — `nc-journal`'s `postgres.rs` and
 `nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the history step's
 `history.rs`, the console's `ui.rs`, the
-documentation step's `docs.rs`, one integration test,
+documentation step's `docs.rs`, the `sha256.rs` the fuzzy core's corpus is
+pinned by, one integration test,
 `the_registry_reaches_the_code.rs`, which is the only place a generated limit is
 held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
 `memory.rs` and `unit.rs`, the compiler's `load.rs`, `emit.rs` and its own
@@ -586,7 +587,7 @@ the units of work its writes are kept in,
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
 `history.rs`, the commands the catalog gives the kernel to run, `builtin.rs`,
-the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
+the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, the interface's own state, `shell.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
@@ -599,15 +600,17 @@ Leader reaches a process, `leader.rs`, and the X server's half of it, `x11.rs`, 
 start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, the client every program asks a
-daemon through, its `client.rs`, and the scripted daemon that client's suites
-connect to, its `testing.rs`, every name an install gives the system,
+daemon through, its `client.rs`, the scripted daemon that client's suites
+connect to, its `testing.rs`, and which process of an install hears the Leader, its
+`leader.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, a
 person's keybinding configuration and the other channels' read beside it,
 its `keys.rs`, the development checkouts installed beside an install, its
 `checkouts.rs`, and the PID record's format, `record.rs`, the
 daemon's `lib.rs`, `main.rs`, `profile.rs`, `device.rs` and
 `mark.rs`, what it serves, its `run.rs`, `server.rs`, `environment.rs`,
-`plugins.rs`, `schedule.rs` and `pidfile.rs`, the install its suites start it in,
+`plugins.rs`, `schedule.rs` and `pidfile.rs`, the Leader where it asks for it, its
+`leader.rs`, the install its suites start it in,
 `testing.rs`, which process it is, `nc-platform`'s `process.rs`, the CLI's
 `lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`, `exit.rs`, `client.rs`
 and `run.rs`, its process control, `control.rs`, its installer, `install.rs`,

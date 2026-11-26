@@ -50,8 +50,10 @@
 //! - **A note** ([`Note`], [`Answer::Noted`]) is what an interface says at
 //!   the rate it draws — a scroll position, a prompt's draft, what a pointer
 //!   is over — as one object of `ipc_note_max_bytes` at most. It is not a
-//!   command: nothing of it is dispatched, decided or journaled. The daemon
-//!   holds the last one told, as part of what a watch is answered.
+//!   command: nothing of it is dispatched or journaled. The daemon hands it to
+//!   its kernel, which reads it as the facts of the interface's state it
+//!   names, each decided as the command it is the equivalent of would be, and
+//!   applies it whole or not at all (`nc_kernel::Kernel::note`).
 //! - **A display** ([`Graphical`], [`Answer::Displayed`]) announces the
 //!   graphical environment a window for the person would be shown in: some of
 //!   `DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY` and `XDG_RUNTIME_DIR` and no
@@ -69,14 +71,17 @@
 //! connection. Every refusal is an [`IpcError`], which carries its code
 //! (`§15.1`).
 //!
-//! # The client ([`client`])
+//! # The client ([`client`]) and the Leader ([`leader`])
 //!
 //! What every program that asks a daemon shares — the CLI, and the desktop
 //! interface: the endpoint reached, the token read once its file is judged
 //! the user's alone, the handshake, the welcome held to the process the
 //! system shows and to the install's channel, and then each request with its
 //! answer held to the request's kind. [`testing`], behind `test-support`, is
-//! the scripted daemon their suites connect to.
+//! the scripted daemon their suites connect to. What a press of the Leader is
+//! sent as, which process of the install listens for one on each system, and
+//! how a refusal of it is told are [`leader`]'s, shared by the daemon, the CLI
+//! and the desktop interface alike.
 //!
 //! # What protocol 4 does not hold yet
 //!
@@ -88,15 +93,23 @@
 //! written, each is refused as every message no request is — malformed — and
 //! a command declared irreversible is refused as it was under protocol 3.
 //!
-//! **This is the one exception to a new message being a new number**, and
-//! `AGENTS.md` writes it beside the rule (*an IPC message*): it holds only
-//! for a protocol no release carries, and only until the Stage that builds
-//! it closes. **What it costs** is a development install whose daemon was
-//! built from an earlier commit of protocol 4 than its client: the two pass
-//! the handshake, and the daemon closes the connection at the first of the
-//! three it does not read. `cargo xtask dev --install` replaces both ends,
-//! and no released build is ever in that place — a release that carries 4
-//! carries all of it.
+//! **Its own messages may change what they mean under it, too**: since 4
+//! reached `dev`, a note — once held by the daemon and decided nowhere — is
+//! applied by the kernel to the interface's state, decided as its commands
+//! are and refused as they are, and a watch is answered that state and what
+//! came of asking for the Leader, where it was answered the last note.
+//!
+//! **This is the one exception to a new message, or a new meaning, being a
+//! new number**, and `AGENTS.md` writes it beside the rule (*an IPC
+//! message*): it holds only for a protocol no release carries, and only until
+//! the Stage that builds it closes. **What it costs** is a development
+//! install whose daemon was built from an earlier commit of protocol 4 than
+//! its client: the two pass the handshake, and then the daemon closes the
+//! connection at the first of the three it does not read, or reads a message
+//! as that earlier commit meant it — a note held rather than applied, a watch
+//! answered without the interface's state. `cargo xtask dev --install`
+//! replaces both ends, and no released build is ever in that place — a
+//! release that carries 4 carries all of it.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -129,6 +142,7 @@ pub mod client;
 mod connection;
 pub mod frame;
 mod handshake;
+pub mod leader;
 mod message;
 pub mod testing;
 

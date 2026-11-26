@@ -671,6 +671,42 @@ impl CallTree {
             .collect()
     }
 
+    /// The interface's state the tree holds and has not released: its
+    /// unit's, which is newer, before its own (`crate::shell`).
+    ///
+    /// **A unit reads the tree's own only while it can still be released.**
+    /// Once the journal refused an entry of the tree, nothing the tree holds
+    /// itself is released ([`CallTree::put_off_taken`]): what it held then is
+    /// let go at once (`journaled`), and a unit begun after computes over the
+    /// kernel's state, never over what the tree held itself since. Computed
+    /// over the tree's own, the state the unit releases when it is kept would
+    /// carry into the kernel's the tree's changes — the one the journal did
+    /// not take among them, made though its answer was withheld.
+    pub(crate) fn shell_held(&self) -> Option<&crate::shell::Held> {
+        let own = self.put_off.shell_held();
+        let Some(unit) = &self.unit else {
+            return own;
+        };
+        let carried = own.filter(|_| !self.entry_refused);
+        unit.later().shell_held().or(carried)
+    }
+
+    /// The tree once a unit of its own was kept holding the interface's
+    /// state, which the unit released.
+    ///
+    /// **That state was computed over the tree's own, and carries it**: a
+    /// command in the unit read back what the tree held when the unit began,
+    /// and nothing the tree holds changed while the unit was open. So the
+    /// tree's own is let go — released at the tree's end, it would be a state
+    /// older than the kernel's, refused — and every command after the unit
+    /// reads the state the unit released, the identifiers it gave included.
+    /// In a tree whose entry the journal refused the unit computed over the
+    /// kernel's state instead ([`CallTree::shell_held`]), and the tree's own,
+    /// which is never released, is let go all the same.
+    pub(crate) fn kept_over_its_own(&mut self) {
+        drop(self.put_off.shell_taken());
+    }
+
     /// How many timers the tree holds for the plugin in `owner`: its own,
     /// and its unit's.
     pub(crate) fn timers_held_for(&self, owner: PluginSlot) -> usize {
@@ -2436,6 +2472,12 @@ async fn journaled<E: Environment>(
         {
             let mut tree = lock(tree);
             tree.entry_refused = true;
+            // **What the tree holds of the interface itself is let go at
+            // once** (`CallTree::shell_held`): it is never released now, and
+            // every command after this one would read back a change the
+            // journal did not take — a unit among them, whose state is
+            // released when it is kept.
+            drop(tree.put_off.shell_taken());
             if let Some(unit) = tree.unit_mut() {
                 unit.doom(refusal.clone());
             }
@@ -2499,9 +2541,21 @@ async fn closed<E: Environment>(
             Err(units::not_run(refusal, &ambient))
         }
         (Ok(answer), None) => {
+            // **The interface's state a unit holds carries the tree's own**
+            // (`CallTree::kept_over_its_own`): a unit opened here inside a
+            // timer's callback, the one tree that holds changes of its own
+            // beside one, is kept with the tree's changes in it — none once
+            // the journal refused an entry of the tree, which the unit then
+            // never read (`CallTree::shell_held`).
+            let carries = ambient.later().shell_held().is_some();
             units::close(shared, ambient, asked.acting.whose_history(), &asked.name)
                 .await
-                .map(|()| answer)
+                .map(|()| {
+                    if carries {
+                        lock(tree).kept_over_its_own();
+                    }
+                    answer
+                })
         }
     }
 }
@@ -2600,6 +2654,7 @@ async fn builtin<E: Environment>(
             let began = lock(tree).began();
             crate::agents::listed(shared, asked.acting.principal(), began).await
         }
+        Some(Builtin::Shell(verb)) => crate::shell::ran(shared, tree, verb, &asked.json),
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

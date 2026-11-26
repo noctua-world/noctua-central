@@ -25,9 +25,11 @@
 //! [`run`] holds the order: the instance lock, the central log
 //! ([`environment`]), the PID record and a fresh token ([`pidfile`]), the
 //! endpoint ([`server`]), the kernel over the local database, the plugins
-//! installed in the profile ([`plugins`]), and the pump and the sweep on the
-//! catalog's schedule ([`schedule`]) — until a stop drains the dispatches
-//! running, waits for every connection's last answer, and settles the mark.
+//! installed in the profile ([`plugins`]), the pump and the sweep on the
+//! catalog's schedule ([`schedule`]), and the channel's Leader where the
+//! daemon is the process that asks the system for it ([`leader`]) — until a
+//! stop gives the Leader back, drains the dispatches running, waits for every
+//! connection's last answer, and settles the mark.
 //!
 //! `noctua-daemon` with no argument is the daemon; `noctua-daemon
 //! --initialize` is the installer's entry into the same modules: it prepares
@@ -68,6 +70,7 @@
 
 pub mod device;
 pub mod environment;
+pub mod leader;
 pub mod mark;
 pub mod pidfile;
 pub mod plugins;
