@@ -7683,7 +7683,13 @@ mod the_exemption_is_one_directory {
             "apps/daemon/src/main.rs",
             "apps/cli/src/lib.rs",
             "apps/cli/src/main.rs",
+            "apps/desktop/src/lib.rs",
+            "apps/desktop/src/main.rs",
             "xtask/src/main.rs",
+            // The two stand-ins `[patch.crates-io]` builds, path packages
+            // inside the tree.
+            "stand-ins/dirs/src/lib.rs",
+            "stand-ins/kuchikiki/src/lib.rs",
             // The fixtures' own crate, outside the fixtures directory.
             "crates/nc-log/src/ship.rs",
             "crates/nc-log/tests/anything.rs",

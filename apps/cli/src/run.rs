@@ -607,6 +607,7 @@ mod tests {
             },
             cli: &stand_in,
             daemon: &stand_in,
+            desktop: &stand_in,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,

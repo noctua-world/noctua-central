@@ -278,6 +278,9 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     ui::gap();
     ui::heading("generated output");
     generated(root, &mut failures);
+    // **And the one file Tailwind writes**, built again and held to the one
+    // committed, as the catalog's are (`xtask/src/tailwind.rs`).
+    crate::tailwind::check(root, offline, &mut failures);
 
     // Each step prints its own heading, so none is printed above the policy
     // pack: one there would stand empty, and file what follows it under a name
@@ -606,26 +609,11 @@ pub(crate) fn every_pin_was_answered_for(
     ))
 }
 
-/// The cross-repository wiring `NOCTUA.md §10.11` and `§8.6` fix.
-fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
-    match gates::manifests(root) {
-        Err(problem) => {
-            ui::failure(&problem);
-            failures.push("the manifest walk".to_owned());
-        }
-        Ok(manifests) if manifests.is_empty() => {
-            ui::failure(
-                "no Cargo.toml was found anywhere in the tree, so the manifest gates \
-                 inspected nothing and would have passed by not looking",
-            );
-            failures.push("the manifest walk found nothing".to_owned());
-        }
-        Ok(manifests) => colours_reach_through_the_design_system(root, &manifests, failures),
-    }
-
-    lints_are_taken(root, failures);
-    counts_are_not_written_down(root, failures);
-
+/// How this repository reaches the design system, and that it resolves
+/// (`NOCTUA.md §10.11`).
+///
+/// Split from `wiring`, which crosses clippy's line limit with it inline.
+fn the_design_system_is_reached(root: &Path, failures: &mut Vec<String>) {
     match std::fs::read_to_string(root.join("Cargo.toml"))
         .map_err(|error| format!("Cargo.toml could not be read: {error}"))
         .and_then(|text| design_dependency(&text))
@@ -674,11 +662,46 @@ fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
                  edited in one sitting",
             );
         }
+        // Not a failure either: the form a member building it takes, a release
+        // every clone and every runner resolves, which `deny.toml`'s sources
+        // admit as they admit every crate.
+        Ok(Dependency::Release(version)) => {
+            ui::ok(&format!(
+                "the design system is taken from crates.io at {version}"
+            ));
+            ui::detail(
+                "a release rather than a path, so a change to both repositories is a \
+                 release of the design system first",
+            );
+        }
         Err(problem) => {
             ui::failure(&problem);
             failures.push("the design system is not declared".to_owned());
         }
     }
+}
+
+/// The cross-repository wiring `NOCTUA.md §10.11` and `§8.6` fix.
+fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
+    match gates::manifests(root) {
+        Err(problem) => {
+            ui::failure(&problem);
+            failures.push("the manifest walk".to_owned());
+        }
+        Ok(manifests) if manifests.is_empty() => {
+            ui::failure(
+                "no Cargo.toml was found anywhere in the tree, so the manifest gates \
+                 inspected nothing and would have passed by not looking",
+            );
+            failures.push("the manifest walk found nothing".to_owned());
+        }
+        Ok(manifests) => colours_reach_through_the_design_system(root, &manifests, failures),
+    }
+
+    lints_are_taken(root, failures);
+    counts_are_not_written_down(root, failures);
+
+    the_design_system_is_reached(root, failures);
     // **And the one file the design system copies from this tree**, which its
     // own gate holds to a record of its own and never compares with this one.
     the_fuzzy_corpus_is_the_one_pinned(root, failures);
@@ -3647,7 +3670,8 @@ fn sql_files(on_disk: &[String]) -> usize {
 /// workspace's own `AGENTS.md`/`README.md`/`CLAUDE.md` *and* this repository's
 /// own documents; the **reference gate** walks none of them — it says so at its
 /// own walk — and only *resolves* a citation against the workspace when there is
-/// one. The design system resolves at `../noctua-design`.
+/// one. The design system, while it is a path dependency, resolves at
+/// `../noctua-design`; taken as a release, it reads nothing above.
 ///
 /// **None of that exists in CI.** A checkout action clones one repository into
 /// an empty directory, and `ci.yml` runs `cargo xtask check` there. Measured,
@@ -7877,7 +7901,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 55] = [
+const SUITES: [(&str, &str); 57] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7919,6 +7943,12 @@ const SUITES: [(&str, &str); 55] = [
     // driven in-process.
     ("nc-daemon", "a_recycled_pid_is_never_signalled.rs"),
     ("nc-daemon", "channels_side_by_side.rs"),
+    // The desktop interface following a daemon that answers as a script says,
+    // over a real endpoint in this process: it spawns nothing.
+    ("nc-desktop", "following_the_daemon.rs"),
+    // The desktop's binary asked `--probe`, its window opened on a display the
+    // test is handed.
+    ("nc-desktop", "the_window_opens_hidden.rs"),
     // The fuzzy core's laws over generated items and queries, and its corpus
     // replayed row by row: neither touches a disk or spawns anything.
     ("nc-fuzzy", "properties.rs"),
@@ -8101,7 +8131,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1081] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1099] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8139,8 +8169,25 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1081] = [
     "reads a step's output",
     "noctua",
     "noctua-daemon",
-    "the CLI and the daemon did not build: {said}",
-    "the build said it made no binary `{name}`, so there is nothing to install: build it with `cargo build --package nc-cli --package nc-daemon --bins` and read what cargo says",
+    "noctua-desktop",
+    "Tailwind wrote no sheet: {error}",
+    "`{class}` has no rule in the sheet: a class Tailwind does not know — its default palette and spacing are not imported — emits nothing",
+    "noctua-design-dist ships no `{BRIDGE}`, which the sheet maps the colour utilities through: take a release of the design system that ships it",
+    "pnpm could not be run: {error}",
+    "pnpm is not on `PATH`, and the desktop's sheet is built by Tailwind through it: install the version `xtask/tailwind/package.json` was locked with (`npm install -g pnpm@11.9.0`), or run under the nix shell `AGENTS.md` names",
+    "pnpm {} failed: {}",
+    "the CLI, the daemon and the desktop interface did not build: {said}",
+    "the build said it made no binary `{name}`, so there is nothing to install: build it with `cargo build --package nc-cli --package nc-daemon --package nc-desktop --bins` and read what cargo says",
+    "the desktop's sheet could not be built",
+    "the desktop's sheet is out of sync",
+    "the sheet holds a selector with `{escaped}`, which is an arbitrary value's",
+    "{SHEET} could not be written: {error}",
+    "{SHEET} is not what Tailwind builds for the classes the markup writes: run `cargo xtask build --sheet`, and commit what it writes",
+    "{package} could not be read: {error}",
+    "{relative}:{line} — a `class:` that is not a string literal, whose classes the sheet cannot be built for: write each class out, as `class: \"flex\"`",
+    "{relative}:{line} — {why}",
+    "{} could not be made: {error}",
+    "{} could not be written: {error}",
     "the CLI is `{}`",
     "`noctua-dev`, `{}`, is removed: no development checkout remains",
     "`noctua-dev`, `{}`, now reaches `{}`, the checkout installed most recently of those that remain",
@@ -8293,8 +8340,8 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1081] = [
     "`{command}` runs here, and it is not the gate",
     "Cargo.lock could not be read, and a release rewrites it: {error}. Nothing was written",
     "Cargo.toml could not be read: {error}",
-    "Cargo.toml declares `noctua-design` with neither a path nor a tag: {}",
-    "Cargo.toml declares no `noctua-design` dependency. It is how every later stage reaches the design system, and the two forms it may take — a path while the repositories are edited together, a git tag afterwards — are in NOCTUA.md §10.11",
+    "Cargo.toml declares `noctua-design` with neither a path, a release nor a tag: {}",
+    "Cargo.toml declares no `noctua-design` dependency. It is how every later stage reaches the design system, and the forms it may take — a path while the repositories are edited together, a release from crates.io or a git tag afterwards — are in NOCTUA.md §10.11",
     "Cargo.toml is not TOML, so which table declares `noctua-design` could not be answered: {error}",
     "Cargo.toml names `noctua-design` at `{path}`, and there is no manifest there. Either the workspace is not laid out as NOCTUA.md §3.1 describes, or this repository was cloned outside the workspace's `repos/` directory",
     "NC-{area}-{digits}",
@@ -8431,6 +8478,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1081] = [
     "a migration failed: {error}. {} before it, and each of those is committed — the stack is up on 127.0.0.1:{}. Fix the file and run `cargo xtask dev` again, or `cargo xtask dev --down` for a database with nothing in it",
     "a migration was applied and then removed",
     "a package is built from outside this repository",
+    "a release rather than a path, so a change to both repositories is a release of the design system first",
     "a reserved code is never freed: every log line ever written with it still refers to it. If this was a number you were trying out, it is not too late yet — the fix on the refusal you will get for renumbering it says how",
     "a rule under policy/packs/ belongs to `PACK_RULES`, not `CORE_RULES` — the two lists are \
      compared against the pack together and each is held to its own length. Add the id to \
@@ -11389,7 +11437,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 800] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 815] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11402,7 +11450,21 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 800] = [
     "  client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "(at another depth) {code}",
     "nothing was installed for this checkout, so nothing was removed",
-    "the CLI and the daemon are built",
+    "the CLI, the daemon and the desktop interface are built",
+    "run: sudo apt-get update -q",
+    "run: sudo apt-get install -y libwebkit2gtk-4.1-dev",
+    "run: npm install -g pnpm@11.9.0",
+    "the desktop's sheet",
+    "{SHEET} holds the rules of {classes} class(es), unchanged",
+    "{SHEET} is what Tailwind builds for the {classes} class(es) the markup writes",
+    "{SHEET} rewritten, with the rules of {classes} class(es)",
+    "has a `/` that is not a fraction of two whole numbers: an opacity modifier mixes a colour the design system did not",
+    "has a variant that is not lower-case words joined by `-`",
+    "has an empty variant",
+    "is not lower-case words of letters and digits joined by `-`: an arbitrary value, a colour written out, a custom property and an important flag are refused, and a size or a colour is a token's",
+    "pnpm, which installs and runs Tailwind; what it prints is read, not printed",
+    "@layer theme, base, components, utilities;\n@import \"tailwindcss/utilities.css\" layer(utilities) source(none);\n@import \"./bridge.css\";\n@source inline(\"{inline}\");\n",
+    "//! Generated by `cargo xtask build --sheet` from the classes `apps/desktop/src` writes — do not edit.\n//!\n//! Tailwind's utilities over the design system's Tailwind bridge, from\n//! `noctua-design-dist`, built by `xtask/src/tailwind.rs`, which says how.\n\n/// The interface's layout utilities, one minified sheet.\npub const SHEET: &str = ",
     "what an install installs runs in the job that installs it — in the release's gate as in every other — so each word of it is named: a crate with no version, or with a range, is whatever crates.io holds on the day, a second crate is one no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no version on crates.io describes it. Install one crate a line, as `cargo install --locked name@X.Y.Z`, which cargo installs exactly and builds with the lockfile it was published with, and move the version in every place it is written at once",
     "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "each job of the release runs what `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, installs the toolchain and the auditor, brings the stack up and runs the gate; the release checks out, installs the toolchain, builds the release tool, then mints the App's token and releases. The release job holds the App's key and its token, so the tool is built before the token exists, and the gate is what judges the commit it releases. A step to add is a line there, which is a line in a diff",
@@ -11972,6 +12034,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 800] = [
     "the default hasher is seeded per process, which is why `HashMap` order differs between two runs of the same binary. `BTreeMap`",
     "the design system does not depend on the colour crate — it vendors the generated output and ships it as the stylesheets it renders against (NOCTUA.md §8.6), so this is not a shortcut to the same bytes but a second copy of the colour system at a version nothing keeps in step. Take the tokens from what the design system draws",
     "the design system is pinned to {tag}",
+    "the design system is taken from crates.io at {version}",
     "the design system's manifest is at {path}",
     "the door is marked and says nothing about why it exists. What a reader needs is which real thing it reaches, so that the next person writes a door rather than a mirror",
     "the environment, the command line and the platform this ran on are properties of the machine rather than of the catalog, and the build-time macro spelling bakes one of them into the binary so that the same source emits different output on two machines. Everything the output depends on arrives through the catalog",
@@ -12582,7 +12645,12 @@ impl Audit {
 /// holds, and the warning fails the dependency step, so the change that moves
 /// the lock to `libsqlite3-sys` 0.39, or `cedar-policy-core` off `chrono`, takes
 /// its entry out of `deny.toml` and out of this list.
-const THE_ADVISORIES_LEFT_OUT: [&str; 2] = ["RUSTSEC-2026-0459", "RUSTSEC-2026-0543"];
+const THE_ADVISORIES_LEFT_OUT: [&str; 4] = [
+    "RUSTSEC-2024-0370",
+    "RUSTSEC-2024-0429",
+    "RUSTSEC-2026-0459",
+    "RUSTSEC-2026-0543",
+];
 
 /// What the `ignore` row of [`THE_AUDIT_IS_NOT_NARROWED`] needs.
 const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
@@ -13106,6 +13174,9 @@ enum Dependency {
     Path(String),
     /// A git tag, which is the switch `NOCTUA.md §10.11` documents.
     Tag(String),
+    /// A release from crates.io, where the design system publishes: what
+    /// this repository takes once a member builds it (`NOCTUA.md §10.11`).
+    Release(String),
 }
 
 /// How a workspace manifest reaches `noctua-design`.
@@ -13155,9 +13226,9 @@ fn design_dependency(manifest: &str) -> Result<Dependency, String> {
     let Some(declared) = declared else {
         return Err(
             "Cargo.toml declares no `noctua-design` dependency. It is how every later \
-             stage reaches the design system, and the two forms it may take — a path \
-             while the repositories are edited together, a git tag afterwards — are in \
-             NOCTUA.md §10.11"
+             stage reaches the design system, and the forms it may take — a path \
+             while the repositories are edited together, a release from crates.io or a \
+             git tag afterwards — are in NOCTUA.md §10.11"
                 .to_owned(),
         );
     };
@@ -13167,8 +13238,19 @@ fn design_dependency(manifest: &str) -> Result<Dependency, String> {
     if let Some(value) = value_of(declared, "tag") {
         return Ok(Dependency::Tag(value));
     }
+    // **A release is a version and nothing beside it that names a source**:
+    // a `git` with no tag is a branch's head, which moves, and is no release.
+    let release = declared.as_str().map(str::to_owned).or_else(|| {
+        let table = declared.as_table()?;
+        (!table.contains_key("git") && !table.contains_key("registry"))
+            .then(|| value_of(declared, "version"))
+            .flatten()
+    });
+    if let Some(version) = release {
+        return Ok(Dependency::Release(version));
+    }
     Err(format!(
-        "Cargo.toml declares `noctua-design` with neither a path nor a tag: {}",
+        "Cargo.toml declares `noctua-design` with neither a path, a release nor a tag: {}",
         declared.to_string().trim()
     ))
 }
@@ -15283,10 +15365,34 @@ mod tests {
     }
 
     #[test]
-    fn a_dependency_with_neither_form_is_refused_and_the_message_shows_the_line() {
-        let manifest = "[workspace.dependencies]\nnoctua-design = \"0.2.7\"\n";
-        let error = design_dependency(manifest).expect_err("a registry version is not a form here");
-        assert!(error.contains("0.2.7"), "{error}");
+    fn a_released_dependency_is_read_as_a_release_however_it_is_written() {
+        for manifest in [
+            "[workspace.dependencies]\nnoctua-design = \"0.3.0\"\n",
+            "[workspace.dependencies]\nnoctua-design = { version = \"0.3.0\" }\n",
+        ] {
+            assert_eq!(
+                design_dependency(manifest),
+                Ok(Dependency::Release("0.3.0".to_owned())),
+                "{manifest}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_dependency_with_no_form_is_refused_and_the_message_shows_the_line() {
+        // A branch's head moves, and a registry of somebody else's is not where
+        // the design system publishes: neither is a release.
+        for manifest in [
+            "[workspace.dependencies]\nnoctua-design = { git = \"https://example.invalid/x.git\", version = \"0.2.7\" }\n",
+            "[workspace.dependencies]\nnoctua-design = { registry = \"elsewhere\", version = \"0.2.7\" }\n",
+            "[workspace.dependencies]\nnoctua-design = { features = [\"x\"] }\n",
+        ] {
+            let error = design_dependency(manifest).expect_err("no form this repository takes");
+            assert!(
+                error.contains("neither a path, a release nor a tag"),
+                "{error}"
+            );
+        }
     }
 
     /// A `noctua-design` key in a table cargo does not resolve is not the
@@ -15352,6 +15458,11 @@ mod tests {
             Dependency::Tag(tag) => assert!(
                 tag.starts_with('v'),
                 "this repository has moved to a tag, and it is `{tag}`"
+            ),
+            Dependency::Release(version) => assert!(
+                version.split('.').count() == 3
+                    && version.split('.').all(|part| part.parse::<u32>().is_ok()),
+                "this repository takes a release, and `{version}` is not one version"
             ),
         }
     }
@@ -15585,7 +15696,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         );
     }
 
-    /// What each verb is handed, which is seven lines nothing else reads.
+    /// What each verb is handed, which is eight lines nothing else reads.
     ///
     /// **The enum is pinned above, and this pins the dispatch.**
     /// `build::run`, `dev::run`, `docs::run` and `release::run` have exactly
@@ -15609,10 +15720,12 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// not happen by accident.
     #[test]
     fn each_verb_is_handed_what_its_flags_say() {
-        const HANDED: [&str; 7] = [
-            // `build --plugins` is the same verb with a flag, and its arm comes
-            // first because the one below it matches every other build.
+        const HANDED: [&str; 8] = [
+            // `build --plugins` and `build --sheet` are the same verb with a
+            // flag, and their arms come first because the one below them
+            // matches every other build.
             "Command::Build { plugins: true, .. } => plugins::run(&root),",
+            "Command::Build { sheet: true, .. } => tailwind::run(&root),",
             "Command::Build { reserve, .. } => build::run(&root, reserve),",
             "Command::Check { offline } => check::run(&root, offline),",
             // `dev --install` and `--uninstall` are the same verb with a flag,
@@ -17491,7 +17604,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 21);
+        assert_eq!(members_of(root()), 24);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17680,7 +17793,11 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 21] = [
+    const SOURCE_ROOTS: [(&str, usize); 24] = [
+        // The two stand-ins `[patch.crates-io]` puts in place of `wry`'s
+        // dependencies, each one library.
+        ("dirs", 1),
+        ("kuchikiki", 1),
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -17688,6 +17805,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-channel", 3),
         ("nc-cli", 5),
         ("nc-daemon", 12),
+        ("nc-desktop", 4),
         ("nc-fuzzy", 3),
         ("nc-guest", 1),
         ("nc-ids", 3),
@@ -19741,7 +19859,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 247] = [
+    const DOCUMENTED: [(&str, usize, usize); 260] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19789,6 +19907,17 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
+        ("desktop/client.rs", 12, 1),
+        ("desktop/following_the_daemon.rs", 5, 2),
+        ("desktop/host.rs", 21, 7),
+        ("desktop/lib.rs", 0, 5),
+        ("desktop/main.rs", 16, 6),
+        ("desktop/mirror.rs", 84, 19),
+        ("desktop/page.rs", 7, 1),
+        ("desktop/sheet.rs", 1, 0),
+        ("desktop/the_window_opens_hidden.rs", 1, 0),
+        ("dirs/lib.rs", 1, 0),
+        ("kuchikiki/lib.rs", 0, 0),
         ("nc-authz/agents.rs", 69, 47),
         ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
@@ -19944,12 +20073,13 @@ mod the_frozen_path_rule {
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/leader.rs", 52, 8),
-        ("nc-platform/lib.rs", 112, 26),
+        ("nc-platform/lib.rs", 113, 26),
         ("nc-platform/macos.rs", 16, 10),
         ("nc-platform/process.rs", 53, 15),
         ("nc-platform/service.rs", 185, 21),
-        ("nc-platform/testing.rs", 35, 4),
+        ("nc-platform/testing.rs", 40, 7),
         ("nc-platform/unix.rs", 106, 4),
+        ("nc-platform/webview.rs", 2, 3),
         ("nc-platform/windows.rs", 154, 15),
         ("nc-platform/x11.rs", 225, 39),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
@@ -19974,7 +20104,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 136, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
-        ("xtask/check.rs", 693, 57),
+        ("xtask/check.rs", 698, 58),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19986,7 +20116,7 @@ mod the_frozen_path_rule {
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
-        ("xtask/main.rs", 3, 26),
+        ("xtask/main.rs", 3, 27),
         ("xtask/members.rs", 44, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
@@ -19995,6 +20125,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 38, 10),
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
+        ("xtask/tailwind.rs", 25, 1),
         ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
         ("xtask/the_registry_reaches_the_code.rs", 43, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
@@ -22783,8 +22914,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 926 scratches this tree
-    /// builds, 838 of the 926 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 931 scratches this tree
+    /// builds, 843 of the 931 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22850,7 +22981,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 72] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 74] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -22879,6 +23010,8 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
+        ("desktop/following_the_daemon.rs", 3, 3),
+        ("desktop/main.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 273, 273),
         (
@@ -25955,7 +26088,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23664;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24051;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25974,7 +26107,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6907;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7108;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25991,7 +26124,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2352;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2424;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26008,7 +26141,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [126, 26, 51, 52, 99];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [138, 27, 54, 55, 101];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26025,7 +26158,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31181;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31493;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26043,7 +26176,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 618;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 644;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26079,8 +26212,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **618 of 31,181 are accepted by the first-line
-    /// rule alone, and 354 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **644 of 31,493 are accepted by the first-line
+    /// rule alone, and 375 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26101,8 +26234,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **126 ascending sorts, 26 descending, 51
-    /// swaps, 52 rotations and 99 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **138 ascending sorts, 27 descending, 54
+    /// swaps, 55 rotations and 101 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26112,7 +26245,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2352 of
+    /// this tree offers, **2424 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26892,7 +27025,7 @@ mod the_frozen_path_rule {
     /// still leaves the count short.
     #[cfg(test)]
     fn the_members_with_a_library_and_a_binary(members: &[crate::members::Member]) -> usize {
-        const A_LIBRARY_AND_A_BINARY: [&str; 2] = ["apps/daemon", "apps/cli"];
+        const A_LIBRARY_AND_A_BINARY: [&str; 3] = ["apps/daemon", "apps/cli", "apps/desktop"];
         for both in A_LIBRARY_AND_A_BINARY {
             assert!(
                 members
@@ -28663,7 +28796,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 800;
+    const THE_REST_IT_SAYS: usize = 815;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28811,7 +28944,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    static WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 515] = [
+    static WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 524] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28906,15 +29039,6 @@ mod the_frozen_path_rule {
             "if !offline && let Err(problem) = every_pin_was_answered_for(pinned, compared, wrong, &unanswerable)",
             "a digest pin was neither compared nor announced",
         ),
-        ("Err(problem) =>", "the manifest walk"),
-        (
-            "Ok(manifests) if manifests.is_empty() =>",
-            "no Cargo.toml was found anywhere in the tree, so the manifest gates inspected nothing and would have passed by not looking",
-        ),
-        (
-            "Ok(manifests) if manifests.is_empty() =>",
-            "the manifest walk found nothing",
-        ),
         (
             "if root.join(&path).join(\"Cargo.toml\").is_file()",
             "the design system's manifest is at {path}",
@@ -28936,7 +29060,24 @@ mod the_frozen_path_rule {
             "Ok(Dependency::Tag(tag)) =>",
             "a tag rather than a path, so the two repositories can no longer be edited in one sitting",
         ),
+        (
+            "Ok(Dependency::Release(version)) =>",
+            "the design system is taken from crates.io at {version}",
+        ),
+        (
+            "Ok(Dependency::Release(version)) =>",
+            "a release rather than a path, so a change to both repositories is a release of the design system first",
+        ),
         ("Err(problem) =>", "the design system is not declared"),
+        ("Err(problem) =>", "the manifest walk"),
+        (
+            "Ok(manifests) if manifests.is_empty() =>",
+            "no Cargo.toml was found anywhere in the tree, so the manifest gates inspected nothing and would have passed by not looking",
+        ),
+        (
+            "Ok(manifests) if manifests.is_empty() =>",
+            "the manifest walk found nothing",
+        ),
         (
             "if extra.is_empty()",
             "the stack is one compose file; {looked} name(s) docker would merge are absent",
@@ -29944,7 +30085,10 @@ mod the_frozen_path_rule {
         ),
         ("if uninstall", "dev --uninstall"),
         ("else", "dev --install"),
-        ("—", "the CLI and the daemon are built"),
+        (
+            "—",
+            "the CLI, the daemon and the desktop interface are built",
+        ),
         (
             "—",
             "nothing was installed for this checkout, so nothing was removed",
@@ -30334,6 +30478,25 @@ mod the_frozen_path_rule {
             "—",
             "#{} is merged, by merge commit: its checks had passed already",
         ),
+        ("—", "the desktop's sheet"),
+        (
+            "if held == file",
+            "{SHEET} holds the rules of {classes} class(es), unchanged",
+        ),
+        (
+            "else",
+            "{SHEET} rewritten, with the rules of {classes} class(es)",
+        ),
+        ("Err(problem) =>", "the desktop's sheet could not be built"),
+        (
+            "if std::fs::read_to_string(root.join(SHEET)).is_ok_and(|held| held == file)",
+            "{SHEET} is what Tailwind builds for the {classes} class(es) the markup writes",
+        ),
+        (
+            "else",
+            "{SHEET} is not what Tailwind builds for the classes the markup writes: run `cargo xtask build --sheet`, and commit what it writes",
+        ),
+        ("else", "the desktop's sheet is out of sync"),
     ];
 
     /// A quote inside a char literal does not open a string.
@@ -30397,7 +30560,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 120] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 121] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -30625,6 +30788,7 @@ mod the_frozen_path_rule {
             "// **What was written, not what was listed.** This printed",
         ),
         ("—", "name"),
+        ("—", "line"),
         ("if answered.is_none()", "&announcement(&verdict, first"),
     ];
 
@@ -30689,7 +30853,7 @@ mod the_frozen_path_rule {
             "not_applicable",
         ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
-        const THE_SOURCES: usize = 24;
+        const THE_SOURCES: usize = 25;
 
         let here = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut imported: Vec<String> = Vec::new();
@@ -33339,7 +33503,7 @@ mod the_frozen_path_rule {
     /// The third column is how few files that tree may hold and still be worth
     /// asking about: a walk that reached one file proves nothing about a tree of
     /// hundreds, and `.cargo/` really does hold one.
-    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 11] = [
+    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 12] = [
         // The `cargo xtask` alias, and nothing else.
         (".cargo", &["toml"], 1),
         // The workflow. Composite actions and scripts would be more kinds, and
@@ -33378,8 +33542,21 @@ mod the_frozen_path_rule {
         // The gate itself: sources, its manifest, the meta-gate, the canaries'
         // prose, the denote corpus it reads, and the two shell scripts — the
         // checkout-shape measurement and what a run leaves behind, each a
-        // script because `§19.4` says the command surface does not grow.
-        ("xtask", &["md", "py", "rs", "sh", "toml", "tsv"], 4),
+        // script because `§19.4` says the command surface does not grow —
+        // and the package Tailwind is installed from, with its lockfile: a
+        // tool the gate runs, as `cargo-deny` is, and pnpm reads it in no
+        // other kind of file.
+        (
+            "xtask",
+            &["json", "md", "py", "rs", "sh", "toml", "tsv", "yaml"],
+            4,
+        ),
+        // **The two crates `[patch.crates-io]` puts in place of a dependency's
+        // dependency** (the root manifest says which and why): each a manifest
+        // and a source, and nothing else. Not under `crates/`, where every
+        // directory is a member, because a stand-in keeps the version of the
+        // crate it stands in for, which no member's manifest may.
+        ("stand-ins", &["rs", "toml"], 4),
     ];
 
     /// What may sit at the top of the repository, by name.
@@ -33504,7 +33681,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 18] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 21] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -33546,6 +33723,14 @@ mod the_frozen_path_rule {
         ("xtask", "py", "mutants.py"),
         // The canaries' status lines, which is the one table under `xtask/`.
         ("xtask", "tsv", "status-lines.tsv"),
+        // **Tailwind's package and its lockfile, each by its path**: the only
+        // JSON and the only YAML under `xtask/`, which pnpm installs from
+        // (`xtask/src/tailwind.rs`). A second `package.json` is a second
+        // package something might install.
+        ("xtask", "json", "xtask/tailwind/package.json"),
+        ("xtask", "yaml", "xtask/tailwind/pnpm-lock.yaml"),
+        // A stand-in's cargo manifest, at its own root.
+        ("stand-ins", "toml", "Cargo.toml"),
         // **The checkout-shape measurement, and what a run leaves behind: the
         // two shell scripts in this repository.** Each is a script rather than
         // a verb because `§19.4` says the command surface does not grow, and
@@ -33832,9 +34017,13 @@ mod the_frozen_path_rule {
                 );
                 continue;
             }
+            // **A worktree's `.git` is a file**, naming the repository it is a
+            // checkout of — what `git worktree add` writes, and no file of
+            // this repository's content.
             assert!(
                 WHAT_MAY_SIT_AT_THE_ROOT.contains(&name.as_str())
-                    || WRITTEN_BY_THE_RELEASE.contains(&name.as_str()),
+                    || WRITTEN_BY_THE_RELEASE.contains(&name.as_str())
+                    || name == ".git",
                 "`{name}` sits at the top of this repository and is named by nothing. \
                  The root is where a file with no extension is invisible to every kind \
                  rule above: a scratch note, an editor backup and a private key all \
@@ -34758,7 +34947,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 63] = [
+    const NOT_MUTATED: [(&str, &str); 70] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34942,6 +35131,55 @@ mod the_meta_gate {
              modules' unit tests, which the runner's commands for them run, and a \
              weakening of this file would remove evidence rather than uncover an \
              undecided clause",
+        ),
+        (
+            "apps/desktop/tests/following_the_daemon.rs",
+            "a suite: the desktop interface following a daemon that answers as a \
+             script says, over a real endpoint in this process, and asking it a \
+             command and notes. It is the command the runner judges the desktop's \
+             `client.rs` by, so a weakening of this file would remove the evidence \
+             those operators are killed with rather than uncover a clause",
+        ),
+        (
+            "apps/desktop/tests/the_window_opens_hidden.rs",
+            "a suite: the desktop's binary asked `--probe`, a window opened on a \
+             display the test is handed and its webview built through \
+             `nc-platform`'s one call. It spawns a process, so no mutation command \
+             runs it: what it drives in `host.rs` — the window built hidden, and the \
+             one word read from its document — is decided by that module's unit \
+             tests, which the runner's command for it runs",
+        ),
+        (
+            "apps/desktop/src/lib.rs",
+            "declarations: the crate root holds its documentation, two attributes \
+             and the modules, and no item an operator could weaken; each module is \
+             a source of its own the runner edits",
+        ),
+        (
+            "apps/desktop/src/sheet.rs",
+            "generated: written by `cargo xtask build --sheet` and held to what \
+             Tailwind builds by `check`, which refuses any edit to it, so a defect \
+             here is repaired in `xtask/src/tailwind.rs`, which the runner edits",
+        ),
+        (
+            "crates/nc-platform/src/webview.rs",
+            "run by a spawned binary alone: the desktop's suite \
+             `the_window_opens_hidden.rs` opens a real window through it in a \
+             process of its own. It puts a webview in a window the one way each \
+             system builds one, behind the `webview` feature only the desktop turns \
+             on, and decides nothing beside that call",
+        ),
+        (
+            "stand-ins/dirs/src/lib.rs",
+            "a stand-in: the one function `wry` calls of the crate it stands in \
+             for, answering nothing, asked only from inside `wry`, which this tree \
+             does not test; a weakening could be told only by a download the \
+             interface never starts",
+        ),
+        (
+            "stand-ins/kuchikiki/src/lib.rs",
+            "a stand-in: empty, for a crate `wry` names on Android alone, which no \
+             build of this tree is for, so it holds nothing an operator could reach",
         ),
         (
             "crates/nc-channel/tests/a_configuration_that_collides_is_refused.rs",
@@ -35610,6 +35848,15 @@ mod the_meta_gate {
         /// Compiled for Windows alone, or for macOS alone, by its own inner
         /// attribute, so no build the runner makes holds a line of it.
         AnotherSystem,
+        /// A crate root holding its documentation, inner attributes and module
+        /// declarations alone, so no item of it is one an operator could weaken.
+        Declarations,
+        /// A crate under `stand-ins/`, which `[patch.crates-io]` builds in place
+        /// of a dependency's dependency: asked only from inside that dependency.
+        StandIn,
+        /// Run only by a binary an integration suite spawns, which the reason
+        /// names by its file, so no mutation command may run it.
+        Spawned,
     }
 
     /// Reading a kind out of a reason, and writing one back as its token.
@@ -35619,7 +35866,7 @@ mod the_meta_gate {
     #[cfg(test)]
     impl Kind {
         /// Every kind there is, for the message that lists them.
-        const ALL: [Self; 7] = [
+        const ALL: [Self; 10] = [
             Self::Generated,
             Self::Suite,
             Self::Fixture,
@@ -35627,6 +35874,9 @@ mod the_meta_gate {
             Self::Corpus,
             Self::Bindings,
             Self::AnotherSystem,
+            Self::Declarations,
+            Self::StandIn,
+            Self::Spawned,
         ];
 
         /// The token a row opens with to claim this kind.
@@ -35639,6 +35889,9 @@ mod the_meta_gate {
                 Self::Corpus => "the corpus",
                 Self::Bindings => "bindings",
                 Self::AnotherSystem => "another system's",
+                Self::Declarations => "declarations",
+                Self::StandIn => "a stand-in",
+                Self::Spawned => "run by a spawned binary alone",
             }
         }
 
@@ -35903,7 +36156,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 17] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 18] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35968,6 +36221,10 @@ mod the_meta_gate {
         ),
         (
             "apps/cli/tests/the_mcp_server_writes_nothing_but_the_protocol.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/desktop/tests/the_window_opens_hidden.rs",
             SPAWNS_A_PROCESS,
         ),
     ];
@@ -37256,7 +37513,7 @@ Options:
     }
 
     /// The mutated sources whose tests live somewhere else, each said here.
-    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 14] = [
         "xtask/src/main.rs",
         "plugins/reference/src/lib.rs",
         "plugins/reference/src/adapter.rs",
@@ -37281,6 +37538,9 @@ Options:
         "crates/nc-ipc/src/testing.rs",
         // The CLI's crate root, whose one function `run.rs`'s tests drive.
         "apps/cli/src/lib.rs",
+        // The desktop's two connections to its daemon, which the suite that
+        // follows a scripted daemon drives in this process.
+        "apps/desktop/src/client.rs",
     ];
 
     /// Every source the runner mutates is judged by something that runs its own
@@ -37859,6 +38119,126 @@ Options:
         })
     }
 
+    /// Whether `why` names, in backticks, the file of an integration suite
+    /// that runs a binary of its own package: the evidence a `Spawned` row
+    /// rests on.
+    fn spawns_what_it_names(why: &str, root: &std::path::Path) -> bool {
+        let named: Vec<&str> = why
+            .split('`')
+            .skip(1)
+            .step_by(2)
+            .filter(|word| {
+                std::path::Path::new(word)
+                    .extension()
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case("rs"))
+                    && !word.contains('/')
+            })
+            .collect();
+        let mut found = false;
+        let _ = crate::gates::walk(root, &mut |path| {
+            let relative = crate::relative_to(root, path);
+            found |= path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| named.contains(&name))
+                && is_an_integration_target(&relative)
+                && std::fs::read_to_string(path)
+                    .is_ok_and(|text| text.contains("env!(\"CARGO_BIN_EXE_"));
+        });
+        found
+    }
+
+    /// A spawned row is held to a suite it names that spawns a binary.
+    #[test]
+    fn a_spawned_row_is_held_to_a_suite_that_spawns_one() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        assert!(spawns_what_it_names(
+            "run by a spawned binary alone: `the_window_opens_hidden.rs` opens a window",
+            root
+        ));
+        // Each name written outside the backticks it is read in, so the
+        // reference gate does not take one that is not there for a citation.
+        for named in [
+            // No suite named.
+            "",
+            // A suite that spawns no binary of its package.
+            "following_the_daemon.rs",
+            // A source, not a suite.
+            "host.rs",
+            // A suite that is not there, and a suite named by a path.
+            "no_suite_is_called_this.rs",
+            "tests/the_window_opens_hidden.rs",
+        ] {
+            let why = format!("run by a spawned binary alone: `{named}`");
+            assert!(!spawns_what_it_names(&why, root), "{why}");
+        }
+        assert_eq!(
+            Kind::opening("run by a spawned binary alone: a suite"),
+            Some(Kind::Spawned)
+        );
+    }
+
+    /// Whether `text` holds inner attributes and module declarations, each on a
+    /// line of its own, and nothing else but comments: one at least.
+    fn holds_declarations_alone(text: &str) -> bool {
+        let code = crate::gates::without_comments(text, "//");
+        let mut read = 0_usize;
+        let alone = code
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .all(|line| {
+                read += 1;
+                (line.starts_with("#![") && line.ends_with(']'))
+                    || ["pub mod ", "mod "].iter().any(|opening| {
+                        line.strip_prefix(opening).is_some_and(|rest| {
+                            rest.strip_suffix(';').is_some_and(|name| {
+                                !name.is_empty()
+                                    && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                            })
+                        })
+                    })
+            });
+        alone && read > 0
+    }
+
+    /// A declarations row is held to a file of inner attributes and module
+    /// declarations, and nothing else.
+    #[test]
+    fn a_declarations_row_is_held_to_attributes_and_modules_alone() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let desktop = std::fs::read_to_string(root.join("apps/desktop/src/lib.rs"))
+            .expect("the desktop's crate root is in this tree");
+        assert!(
+            holds_declarations_alone(&desktop),
+            "the desktop's crate root is declarations alone, and the rule a \
+             `declarations` row is held to does not see it"
+        );
+        for (changed, text) in [
+            ("a function", format!("{desktop}\npub fn helper() {{}}\n")),
+            ("a use", format!("{desktop}\npub use client::follow;\n")),
+            ("a constant", format!("{desktop}\nconst LIMIT: u8 = 1;\n")),
+            (
+                "a module with a body",
+                format!("{desktop}\nmod inline {{}}\n"),
+            ),
+            ("nothing", "//! only prose\n".to_owned()),
+        ] {
+            assert!(
+                !holds_declarations_alone(&text),
+                "with {changed}, the file still reads as declarations alone"
+            );
+        }
+        assert_eq!(
+            Kind::opening("declarations: attributes and modules alone"),
+            Some(Kind::Declarations)
+        );
+        assert_eq!(
+            Kind::opening("a stand-in: asked from inside a dependency alone"),
+            Some(Kind::StandIn)
+        );
+    }
+
     /// Whether a source is one `generate!` call and nothing written by hand.
     ///
     /// **The fact a `bindings` row rests on, read from the file rather than
@@ -38012,10 +38392,12 @@ Options:
                     nc_catalog_compiler::GENERATED_FILES.contains(&named)
                         || nc_catalog_compiler::GENERATED_DIRECTORIES
                             .iter()
-                            .any(|directory| named.starts_with(directory)),
-                    "the row for `{named}` calls it generated, and the compiler writes \
-                     neither it nor anything under it. A hand-written file excused as \
-                     output is excused by a sentence that is not true of it"
+                            .any(|directory| named.starts_with(directory))
+                        || named == crate::tailwind::SHEET,
+                    "the row for `{named}` calls it generated, and neither the compiler \
+                     nor `cargo xtask build --sheet` writes it or anything under it. A \
+                     hand-written file excused as output is excused by a sentence that \
+                     is not true of it"
                 ),
                 Kind::Suite => assert!(
                     is_an_integration_target(named),
@@ -38048,6 +38430,25 @@ Options:
                      `generate!` call with nothing written by hand beside it. A \
                      source holding code of its own is excused by a sentence that is \
                      not true of it, and that code is then decided by nobody"
+                ),
+                Kind::Declarations => assert!(
+                    std::fs::read_to_string(root.join(named))
+                        .is_ok_and(|text| holds_declarations_alone(&text)),
+                    "the row for `{named}` calls it declarations, and it holds a line \
+                     that is no inner attribute and no module declaration. A source \
+                     holding code of its own is excused by a sentence that is not true \
+                     of it, and that code is then decided by nobody"
+                ),
+                Kind::StandIn => assert!(
+                    named.starts_with("stand-ins/"),
+                    "the row for `{named}` calls it a stand-in, and it is not under \
+                     `stand-ins/`, where `[patch.crates-io]` takes every stand-in from"
+                ),
+                Kind::Spawned => assert!(
+                    spawns_what_it_names(why, root),
+                    "the row for `{named}` says a spawned binary alone runs it, and it \
+                     names no integration suite that spawns one: write the file name of \
+                     one that runs a binary of its package, as `<name>.rs`"
                 ),
                 Kind::AnotherSystem => assert!(
                     std::fs::read_to_string(root.join(named))
@@ -38161,7 +38562,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 261,
+            walked, 274,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38201,7 +38602,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3152] = [
+    static OPERATORS: [(&str, &str, &str); 3179] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -52458,6 +52859,109 @@ Options:
             "xkb_name",
             "Space is space, as XKB names it",
         ),
+        (
+            "tailwind",
+            "written",
+            "a word that only ends in `class` is no attribute",
+        ),
+        ("tailwind", "judged", "an empty variant is refused"),
+        ("tailwind", "is_words", "an empty word is no word"),
+        ("tailwind", "judged", "a fraction's numerator is a number"),
+        (
+            "tailwind",
+            "what_it_lacks",
+            "a selector that only begins another's is no rule",
+        ),
+        ("tailwind", "entry", "Tailwind scans no source"),
+        (
+            "desktop_main",
+            "asked",
+            "`--probe` is the one argument answered",
+        ),
+        (
+            "desktop_main",
+            "probed",
+            "a decorated window fails the probe",
+        ),
+        (
+            "desktop_main",
+            "probed",
+            "a window shown once loaded fails the probe",
+        ),
+        ("desktop_mirror", "id", "an identifier is one at least"),
+        (
+            "desktop_mirror",
+            "pair",
+            "a size or a place is written whole",
+        ),
+        (
+            "desktop_mirror",
+            "pages_of",
+            "two pages under one identifier are refused",
+        ),
+        (
+            "desktop_mirror",
+            "done",
+            "a field this build does not read is refused",
+        ),
+        (
+            "desktop_mirror",
+            "watched",
+            "a fact taken retires only past its revision",
+        ),
+        (
+            "desktop_mirror",
+            "to_tell",
+            "one note is in flight at a time",
+        ),
+        (
+            "desktop_mirror",
+            "told",
+            "a note refused takes its facts back",
+        ),
+        (
+            "desktop_mirror",
+            "reconnected",
+            "a new daemon heard no fact said",
+        ),
+        (
+            "desktop_mirror",
+            "draft",
+            "a draft said is shown over the state",
+        ),
+        ("desktop_page", "document", "the document is in its locale"),
+        (
+            "desktop_page",
+            "SAYS_LOADED",
+            "the script says the word the window reads",
+        ),
+        (
+            "desktop_host",
+            "is_loaded",
+            "only the document's word is read",
+        ),
+        (
+            "desktop_host",
+            "this_window",
+            "this process shows the state's first window",
+        ),
+        ("desktop_host", "command", "a close is `window.close`"),
+        (
+            "desktop_client",
+            "watched",
+            "a wait that changed nothing is handed over to nobody",
+        ),
+        (
+            "desktop_client",
+            "watched",
+            "each watch names the revision it saw",
+        ),
+        (
+            "desktop_client",
+            "again_after",
+            "a lost daemon is asked again after the heartbeat",
+        ),
+        ("desktop_client", "kept", "a refusal keeps the connection"),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

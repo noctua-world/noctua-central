@@ -12,8 +12,11 @@ resolver = "3"
 # machine runs — the daemon first — each a library its suites drive and a thin
 # binary (`NOCTUA.md §10.2`). Every gate that asks where the platform's code is
 # reads these trees from `MEMBER_TREES` in `xtask/src/members.rs`, which is held
-# to this line both ways.
-members = ["crates/*", "plugins/*", "apps/*", "xtask"]
+# to this line both ways. `stand-ins/*` holds the crates `[patch.crates-io]`
+# puts in place of a dependency's dependency (the paragraph above it, below):
+# members like any other, so every gate reads them, each keeping the version
+# of the crate it stands in for.
+members = ["crates/*", "plugins/*", "apps/*", "stand-ins/*", "xtask"]
 
 [workspace.package]
 version = "0.1.0-rc.1"
@@ -50,21 +53,64 @@ rust-version = "1.96"
 # table makes.** `noctua-design` is Stage 16's: it is declared here so that the
 # crate taking it writes one line rather than a version, which is the whole point
 # of this table, and what it is not is resolved — `cargo` never builds it at all.
-# `check` says "the design system's manifest is at …" rather than "resolves",
-# for exactly that reason.
+# `check` says which form it is declared in — a release, a path whose manifest
+# is there, or a tag — and never "resolves", for exactly that reason.
 #
 # Pinned as minor-compatible: `cargo xtask check` fails on a dirty lockfile, so
 # an upgrade is always a deliberate, reviewed change rather than something that
 # happens to a machine that ran `cargo update`.
 
-# The design system, reached by path while it and this repository are edited
-# together. When this moves to a tagged dependency it becomes exactly this line:
-#   noctua-design = { git = "https://github.com/noctua-world/noctua-design.git", tag = "v0.2.7" }
+# The design system, **a release of it from crates.io**, where `noctua-design`
+# publishes every crate (`NOCTUA.md §10.11`): a release resolves in a clone
+# made anywhere and on every runner, which a sibling's path does not, and a
+# registry needs no `allow-git` exception in `deny.toml`, which a git tag does.
+# Its two crates move together, at the release the desktop interface was built
+# against; a change made to both repositories at once is a release of the
+# design system first. While the two are edited together it is one line:
+#   noctua-design = { path = "../noctua-design/crates/noctua-design" }
 #
 # `noctua-colors` is deliberately absent. The colour system reaches this
 # repository *through* `noctua-design`, never directly and never redefined
 # (`NOCTUA.md §8.8`, invariant 1); `cargo xtask check` fails if any manifest here names it.
-noctua-design = { path = "../noctua-design/crates/noctua-design" }
+noctua-design = "0.3.0"
+# **What the design system ships, embedded** — its stylesheets and the
+# Tailwind bridge its colour tokens are mapped by (`NOCTUA.md §8.5`). `xtask`
+# takes it, for the one file the desktop's sheet is built from:
+# its Tailwind bridge, read from `noctua_design_dist::FILES` by name
+# (`xtask/src/tailwind.rs`), so the sheet is built against the release the
+# lockfile holds and no copy of the bridge sits in this tree.
+noctua-design-dist = "0.3.0"
+
+# **The desktop interface's window and its webview** (`NOCTUA.md §4`, "Desktop
+# app shell": a Rust host and a web frontend), hosted directly rather than
+# through `dioxus-desktop` — decided for Stage 16 over a licence audit of the
+# three systems' trees: `dioxus-desktop` takes `image` (its AV1 encoder is
+# BSD-2-Clause), a tray, a menu bar, a global hotkey and a file dialog this
+# platform builds otherwise or not at all, and an edit socket bound on
+# loopback, which `apps/` may not write. `tao` is the event loop and the
+# window, `wry` the system's own webview in it — WebKitGTK on Linux, WKWebView
+# on macOS, WebView2 on Windows — and neither is viable in-house (`§2.3` names
+# a browser engine). **Exact pins**: `wry` 0.57 still takes `dirs`, and `tao`
+# 0.38 asks for a `gdk-sys` WebKitGTK's crate does not link beside, so a move
+# is measured on three systems before it is made. `wry` takes the webview and
+# nothing else (`os-webview`): no drag and drop, no custom protocol until the
+# interface serves its assets through one, and no X11-only path, since a
+# window is built through GTK on Linux (`nc_platform::webview`). `tao` takes
+# the window handle `wry` builds on macOS and Windows (`rwh_06`) and no X11
+# extension of its own. Two crates their trees name are stood in for, in
+# `stand-ins/` (`[patch.crates-io]`, below).
+wry = { version = "=0.53.5", default-features = false, features = ["os-webview"] }
+tao = { version = "=0.34.8", default-features = false, features = ["rwh_06"] }
+# **The interface's markup, written in Dioxus** (`NOCTUA.md §4`, "Rust UI
+# framework"), at the release `noctua-design` 0.3.0 is built with — every
+# crate of the family moves together, and a fresh resolve of `^0.7` takes the
+# newer sub-crates, so the pins are exact. `macro`, `html` and `signals`
+# alone: `rsx!`, the elements, and the signals `rsx!` writes a formatted
+# attribute through — each a feature `noctua-design` 0.3.0 enables itself.
+# `dioxus-ssr` renders the first frame's markup into the document the webview
+# is handed before it is shown (`apps/desktop/src/page.rs`).
+dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "html", "signals"] }
+dioxus-ssr = "=0.7.9"
 
 # Internal. Path only: nothing here is published to a registry
 # (`NOCTUA.md §10.11`).
@@ -472,3 +518,27 @@ pedantic = { level = "warn", priority = -1 }
 opt-level = 3
 lto = "thin"
 codegen-units = 1
+
+# **Two crates of `wry`'s tree are stood in for by crates of this tree's own**,
+# so no file-level copyleft is linked into anything here (`deny.toml`'s
+# `[licenses]`, `NOCTUA.md §10.12`) — decided for Stage 16, beside hosting
+# `wry` directly:
+#
+# - **`dirs`**, which `wry` takes on Linux and macOS for one call, the download
+#   directory its download handler falls back to, in its WebKitGTK and its
+#   WKWebView halves, and whose own `dirs-sys` takes `option-ext`,
+#   MPL-2.0. The stand-in answers that call with nothing, so a download the
+#   interface never starts would fall back to the working directory.
+# - **`kuchikiki`**, which `wry` names for Android alone and which brings
+#   `cssparser` and `selectors`, MPL-2.0; `cargo deny` judges every target's
+#   tree (`[graph]` names none), so it is stood in for by an empty crate that
+#   no build of this tree compiles.
+#
+# Each is a member of this workspace, keeps the version its dependent
+# requires, holds nothing it does not need, and is `publish = false`, which
+# `deny.toml` exempts from the licence list as it does this tree's own crates. A release of `wry` that names
+# another version of either is refused by cargo until the stand-in moves with
+# it, which is a change read here.
+[patch.crates-io]
+dirs = { path = "stand-ins/dirs" }
+kuchikiki = { path = "stand-ins/kuchikiki" }

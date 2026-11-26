@@ -588,6 +588,10 @@ SOURCES = {
     # The gates over the local database — its schema built from the files on
     # disk, and the SQL its crates may write — decided by their own module.
     "local_gates": os.path.join(ROOT, "xtask/src/local.rs"),
+    # **The desktop's sheet**: which classes the markup writes, which the sheet
+    # may hold, the entry Tailwind reads and what a built sheet must have.
+    # Decided by the module's own tests; Tailwind itself runs in `check`.
+    "tailwind": os.path.join(ROOT, "xtask/src/tailwind.rs"),
     # **Every name an install gives the system**, and the manifest an install
     # names itself by: the frozen digest and its rendering, the port block, the
     # leaf, the user's spelling and every refusal of a manifest. Decided by
@@ -743,6 +747,18 @@ SOURCES = {
     # daemon in-process that answers as a script says; the suites that run the
     # binary and a real daemon are evidence no command here runs.
     "cli_mcp": os.path.join(ROOT, "apps/cli/src/mcp.rs"),
+    # **The desktop interface**: the binary's invocations and a probe's
+    # verdict, the state mirrored and read strictly with what the window said
+    # over it, the document, and which window the state shows and what a close
+    # asks. Decided by each module's own unit tests; the client by the suite
+    # that follows a daemon in-process that answers as a script says, which
+    # starts no process. The suite that opens a real window is evidence no
+    # command here runs.
+    "desktop_main": os.path.join(ROOT, "apps/desktop/src/main.rs"),
+    "desktop_mirror": os.path.join(ROOT, "apps/desktop/src/mirror.rs"),
+    "desktop_page": os.path.join(ROOT, "apps/desktop/src/page.rs"),
+    "desktop_host": os.path.join(ROOT, "apps/desktop/src/host.rs"),
+    "desktop_client": os.path.join(ROOT, "apps/desktop/src/client.rs"),
     # **The fuzzy core**: one character folded, a query read into words, a
     # word laid in a field at its tier, the score's widths, and the ranking.
     # Decided by each module's own unit tests, and by the crate's two suites —
@@ -11075,6 +11091,91 @@ WEAKENINGS = [
     ("platform_leader", "xkb_name", "Space is space, as XKB names it",
      "        Key::Space => \"space\",",
      "        Key::Space => \"Space\","),
+
+    # -- the desktop's sheet: what the markup may write ----------------------
+    ("tailwind", "written", "a word that only ends in `class` is no attribute",
+     "        if before.is_some_and(|character| character.is_alphanumeric() || character == '_') {",
+     "        if false {"),
+    ("tailwind", "judged", "an empty variant is refused",
+     "    if variants.contains(\"::\") || class.starts_with(':') {",
+     "    if false {"),
+    ("tailwind", "is_words", "an empty word is no word",
+     "            !word.is_empty()\n                && word",
+     "            true\n                && word"),
+    ("tailwind", "judged", "a fraction's numerator is a number",
+     "        if !is_number(numerator) || !is_number(fraction) {",
+     "        if !is_number(fraction) {"),
+    ("tailwind", "what_it_lacks", "a selector that only begins another's is no rule",
+     "                    !(next.is_ascii_alphanumeric() || matches!(next, '-' | '_' | '\\\\'))",
+     "                    true"),
+    ("tailwind", "entry", "Tailwind scans no source",
+     "layer(utilities) source(none);\\n",
+     "layer(utilities);\\n"),
+
+    # -- the desktop interface ------------------------------------------------
+    ("desktop_main", "asked", "`--probe` is the one argument answered",
+     "        [probe] if probe == \"--probe\" => Some(Asked::Probe),",
+     "        [_] => Some(Asked::Probe),"),
+    ("desktop_main", "probed", "a decorated window fails the probe",
+     "    if !probed.undecorated {",
+     "    if false {"),
+    ("desktop_main", "probed", "a window shown once loaded fails the probe",
+     "        Some(false) => wrong.push(",
+     "        Some(false) => drop("),
+    ("desktop_mirror", "id", "an identifier is one at least",
+     "            .filter(|id| *id >= 1)\n            .ok_or_else",
+     "            .filter(|id| *id >= 0)\n            .ok_or_else"),
+    ("desktop_mirror", "pair", "a size or a place is written whole",
+     "            (false, false) => Ok(None),",
+     "            (false, _) => Ok(None),"),
+    ("desktop_mirror", "pages_of", "two pages under one identifier are refused",
+     "            return Err(Unread(format!(\"two pages are page {}\", twice.id)));",
+     "                let _ = twice;"),
+    ("desktop_mirror", "done", "a field this build does not read is refused",
+     "        match self.left.keys().next() {",
+     "        match None::<&&str> {"),
+    ("desktop_mirror", "watched", "a fact taken retires only past its revision",
+     "            Stage::Taken(held) => held.is_some_and(|held| changed.revision <= held),",
+     "            Stage::Taken(_) => true,"),
+    ("desktop_mirror", "to_tell", "one note is in flight at a time",
+     "        if self.said.values().any(|(_, stage)| *stage == Stage::Told) {",
+     "        if false {"),
+    ("desktop_mirror", "told", "a note refused takes its facts back",
+     "            .retain(|_, (_, stage)| *stage != Stage::Told || taken);",
+     "            .retain(|_, (_, stage)| *stage != Stage::Told || true);"),
+    ("desktop_mirror", "reconnected", "a new daemon heard no fact said",
+     "        self.revision = None;\n        self.said.clear();",
+     "        self.revision = None;"),
+    ("desktop_mirror", "draft", "a draft said is shown over the state",
+     "            Some((Fact::Draft(text), _)) => Some(text),",
+     "            Some((Fact::Draft(_), _)) => None,"),
+    ("desktop_page", "document", "the document is in its locale",
+     "        locale.tag()\n    )",
+     "        \"en\"\n    )"),
+    ("desktop_page", "SAYS_LOADED", "the script says the word the window reads",
+     "window.ipc.postMessage('loaded')",
+     "window.ipc.postMessage('ready')"),
+    ("desktop_host", "is_loaded", "only the document's word is read",
+     "    message == crate::page::LOADED",
+     "    message.trim() == crate::page::LOADED"),
+    ("desktop_host", "this_window", "this process shows the state's first window",
+     "    shell.windows.first()",
+     "    shell.windows.last()"),
+    ("desktop_host", "command", "a close is `window.close`",
+     "            Self::Close(_) => \"window.close\",",
+     "            Self::Close(_) => \"window.hide\","),
+    ("desktop_client", "watched", "a wait that changed nothing is handed over to nobody",
+     "                if changed.state.is_some() && heard(Heard::Changed(changed)) == Flow::Stop {",
+     "                if heard(Heard::Changed(changed)) == Flow::Stop {"),
+    ("desktop_client", "watched", "each watch names the revision it saw",
+     "                seen = Some(changed.revision);",
+     "                seen = None;"),
+    ("desktop_client", "again_after", "a lost daemon is asked again after the heartbeat",
+     "    Duration::from_millis(nc_catalog::DAEMON.ipc_heartbeat_ms)",
+     "    Duration::from_millis(1)"),
+    ("desktop_client", "kept", "a refusal keeps the connection",
+     "            .is_err_and(|unasked| !matches!(unasked, Unasked::Refused(_)))",
+     "            .is_err()"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -11083,7 +11184,7 @@ WEAKENINGS = [
 # `the_runner_touches_every_member_tree` in `xtask/src/check.rs` holds the two
 # lists together; `find` names a tree that is not on disk and goes on, and the
 # run ignores its exit.
-TOUCH = ["find", "crates", "plugins", "apps", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
+TOUCH = ["find", "crates", "plugins", "apps", "stand-ins", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
 # **Two suites, not the corpus alone.** Measured, of the clauses in `limits.rs`
 # that any test decides, **22** were decided only by `limits::tests` and **10**
 # by `corpus::` — so with the corpus alone, two thirds of that file's covered
@@ -11177,6 +11278,8 @@ SUITES = {
     # built from a scratch copy of `local-migrations/`, and the source rule's
     # fixtures.
     "local_gates": ["corpus::", "limits::", "local::"],
+    # The desktop's sheet, decided by its own module.
+    "tailwind": ["corpus::", "limits::", "tailwind::"],
 }
 SUITE = ["corpus::", "limits::"]
 
@@ -11490,6 +11593,16 @@ ELSEWHERE = {
     "channel_stopped": ["cargo", "test", "-q", "-p", "nc-channel"],
     "cli_control": ["cargo", "test", "-q", "-p", "nc-cli", "--", "control::"],
     "cli_install": ["cargo", "test", "-q", "-p", "nc-cli", "--", "install::"],
+    "desktop_main": ["cargo", "test", "-q", "-p", "nc-desktop", "--bin", "noctua-desktop"],
+    "desktop_mirror": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "mirror::"],
+    "desktop_page": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "page::"],
+    "desktop_host": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "host::"],
+    # **The client, by the suite that follows a scripted daemon**: its loop and
+    # its asker are what the suite drives, over a real endpoint in a scratch
+    # install, in this process, so no process is started.
+    "desktop_client": [
+        "cargo", "test", "-q", "-p", "nc-desktop", "--test", "following_the_daemon",
+    ],
     "cli_checkouts": ["cargo", "test", "-q", "-p", "nc-cli", "--", "checkouts::"],
     "cli_chosen": ["cargo", "test", "-q", "-p", "nc-cli", "--", "chosen::"],
     "cli_launcher": ["cargo", "test", "-q", "-p", "nc-cli", "--", "launcher::"],

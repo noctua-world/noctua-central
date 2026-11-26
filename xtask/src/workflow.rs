@@ -153,6 +153,9 @@ const THE_RELEASE_STEPS: [(&str, &[&[&str]]); 2] = [
             &["run: rustup toolchain install --no-self-update"],
             &["run: cargo install --locked cargo-deny@0.20.2"],
             &["run: cargo xtask dev"],
+            &["run: sudo apt-get update -q"],
+            &["run: sudo apt-get install -y libwebkit2gtk-4.1-dev"],
+            &["run: npm install -g pnpm@11.9.0"],
             &["run: cargo xtask check"],
         ],
     ),
@@ -12290,7 +12293,7 @@ mod tests {
                 release,
                 "      - name: cargo xtask dev\n        run: cargo xtask dev\n",
                 "",
-                "the gate job's step 4 is `run: cargo xtask check`, where it is \
+                "the gate job's step 4 is `run: sudo apt-get update -q`, where it is \
                  `run: cargo xtask dev`",
             ),
             (

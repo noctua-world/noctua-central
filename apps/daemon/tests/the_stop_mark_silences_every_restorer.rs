@@ -444,6 +444,8 @@ impl Scratch {
             install.clone(),
             &self.cli,
             Path::new(BINARY),
+            // The CLI stands in for the desktop interface: copied, never run.
+            &self.cli,
             &world,
             Vec::new(),
             None,

@@ -541,9 +541,9 @@ fn stands_aside(runs_the_stack: bool) -> bool {
 /// **The environment is read here and nowhere after**: the base directories
 /// this system keeps a user's profiles under, and `NC_INSTALL_NAMESPACE`,
 /// which relocates the install as a test's, are written into the manifest, so
-/// the binaries never read them (`NOCTUA.md §17.1`). The CLI and the daemon are
-/// built, and the plugins, then copied by `nc_cli::install`: the CLI and the
-/// daemon from where the build says it wrote them — the target directory cargo
+/// the binaries never read them (`NOCTUA.md §17.1`). The CLI, the daemon and the
+/// desktop interface are built, and the plugins, then copied by
+/// `nc_cli::install`: the three binaries from where the build says it wrote them — the target directory cargo
 /// chose — and the plugins from the checkout's own `target/`, its `plugins`
 /// folder, where the plugin build writes them whatever the environment says;
 /// with the test world and its grant (`policy/world.json`); a daemon an earlier
@@ -593,17 +593,22 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
             "nc-cli",
             "--package",
             "nc-daemon",
+            "--package",
+            "nc-desktop",
             "--bins",
         ],
         false,
     )
     .map_err(|output| without_messages(&output))
-    .map_err(|said| format!("the CLI and the daemon did not build: {said}"))?;
-    let (cli, daemon) = (
+    .map_err(|said| {
+        format!("the CLI, the daemon and the desktop interface did not build: {said}")
+    })?;
+    let (cli, daemon, desktop) = (
         built_at(&built, "noctua")?,
         built_at(&built, "noctua-daemon")?,
+        built_at(&built, "noctua-desktop")?,
     );
-    ui::ok("the CLI and the daemon are built");
+    ui::ok("the CLI, the daemon and the desktop interface are built");
     crate::plugins::run(root)?;
     let world = std::fs::read_to_string(root.join("policy/world.json"))
         .map_err(|error| format!("`policy/world.json` could not be read: {error}"))?;
@@ -622,6 +627,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         install,
         &cli,
         &daemon,
+        &desktop,
         &world,
         sources
             .iter()
@@ -685,8 +691,8 @@ fn built_at(built: &str, name: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| {
             format!(
                 "the build said it made no binary `{name}`, so there is nothing to install: \
-                 build it with `cargo build --package nc-cli --package nc-daemon --bins` and \
-                 read what cargo says"
+                 build it with `cargo build --package nc-cli --package nc-daemon --package \
+                 nc-desktop --bins` and read what cargo says"
             )
         })
 }

@@ -1,0 +1,16 @@
+# **A stand-in for `kuchikiki`, which `wry` names for Android alone**, put in
+# its place by the root manifest's `[patch.crates-io]`, which says why. The
+# version is the one `wry` requires; no build of this tree compiles it.
+[package]
+name = "kuchikiki"
+version = "0.8.8-speedreader"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+description = "A stand-in, empty, for a crate `wry` takes on Android alone, which no build of this tree is for."
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

@@ -66,6 +66,7 @@ mod release;
 mod sections;
 mod sha256;
 mod store;
+mod tailwind;
 mod wall;
 mod workflow;
 
@@ -103,6 +104,14 @@ enum Command {
         /// it before the tests; this is the same step alone.
         #[arg(long, conflicts_with = "reserve")]
         plugins: bool,
+        /// Build the desktop interface's sheet of layout utilities instead.
+        ///
+        /// Tailwind, installed by pnpm from its lockfile under `target/`, run
+        /// over the classes `apps/desktop/src` writes, and written to
+        /// `apps/desktop/src/sheet.rs` where it changed. `check` builds it
+        /// again and refuses one that differs.
+        #[arg(long, conflicts_with_all = ["reserve", "plugins"])]
+        sheet: bool,
     },
     /// The whole gate.
     ///
@@ -125,8 +134,8 @@ enum Command {
         down: bool,
         /// Install this checkout as its development channel instead.
         ///
-        /// The CLI and the daemon built and copied out of the target directory
-        /// cargo built them in, the profile, its device, its world and the
+        /// The CLI, the daemon and the desktop interface built and copied out of
+        /// the target directory cargo built them in, the profile, its device, its world and the
         /// built plugins; the daemon registered `--restored` with the system's
         /// service manager, which restores it and starts it at each login, and
         /// started through it unless the profile carries the stop mark; and,
@@ -175,6 +184,7 @@ fn main() -> ExitCode {
 
     let outcome = match cli.command {
         Command::Build { plugins: true, .. } => plugins::run(&root),
+        Command::Build { sheet: true, .. } => tailwind::run(&root),
         Command::Build { reserve, .. } => build::run(&root, reserve),
         Command::Check { offline } => check::run(&root, offline),
         Command::Dev {

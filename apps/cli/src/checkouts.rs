@@ -369,6 +369,9 @@ mod tests {
                 install,
                 cli: &cli,
                 daemon: &daemon,
+                // The daemon's stand-in stands in for the desktop as well: it
+                // is copied, never run.
+                desktop: &daemon,
                 world: "{}",
                 plugins: Vec::new(),
                 restorer: false,

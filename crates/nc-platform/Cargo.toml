@@ -12,6 +12,12 @@ description = "Who this process runs as, a directory or a file private to that u
 # so a refused one can be held to what it was. **Off by default**, so nothing
 # shipped can loosen a path through this crate.
 test-support = []
+# **The one call that puts a webview into a window, which each system makes its
+# own way** ([`webview`](src/webview.rs)): through GTK on Linux, so a Wayland
+# session is reached as an X one is, and through the window's own handle on
+# macOS and Windows. Only the desktop interface turns it on, so the daemon and
+# the CLI never link a webview (`NOCTUA.md §2.7`, §4).
+webview = ["dep:wry", "dep:tao"]
 
 # **The Win32 calls of security, of random bytes, of the processes at either
 # end of a named pipe and of the Leader's hotkey, and nothing else of Windows**
@@ -82,6 +88,11 @@ tokio = { workspace = true, features = ["net", "io-util", "time"] }
 # closed vocabulary of physical keys each system's code is tabled for. That
 # crate depends on nothing of this tree, so the edge closes no cycle.
 nc-schema.workspace = true
+# **The window and the webview the desktop interface is drawn in**, behind
+# `webview` alone, for the one call each system makes its own way: the root
+# manifest says why each is taken and pinned.
+wry = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
 
 [dev-dependencies]
 # **Itself, with the doors open**, so the documentation gate can read this

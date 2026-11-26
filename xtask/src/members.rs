@@ -50,10 +50,13 @@ use std::path::Path;
 /// which the plugin build refuses any other name for, and an app under
 /// `apps/<dir>` is `nc-<dir>`, so the daemon in `apps/daemon` is the package
 /// named after it.
-pub(crate) const MEMBER_TREES: [(&str, &str); 4] = [
+pub(crate) const MEMBER_TREES: [(&str, &str); 5] = [
     ("crates/*", ""),
     ("plugins/*", "nc-plugin-"),
     ("apps/*", "nc-"),
+    // The crates `[patch.crates-io]` builds in place of a dependency's
+    // dependency, each named as the crate it stands in for.
+    ("stand-ins/*", ""),
     ("xtask", ""),
 ];
 
@@ -993,11 +996,11 @@ mod tests {
         );
         assert_eq!(
             super::member_tree_roots().collect::<Vec<_>>(),
-            ["crates", "plugins", "apps", "xtask"]
+            ["crates", "plugins", "apps", "stand-ins", "xtask"]
         );
         assert_eq!(
             super::trees_of_members().collect::<Vec<_>>(),
-            ["crates", "plugins", "apps"]
+            ["crates", "plugins", "apps", "stand-ins"]
         );
         assert_eq!(
             super::trees_that_are_members().collect::<Vec<_>>(),
@@ -1212,9 +1215,10 @@ mod tests {
             paths.contains(&"crates/nc-log") && paths.contains(&"xtask"),
             "{paths:?}"
         );
-        // The floor is a real number, not `> 0`: this workspace has twenty-one
-        // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 21, "{paths:?}");
+        // The floor is a real number, not `> 0`: this workspace has
+        // twenty-four members, and a resolution that lost one is the defect
+        // being closed.
+        assert_eq!(found.len(), 24, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(

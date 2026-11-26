@@ -523,15 +523,19 @@ const READ_BY_NAME: [&str; 3] = ["justfile", ".gitignore", ".gitattributes"];
 /// failure rather than a silence — which is the half a guard whose expectation
 /// is a third copy of `READ`'s own strings cannot do.
 #[cfg(test)]
-const NOT_READ: [(&str, &str); 3] = [
+const NOT_READ: [(&str, &str); 4] = [
     (
         "json",
-        "the world the policy cases are decided against — data, frozen row by row in `policy::THE_WORLD`, and not prose",
+        "the world the policy cases are decided against — data, frozen row by row in `policy::THE_WORLD` — and Tailwind's package, which pnpm reads: data, and not prose",
     ),
     ("lock", "resolved versions, written by cargo"),
     (
         "proptest-regressions",
         "seeds the proptest runner writes when a case fails",
+    ),
+    (
+        "yaml",
+        "resolved versions of Tailwind's packages, written by pnpm",
     ),
 ];
 
