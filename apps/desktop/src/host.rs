@@ -27,6 +27,16 @@
 //! the last window and which the state then says (§12.1, §12.2) — the window
 //! never decides it alone.
 //!
+//! **Its footer is the state's, drawn again whenever the state moves it**
+//! ([`crate::footer`]): each state the daemon answers is drawn as the
+//! footer's markup, and the page is brought to it — once its document has
+//! loaded, and only where the markup changed. What the page says the person
+//! did is what any client could do: a control activated is its command,
+//! dispatched as the person ([`Ask::Run`]), and an edit of the prompt is a
+//! draft this window says ([`Fact::Draft`]), told to the daemon as a note on
+//! the asking connection, one in flight at a time, and taken back when the
+//! daemon refuses it.
+//!
 //! **The event loop is the main thread's**, as macOS requires and GTK
 //! expects, and the two connections to the daemon run on two threads of
 //! their own ([`crate::client`]), handing what they hear to the loop through
@@ -36,9 +46,10 @@
 //! ([`probe`]): with no daemon, a window is opened as the interface opens
 //! one, in the light and then in the dark, asked to show at once, and
 //! watched — whether it stayed hidden until its document loaded, what its
-//! first frame and a settled frame painted, and how large its page is when
-//! it is asked to be smaller than the least — and closed, so an installer
-//! or a test can ask it of any machine with a display.
+//! first frame and a settled frame painted, how large its page is when it is
+//! asked to be smaller than the least, and whether its footer does what it is
+//! for in the system's own webview ([`Exercised`]) — and closed, so an
+//! installer or a test can ask it of any machine with a display.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
@@ -61,7 +72,8 @@ use tao::platform::run_return::EventLoopExtRunReturn as _;
 use tao::window::{Window, WindowBuilder};
 
 use crate::client::{Asker, Flow, Heard};
-use crate::mirror::{Mirror, Shell};
+use crate::footer::{Action, Context, Drawing};
+use crate::mirror::{Fact, Mirror, Shell};
 use crate::theme::Theme;
 
 /// The window's title, which a window list shows though the window draws no
@@ -70,7 +82,7 @@ pub const TITLE: &str = "Noctua";
 
 /// What the document says through the webview's message channel: a closed
 /// set, each written one way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Said {
     /// `loaded`: the document and every sheet it links have loaded.
     Loaded,
@@ -86,6 +98,16 @@ pub enum Said {
     /// `viewport <width> <height>`: the page's size in CSS pixels once it
     /// changed — said by a probe's observer alone.
     Viewport(u32, u32),
+    /// `action <command>`: a control was activated, the footer's
+    /// [`Action`] whose command it names.
+    Action(Action),
+    /// `draft <text>`: an edit changed the prompt's text, which is
+    /// everything after the word and its one space.
+    Draft(String),
+    /// `exercised <enhanced> <kept> <written>`, each `1` or `0`: what a
+    /// probe's exercise of the footer found (`EXERCISE`) — said by a
+    /// probe's exercise alone.
+    Exercised([bool; 3]),
 }
 
 /// A number written in ASCII digits alone, of at most ten.
@@ -93,6 +115,15 @@ fn number<T: core::str::FromStr>(word: &str) -> Option<T> {
     (!word.is_empty() && word.len() <= 10 && word.bytes().all(|byte| byte.is_ascii_digit()))
         .then(|| word.parse().ok())
         .flatten()
+}
+
+/// A bit written as `1` or `0`.
+fn bit(word: &str) -> Option<bool> {
+    match word {
+        "1" => Some(true),
+        "0" => Some(false),
+        _ => None,
+    }
 }
 
 /// Four channels written as numbers each of one byte.
@@ -107,11 +138,21 @@ fn channels(words: &[&str]) -> Option<[u8; 4]> {
 
 /// What `message`, from the webview's channel, says; nothing for a message
 /// of any other shape — the words are split at single spaces, and nothing
-/// else separates or surrounds them.
+/// else separates or surrounds them, but for a draft, whose text is the
+/// whole of the message after its word and one space.
 #[must_use]
 pub fn said(message: &str) -> Option<Said> {
+    if let Some(text) = message
+        .strip_prefix(crate::page::DRAFT)
+        .and_then(|rest| rest.strip_prefix(' '))
+    {
+        return Some(Said::Draft(text.to_owned()));
+    }
     let words: Vec<&str> = message.split(' ').collect();
     match words.as_slice() {
+        [action, command] if *action == crate::page::ACTION => {
+            Action::of(command).map(Said::Action)
+        }
         [loaded] if *loaded == crate::page::LOADED => Some(Said::Loaded),
         [scale, thousandths] if *scale == crate::page::SCALE => {
             number(thousandths).map(Said::Scale)
@@ -119,6 +160,9 @@ pub fn said(message: &str) -> Option<Said> {
         ["first-frame", rest @ ..] => channels(rest).map(Said::FirstFrame),
         ["settled", rest @ ..] => channels(rest).map(Said::Settled),
         ["viewport", width, height] => Some(Said::Viewport(number(width)?, number(height)?)),
+        ["exercised", enhanced, kept, written] => {
+            Some(Said::Exercised([bit(enhanced)?, bit(kept)?, bit(written)?]))
+        }
         _ => None,
     }
 }
@@ -135,6 +179,8 @@ pub enum Arrived {
     },
     /// What following the daemon heard.
     Heard(Heard),
+    /// The daemon answered the note in flight: taken, or refused.
+    Told(bool),
 }
 
 /// Why no window was opened.
@@ -216,9 +262,19 @@ pub struct Opened {
     /// The least the window is, in logical pixels: the catalog's least,
     /// fitted to the page's scale once the page has said it ([`fitted`]).
     least: LogicalSize<f64>,
+    /// What the page holds of the footer, and what brings it to the state.
+    pub drawing: Drawing,
 }
 
 impl Opened {
+    /// Runs each of `scripts` in the page, in order.
+    pub fn send(&self, scripts: Vec<String>) {
+        for script in scripts {
+            // A page that cannot run it has gone with its window.
+            let _ = self.webview.evaluate_script(&script);
+        }
+    }
+
     /// The window's least size fitted to a page whose CSS pixel is
     /// `thousandths` device pixels, so its page is never smaller than the
     /// catalog's least; a window already smaller is made that size.
@@ -251,6 +307,7 @@ impl core::fmt::Debug for Opened {
             .field("webview", &self.webview.id())
             .field("theme", &self.theme)
             .field("least", &self.least)
+            .field("drawing", &self.drawing)
             .finish()
     }
 }
@@ -279,9 +336,9 @@ const OBSERVES: &str = "(() => {\
 
 /// A window opened on `target`, hidden and undecorated, in the theme `mode`
 /// asks for — the system's resolved as the window reads it — its webview
-/// handed the document in `locale`; what the document says reaches the loop
-/// through `proxy`, tagged `index`, and a probe's observer watches it when
-/// `observed`.
+/// handed the document in `context`'s locale, its footer the first run's
+/// for `context`; what the document says reaches the loop through `proxy`,
+/// tagged `index`, and a probe's observer watches it when `observed`.
 ///
 /// # Errors
 ///
@@ -290,7 +347,7 @@ const OBSERVES: &str = "(() => {\
 pub fn open(
     target: &EventLoopWindowTarget<Arrived>,
     proxy: EventLoopProxy<Arrived>,
-    locale: nc_catalog::Locale,
+    context: Context,
     mode: Mode,
     (index, observed): (usize, bool),
 ) -> Result<Opened, Unopened> {
@@ -311,7 +368,9 @@ pub fn open(
     } else {
         tao::window::Theme::Light
     }));
-    let document = crate::page::document(locale, theme);
+    let footer = crate::footer::view(None, context);
+    let drawing = Drawing::new(crate::footer::markup(&footer));
+    let document = crate::page::document(context.locale, theme, &footer);
     let origin = crate::assets::origin();
     let allowed = origin.clone();
     let mut builder = wry::WebViewBuilder::new()
@@ -347,6 +406,7 @@ pub fn open(
         webview,
         theme,
         least: least(),
+        drawing,
     })
 }
 
@@ -409,6 +469,92 @@ pub struct Seen {
     /// The page's size in CSS pixels once the window, settled, was asked to
     /// be half the least in each dimension.
     pub least: Option<(u32, u32)>,
+    /// What the exercise of its footer found, once the page settled;
+    /// nothing when it was not said within the wait.
+    pub footer: Option<Exercised>,
+}
+
+/// What a probe's exercise of a window's footer found (`EXERCISE`), in the
+/// real webview: the design system's script, the page's own and the window's
+/// two calls into it, each doing what it is for.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "five facts a probe observes, each independent of the others: there is no state \
+              they move through, so no machine to write"
+)]
+pub struct Exercised {
+    /// The design system's script enhanced the prompt: it is marked so, and
+    /// its block is drawn.
+    pub enhanced: bool,
+    /// Typing into the prompt said what was typed, as a draft.
+    pub drafted: bool,
+    /// Activating the info line's chevron said `info.expand`.
+    pub acted: bool,
+    /// The footer brought to new markup showed what the markup changed and
+    /// kept the focus on the chevron and what the design system's script
+    /// added to the prompt.
+    pub kept: bool,
+    /// A draft written into the prompt reached its text area.
+    pub written: bool,
+}
+
+/// The text a probe's exercise types into the prompt.
+pub const PROBED_DRAFT: &str = "probed draft";
+
+/// The message the footer a probe's exercise draws says.
+const PROBED_MESSAGE: &str = "probed message";
+
+/// The draft a probe's exercise writes into the prompt.
+const PROBED_WRITTEN: &str = "probed written";
+
+/// A probe's exercise of the footer, in the page once it has settled, its
+/// `{draw}` the call that brings the footer to markup with a message on the
+/// info line, expanded: whether the design system's script enhanced the
+/// prompt; typing into it, and activating the info line's chevron with the
+/// focus on it; the draw, after which the chevron still has the focus and
+/// says the line is expanded, the message is shown, the prompt still holds
+/// what was typed and is still enhanced; and a draft written. It says what
+/// it found as [`Said::Exercised`], after the draft and the action the
+/// page's own script said.
+const EXERCISE: &str = "(() => {
+  const footer = document.querySelector('footer');
+  const prompt = footer.querySelector('[data-nd-prompt]');
+  const area = footer.querySelector('.nd-prompt-input');
+  const toggle = footer.querySelector('.nd-footer-line-toggle');
+  const enhanced = () => prompt.getAttribute('data-nd-enhanced') === 'true'
+    && footer.querySelector('.nd-prompt-cursor') !== null;
+  const wasEnhanced = enhanced();
+  area.value = '{typed}';
+  area.dispatchEvent(new Event('input', { bubbles: true }));
+  toggle.focus();
+  toggle.click();
+  {draw}
+  const kept = document.activeElement === toggle
+    && toggle.getAttribute('aria-expanded') === 'true'
+    && footer.textContent.includes('{message}')
+    && area.value === '{typed}'
+    && enhanced();
+  window.noctua.draft('{written}');
+  const written = area.value === '{written}';
+  const bit = (held) => (held ? '1' : '0');
+  window.ipc.postMessage('exercised ' + bit(wasEnhanced) + ' ' + bit(kept) + ' ' + bit(written));
+})();";
+
+/// The exercise of the footer a window opened for `context` is put
+/// through (`EXERCISE`).
+fn exercise(context: Context) -> String {
+    let mut view = crate::footer::view(None, context);
+    view.info.expanded = true;
+    view.info.rows = vec![crate::footer::Row::Message(PROBED_MESSAGE.to_owned())];
+    EXERCISE
+        .replace("{typed}", PROBED_DRAFT)
+        .replace("{message}", PROBED_MESSAGE)
+        .replace("{written}", PROBED_WRITTEN)
+        .replace(
+            "{draw}",
+            &crate::footer::draw(&crate::footer::markup(&view)),
+        )
 }
 
 /// What [`probe`] saw, in each mode.
@@ -439,6 +585,11 @@ struct Watched {
     shrunk: bool,
     /// The page's size it had last said when the window was asked.
     before: Option<(u32, u32)>,
+    /// What the page's own script said while the footer was exercised: a
+    /// draft, and an action.
+    exercised: Exercised,
+    /// What the window was opened for.
+    context: Context,
     /// When the probe stops waiting for it.
     deadline: Instant,
 }
@@ -453,7 +604,11 @@ impl Watched {
         within: Duration,
     ) -> Result<Self, Unopened> {
         let mode = PROBED.get(index).copied().unwrap_or(Mode::Light);
-        let opened = open(target, proxy, nc_catalog::Locale::En, mode, (index, true))?;
+        let context = Context {
+            locale: nc_catalog::Locale::En,
+            channel: nc_channel::Channel::Production,
+        };
+        let opened = open(target, proxy, context, mode, (index, true))?;
         let mut showing = Showing::default();
         showing.want(true);
         apply(&opened.window, showing);
@@ -469,14 +624,16 @@ impl Watched {
             viewport: None,
             shrunk: false,
             before: None,
+            exercised: Exercised::default(),
+            context,
             deadline: Instant::now() + within,
         })
     }
 
     /// Takes in what its document said; whether the window has been watched
     /// to the end.
-    fn heard(&mut self, said: Said) -> bool {
-        match said {
+    fn heard(&mut self, said: &Said) -> bool {
+        match *said {
             Said::Loaded => {
                 self.seen.hidden_when_loaded = Some(!self.opened.window.is_visible());
                 self.showing.loaded();
@@ -488,6 +645,7 @@ impl Watched {
             }
             Said::Settled(colour) => {
                 self.seen.settled = Some(colour);
+                self.opened.send(vec![exercise(self.context)]);
                 let least = least();
                 self.opened
                     .resize(LogicalSize::new(least.width / 2.0, least.height / 2.0));
@@ -500,8 +658,19 @@ impl Watched {
                 self.viewport = Some((width, height));
                 if self.shrunk && self.before != Some((width, height)) {
                     self.seen.least = Some((width, height));
-                    return true;
+                    return self.seen.footer.is_some();
                 }
+            }
+            Said::Draft(ref text) => self.exercised.drafted = text == PROBED_DRAFT,
+            Said::Action(action) => self.exercised.acted = action == Action::ExpandInfo,
+            Said::Exercised([enhanced, kept, written]) => {
+                self.seen.footer = Some(Exercised {
+                    enhanced,
+                    kept,
+                    written,
+                    ..self.exercised
+                });
+                return self.seen.least.is_some();
             }
         }
         false
@@ -530,7 +699,9 @@ pub fn probe(within: Duration) -> Result<Probed, Unopened> {
         };
         *flow = ControlFlow::WaitUntil(current.deadline);
         let done = match event {
-            Event::UserEvent(Arrived::Said { window, said }) if window == at => current.heard(said),
+            Event::UserEvent(Arrived::Said { window, said }) if window == at => {
+                current.heard(&said)
+            }
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                 Instant::now() >= current.deadline
             }
@@ -595,25 +766,34 @@ pub fn shown(mirror: &Mirror) -> Option<bool> {
 pub enum Ask {
     /// `window.close` for this window, which the system asked to close.
     Close(u64),
+    /// The command a control of the footer runs.
+    Run(Action),
+    /// A note of what this window said at the rate it draws.
+    Note(nc_ipc::Note),
 }
 
 impl Ask {
-    /// The command it is.
+    /// The command it dispatches; nothing for a note, which dispatches
+    /// nothing.
     #[must_use]
-    pub const fn command(&self) -> &'static str {
+    pub const fn command(&self) -> Option<&'static str> {
         match self {
-            Self::Close(_) => "window.close",
+            Self::Close(_) => Some("window.close"),
+            Self::Run(action) => Some(action.command()),
+            Self::Note(_) => None,
         }
     }
 
-    /// The arguments it is asked with.
+    /// The arguments it dispatches its command with; nothing for a note.
     #[must_use]
-    pub fn arguments(&self) -> nc_canon::Value {
+    pub fn arguments(&self) -> Option<nc_canon::Value> {
         match self {
-            Self::Close(window) => nc_canon::Value::object([(
+            Self::Close(window) => Some(nc_canon::Value::object([(
                 "window",
                 nc_canon::Value::Integer(i64::try_from(*window).unwrap_or(i64::MAX)),
-            )]),
+            )])),
+            Self::Run(action) => Some(action.arguments()),
+            Self::Note(_) => None,
         }
     }
 }
@@ -644,8 +824,12 @@ fn following(found: Found, proxy: EventLoopProxy<Arrived>) -> std::io::Result<()
 }
 
 /// Starts the thread that asks the daemon of `found` what the loop sends it,
-/// one request at a time, until the loop has ended.
-fn asking(found: Found) -> std::io::Result<std::sync::mpsc::Sender<Ask>> {
+/// one request at a time, until the loop has ended; whether a note was
+/// taken reaches the loop through `proxy`.
+fn asking(
+    found: Found,
+    proxy: EventLoopProxy<Arrived>,
+) -> std::io::Result<std::sync::mpsc::Sender<Ask>> {
     let runtime = runtime()?;
     let (sender, asks) = std::sync::mpsc::channel::<Ask>();
     std::thread::Builder::new()
@@ -653,58 +837,101 @@ fn asking(found: Found) -> std::io::Result<std::sync::mpsc::Sender<Ask>> {
         .spawn(move || {
             let mut asker = Asker::new(found);
             while let Ok(ask) = asks.recv() {
-                let (command, args) = (ask.command(), ask.arguments());
-                // What the daemon answers reaches the window through the
-                // state it then holds; a refusal is the info line's to say,
-                // once the interface draws one.
-                let _ = runtime.block_on(asker.dispatch(command, args));
+                if let (Some(command), Some(args)) = (ask.command(), ask.arguments()) {
+                    // What the daemon answers reaches the window through the
+                    // state it then holds.
+                    let _ = runtime.block_on(asker.dispatch(command, args));
+                } else if let Ask::Note(note) = ask {
+                    let taken = runtime.block_on(asker.note(note)).is_ok();
+                    // A loop that has ended has no use for the answer.
+                    let _ = proxy.send_event(Arrived::Told(taken));
+                }
             }
         })?;
     Ok(sender)
 }
 
+/// Sends the daemon the note of what this window said and has not told it,
+/// where there is one and none is in flight.
+fn tell(mirror: &mut Mirror, asks: &std::sync::mpsc::Sender<Ask>) {
+    // A note past its bound took its facts back, and says nothing.
+    if let Some(Ok(note)) = mirror.to_tell()
+        && asks.send(Ask::Note(note)).is_err()
+    {
+        mirror.told(false);
+    }
+}
+
 /// Runs the interface for the daemon of `found`'s install: a window opened
 /// hidden in the theme the system prefers, shown and hidden as the daemon's
-/// state says once its document has loaded, until the event loop ends —
-/// which nothing in this build asks it to.
+/// state says once its document has loaded, its footer drawn from the state,
+/// until the event loop ends — which nothing in this build asks it to.
 ///
 /// # Errors
 ///
 /// [`Unopened`], as [`open`] refuses, and for a thread not started.
 pub fn run(found: Found) -> Result<(), Unopened> {
     let mut event_loop = EventLoopBuilder::<Arrived>::with_user_event().build();
+    let context = Context {
+        locale: nc_catalog::Locale::En,
+        channel: found.install.channel,
+    };
     let mut opened = open(
         &event_loop,
         event_loop.create_proxy(),
-        nc_catalog::Locale::En,
+        context,
         Mode::DEFAULT,
         (0, false),
     )?;
     following(found.clone(), event_loop.create_proxy()).map_err(Unopened::Thread)?;
-    let asks = asking(found).map_err(Unopened::Thread)?;
+    let asks = asking(found, event_loop.create_proxy()).map_err(Unopened::Thread)?;
     let mut mirror = Mirror::new();
     let mut showing = Showing::default();
     event_loop.run_return(|event, _, flow| {
         *flow = ControlFlow::Wait;
         match event {
-            Event::UserEvent(Arrived::Said {
-                said: Said::Loaded, ..
-            }) => {
-                showing.loaded();
-                apply(&opened.window, showing);
+            Event::UserEvent(Arrived::Said { said, .. }) => match said {
+                Said::Loaded => {
+                    showing.loaded();
+                    let scripts = opened.drawing.loaded();
+                    opened.send(scripts);
+                    apply(&opened.window, showing);
+                }
+                Said::Scale(thousandths) => opened.fit(thousandths),
+                Said::Action(action) => {
+                    // The asking thread outlives the loop.
+                    let _ = asks.send(Ask::Run(action));
+                }
+                Said::Draft(text) => {
+                    let (draft, scripts) = opened.drawing.typed(&text);
+                    opened.send(scripts);
+                    mirror.said(Fact::Draft(draft));
+                    tell(&mut mirror, &asks);
+                }
+                Said::FirstFrame(_)
+                | Said::Settled(_)
+                | Said::Viewport(..)
+                | Said::Exercised(_) => {}
+            },
+            Event::UserEvent(Arrived::Told(taken)) => {
+                mirror.told(taken);
+                tell(&mut mirror, &asks);
             }
-            Event::UserEvent(Arrived::Said {
-                said: Said::Scale(thousandths),
-                ..
-            }) => opened.fit(thousandths),
             Event::UserEvent(Arrived::Heard(Heard::Reached)) => mirror.reconnected(),
             Event::UserEvent(Arrived::Heard(Heard::Changed(changed))) => {
                 // A state this build does not read leaves the one held drawn.
                 if mirror.watched(changed).is_ok()
-                    && let Some(shown) = shown(&mirror)
+                    && let Some(shell) = mirror.shell()
                 {
-                    showing.want(shown);
-                    apply(&opened.window, showing);
+                    let footer = crate::footer::view(Some(shell), context);
+                    let scripts = opened
+                        .drawing
+                        .shows(crate::footer::markup(&footer), &shell.draft);
+                    opened.send(scripts);
+                    if let Some(shown) = shown(&mirror) {
+                        showing.want(shown);
+                        apply(&opened.window, showing);
+                    }
                 }
             }
             Event::WindowEvent {
@@ -730,6 +957,7 @@ mod tests {
     use tao::dpi::LogicalSize;
 
     use super::{Ask, Said, Showing, at_least, fitted, least, said, shown, this_window, within};
+    use crate::footer::Action;
     use crate::mirror::Mirror;
 
     /// A state as the kernel writes one, its windows shown as `shown` says.
@@ -789,15 +1017,31 @@ mod tests {
         assert!(!showing.shows(), "loaded, and asked to hide");
     }
 
-    /// Closing the window is `window.close`, naming it.
+    /// Closing the window is `window.close`, naming it; a control's action
+    /// is its command, with no argument; and a note dispatches nothing.
     #[test]
     fn a_close_is_window_close_naming_the_window() {
         let close = Ask::Close(3);
-        assert_eq!(close.command(), "window.close");
+        assert_eq!(close.command(), Some("window.close"));
         assert_eq!(
             close.arguments(),
-            Value::object([("window", Value::Integer(3))])
+            Some(Value::object([("window", Value::Integer(3))]))
         );
+        for action in Action::ALL {
+            let run = Ask::Run(action);
+            assert_eq!(run.command(), Some(action.command()));
+            assert_eq!(
+                run.arguments(),
+                Some(Value::object(Vec::<(&str, Value)>::new()))
+            );
+        }
+        let note = nc_ipc::Note::new(Value::object([(
+            "draft",
+            Value::object([("text", Value::text("a"))]),
+        )]))
+        .expect("a note");
+        let note = Ask::Note(note);
+        assert_eq!((note.command(), note.arguments()), (None, None));
     }
 
     /// The webview's channel is read for the closed set of messages, each
@@ -813,6 +1057,34 @@ mod tests {
         assert_eq!(said("viewport 320 240"), Some(Said::Viewport(320, 240)));
         assert_eq!(said("scale 1042"), Some(Said::Scale(1042)));
         assert_eq!(said("scale 0"), Some(Said::Scale(0)));
+        for action in Action::ALL {
+            assert_eq!(
+                said(&format!("action {}", action.command())),
+                Some(Said::Action(action))
+            );
+        }
+        assert_eq!(
+            said("exercised 1 0 1"),
+            Some(Said::Exercised([true, false, true]))
+        );
+        assert_eq!(
+            said("exercised 0 1 0"),
+            Some(Said::Exercised([false, true, false]))
+        );
+        for (message, text) in [
+            ("draft ", ""),
+            ("draft a", "a"),
+            ("draft  two  spaces ", " two  spaces "),
+            ("draft line\nbreak", "line\nbreak"),
+            ("draft action sidebar.show", "action sidebar.show"),
+            ("draft loaded", "loaded"),
+        ] {
+            assert_eq!(
+                said(message),
+                Some(Said::Draft(text.to_owned())),
+                "{message:?}"
+            );
+        }
         for other in [
             "",
             "Loaded",
@@ -842,6 +1114,23 @@ mod tests {
             "scale 1042 1",
             "scale -1",
             "Scale 1000",
+            "draft",
+            "Draft a",
+            " draft a",
+            "drafta",
+            "action",
+            "action ",
+            "action window.close",
+            "action sidebar.show ",
+            "action  sidebar.show",
+            "action sidebar.show drawer.expand",
+            "Action sidebar.show",
+            "exercised",
+            "exercised 1 1",
+            "exercised 1 1 1 1",
+            "exercised 1 1 2",
+            "exercised true 1 1",
+            "exercised 1  1 1",
         ] {
             assert_eq!(said(other), None, "{other:?}");
         }

@@ -19863,7 +19863,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 262] = [
+    const DOCUMENTED: [(&str, usize, usize); 263] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19914,11 +19914,12 @@ mod the_frozen_path_rule {
         ("desktop/assets.rs", 19, 3),
         ("desktop/client.rs", 12, 1),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/host.rs", 45, 10),
-        ("desktop/lib.rs", 0, 7),
-        ("desktop/main.rs", 21, 6),
+        ("desktop/footer.rs", 77, 4),
+        ("desktop/host.rs", 54, 10),
+        ("desktop/lib.rs", 0, 8),
+        ("desktop/main.rs", 22, 6),
         ("desktop/mirror.rs", 84, 19),
-        ("desktop/page.rs", 14, 1),
+        ("desktop/page.rs", 16, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/the_window_opens_hidden.rs", 1, 0),
         ("desktop/theme.rs", 21, 2),
@@ -26094,7 +26095,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24174;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24330;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26113,7 +26114,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7226;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7373;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26130,7 +26131,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2468;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2522;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26147,7 +26148,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [150, 29, 56, 57, 102];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [166, 32, 57, 58, 102];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26164,7 +26165,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31626;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31785;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26182,7 +26183,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 663;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 684;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26218,8 +26219,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **663 of 31,626 are accepted by the first-line
-    /// rule alone, and 394 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **684 of 31,785 are accepted by the first-line
+    /// rule alone, and 415 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26240,8 +26241,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **150 ascending sorts, 29 descending, 56
-    /// swaps, 57 rotations and 102 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **166 ascending sorts, 32 descending, 57
+    /// swaps, 58 rotations and 102 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26251,7 +26252,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2468 of
+    /// this tree offers, **2522 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38568,7 +38569,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 276,
+            walked, 277,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38608,7 +38609,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3199] = [
+    static OPERATORS: [(&str, &str, &str); 3227] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -52911,6 +52912,16 @@ Options:
         ),
         (
             "desktop_main",
+            "wrong_with",
+            "a footer not exercised fails the probe",
+        ),
+        (
+            "desktop_main",
+            "wrong_with",
+            "a part of the footer that did not hold fails the probe",
+        ),
+        (
+            "desktop_main",
             "probed",
             "the light and the dark painting the same fails the probe",
         ),
@@ -52958,15 +52969,117 @@ Options:
         ("desktop_page", "document", "the document is in its locale"),
         (
             "desktop_page",
-            "SAYS_LOADED",
+            "SCRIPT",
             "the script says the word the window reads",
         ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "a control is said by the command it runs",
+        ),
+        ("desktop_page", "SCRIPT", "the prompt's text is said whole"),
         (
             "desktop_page",
             "Document",
             "the interface's sheet is linked after the design system's",
         ),
-        ("desktop_page", "Shell", "the footer holds its prompt line"),
+        (
+            "desktop_page",
+            "Document",
+            "the prompt is handed to the design system's script",
+        ),
+        (
+            "desktop_page",
+            "Document",
+            "the first run's footer is the one the state shows",
+        ),
+        (
+            "desktop_footer",
+            "TheFooter",
+            "the footer holds its prompt line",
+        ),
+        (
+            "desktop_footer",
+            "command",
+            "the sidebar's glyph runs `sidebar.show`",
+        ),
+        (
+            "desktop_footer",
+            "about",
+            "a command is said by its display name",
+        ),
+        (
+            "desktop_footer",
+            "latest",
+            "the hand that moved last is shown",
+        ),
+        (
+            "desktop_footer",
+            "rows",
+            "a seat is named only where there are several",
+        ),
+        ("desktop_footer", "rows", "expanded, every hover is shown"),
+        (
+            "desktop_footer",
+            "rows",
+            "a message takes the one line's room",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the drawer indicator needs the drawer collapsed",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the drawer indicator needs something open in it",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the footer is shown before the daemon answers",
+        ),
+        ("desktop_footer", "view", "production shows no channel"),
+        (
+            "desktop_footer",
+            "InfoLine",
+            "the chevron collapses an expanded line",
+        ),
+        (
+            "desktop_footer",
+            "within",
+            "a draft is cut at a character boundary",
+        ),
+        (
+            "desktop_footer",
+            "typed",
+            "the oldest unshown draft is forgotten past the bound",
+        ),
+        (
+            "desktop_footer",
+            "typed",
+            "a draft cut is written back into the page",
+        ),
+        (
+            "desktop_footer",
+            "stated",
+            "a state's draft unchanged is not written",
+        ),
+        (
+            "desktop_footer",
+            "stated",
+            "a draft this window said is not written",
+        ),
+        (
+            "desktop_footer",
+            "brought",
+            "nothing is sent before the document loaded",
+        ),
+        (
+            "desktop_footer",
+            "brought",
+            "a footer unchanged is not sent again",
+        ),
         (
             "desktop_theme",
             "chosen",
@@ -53013,6 +53126,18 @@ Options:
             "said",
             "only the closed set is read from the webview",
         ),
+        (
+            "desktop_host",
+            "said",
+            "a draft is the whole of the message after its word",
+        ),
+        (
+            "desktop_host",
+            "said",
+            "an action is one the footer's controls run",
+        ),
+        ("desktop_host", "bit", "a bit is 1 or 0"),
+        ("desktop_host", "command", "a note dispatches nothing"),
         ("desktop_host", "number", "a number is digits alone"),
         (
             "desktop_host",

@@ -152,14 +152,46 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
             seen.least
         ));
     }
+    let Some(footer) = seen.footer else {
+        wrong.push(format!(
+            "the footer in the {mode} was not exercised within the wait"
+        ));
+        return;
+    };
+    for (held, what) in [
+        (
+            footer.enhanced,
+            "the design system's script did not enhance the prompt",
+        ),
+        (footer.drafted, "typing into the prompt said no draft"),
+        (
+            footer.acted,
+            "activating the info line's chevron said no action",
+        ),
+        (
+            footer.kept,
+            "the footer drawn again did not show the new markup with the focus and the \
+             prompt's block kept",
+        ),
+        (
+            footer.written,
+            "a draft written into the prompt did not reach it",
+        ),
+    ] {
+        if !held {
+            wrong.push(format!("in the {mode}, {what}"));
+        }
+    }
 }
 
 /// The exit code and the line a probe is answered with: 0 when each window
 /// opened hidden and undecorated, stayed hidden until its document loaded,
 /// painted at its first frame what its settled page paints — the dark one
-/// the design system's dark surface, the light one another colour — and
-/// kept its page the least size when asked for less; 1 naming each that did
-/// not, or why no window was opened.
+/// the design system's dark surface, the light one another colour — kept its
+/// page the least size when asked for less, and its footer did what it is
+/// for when exercised: its prompt enhanced by the design system's script,
+/// typing and a control said, the footer drawn again keeping its focus, and
+/// a draft written; 1 naming each that did not, or why no window was opened.
 fn probed(probe: Result<Probed, Unopened>) -> (u8, String) {
     let probed = match probe {
         Ok(probed) => probed,
@@ -191,7 +223,8 @@ fn probed(probe: Result<Probed, Unopened>) -> (u8, String) {
             "noctua-desktop: a window opened in the light and one in the dark, each hidden and \
              undecorated and kept hidden until its document loaded, each first frame painting \
              what its settled page paints and the dark one the dark surface, each page the \
-             least size when asked for less, and each window was closed"
+             least size when asked for less, each footer doing what it is for, and each \
+             window was closed"
                 .to_owned(),
         )
     } else {
@@ -222,7 +255,7 @@ mod tests {
     use std::ffi::OsString;
     use std::path::PathBuf;
 
-    use nc_desktop::host::{Probed, Seen};
+    use nc_desktop::host::{Exercised, Probed, Seen};
 
     /// A scratch directory for one test, removed however the test leaves.
     struct Scratch(PathBuf);
@@ -325,6 +358,13 @@ mod tests {
                 nc_catalog::KERNEL.shell_window_min_width,
                 nc_catalog::KERNEL.shell_window_min_height,
             )),
+            footer: Some(Exercised {
+                enhanced: true,
+                drafted: true,
+                acted: true,
+                kept: true,
+                written: true,
+            }),
         }
     }
 
@@ -350,6 +390,7 @@ mod tests {
         let passing = passing();
         let (code, line) = super::probed(Ok(passing));
         assert_eq!(code, 0, "{line}");
+        assert!(line.contains("each footer doing what it is for"), "{line}");
         assert!(line.contains("each window was closed"), "{line}");
         let changed = |mode: &str, change: &dyn Fn(&mut Seen)| {
             let mut probed = passing;
@@ -395,6 +436,53 @@ mod tests {
                     "asked to be smaller",
                 ),
             ] {
+                let (code, line) = super::probed(Ok(probed));
+                assert_eq!(code, 1, "{mode}, {said}: {line}");
+                assert!(
+                    line.contains(&format!("in the {mode}")) && line.contains(said),
+                    "{mode}, {said}: {line}"
+                );
+            }
+        }
+    }
+
+    /// A probe is exit code 1, naming what did not hold, when the footer of
+    /// either window was not exercised, or when any part of its exercise
+    /// did not do what it is for.
+    #[test]
+    fn a_probe_passes_only_when_each_footer_did_what_it_is_for() {
+        let passing = passing();
+        for mode in ["light", "dark"] {
+            for (part, said) in [
+                (None, "the footer in the"),
+                (Some(0), "did not enhance the prompt"),
+                (Some(1), "said no draft"),
+                (Some(2), "said no action"),
+                (Some(3), "drawn again"),
+                (Some(4), "did not reach it"),
+            ] {
+                let mut probed = passing;
+                let seen = if mode == "light" {
+                    &mut probed.light
+                } else {
+                    &mut probed.dark
+                };
+                match part {
+                    None => seen.footer = None,
+                    Some(part) => {
+                        let footer = seen.footer.as_mut().expect("exercised");
+                        *[
+                            &mut footer.enhanced,
+                            &mut footer.drafted,
+                            &mut footer.acted,
+                            &mut footer.kept,
+                            &mut footer.written,
+                        ]
+                        .into_iter()
+                        .nth(part)
+                        .expect("a part") = false;
+                    }
+                }
                 let (code, line) = super::probed(Ok(probed));
                 assert_eq!(code, 1, "{mode}, {said}: {line}");
                 assert!(

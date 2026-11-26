@@ -18,8 +18,9 @@
 //! - **The daemon's state** ([`client`], [`mirror`]): followed by a watch on a
 //!   connection of its own, read strictly, and drawn — the window shown and
 //!   hidden as the state says, a show waiting for the document to have
-//!   loaded; and what the window asks, a command or a note, sent on the other
-//!   connection.
+//!   loaded, and the footer ([`footer`]) drawn from it, its modeline, its
+//!   info line and its prompt line; and what the window asks, a command or a
+//!   note, sent on the other connection.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -37,7 +38,14 @@
 //! webview loading what this build did not write, or a file of the machine's:
 //! everything it loads is answered from bytes compiled in, by a closed list
 //! of paths no request can step out of, it navigates nowhere else, and its
-//! message channel is read for a closed set of messages.
+//! message channel is read for a closed set of messages. A page asking the
+//! window to run what it pleases: a control's word is run only when it is
+//! one of the footer's closed set of commands, none of which takes an
+//! argument, and the prompt's text is said only as `prompt.set`'s, cut to its
+//! bound — so the page can do nothing the person could not do from the CLI.
+//! Markup drawn as something it is not: every text the footer shows is
+//! escaped where it is rendered, and the page is handed markup only as a
+//! script's string literal.
 //!
 //! # What it does not
 //!
@@ -54,6 +62,7 @@
 
 pub mod assets;
 pub mod client;
+pub mod footer;
 pub mod host;
 pub mod mirror;
 pub mod page;

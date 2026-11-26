@@ -50,7 +50,8 @@ fn the_window_opens_hidden_paints_its_theme_first_and_closes() {
             "noctua-desktop: a window opened in the light and one in the dark, each hidden and \
              undecorated and kept hidden until its document loaded, each first frame painting \
              what its settled page paints and the dark one the dark surface, each page the \
-             least size when asked for less, and each window was closed"
+             least size when asked for less, each footer doing what it is for, and each \
+             window was closed"
         ),
         "{said}"
     );

@@ -12,19 +12,39 @@
 //! would replace (§9.6, lessons 1 and 4).
 //!
 //! **What the first run shows is the footer alone** (§12.2, §12.3): the
-//! workspace area above it holds nothing, and the footer is the design
-//! system's `Footer`, its three lines — the modeline, the info line and the
-//! prompt line — and a corner at each end. What each line says is drawn by a
-//! later step of this stage; the window shows this document as it is built.
+//! workspace area above it holds nothing, and the footer is
+//! [`crate::footer`]'s, drawn from the view of the state the window holds
+//! when the document is built — none, before the daemon has answered.
 //!
 //! **Everything it links is the custom protocol's** ([`crate::assets`]), by a
 //! path relative to the document, so no address in it names a host or a
-//! scheme, and every path is one the protocol answers. Its one script says,
-//! through the webview's message channel, the page's scale — how many device
-//! pixels one CSS pixel is — and then a fixed word once the document and
-//! every sheet it links have loaded, and the scale again whenever the page
-//! is resized, and nothing else; what the window does with each is
-//! [`crate::host`]'s.
+//! scheme, and every path is one the protocol answers.
+//!
+//! **Its one script of its own** ([`SCRIPT`]) is the page's half of the
+//! window: what the page says through the webview's message channel, and the
+//! two calls the window brings the page to the state through. It says the
+//! page's scale — how many device pixels one CSS pixel is — and then
+//! [`LOADED`] once the document and every sheet it links have loaded, and
+//! the scale again whenever the page is resized; the command a control runs
+//! when it is activated, by the `data-nd-action` the design system writes on
+//! it ([`ACTION`]); and the prompt's text whenever an edit changes it
+//! ([`DRAFT`]). `window.noctua.draw` brings the footer to the markup it is
+//! handed by changing only what that markup changed since the last: an
+//! attribute set, removed or changed, a text changed, an element whose name
+//! changed replaced and one added or taken away — so an element that stays
+//! keeps its focus, and what the design system's scripts added to the page,
+//! the prompt's block among it, stays as they left it; the text area's
+//! content is never touched, since it is what the person typed.
+//! `window.noctua.draft` writes a draft into the prompt's text area, unless
+//! it holds it already or an input method is composing in it. What the
+//! window does with each word is [`crate::host`]'s, and what it sends
+//! [`crate::footer::Drawing`]'s.
+//!
+//! **The design system's behaviour is its own scripts'**: the document loads
+//! the design system's `prompt.js` as a module and enhances the prompt with
+//! it, so the block cursor, its blinking and the text area's selection,
+//! composition and clipboard are the design system's and the engine's
+//! (§12.7).
 //!
 //! **Every class written here is a utility the sheet holds a rule for**, and
 //! one written outside the closed set `cargo xtask check` admits — an
@@ -33,10 +53,8 @@
 //! written here and refuses one that differs from `crate::sheet`.
 
 use dioxus::prelude::*;
-use noctua_design::{
-    Footer, FooterCorner, FooterCornerSide, FooterLine, FooterLineKind, FooterVisibility,
-};
 
+use crate::footer::{TheFooter, View};
 use crate::theme::Theme;
 
 /// The word the document's script says once the document and every sheet it
@@ -47,32 +65,97 @@ pub const LOADED: &str = "loaded";
 /// device pixels one CSS pixel is, in thousandths, written after it.
 pub const SCALE: &str = "scale";
 
-/// The script that says the page's scale ([`SCALE`]) and then [`LOADED`]
-/// once the document has loaded — its markup, and every stylesheet its head
-/// links — and the scale again whenever the page is resized, so the window
-/// can keep the least size in CSS pixels whatever the system scales a page
-/// by.
-const SAYS_LOADED: &str = "(() => {\
-    const scale = () => window.ipc.postMessage('scale ' + Math.round(window.devicePixelRatio * 1000));\
-    window.addEventListener('load', () => { scale(); window.ipc.postMessage('loaded'); });\
-    window.addEventListener('resize', scale);\
+/// The word the document's script says a control was activated with: the
+/// command it runs, its `data-nd-action`, written after it.
+pub const ACTION: &str = "action";
+
+/// The word the document's script says the prompt's text with, written whole
+/// after it and one space.
+pub const DRAFT: &str = "draft";
+
+/// The document's own script: what the page says ([`LOADED`], [`SCALE`],
+/// [`ACTION`] and [`DRAFT`]), and `window.noctua`'s two calls, `draw` and
+/// `draft`, which bring the page to the state.
+pub const SCRIPT: &str = r"(() => {
+  const say = (message) => window.ipc.postMessage(message);
+  const scale = () => say('scale ' + Math.round(window.devicePixelRatio * 1000));
+  window.addEventListener('load', () => { scale(); say('loaded'); });
+  window.addEventListener('resize', scale);
+  document.addEventListener('click', (event) => {
+    const control = event.target instanceof Element ? event.target.closest('[data-nd-action]') : null;
+    if (control) say('action ' + control.getAttribute('data-nd-action'));
+  });
+  document.addEventListener('input', (event) => {
+    const area = event.target;
+    if (area instanceof HTMLTextAreaElement && area.matches('.nd-prompt-input')) say('draft ' + area.value);
+  });
+  const footer = document.querySelector('footer');
+  let drawn = footer.cloneNode(true);
+  const alike = (one, other) => one.nodeType === other.nodeType && one.nodeName === other.nodeName;
+  const bring = (live, was, next) => {
+    for (const { name, value } of Array.from(next.attributes)) {
+      if (was.getAttribute(name) !== value) live.setAttribute(name, value);
+    }
+    for (const { name } of Array.from(was.attributes)) {
+      if (!next.hasAttribute(name)) live.removeAttribute(name);
+    }
+    if (next.localName === 'textarea') return;
+    const lives = Array.from(live.childNodes);
+    const before = was.childNodes;
+    const after = next.childNodes;
+    for (let at = 0; at < after.length; at += 1) {
+      const one = after[at];
+      const old = before[at];
+      const here = lives[at];
+      if (old && here && alike(old, one) && alike(here, one)) {
+        if (one.nodeType === Node.ELEMENT_NODE) bring(here, old, one);
+        else if (old.nodeValue !== one.nodeValue) here.nodeValue = one.nodeValue;
+      } else if (old && here) {
+        live.replaceChild(one.cloneNode(true), here);
+      } else {
+        live.insertBefore(one.cloneNode(true), lives[before.length] || null);
+      }
+    }
+    for (let at = after.length; at < before.length; at += 1) {
+      if (lives[at]) lives[at].remove();
+    }
+  };
+  window.noctua = {
+    draw(markup) {
+      const template = document.createElement('template');
+      template.innerHTML = markup;
+      const next = template.content.firstElementChild;
+      if (!next) return;
+      bring(footer, drawn, next);
+      drawn = next;
+      if (window.noctua.enhance) window.noctua.enhance(footer);
+    },
+    draft(text) {
+      const area = footer.querySelector('.nd-prompt-input');
+      if (!area || area.value === text || area.closest('[data-nd-composing]')) return;
+      area.value = text;
+    },
+  };
 })();";
 
-/// The name the footer is given for a screen reader: the product's, which
-/// no locale translates, until the interface's own texts arrive in both
-/// locales.
-const FOOTER_NAME: &str = crate::host::TITLE;
+/// The module that hands the prompt to the design system's script, which
+/// draws its block cursor, and hands `window.noctua` the same call for a
+/// prompt a draw put in the page.
+pub const ENHANCES: &str = r#"import { enhancePrompts } from "./dist/prompt.js";
+enhancePrompts();
+window.noctua.enhance = enhancePrompts;"#;
 
-/// The document, in `locale` and `theme`, as the webview is handed it.
+/// The document, in `locale` and `theme`, its footer `footer`, as the
+/// webview is handed it.
 ///
 /// **Its root element is written here and its content as `rsx!`**, which
 /// renders the elements inside a document and not the document's own; the
 /// root's attributes are the theme's, each a word of the design system's
 /// closed set, so none needs escaping.
 #[must_use]
-pub fn document(locale: nc_catalog::Locale, theme: Theme) -> String {
+pub fn document(locale: nc_catalog::Locale, theme: Theme, footer: &View) -> String {
     let rendered = dioxus_ssr::render_element(rsx! {
-        Document { sheets: theme.sheets() }
+        Document { sheets: theme.sheets(), footer: footer.clone() }
     });
     let [(mode, mode_value), (palette, palette_value)] = theme.attributes();
     format!(
@@ -84,9 +167,10 @@ pub fn document(locale: nc_catalog::Locale, theme: Theme) -> String {
 
 /// The document's markup: its head, linking `sheets` of the design system
 /// and then the interface's sheet, and the interface's root, filling the
-/// window — the workspace area, which holds nothing yet, and the footer.
+/// window — the workspace area, which holds nothing yet, and the footer —
+/// then the page's script and the module that enhances the prompt.
 #[component]
-fn Document(sheets: Vec<&'static str>) -> Element {
+fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
     let linked = sheets
         .iter()
         .map(|sheet| format!("{}{sheet}", crate::assets::DIST));
@@ -101,34 +185,23 @@ fn Document(sheets: Vec<&'static str>) -> Element {
         body { class: "h-screen overflow-hidden",
             main { id: "noctua", class: "flex h-full w-full flex-col",
                 div { id: "noctua-workspace", class: "flex-1" }
-                Shell {}
+                TheFooter { view: footer }
             }
-            script { dangerous_inner_html: SAYS_LOADED }
-        }
-    }
-}
-
-/// The footer, edge to edge at the bottom of the window: a corner at each
-/// end and its three lines between them, top to bottom (`NOCTUA.md §12.3`).
-#[component]
-fn Shell() -> Element {
-    rsx! {
-        Footer { label: FOOTER_NAME, visibility: FooterVisibility::Always,
-            FooterCorner { side: FooterCornerSide::Start }
-            FooterLine { kind: FooterLineKind::Modeline }
-            FooterLine { kind: FooterLineKind::Info }
-            FooterLine { kind: FooterLineKind::Prompt }
-            FooterCorner { side: FooterCornerSide::End }
+            script { dangerous_inner_html: SCRIPT }
+            script { r#type: "module", dangerous_inner_html: ENHANCES }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use nc_catalog::Locale;
+    use nc_channel::Channel;
     use noctua_design::model::{Mode, Palette};
 
-    use super::{LOADED, SAYS_LOADED, SCALE, document};
+    use super::{ACTION, DRAFT, ENHANCES, LOADED, SCALE, SCRIPT, document};
     use crate::assets::{Answered, answer};
+    use crate::footer::{Context, View, markup, view};
     use crate::theme::Theme;
 
     /// A theme of each mode.
@@ -137,6 +210,18 @@ mod tests {
             Theme::chosen(Mode::Light, Palette::DEFAULT, true),
             Theme::chosen(Mode::Dark, Palette::JadeVivid, false),
         ]
+    }
+
+    /// The footer of the first run, before the daemon has answered, in
+    /// `locale`.
+    fn footer(locale: Locale) -> View {
+        view(
+            None,
+            Context {
+                locale,
+                channel: Channel::Production,
+            },
+        )
     }
 
     /// The value of every `name="…"` the document writes, in order.
@@ -150,12 +235,12 @@ mod tests {
 
     /// The document is one, opening with its type, in the locale it was
     /// asked in, its root carrying the theme's mode and palette, and its
-    /// script last in the body.
+    /// scripts last in the body.
     #[test]
     fn the_document_is_one_in_its_locale_and_its_theme() {
-        for locale in nc_catalog::Locale::ALL {
+        for locale in Locale::ALL {
             for theme in themes() {
-                let written = document(*locale, theme);
+                let written = document(*locale, theme, &footer(*locale));
                 let [(_, mode), (_, palette)] = theme.attributes();
                 assert!(
                     written.starts_with(&format!(
@@ -166,9 +251,13 @@ mod tests {
                     "{written}"
                 );
                 assert_eq!(written.matches("<html").count(), 1, "{written}");
-                let script = written.find(SAYS_LOADED).expect("the script is in it");
+                let script = written.find(SCRIPT).expect("the script is in it");
+                let module = written.find(ENHANCES).expect("the module is in it");
                 let main = written.find("<main").expect("the root is in it");
-                assert!(main < script, "the script follows the root: {written}");
+                assert!(
+                    main < script && script < module,
+                    "the scripts follow the root: {written}"
+                );
                 assert!(written.ends_with("</body></html>"), "{written}");
             }
         }
@@ -180,7 +269,7 @@ mod tests {
     #[test]
     fn the_head_links_the_themes_sheets_then_the_interfaces() {
         for theme in themes() {
-            let written = document(nc_catalog::Locale::En, theme);
+            let written = document(Locale::En, theme, &footer(Locale::En));
             let head = written
                 .split_once("</head>")
                 .map(|(head, _)| head)
@@ -203,18 +292,30 @@ mod tests {
         }
     }
 
-    /// Every address the document writes is a path the custom protocol
-    /// answers, relative to the document: none names a scheme or a host, and
-    /// none is a path the protocol does not hold.
+    /// Every address the document writes — an attribute's, and a module's
+    /// it imports — is a path the custom protocol answers, relative to the
+    /// document: none names a scheme or a host, and none is a path the
+    /// protocol does not hold.
     #[test]
     fn every_address_is_one_the_protocol_answers() {
         for theme in themes() {
-            let written = document(nc_catalog::Locale::En, theme);
+            let written = document(Locale::En, theme, &footer(Locale::En));
+            let imported: Vec<&str> = written
+                .split(" from \"")
+                .skip(1)
+                .filter_map(|rest| rest.split_once('"').map(|(address, _)| address))
+                .collect();
+            assert_eq!(imported, ["./dist/prompt.js"], "{written}");
             let addresses: Vec<&str> = ["href", "src", "action", "srcset"]
                 .iter()
                 .flat_map(|name| values(&written, name))
+                .chain(
+                    imported
+                        .iter()
+                        .map(|address| address.trim_start_matches("./")),
+                )
                 .collect();
-            assert!(!addresses.is_empty(), "{written}");
+            assert!(addresses.len() > imported.len(), "{written}");
             for address in addresses {
                 assert!(
                     !address.contains(':') && !address.starts_with('/'),
@@ -238,78 +339,58 @@ mod tests {
     }
 
     /// The first run shows the footer alone: the body holds the workspace
-    /// area, empty, and one footer — its corner at the start, its modeline,
-    /// info line and prompt line in that order, and its corner at the end —
-    /// always shown, and nothing else but the script.
+    /// area, empty, then the footer — the first run's, as
+    /// [`crate::footer::markup`] writes it — and nothing else but the
+    /// scripts.
     #[test]
     fn the_first_run_shows_the_footer_alone() {
-        let written = document(nc_catalog::Locale::En, themes()[0]);
-        let body = written
-            .split_once("<body")
-            .and_then(|(_, body)| body.split_once("<script"))
-            .map(|(body, _)| body)
-            .expect("a body");
-        assert!(
-            body.contains("<div id=\"noctua-workspace\" class=\"flex-1\"></div>"),
-            "the workspace area is empty: {body}"
-        );
-        assert_eq!(body.matches("<footer").count(), 1, "{body}");
-        let footer = body
-            .split_once("<footer")
-            .and_then(|(_, footer)| footer.split_once("</footer>"))
-            .map(|(footer, _)| footer)
-            .expect("a footer");
-        assert!(
-            footer.contains("role=\"group\"")
-                && footer.contains(&format!("aria-label=\"{}\"", super::FOOTER_NAME))
-                && footer.contains("data-nd-visibility=\"always\""),
-            "{footer}"
-        );
-        assert_eq!(
-            values(footer, "data-nd-kind"),
-            ["modeline", "info", "prompt"],
-            "{footer}"
-        );
-        assert_eq!(values(footer, "data-nd-side"), ["start", "end"], "{footer}");
-        let outside = body.replace(footer, "");
-        for element in [
-            "<button",
-            "<input",
-            "<textarea",
-            "<a ",
-            "<img",
-            "<p",
-            "<span",
-        ] {
-            assert!(
-                !outside.contains(element) && !footer.contains(element),
-                "the first run draws {element}: {body}"
+        for locale in Locale::ALL {
+            let first = footer(*locale);
+            let written = document(*locale, themes()[0], &first);
+            let body = written
+                .split_once("<body class=\"h-screen overflow-hidden\">")
+                .and_then(|(_, body)| body.split_once("<script"))
+                .map(|(body, _)| body)
+                .expect("a body");
+            assert_eq!(
+                body,
+                format!(
+                    "<main id=\"noctua\" class=\"flex h-full w-full flex-col\">\
+                     <div id=\"noctua-workspace\" class=\"flex-1\"></div>{}</main>",
+                    markup(&first)
+                )
             );
         }
     }
 
-    /// The script says the words the window reads: the scale, then that the
-    /// document loaded, once the document and every sheet it links have
-    /// loaded, and the scale again at each resize.
+    /// The script says the words the window reads — the scale, that the
+    /// document loaded once it and every sheet it links have loaded, the
+    /// command a control runs, and the prompt's text whole — and the module
+    /// enhances the prompt with the design system's script.
     #[test]
     fn the_script_says_the_words_the_window_reads() {
+        for said in [
+            format!("window.addEventListener('load', () => {{ scale(); say('{LOADED}'); }});"),
+            format!("say('{SCALE} ' + Math.round(window.devicePixelRatio * 1000))"),
+            "window.addEventListener('resize', scale);".to_owned(),
+            format!("say('{ACTION} ' + control.getAttribute('data-nd-action'))"),
+            format!("say('{DRAFT} ' + area.value)"),
+            "const say = (message) => window.ipc.postMessage(message);".to_owned(),
+        ] {
+            assert!(SCRIPT.contains(&said), "{said} is not in {SCRIPT}");
+        }
         assert!(
-            SAYS_LOADED.contains(&format!(
-                "window.addEventListener('load', () => {{ scale(); \
-                 window.ipc.postMessage('{LOADED}'); }});"
-            )),
-            "{SAYS_LOADED}"
+            ENHANCES.contains(
+                "import { enhancePrompts } from \"./dist/prompt.js\";\nenhancePrompts();"
+            ),
+            "{ENHANCES}"
         );
         assert!(
-            SAYS_LOADED.contains(&format!(
-                "window.ipc.postMessage('{SCALE} ' + Math.round(window.devicePixelRatio * \
-                 1000))"
-            )),
-            "{SAYS_LOADED}"
-        );
-        assert!(
-            SAYS_LOADED.contains("window.addEventListener('resize', scale);"),
-            "{SAYS_LOADED}"
+            noctua_design_dist::FILES
+                .iter()
+                .any(|(name, contents)| *name == "prompt.js"
+                    && contents.contains("export function enhancePrompts(")),
+            "the design system ships the script the module imports"
         );
     }
 }

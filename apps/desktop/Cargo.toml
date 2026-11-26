@@ -19,13 +19,17 @@ path = "src/main.rs"
 [dependencies]
 # The codes every refusal carries (`NOCTUA.md §15.1`), and the bounds the
 # daemon holds a watch and a heartbeat to, which this reads and takes from no
-# caller (`DAEMON`), and a window's least size (`KERNEL`).
+# caller (`DAEMON`), a window's least size and a draft's (`KERNEL`), and the
+# commands' display names and lines in each locale, which name the footer's
+# controls and say what a seat is on (`§20.4`).
 nc-catalog.workspace = true
-# The interface's state as the daemon sends it, read by the mirror, and a
-# command's arguments and a note's facts written as the one canonical form.
+# The interface's state as the daemon sends it, read by the mirror, a
+# command's arguments and a note's facts written as the one canonical form,
+# and a text handed to the page's script written as a string literal it reads.
 nc-canon.workspace = true
 # The install beside the executable, which names the daemon this window is a
-# view of (`§17.1`).
+# view of and the channel its modeline names where it is not production
+# (`§17.1`, `§12.5`).
 nc-channel.workspace = true
 # The protocol, and the one client every program asks a daemon through
 # (`nc_ipc::client`): the handshake that proves both ends, a watch and a note.
@@ -38,14 +42,16 @@ nc-platform = { workspace = true, features = ["webview"] }
 # manifest says why each is taken directly, and pinned.
 tao.workspace = true
 wry.workspace = true
-# The interface's markup, written as `rsx!` (`NOCTUA.md §4`), and the first
+# The interface's markup, written as `rsx!` (`NOCTUA.md §4`), the first
 # frame of it rendered into the document the webview is handed, before the
-# window is ever shown.
+# window is ever shown, and the footer rendered again from each state the
+# daemon answers, which the page is brought to.
 dioxus.workspace = true
 dioxus-ssr.workspace = true
 # **The design system** (`NOCTUA.md §9`): its components — the footer, its
-# lines and its corners (`§12.3`) — and its theme model, the palette and the
-# mode the document's root is stamped with before the first paint (`§9.6`).
+# lines and its corners (`§12.3`), the prompt, the buttons, the glyphs and the
+# runs of text in them — and its theme model, the palette and the mode the
+# document's root is stamped with before the first paint (`§9.6`).
 noctua-design.workspace = true
 # **What the design system ships to a page, embedded**: its stylesheets, its
 # behaviour modules and its palettes' values, every one served by name through
