@@ -882,7 +882,8 @@ mod tests {
     /// that lists the checkouts and the one that taps the Leader.
     ///
     /// Each is read as itself, under `--json` too, and a verb that controls
-    /// the daemon is refused with a word after it.
+    /// the daemon is refused with a word after it; the start the interface's
+    /// alert line runs (`nc_ipc::alert::START`) is read as this start.
     #[test]
     fn a_verb_that_controls_the_daemon_is_read_alone() {
         assert_eq!(
@@ -909,6 +910,12 @@ mod tests {
         }
         assert_eq!(Control::of("help"), None);
         assert_eq!(Control::of("Stop"), None);
+        // What the interface's alert line runs when a person acts on it is
+        // this CLI's start, by the word it says it with.
+        assert_eq!(
+            line(&[nc_ipc::alert::START]).asked,
+            Asked::Control(Control::Start)
+        );
     }
 
     /// `leader` is read alone, under `--json` too, and refused with a word

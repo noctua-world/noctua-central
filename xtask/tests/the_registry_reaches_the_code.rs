@@ -2622,6 +2622,10 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
         generated.ipc_display_value_max_bytes,
         declared.ipc_display_value_max_bytes
     );
+    assert_eq!(
+        generated.interface_restore_countdown_ms,
+        declared.interface_restore_countdown_ms
+    );
     assert_eq!(generated.pump_every_ms, declared.pump_every_ms);
     assert_eq!(generated.sweep_every_ms, declared.sweep_every_ms);
     assert_eq!(generated.stop_drain_ms, declared.stop_drain_ms);
@@ -2630,7 +2634,7 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.kill_within_ms, declared.kill_within_ms);
     assert_eq!(
         declared.each().len(),
-        16,
+        17,
         "a daemon limit was added or lost"
     );
 }

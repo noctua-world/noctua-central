@@ -290,8 +290,8 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
 │   ├── nc-platform/                a path one user's alone, which process this is, a program the service manager restores, the user's bin directory and the clipboard's tool, per system (§2.7), and how the Leader reaches a process (§12.8) — THE TWO FILES OF `unsafe`
-│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
-│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session, the watch, a note and a display, and the client every program asks through (§11.1)
+│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, the `stopped` mark's one reader (§17.5), and a person's keybindings, read beside the other channels' (§12.8)
+│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session, the watch, a note and a display, the client every program asks through (§11.1), and the alert line an interface draws once it lost its daemon (§12.17)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11), and the interface's own state (§12.1)
@@ -508,7 +508,7 @@ fails a gate a minute or two later.
 | an MCP method | `Engine::heard` in `apps/cli/src/mcp.rs`, and a unit test in that file answering it | a method is answered only when this server offers what it belongs to, and every other is `-32601`; a capability is never declared for a feature that sends the client a request — elicitation, sampling, roots, tasks — because what a client answers would be read as the person's; a call's fields are a closed set, every other refused with `-32602`, and no field is ever read as a confirmation; every answer is one line through the session's one writer; and a protocol revision joins `REVISIONS` only once a saved schema of it shows every answer to a request whose id was read valid in it, so a revision this server does not speak is answered in its newest and the client declines it — an error answering a line whose id could not be read carries no `id`, which `2025-11-25`'s schema reads and `2025-06-18`'s does not |
 | an MCP tool | nothing: a tool is a command (*a command*, above) | `noctua mcp` lists what its session's agent may dispatch now, as the daemon answers it, each entry projected by `nc_schema::entry::as_tool`, and a call is sent as the command its name reads back to, so a tool arrives with its command and an agent reaches it with its feature's agent permit and its person's grant (*an agent permit*); no list of tools is written anywhere, and `docs/mcp-tools.md` is the catalog's projection, not a session's |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
-| a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
+| a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships. The interface's countdown is the second kind, decided in `nc_ipc::alert` — `Run::restorer`, the install's own daemon with `nc_ipc::alert::RESTORED`, which `the_daemon_and_initialize_are_answered_and_nothing_else_is` holds to the daemon's reader — and run by the desktop interface, which is not built yet: its leg in that suite, `the_interfaces_countdown_restores_a_daemon_lost_and_leaves_a_stopped_one_down`, asks the module as the desktop will and runs what the line answers, over the suites' own install. A program that reads the mark to say something — the interface's alert line, an install — reads it through `nc_channel::stopped::on_purpose`, the one reader, and still restores only through `--restored`, so a mark written after it read one holds the daemon down all the same |
 
 Two things are true of all of them:
 
@@ -3647,6 +3647,20 @@ is installed.
   The environment — the base directories and
   `NC_INSTALL_NAMESPACE` — is read by the installer alone, so a relocated install is a
   test's, with no central log and no stack. `PATH` is not changed.
+- **The mark has one reader** (`nc_channel::stopped::on_purpose`): the daemon's restored
+  start, the installer and the interface's alert line read it the same way — the state
+  directory and the mark judged this user's alone, one another account can reach refused
+  and left as it was, and no mark where either is not there. **The interface's alert line
+  restores only as a restorer does** (`nc_ipc::alert`): a daemon lost with no mark is said
+  not running, offers restore now and counts down `[daemon] interface_restore_countdown_ms`
+  to one deadline, in milliseconds since the Unix epoch, from the moment the line first
+  says so, and at the deadline — once in an absence, never after a person acted on the
+  line — starts the install's own daemon `--restored`; with the mark it says the daemon is
+  stopped, offers start and counts nothing down, a mark read while counting cancelling
+  the countdown and a mark that does not read taken for a stop. Either offer runs the
+  install's own CLI, `start`, which removes the mark. What the line reads of the mark says
+  what it says; what keeps a stopped daemon down is the daemon's own restored start, so a
+  mark written after the interface last read it holds the daemon down all the same.
 - **The development daemon has a restorer, and every restorer honours the mark.**
   `cargo xtask dev --install` registers the copied daemon with the system's service
   manager (`nc_platform::service`) under the name the layout gives it there, its one
@@ -3685,7 +3699,10 @@ is installed.
   `users.users.<name>.linger`; no test asks for it.
 
 **Enforced by** `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs`
-(acceptance 8) — this checkout's development install, relocated, registered with the
+(acceptance 8) — the interface's countdown, asked of `nc_ipc::alert` by the test standing
+in for the desktop, restoring a daemon killed at the deadline as a new instance and
+saying a stopped one stopped, counting nothing down and leaving it down when its restorer
+runs anyway; and this checkout's development install, relocated, registered with the
 system's own manager and started through it, then killed and restored as a new instance
 read through the manager's counters and the daemon's record, stopped and started by the
 manager as a restorer starts it and left down on the mark, installed again over the
@@ -3731,8 +3748,14 @@ does not answer asked to end first and killed only when it has not ended, and a 
 that stops before it starts and starts nothing after a stop refused — of
 `apps/cli/src/install.rs`, whose copies of this test binary run, whose uninstall leaves
 every file of an install whose daemon did not stop, and whose uninstall removes the mark
-its own stop wrote and keeps a person's, and of
-`crates/nc-channel/src/record.rs`, by the
+its own stop wrote and keeps a person's, of
+`crates/nc-channel/src/record.rs`, of `crates/nc-channel/src/stopped.rs` — no mark, a
+mark, and a mark or a state directory another account can reach refused and left as it
+was — and of `crates/nc-ipc/src/alert.rs` — a lost daemon counted down to one deadline
+and restored at it and not before, once, a stop counting nothing down and cancelling a
+countdown, one gone counting afresh, a person's act never raced by the countdown, a mark
+that does not read taken for a stop, and each act's program and argument, held to the
+daemon's and the CLI's readers by their own unit tests — by the
 `Verified` and `spawn_detached` tests of `crates/nc-platform/src/process.rs` — a child
 held to its record and refused for each part of one that is not its own, asked to end and
 killed through what held it, a record of another start gone and one of the process as it
@@ -3753,7 +3776,8 @@ account's process now holds, which is read as a daemon stopped without that proc
 read; a start that gave up, which leaves the daemon it started running; commands run at
 once, each failing closed and none signalling; with nothing verifying the daemon, the
 moment between its lock let go and its process's end, in which a start through a manager
-whose unit still runs it starts nothing (`NC-CLI-0007`); what a daemon a
+whose unit still runs it starts nothing (`NC-CLI-0007`); a daemon the interface's
+countdown restored, which runs outside its manager's unit; what a daemon a
 manager started writes to its standard error, which goes nowhere; an uninstall from an
 environment that does not reach the manager, which removes nothing; the mark an install
 or an uninstall that did not finish left after its own stop, which the next install reads
@@ -5055,10 +5079,20 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **Only the development channel has a restorer, and only the service manager restores
   it**: `cargo xtask dev --install` registers one; production and staging have no
   installer yet (Stage 19), and the tray and the interface's countdown, which restore a
-  daemon too (`NOCTUA.md §17.5`), arrive with the interface (Stages 16 and 17). A daemon
-  that dies at each start is restored until its manager gives up: systemd after its start
-  limit, five starts in ten seconds; launchd never, once a second; Task Scheduler never,
-  once a minute.
+  daemon too (`NOCTUA.md §17.5`), arrive with the interface (Stages 16 and 17): the
+  countdown is decided in `nc_ipc::alert` and run by nothing until the desktop interface
+  is built. A daemon that dies at each start is restored until its manager gives up:
+  systemd after its start limit, five starts in ten seconds; launchd never, once a second;
+  Task Scheduler never, once a minute. The interface's countdown restores once in an
+  absence of its daemon and no more.
+- **A daemon the interface's countdown restored runs outside its service manager's
+  unit**: the desktop interface starts it as `noctua-daemon --restored` itself
+  (`nc_ipc::alert::Run::restorer`), so where `cargo xtask dev --install` registered a
+  restorer, the manager does not restore that daemon after a later crash — the
+  interface's next countdown does — until a stop and a start put it back under the
+  manager; a person's restore now, `noctua start`, goes through the manager. A clock moved
+  back while the line counts makes the countdown longer by as much, because the deadline
+  never moves.
 - **A daemon its manager started writes its standard error nowhere**: each manager is told
   to hand it none (`nc_platform::service`), so a start through the manager that fails says
   what the manager counts and not what the daemon wrote, and a refusal of a daemon a

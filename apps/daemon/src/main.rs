@@ -198,13 +198,21 @@ mod tests {
         panic!("an invocation this build does not answer asked which executable this is")
     }
 
-    /// No argument runs the daemon, `--initialize` is answered alone and
-    /// with `--world <file>`, and any other invocation is not.
+    /// No argument runs the daemon, `--restored` — the argument every
+    /// restorer starts it with, the interface's alert line among them
+    /// (`nc_ipc::alert::RESTORED`) — is answered alone, `--initialize` alone
+    /// and with `--world <file>`, and any other invocation is not.
     #[test]
     fn the_daemon_and_initialize_are_answered_and_nothing_else_is() {
         assert_eq!(super::asked(&[]), Some(super::Asked::Serve));
         assert_eq!(
             super::asked(&words(&["--restored"])),
+            Some(super::Asked::Restored)
+        );
+        // The interface's alert line restores the daemon as every restorer
+        // does, by this one argument.
+        assert_eq!(
+            super::asked(&words(&[nc_ipc::alert::RESTORED])),
             Some(super::Asked::Restored)
         );
         assert_eq!(

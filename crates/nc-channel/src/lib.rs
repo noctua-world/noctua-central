@@ -94,7 +94,8 @@
 //! It reads no environment, and writes nothing. Its ways to the disk are
 //! [`Checkout::of`], which canonicalizes the checkout's path, [`found`], which
 //! reads the manifest beside an executable, [`record`], which reads the
-//! daemon's PID record, [`keys`], which reads a person's keybinding
+//! daemon's PID record, [`stopped`], which reads whether a person stopped
+//! the daemon on purpose, [`keys`], which reads a person's keybinding
 //! configuration and the other channels' beside it, and [`checkouts`], which
 //! lists the development checkouts installed beside an install with what each
 //! records of itself, writing none of them; [`layout`] touches none.
@@ -110,6 +111,7 @@ pub mod checkouts;
 pub mod found;
 pub mod keys;
 pub mod record;
+pub mod stopped;
 
 use core::fmt::{self, Write as _};
 use std::collections::BTreeMap;

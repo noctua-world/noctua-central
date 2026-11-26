@@ -602,16 +602,11 @@ const fn started_once_registered(marked_before: bool) -> bool {
     !marked_before
 }
 
-/// Whether the profile of `layout` carries the `stopped` mark, the mark
-/// judged this user's alone first.
+/// Whether the profile of `layout` carries the `stopped` mark, read by the
+/// one reader every program of the install shares (`nc_channel::stopped`):
+/// the state directory and the mark judged this user's alone first.
 fn marked(layout: &Layout, user: &User) -> Result<bool, Unmade> {
-    match nc_platform::judge(&layout.stopped, Kind::File, user) {
-        Ok(()) => Ok(true),
-        Err(Judged::Failed(absent)) if absent.error().kind() == std::io::ErrorKind::NotFound => {
-            Ok(false)
-        }
-        Err(judged) => Err(not_taken(&judged)),
-    }
+    nc_channel::stopped::on_purpose(layout, user).map_err(|judged| not_taken(&judged))
 }
 
 /// What an install asks of the restorer it registers, in the order this

@@ -71,7 +71,7 @@
 //! connection. Every refusal is an [`IpcError`], which carries its code
 //! (`§15.1`).
 //!
-//! # The client ([`client`]) and the Leader ([`leader`])
+//! # The client ([`client`]), the Leader ([`leader`]) and the alert line ([`alert`])
 //!
 //! What every program that asks a daemon shares — the CLI, and the desktop
 //! interface: the endpoint reached, the token read once its file is judged
@@ -81,7 +81,11 @@
 //! the scripted daemon their suites connect to. What a press of the Leader is
 //! sent as, which process of the install listens for one on each system, and
 //! how a refusal of it is told are [`leader`]'s, shared by the daemon, the CLI
-//! and the desktop interface alike.
+//! and the desktop interface alike. What an interface says once it lost its
+//! daemon — the local server not running, or stopped — when its countdown
+//! ends, and what each act on the line runs are [`alert`]'s: the daemon is
+//! gone then, and its kernel with it, so the line is decided where the
+//! interface still is.
 //!
 //! # What protocol 4 does not hold yet
 //!
@@ -138,6 +142,7 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod alert;
 pub mod client;
 mod connection;
 pub mod frame;

@@ -106,20 +106,23 @@ pub enum Restored {
 /// starts it, `--restored`: not at all while its profile carries the
 /// `stopped` mark, and not twice.
 ///
-/// **The mark is read before anything else of the profile**, so a person's
-/// explicit stop holds whichever restorer starts the daemon next — a service
-/// manager, a logon task, the interface's countdown — and no restorer has to
-/// know of it (`NOCTUA.md §17.5`). **A daemon already up is not a failure**:
-/// a restorer that starts one beside it leaves it as it is and ends well.
+/// **The mark is read before anything else of the profile**, by the one
+/// reader every program of the install shares (`nc_channel::stopped`), so a
+/// person's explicit stop holds whichever restorer starts the daemon next — a
+/// service manager, a logon task, the interface's countdown — and no restorer
+/// has to know of it (`NOCTUA.md §17.5`). **A daemon already up is not a
+/// failure**: a restorer that starts one beside it leaves it as it is and ends
+/// well.
 ///
 /// # Errors
 ///
 /// [`Refused`], as [`serve`] refuses, and [`Refused::NotPrivate`] for a state
 /// directory or a mark another account can reach — never one of them read as
-/// a stop asked for.
+/// a stop asked for — or [`Refused::Unavailable`] for one that could not be
+/// judged.
 pub fn restore(executable: &Path) -> Result<Restored, Refused> {
     let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
-    if stopped_on_purpose(&found.layout, &found.user)? {
+    if nc_channel::stopped::on_purpose(&found.layout, &found.user).map_err(Refused::judged)? {
         return Ok(Restored::StaysDown);
     }
     match serving(&found) {
@@ -127,35 +130,6 @@ pub fn restore(executable: &Path) -> Result<Restored, Refused> {
         Err(Refused::Held { .. }) => Ok(Restored::AlreadyUp),
         Err(refused) => Err(refused),
     }
-}
-
-/// Whether the profile of `layout` carries the `stopped` mark: its state
-/// directory and the mark judged this user's alone, and no mark where either
-/// is not there yet.
-///
-/// # Errors
-///
-/// [`Refused::NotPrivate`] for a state directory or a mark another account
-/// can reach, and [`Refused::Unavailable`] when either could not be read.
-pub fn stopped_on_purpose(
-    layout: &nc_channel::Layout,
-    user: &nc_platform::User,
-) -> Result<bool, Refused> {
-    for (path, kind) in [
-        (&layout.state, nc_platform::Kind::Directory),
-        (&layout.stopped, nc_platform::Kind::File),
-    ] {
-        match nc_platform::judge(path, kind, user) {
-            Ok(()) => {}
-            Err(nc_platform::Judged::Failed(absent))
-                if absent.error().kind() == std::io::ErrorKind::NotFound =>
-            {
-                return Ok(false);
-            }
-            Err(judged) => return Err(Refused::judged(judged)),
-        }
-    }
-    Ok(true)
 }
 
 /// Runs the daemon of `found`'s install until it is asked to stop.

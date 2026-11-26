@@ -662,6 +662,10 @@ SOURCES = {
     # on each system, what a press is sent as and how a refusal is told.
     # Decided by the module's own unit tests.
     "ipc_leader": os.path.join(ROOT, "crates/nc-ipc/src/leader.rs"),
+    # **The daemon alert line an interface draws once it lost its daemon**:
+    # what it says, when its countdown ends, that it restores once in an
+    # absence, and what each act runs. Decided by the module's own unit tests.
+    "ipc_alert": os.path.join(ROOT, "crates/nc-ipc/src/alert.rs"),
     # **The one reader of the manifest beside an executable**, which every
     # binary of an install asks: the executable canonicalized, the directory
     # and the manifest judged this user's alone, and each refusal's code.
@@ -697,6 +701,11 @@ SOURCES = {
     # process numbered zero or below refused. Decided by that crate's own
     # tests, in scratch directories.
     "channel_record": os.path.join(ROOT, "crates/nc-channel/src/record.rs"),
+    # **The one reader of the `stopped` mark**, which the daemon's restored
+    # start, the CLI's install and the interface's alert line share: the state
+    # directory and the mark judged this user's alone, and no mark where either
+    # is not there. Decided by that crate's own tests, in scratch directories.
+    "channel_stopped": os.path.join(ROOT, "crates/nc-channel/src/stopped.rs"),
     # **Process control and the installer**: which process a stop may signal,
     # the mark written before anything is asked and removed by a start, and an
     # install's files written and read back. Decided by each module's own unit
@@ -9843,14 +9852,62 @@ WEAKENINGS = [
      "        Self::ALL.into_iter().find(|verb| verb.word() == word)",
      "        Self::ALL.into_iter().find(|verb| verb.word().eq_ignore_ascii_case(word))"),
     ("daemon_run", "restore", "a restored start stays down on the mark",
-     "    if stopped_on_purpose(&found.layout, &found.user)? {",
+     "    if nc_channel::stopped::on_purpose(&found.layout, &found.user).map_err(Refused::judged)? {",
      "    if false {"),
+    ("daemon_run", "restore", "a restored start refuses a stop mark another account can reach",
+     ".map_err(Refused::judged)? {",
+     ".unwrap_or(false) {"),
     ("daemon_run", "restore", "a restored start beside a daemon up ends well",
      "        Err(Refused::Held { .. }) => Ok(Restored::AlreadyUp),",
      "        Err(Refused::Held { .. }) => Err(Refused::Engine(String::new())),"),
-    ("daemon_run", "stopped_on_purpose", "a stop mark another account can reach is refused",
-     "            Err(judged) => return Err(Refused::judged(judged)),",
+    # **The `stopped` mark's one reader**: refused where another account can
+    # reach it or its directory, and no stop where either is not there.
+    ("channel_stopped", "on_purpose", "a stop mark another account can reach is refused",
+     "            Err(judged) => return Err(judged),",
      "            Err(_) => return Ok(false),"),
+    ("channel_stopped", "on_purpose", "a mark is read only in a state directory this user's alone",
+     "        (&layout.state, Kind::Directory),\n",
+     ""),
+    ("channel_stopped", "on_purpose", "no mark is no stop",
+     "                return Ok(false);",
+     "                return Ok(true);"),
+    # **The alert line**: a stop counts nothing down and cancels a countdown,
+    # the countdown ends at its deadline and restores once in an absence, a
+    # person's act ends it, a mark that does not read is a stop, and each act
+    # runs the install's own program with its one argument.
+    ("ipc_alert", "at", "a stop counts nothing down",
+     "        if stopped {",
+     "        if false {"),
+    ("ipc_alert", "at", "a mark read while counting cancels the countdown",
+     "        if stopped {\n            self.counting_from = None;\n",
+     "        if stopped {\n"),
+    ("ipc_alert", "at", "nothing counts down again after a restore was asked",
+     "        if self.asked {",
+     "        if false {"),
+    ("ipc_alert", "at", "the countdown ends at its deadline",
+     "        if now_ms >= deadline {",
+     "        if now_ms > deadline {"),
+    ("ipc_alert", "at", "the countdown's restore is asked once",
+     "        if now_ms >= deadline {\n            self.asked = true;\n",
+     "        if now_ms >= deadline {\n"),
+    ("ipc_alert", "at", "the countdown is the catalog's",
+     "from.saturating_add(nc_catalog::DAEMON.interface_restore_countdown_ms)",
+     "from.saturating_add(nc_catalog::DAEMON.interface_restore_countdown_ms / 2)"),
+    ("ipc_alert", "acted", "a person who acted is not raced by the countdown",
+     "    pub const fn acted(&mut self) {\n        self.asked = true;\n",
+     "    pub const fn acted(&mut self) {\n"),
+    ("ipc_alert", "stopped", "a mark that does not read is a stop",
+     ".unwrap_or(true)",
+     ".unwrap_or(false)"),
+    ("ipc_alert", "RESTORED", "the countdown starts the daemon as every restorer does",
+     "pub const RESTORED: &str = \"--restored\";",
+     "pub const RESTORED: &str = \"--restore\";"),
+    ("ipc_alert", "restorer", "the countdown restores the install's own daemon",
+     "                layout.daemon,\n",
+     "                layout.cli,\n"),
+    ("ipc_alert", "offered", "a person's act runs the CLI's start",
+     "            Offer::RestoreNow | Offer::Start => Self::start(layout),",
+     "            Offer::RestoreNow | Offer::Start => Self::restorer(layout),"),
     ("daemon_main", "asked", "--restored is answered",
      "        [restored] if restored == \"--restored\" => Some(Asked::Restored),",
      "        [restored] if restored == \"--restore\" => Some(Asked::Restored),"),
@@ -10856,6 +10913,7 @@ ELSEWHERE = {
     "ipc_connection": ["cargo", "test", "-q", "-p", "nc-ipc"],
     "ipc_client": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "client::"],
     "ipc_leader": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "leader::"],
+    "ipc_alert": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "alert::"],
     "ipc_testing": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "client::"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
@@ -11099,6 +11157,8 @@ ELSEWHERE = {
     "cli_run": ["cargo", "test", "-q", "-p", "nc-cli", "--", "run::"],
     # The record's format by its crate's tests, none of which starts a process.
     "channel_record": ["cargo", "test", "-q", "-p", "nc-channel"],
+    # The mark's reader by its crate's tests, none of which starts a process.
+    "channel_stopped": ["cargo", "test", "-q", "-p", "nc-channel"],
     "cli_control": ["cargo", "test", "-q", "-p", "nc-cli", "--", "control::"],
     "cli_install": ["cargo", "test", "-q", "-p", "nc-cli", "--", "install::"],
     "cli_checkouts": ["cargo", "test", "-q", "-p", "nc-cli", "--", "checkouts::"],

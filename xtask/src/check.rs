@@ -19741,7 +19741,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 243] = [
+    const DOCUMENTED: [(&str, usize, usize); 245] = [
         ("cli/args.rs", 52, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19780,14 +19780,14 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 10, 7),
         ("daemon/plugins.rs", 37, 6),
         ("daemon/profile.rs", 19, 5),
-        ("daemon/run.rs", 24, 1),
+        ("daemon/run.rs", 23, 1),
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 131, 22),
         ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 36, 3),
         ("nc-authz/agents.rs", 69, 47),
         ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
@@ -19834,8 +19834,9 @@ mod the_frozen_path_rule {
         ("nc-channel/checkouts.rs", 41, 11),
         ("nc-channel/found.rs", 18, 10),
         ("nc-channel/keys.rs", 40, 11),
-        ("nc-channel/lib.rs", 61, 16),
+        ("nc-channel/lib.rs", 61, 17),
         ("nc-channel/record.rs", 15, 10),
+        ("nc-channel/stopped.rs", 4, 6),
         ("nc-channel/the_names_are_disjoint.rs", 29, 0),
         ("nc-fuzzy/align.rs", 21, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
@@ -19853,6 +19854,7 @@ mod the_frozen_path_rule {
         ("nc-ids/naming.rs", 57, 40),
         ("nc-ids/properties.rs", 13, 6),
         ("nc-ids/snowflake.rs", 71, 90),
+        ("nc-ipc/alert.rs", 26, 12),
         ("nc-ipc/client.rs", 35, 7),
         ("nc-ipc/connection.rs", 15, 9),
         ("nc-ipc/endpoint.rs", 4, 5),
@@ -19862,7 +19864,7 @@ mod the_frozen_path_rule {
         ("nc-ipc/handshake.rs", 15, 15),
         ("nc-ipc/heartbeat.rs", 21, 19),
         ("nc-ipc/leader.rs", 13, 2),
-        ("nc-ipc/lib.rs", 9, 18),
+        ("nc-ipc/lib.rs", 9, 19),
         ("nc-ipc/message.rs", 73, 8),
         ("nc-ipc/testing.rs", 12, 6),
         ("nc-journal/across_threads.rs", 2, 5),
@@ -22779,8 +22781,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 916 scratches this tree
-    /// builds, 828 of the 916 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 920 scratches this tree
+    /// builds, 832 of the 920 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22846,7 +22848,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 68] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 70] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -22888,6 +22890,8 @@ mod the_frozen_path_rule {
         ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
+        ("nc-channel/stopped.rs", 2, 2),
+        ("nc-ipc/alert.rs", 2, 2),
         ("nc-ipc/client.rs", 9, 9),
         ("nc-ipc/endpoint.rs", 2, 2),
         ("nc-ipc/testing.rs", 1, 1),
@@ -25947,7 +25951,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23178;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23235;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25966,7 +25970,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6575;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6617;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25983,7 +25987,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2230;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2246;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26000,7 +26004,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [100, 19, 44, 45, 98];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [106, 19, 44, 45, 99];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26017,7 +26021,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30495;
+    const THE_REARRANGEMENTS_JUDGED: usize = 30567;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26035,7 +26039,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 561;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 568;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26071,8 +26075,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **561 of 30,495 are accepted by the first-line
-    /// rule alone, and 306 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **568 of 30,567 are accepted by the first-line
+    /// rule alone, and 313 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26093,8 +26097,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **100 ascending sorts, 19 descending, 44
-    /// swaps, 45 rotations and 98 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **106 ascending sorts, 19 descending, 44
+    /// swaps, 45 rotations and 99 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26104,7 +26108,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2230 of
+    /// this tree offers, **2246 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38154,7 +38158,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 257,
+            walked, 259,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38194,7 +38198,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3041] = [
+    static OPERATORS: [(&str, &str, &str); 3055] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -50733,12 +50737,62 @@ Options:
         (
             "daemon_run",
             "restore",
-            "a restored start beside a daemon up ends well",
+            "a restored start refuses a stop mark another account can reach",
         ),
         (
             "daemon_run",
-            "stopped_on_purpose",
+            "restore",
+            "a restored start beside a daemon up ends well",
+        ),
+        (
+            "channel_stopped",
+            "on_purpose",
             "a stop mark another account can reach is refused",
+        ),
+        (
+            "channel_stopped",
+            "on_purpose",
+            "a mark is read only in a state directory this user's alone",
+        ),
+        ("channel_stopped", "on_purpose", "no mark is no stop"),
+        ("ipc_alert", "at", "a stop counts nothing down"),
+        (
+            "ipc_alert",
+            "at",
+            "a mark read while counting cancels the countdown",
+        ),
+        (
+            "ipc_alert",
+            "at",
+            "nothing counts down again after a restore was asked",
+        ),
+        ("ipc_alert", "at", "the countdown ends at its deadline"),
+        ("ipc_alert", "at", "the countdown's restore is asked once"),
+        ("ipc_alert", "at", "the countdown is the catalog's"),
+        (
+            "ipc_alert",
+            "acted",
+            "a person who acted is not raced by the countdown",
+        ),
+        (
+            "ipc_alert",
+            "stopped",
+            "a mark that does not read is a stop",
+        ),
+        (
+            "ipc_alert",
+            "RESTORED",
+            "the countdown starts the daemon as every restorer does",
+        ),
+        (
+            "ipc_alert",
+            "restorer",
+            "the countdown restores the install's own daemon",
+        ),
+        (
+            "ipc_alert",
+            "offered",
+            "a person's act runs the CLI's start",
         ),
         ("daemon_main", "asked", "--restored is answered"),
         (

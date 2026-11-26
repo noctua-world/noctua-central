@@ -601,12 +601,14 @@ start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, the client every program asks a
 daemon through, its `client.rs`, the scripted daemon that client's suites
-connect to, its `testing.rs`, and which process of an install hears the Leader, its
-`leader.rs`, every name an install gives the system,
+connect to, its `testing.rs`, which process of an install hears the Leader, its
+`leader.rs`, and the alert line an interface draws once it lost its daemon, its
+`alert.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, a
 person's keybinding configuration and the other channels' read beside it,
 its `keys.rs`, the development checkouts installed beside an install, its
-`checkouts.rs`, and the PID record's format, `record.rs`, the
+`checkouts.rs`, the PID record's format, `record.rs`, and the `stopped` mark's
+one reader, `stopped.rs`, the
 daemon's `lib.rs`, `main.rs`, `profile.rs`, `device.rs` and
 `mark.rs`, what it serves, its `run.rs`, `server.rs`, `environment.rs`,
 `plugins.rs`, `schedule.rs` and `pidfile.rs`, the Leader where it asks for it, its

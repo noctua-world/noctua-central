@@ -868,6 +868,9 @@ pub struct DaemonLimits {
     pub ipc_note_max_bytes: u64,
     /// The most one value of an announced graphical environment may be.
     pub ipc_display_value_max_bytes: u64,
+    /// How long the interface's alert line counts down before it restores the
+    /// daemon it lost.
+    pub interface_restore_countdown_ms: u64,
     /// How often the daemon pumps its kernel.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds.
@@ -905,6 +908,7 @@ impl DaemonLimits {
             ipc_watch_wait_ms,
             ipc_note_max_bytes,
             ipc_display_value_max_bytes,
+            interface_restore_countdown_ms,
             pump_every_ms,
             sweep_every_ms,
             stop_drain_ms,
@@ -981,6 +985,12 @@ impl DaemonLimits {
                 ipc_display_value_max_bytes,
                 Unit::Bytes,
                 "How long one value of an announced graphical environment may be",
+            ),
+            wide(
+                "interface_restore_countdown_ms",
+                interface_restore_countdown_ms,
+                Unit::Milliseconds,
+                "How long the interface's alert line counts down before it restores the daemon",
             ),
             wide(
                 "pump_every_ms",

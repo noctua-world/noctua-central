@@ -545,6 +545,8 @@ pub struct DaemonLimits {
     pub ipc_note_max_bytes: u64,
     /// How long one value of an announced graphical environment may be, in bytes.
     pub ipc_display_value_max_bytes: u64,
+    /// How long the interface's alert line counts down before it restores the daemon, in milliseconds.
+    pub interface_restore_countdown_ms: u64,
     /// How often the daemon fires its timers, delivers its events and prunes, in milliseconds.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds, in milliseconds.
@@ -571,6 +573,7 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     ipc_watch_wait_ms: 8_000,
     ipc_note_max_bytes: 8_192,
     ipc_display_value_max_bytes: 4_096,
+    interface_restore_countdown_ms: 10_000,
     pump_every_ms: 1_000,
     sweep_every_ms: 600_000,
     stop_drain_ms: 30_000,
