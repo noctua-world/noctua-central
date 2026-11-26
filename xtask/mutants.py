@@ -781,6 +781,12 @@ SOURCES = {
     # and how each kind of node is drawn. Decided by the module's own unit
     # tests, none of which starts a process.
     "desktop_surface": os.path.join(ROOT, "apps/desktop/src/surface.rs"),
+    # **The desktop's seats**: which seats but the system's own the page is
+    # told of, on which part of the window each keyboard is drawn, and the one
+    # call that tells them. Decided by the module's own unit tests, none of
+    # which starts a process; the suite that opens the shipped window over a
+    # real daemon is evidence no command here runs.
+    "desktop_seat": os.path.join(ROOT, "apps/desktop/src/seat.rs"),
     # **The fuzzy core**: one character folded, a query read into words, a
     # word laid in a field at its tier, the score's widths, and the ranking.
     # Decided by each module's own unit tests, and by the crate's two suites —
@@ -11589,8 +11595,8 @@ WEAKENINGS = [
      "    else if (target && target.closest('#noctua-sidebar')) say('focus sidebar');\n",
      ""),
     ("desktop_page", "ENHANCES", "a strip's behaviour is taken back before a draw",
-     "releaseOptionLists(root); releaseTabs(root); };\"#;",
-     "releaseOptionLists(root); };\"#;"),
+     "releaseOptionLists(root); releaseTabs(root); };\nwindow.noctua.seat",
+     "releaseOptionLists(root); };\nwindow.noctua.seat"),
     ("desktop_page", "Document", "the row the sidebar is in hides what overflows it",
      "                div { class: \"flex flex-1 overflow-hidden\",",
      "                div { class: \"flex flex-1\","),
@@ -11630,6 +11636,70 @@ WEAKENINGS = [
     ("desktop_client", "kept", "a refusal keeps the connection",
      "            .is_err_and(|unasked| !matches!(unasked, Unasked::Refused(_)))",
      "            .is_err()"),
+    # -- the desktop's seats, its size and what a test's install is told ----
+    ("desktop_seat", "told", "the system's own seat is never told to the page",
+     "            **id != SYSTEMS_OWN && seat.focus.is_none_or(",
+     "            seat.focus.is_none_or("),
+    ("desktop_seat", "told", "a seat whose keyboard is in another window is drawn there",
+     "seat.focus.is_none_or(|focus| focus.window == window)",
+     "seat.focus.is_none_or(|_| true)"),
+    ("desktop_seat", "part_of", "a keyboard on the info line is drawn on nothing",
+     "        Region::Workspace | Region::Info | Region::Modeline => None,",
+     "        Region::Workspace | Region::Modeline => None,\n        Region::Info => Some(\"prompt\"),"),
+    ("desktop_seat", "script", "a seat's hover is told",
+     "(\"hover\", word_or_null(seat.hover.as_deref())),",
+     "(\"hover\", Value::Null),"),
+    ("desktop_host", "hover_said", "a pointer that stays over one target is said once",
+     "        mirror.hovered(crate::seat::SYSTEMS_OWN, crate::mirror::By::Pointer) != target.as_deref();",
+     "        true;"),
+    ("desktop_host", "selection_said", "a selection is a target of `shell.hover`'s shape",
+     "    is_target(&value).then_some(Fact::Hover {",
+     "    true.then_some(Fact::Hover {"),
+    ("desktop_host", "asked_anew", "a size applied is not applied again",
+     "    wanted.filter(|wanted| Some(*wanted) != applied)",
+     "    wanted"),
+    ("desktop_host", "witnessed", "a witness's parts are in their order",
+     "    (ordered.windows(2).all(|pair| pair[0] < pair[1])",
+     "    (ordered.windows(2).all(|pair| pair[0] != pair[1])"),
+    ("desktop_host", "witnessed", "a witness names no more seats' states than the kernel allows",
+     "        && seats.len() <= seats_max)",
+     "        && seats.len() <= seats_max + 1)"),
+    ("desktop_host", "said", "a hover is a target of `shell.hover`'s shape",
+     "=> is_target(target).then(|| Said::Hover(Some((*target).to_owned()))),",
+     "=> Some(Said::Hover(Some((*target).to_owned()))),"),
+    ("desktop_host", "is_loaded", "a window has not loaded until its document said so",
+     "    pub const fn is_loaded(self) -> bool {\n        self.loaded",
+     "    pub const fn is_loaded(self) -> bool {\n        true"),
+    ("desktop_host", "witnessed_line", "a window's decorations are said",
+     "        bit(window.decorated),",
+     "        bit(false),"),
+    ("desktop_footer", "seats", "the seats are told again after a redraw",
+     "        let again = redrawn && script != crate::seat::NONE;",
+     "        let again = false;"),
+    ("desktop_footer", "seats", "no seat is told before the document loaded",
+     "        if !self.loaded || (self.seats_wanted == self.seats_drawn && !again) {",
+     "        if self.seats_wanted == self.seats_drawn && !again {"),
+    ("desktop_footer", "digest", "the digest is of the sidebar too",
+     "        for part in [&self.drawn, &self.drawer_drawn, &self.sidebar_drawn] {",
+     "        for part in [&self.drawn, &self.drawer_drawn] {"),
+    ("desktop_mirror", "watched_shell", "a watch's state is its `shell`",
+     "    let shell = top.optional(\"shell\").map(Shell::read).transpose()?;",
+     "    let shell = top.optional(\"state\").map(Shell::read).transpose()?;"),
+    ("desktop_mirror", "watched_shell", "an environment names only the variables it may",
+     "            !nc_ipc::Graphical::NAMES.contains(&name.as_str()) || !matches!(value, Value::Text(_))",
+     "            !matches!(value, Value::Text(_))"),
+    ("desktop_mirror", "watched", "a watch holding no state keeps the one held",
+     "        if let Some(shell) = shell {\n            self.shell = Some(shell);\n        }",
+     "        self.shell = shell;"),
+    ("desktop_page", "SCRIPT", "the system's own pointer is said by its target",
+     "hovered = target;\n    say(target === null ? 'hover' : 'hover ' + target);",
+     "hovered = target;\n    say('hover');"),
+    ("desktop_page", "SCRIPT", "a seat the window no longer names is taken off the page",
+     "split(' ')) if (id && !kept.has(id)) seat.clear(id);",
+     "split(' ')) if (id && kept.has(id)) seat.clear(id);"),
+    ("desktop_page", "ENHANCES", "the design system's seat calls are handed to the page",
+     "{ hover: seatHover, focus: seatFocus, drag: seatDrag, clear: clearSeat };\"#;",
+     "{ hover: seatFocus, focus: seatFocus, drag: seatDrag, clear: clearSeat };\"#;"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -12059,6 +12129,7 @@ ELSEWHERE = {
     "desktop_drawer": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "drawer::"],
     "desktop_sidebar": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "sidebar::"],
     "desktop_surface": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "surface::"],
+    "desktop_seat": ["cargo", "test", "-q", "-p", "nc-desktop", "--", "seat::"],
     # **The client, by the suite that follows a scripted daemon**: its loop and
     # its asker are what the suite drives, over a real endpoint in a scratch
     # install, in this process, so no process is started.

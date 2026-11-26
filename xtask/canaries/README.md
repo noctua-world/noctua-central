@@ -622,7 +622,7 @@ the MCP server `noctua mcp` serves a client with, `mcp.rs`,
 the desktop interface's `main.rs`, `mirror.rs`, `page.rs`, its footer, `footer.rs`, its
 theme, `theme.rs`, the paths its protocol answers, `assets.rs`, `host.rs` and `client.rs`,
 its keys, `keys.rs`, its command list, `commands.rs`, its drawer, `drawer.rs`, its
-sidebar, `sidebar.rs`, and the surfaces it draws, `surface.rs`,
+sidebar, `sidebar.rs`, the surfaces it draws, `surface.rs`, and its seats, `seat.rs`,
 the desktop's sheet, `tailwind.rs`,
 `nc-prune`'s `sqlite.rs`,
 `local.rs`, which builds that database's schema from its migrations, and the fuzzy

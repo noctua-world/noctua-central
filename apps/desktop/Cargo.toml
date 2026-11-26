@@ -81,6 +81,11 @@ nc-platform = { workspace = true, features = ["test-support", "webview"] }
 # The scratch install and the scripted daemon this crate's tests connect to,
 # so none of them starts a daemon process.
 nc-ipc = { workspace = true, features = ["test-support"] }
+# A real daemon in a scratch install (`nc_daemon::testing`), which the suite
+# that opens the shipped window over it runs as a child of its own binary,
+# told to serve (`nc_daemon::run::serve`): never in the library or the binary,
+# which reach a kernel only through the daemon's endpoint.
+nc-daemon = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

@@ -105,7 +105,8 @@ fn answer(
                 Ok(found) => found,
                 Err(refused) => return (REFUSED, format!("noctua-desktop: {refused}")),
             };
-            match nc_desktop::host::run(found) {
+            match nc_desktop::host::run(found, &mut |line| say(&format!("noctua-desktop: {line}")))
+            {
                 Ok(()) => (0, "noctua-desktop: the interface ended".to_owned()),
                 Err(unopened) => (REFUSED, format!("noctua-desktop: {unopened}")),
             }
@@ -164,6 +165,10 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
             footer.enhanced,
             "the design system's script did not enhance the prompt",
         ),
+        (
+            footer.hovered,
+            "a touch's pointer onto the info line's chevron said no hover",
+        ),
         (footer.drafted, "typing into the prompt said no draft"),
         (
             footer.acted,
@@ -205,7 +210,8 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
 /// the design system's dark surface, the light one another colour — kept its
 /// page the least size when asked for less, and its footer and its drawer did
 /// what they are for when exercised: its prompt enhanced by the design
-/// system's script, typing and a control said, the footer drawn again keeping
+/// system's script, a touch's pointer over a control, typing and a control
+/// said, the footer drawn again keeping
 /// its focus, a draft written, the drawer drawn and taken by the design
 /// system's scripts, standing below the footer inside the window with its
 /// content scrolling, and a tab and a rail's control said; 1 naming each that
@@ -378,6 +384,7 @@ mod tests {
             )),
             footer: Some(Exercised {
                 enhanced: true,
+                hovered: true,
                 drafted: true,
                 acted: true,
                 kept: true,
@@ -481,14 +488,15 @@ mod tests {
             for (part, said) in [
                 (None, "the footer in the"),
                 (Some(0), "did not enhance the prompt"),
-                (Some(1), "said no draft"),
-                (Some(2), "said no action"),
-                (Some(3), "drawn again"),
-                (Some(4), "did not reach it"),
-                (Some(5), "did not take the drawer"),
-                (Some(6), "content scrolling"),
-                (Some(7), "said no page"),
-                (Some(8), "collapse said no command"),
+                (Some(1), "said no hover"),
+                (Some(2), "said no draft"),
+                (Some(3), "said no action"),
+                (Some(4), "drawn again"),
+                (Some(5), "did not reach it"),
+                (Some(6), "did not take the drawer"),
+                (Some(7), "content scrolling"),
+                (Some(8), "said no page"),
+                (Some(9), "collapse said no command"),
             ] {
                 let mut probed = passing;
                 let seen = if mode == "light" {
@@ -502,6 +510,7 @@ mod tests {
                         let footer = seen.footer.as_mut().expect("exercised");
                         *[
                             &mut footer.enhanced,
+                            &mut footer.hovered,
                             &mut footer.drafted,
                             &mut footer.acted,
                             &mut footer.kept,

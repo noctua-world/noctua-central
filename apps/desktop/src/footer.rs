@@ -589,10 +589,15 @@ pub struct Drawing {
     waiting: Option<String>,
     /// What the page's prompt holds.
     typed: Typed,
+    /// The seats the page was last told ([`crate::seat::script`]).
+    seats_drawn: String,
+    /// The seats the state holds, as the page is told them.
+    seats_wanted: String,
 }
 
 impl Drawing {
-    /// The page as its document is built: its footer `markup`.
+    /// The page as its document is built: its footer `markup`, and no seat
+    /// written on it.
     #[must_use]
     pub fn new(markup: String) -> Self {
         let drawer = crate::drawer::markup(&crate::drawer::View::hidden());
@@ -607,7 +612,40 @@ impl Drawing {
             sidebar_wanted: sidebar,
             waiting: None,
             typed: Typed::default(),
+            seats_drawn: crate::seat::NONE.to_owned(),
+            seats_wanted: crate::seat::NONE.to_owned(),
         }
+    }
+
+    /// The state's seats, told to the page as `script`: the script, once the
+    /// document has loaded, when it differs from what the page was last told
+    /// — or when a part of the page was just `redrawn` and some seat is on
+    /// it, since a draw that replaced an element dropped what was written on
+    /// it; nothing otherwise.
+    pub fn seats(&mut self, script: String, redrawn: bool) -> Vec<String> {
+        let again = redrawn && script != crate::seat::NONE;
+        self.seats_wanted = script;
+        if !self.loaded || (self.seats_wanted == self.seats_drawn && !again) {
+            return Vec::new();
+        }
+        self.seats_drawn.clone_from(&self.seats_wanted);
+        vec![self.seats_drawn.clone()]
+    }
+
+    /// A digest of what the page holds of the footer, the drawer and the
+    /// sidebar: their markup, each ended by a zero byte, under 64-bit FNV-1a —
+    /// equal for two windows exactly when, short of a collision, they draw the
+    /// same.
+    #[must_use]
+    pub fn digest(&self) -> u64 {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for part in [&self.drawn, &self.drawer_drawn, &self.sidebar_drawn] {
+            for byte in part.bytes().chain(core::iter::once(0)) {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        hash
     }
 
     /// The footer's markup, and the scripts that bring the page to it.
@@ -635,10 +673,13 @@ impl Drawing {
     }
 
     /// The document said it loaded: the scripts that bring it to what the
-    /// state shows.
+    /// state shows, its seats last.
     pub fn loaded(&mut self) -> Vec<String> {
         self.loaded = true;
-        self.brought()
+        let mut scripts = self.brought();
+        let redrawn = !scripts.is_empty();
+        scripts.extend(self.seats(self.seats_wanted.clone(), redrawn));
+        scripts
     }
 
     /// The state shows the footer `markup` and the prompt's `draft`: the
@@ -1360,21 +1401,17 @@ mod tests {
         (
             "12.1",
             "Closing the interface stops noth",
-            Held::ElsewherePartly(
-                "crates/nc-kernel/src/shell.rs",
-                "a_window_opens_shown_and_closes_with_what_only_it_showed_and_the_last_hides",
-                "the desktop killed while the daemon keeps what it showed, by a suite against a \
-                 real daemon later in Stage 16 (acceptance criterion 2)",
+            Held::Elsewhere(
+                "apps/desktop/tests/the_window_follows_its_daemon.rs",
+                "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat",
             ),
         ),
         (
             "12.1",
             "Opening it again shows everythin",
-            Held::ElsewherePartly(
-                "crates/nc-kernel/tests/the_decision_point.rs",
-                "the_interface_is_kept_outside_every_unit_and_read_back_when_the_kernel_opens_again",
-                "the desktop opened again drawing exactly what it showed, by a suite against a \
-                 real daemon later in Stage 16 (acceptance criterion 2)",
+            Held::Elsewhere(
+                "apps/desktop/tests/the_window_follows_its_daemon.rs",
+                "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat",
             ),
         ),
         (
@@ -1619,18 +1656,12 @@ mod tests {
         (
             "12.6",
             "information about what the point",
-            Held::Partly(
-                the_info_line_shows_the_message_or_what_a_seat_is_on,
-                "the window saying its own hovers, with the seats",
-            ),
+            Held::By(the_info_line_says_what_the_systems_own_pointer_is_over),
         ),
         (
             "12.6",
             "information about what the keybo",
-            Held::Partly(
-                the_info_line_shows_the_latest_hand_by_its_glyph,
-                "the window saying its own selection, with the seats",
-            ),
+            Held::By(the_info_line_says_what_the_systems_own_keyboard_is_on),
         ),
         (
             "12.6",
@@ -1723,10 +1754,9 @@ mod tests {
         (
             "12.7",
             "The Leader focuses it (§12.8).",
-            Held::Later(
-                "the kernel's `leader.tap` puts the keyboard there; the window putting it where \
-                 the state says is `host::Running::redraw`'s, exercised in a real window by no \
-                 test yet — with the seats",
+            Held::Elsewhere(
+                "apps/desktop/tests/the_window_follows_its_daemon.rs",
+                "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat",
             ),
         ),
         (
@@ -1909,7 +1939,8 @@ mod tests {
                 crate::host::tests::the_prompts_list_chooses_completes_and_runs,
                 "going back one sub-page is the kernel's `drawer.back`, held in \
                  `crates/nc-kernel/src/shell.rs`; the page's script saying Esc on the drawer \
-                 is exercised in a real window by no test yet — with the seats",
+                 is exercised in a real window by no test yet: the probe tells its page no \
+                 keys, and the real window's suite presses none",
             ),
         ),
         (
@@ -1924,8 +1955,8 @@ mod tests {
                 the_sidebar_opens_from_the_modeline_and_slides_shut,
                 "show, focus and hide are the kernel's `sidebar.cycle`, held in \
                  `crates/nc-kernel/src/shell.rs`, and Leader Space the catalog's binding; the \
-                 window putting the keyboard on the sidebar is exercised in a real window by \
-                 no test yet — with the seats",
+                 window putting the keyboard on the sidebar is held in a real window by \
+                 `the_window_follows_its_daemon.rs`",
             ),
         ),
         (
@@ -1995,19 +2026,19 @@ mod tests {
         (
             "12.18",
             "A seat is one pointer with one k",
-            Held::ElsewherePartly(
-                "crates/nc-kernel/src/shell.rs",
-                "each_seat_keeps_its_own_focus_hover_selection_and_drag",
-                "a second seat's focus, selection and drag drawn by the window, with the seats \
-                 later in Stage 16",
+            Held::Partly(
+                every_part_of_a_seat_is_its_own,
+                "each seat's own focus, hover, selection and drag in the kernel's state is held \
+                 by `each_seat_keeps_its_own_focus_hover_selection_and_drag` in \
+                 `crates/nc-kernel/src/shell.rs`",
             ),
         ),
         (
             "12.18",
             "The system's own seat uses the n",
-            Held::Later(
-                "the window writing a seat's attributes, with the seats later in Stage 16; their \
-                 styling as the native pseudo-classes is the design system's `seats.js`",
+            Held::Elsewhere(
+                "apps/desktop/tests/the_window_follows_its_daemon.rs",
+                "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat",
             ),
         ),
         (
@@ -2021,12 +2052,24 @@ mod tests {
         (
             "12.18",
             "tap, long-press and drag on a to",
-            Held::Later("touch, with the seats later in Stage 16"),
+            Held::ElsewherePartly(
+                "apps/desktop/tests/the_window_follows_its_daemon.rs",
+                "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat",
+                "a tap is the engine's click, which every control runs on and which no runner's \
+                 screen can make; a long press and a drag, with what a person holds and drags — \
+                 pages and groups (Stage 17)",
+            ),
         ),
         (
             "12.18",
             "two-finger scrolling;",
-            Held::Later("touch, with the seats later in Stage 16"),
+            Held::ElsewherePartly(
+                "apps/desktop/tests/the_window_opens_hidden.rs",
+                "the_window_opens_hidden_paints_its_theme_first_and_closes",
+                "the scroll a touchpad's two fingers make is the engine's own, over the drawer's \
+                 content the probe holds scrolling in place, and no runner can make it — on the \
+                 list kept by hand at the Stage's close",
+            ),
         ),
         (
             "12.18",
@@ -2072,11 +2115,39 @@ mod tests {
     }
 
     /// The window hides, closes, moves and resizes by command: the `w` list
-    /// holds its four actions, and a close the system asks for is
-    /// `window.close` (§12.2).
+    /// holds its four actions, a close the system asks for is
+    /// `window.close`, and a size or a place the state asks is applied
+    /// (§12.2).
     fn the_window_hides_closes_moves_and_resizes_by_command() {
         crate::drawer::tests::the_w_list_holds_the_windows_actions_and_nothing_else_is_listed();
         crate::host::tests::a_close_is_window_close_naming_the_window();
+        crate::host::tests::a_size_or_a_place_is_applied_once_per_change();
+    }
+
+    /// The info line says what the system's own pointer is over: the window
+    /// says it as seat 1's hover, once per target, from what the page says
+    /// whenever the pointer moves onto another (§12.6).
+    fn the_info_line_says_what_the_systems_own_pointer_is_over() {
+        the_info_line_shows_the_message_or_what_a_seat_is_on();
+        crate::host::tests::the_systems_own_pointer_is_said_once_per_target();
+        crate::host::tests::the_pointer_and_the_witness_are_read_in_one_shape();
+    }
+
+    /// The info line says what the system's own keyboard selection is on:
+    /// the window says it as seat 1's selection, from what the page says as
+    /// the keyboard walks a list (§12.6).
+    fn the_info_line_says_what_the_systems_own_keyboard_is_on() {
+        the_info_line_shows_the_latest_hand_by_its_glyph();
+        crate::host::tests::the_systems_own_selection_is_said_as_its_keyboards();
+    }
+
+    /// Every seat's focus, hover, selection and drag is its own: each seat
+    /// but the system's own is drawn as the state holds it, and each names
+    /// its hovers on the info line (§12.18).
+    fn every_part_of_a_seat_is_its_own() {
+        crate::seat::tests::every_seat_but_the_systems_own_is_told_to_the_page();
+        crate::seat::tests::the_seats_are_told_as_one_call();
+        each_hover_row_names_its_seat_where_there_are_several();
     }
 
     /// The modeline's first glyph opens the sidebar, which lists what is
@@ -2360,6 +2431,56 @@ mod tests {
             "window.noctua.draw(\"<footer a=\\\"b\\\">\u{2028}</footer>\");"
         );
         assert_eq!(draft("a\nb"), "window.noctua.draft(\"a\\nb\");");
+    }
+
+    /// The seats are told nothing before the document has loaded and, once it
+    /// has, the seats the state held meanwhile; then again only when they
+    /// change, or when a part was redrawn while some seat is on the page —
+    /// never the empty list again after a redraw.
+    #[test]
+    fn the_seats_are_told_once_loaded_when_they_change_and_after_a_redraw() {
+        let none = crate::seat::NONE.to_owned();
+        let one = "window.noctua.seats([{\"seat\":\"2\"}]);".to_owned();
+        let other = "window.noctua.seats([{\"seat\":\"3\"}]);".to_owned();
+        let mut drawing = Drawing::new(markup(&view(None, production(Locale::En))));
+        assert_eq!(drawing.seats(one.clone(), true), Vec::<String>::new());
+        assert_eq!(
+            drawing.loaded(),
+            [one.as_str()],
+            "held until the document loaded"
+        );
+        assert_eq!(drawing.seats(one.clone(), false), Vec::<String>::new());
+        assert_eq!(drawing.seats(one.clone(), true), [one.as_str()], "redrawn");
+        assert_eq!(drawing.seats(other.clone(), false), [other]);
+        assert_eq!(drawing.seats(none.clone(), false), [none.as_str()]);
+        assert_eq!(drawing.seats(none.clone(), true), Vec::<String>::new());
+        let mut fresh = Drawing::new(markup(&view(None, production(Locale::En))));
+        assert_eq!(
+            fresh.loaded(),
+            Vec::<String>::new(),
+            "no seat, nothing told"
+        );
+    }
+
+    /// Two drawings that hold the same markup have one digest, and a change
+    /// of the footer, the drawer or the sidebar changes it.
+    #[test]
+    fn the_digest_is_of_the_three_parts_the_page_holds() {
+        let first = markup(&view(None, production(Locale::En)));
+        let mut drawing = Drawing::new(first.clone());
+        let again = Drawing::new(first);
+        assert_eq!(drawing.digest(), again.digest());
+        let held = drawing.digest();
+        drawing.loaded();
+        assert_eq!(drawing.digest(), held, "loading draws nothing new");
+        drawing.shows(drawn(&everything(), production(Locale::En)), "");
+        assert_ne!(drawing.digest(), held);
+        let footer = drawing.digest();
+        drawing.drawer("<div id=\"noctua-drawer\">x</div>".to_owned());
+        assert_ne!(drawing.digest(), footer);
+        let drawer = drawing.digest();
+        drawing.sidebar("<div id=\"noctua-sidebar\">x</div>".to_owned());
+        assert_ne!(drawing.digest(), drawer);
     }
 
     /// The view of no state: the footer shown, nothing said and nothing

@@ -490,6 +490,12 @@ nc-ipc = { path = "crates/nc-ipc" }
 # (`nc_cli::install`). It holds no kernel, so taking it adds nothing to what
 # either builds.
 nc-cli = { path = "apps/cli" }
+# The daemon, as a suite runs a real one (`nc_daemon::testing`), taken by one:
+# the desktop's suite that opens its window over a real daemon, a child of
+# that suite's own binary told to serve, so no stale `noctua-daemon` is ever
+# what it runs. A dev-dependency alone: the desktop's library and its binary
+# reach a kernel only through the daemon's endpoint (`NOCTUA.md §12.1`).
+nc-daemon = { path = "apps/daemon" }
 
 # **One cargo lint is allowed, for the reason the dependency table gives.**
 # Since Rust 1.100 cargo warns by default about a workspace dependency no

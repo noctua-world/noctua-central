@@ -1,0 +1,399 @@
+//! The shipped window over a real daemon: it opens hidden and undecorated
+//! with the footer alone, shows, hides, resizes and moves as the daemon's
+//! state says, draws a second seat as the design system draws the first,
+//! holds every page inside the smallest window with every control a touch
+//! can reach, and, killed, comes back drawing exactly what it drew, at the
+//! size and the place it had, from the state the daemon kept (`NOCTUA.md
+//! §12.1`, §12.2, §12.18, §12.19; acceptance criteria 2, 4 and 10).
+//!
+//! **A real daemon and the real binary.** The daemon is a child of this
+//! suite's own binary told to serve a scratch install (`nc_daemon::testing`),
+//! so no stale `noctua-daemon` is what runs; the built `noctua-desktop` is
+//! linked beside that install's manifest, as an installer puts it, and
+//! started on a display the test is handed (`nc_platform::testing::Display`:
+//! on Linux an `Xvfb` of its own, the session's own on macOS and Windows).
+//! The suite changes the interface's state only as the CLI does, by commands
+//! through the one client the window itself asks with
+//! (`nc_desktop::client::Asker`).
+//!
+//! **What the window shows is read from what it says**: the install is a
+//! test's — relocated under a namespace — so the window prints, each time the
+//! state, the page's scale, the registry or its place moved, one line of what
+//! the system says of the window — shown, decorated, where its corner is —
+//! and of what its page says it shows: its size in CSS pixels, whether
+//! everything drawn stands inside it sideways, whether every control is at
+//! least `--noctua-target-min` each way, whether each seat's attribute
+//! changes how its element is drawn, where the system's own keyboard is,
+//! which parts draw anything, every seat's state by the element it is on, and
+//! a digest of the markup the page holds (`nc_desktop::host::witnessed_line`).
+//! A real install never prints it.
+//!
+//! **Nothing here is not applicable on any system**: each step is the
+//! window's own, through `tao` and the system's webview, on the display a
+//! runner has. Moving and resizing by the system's own gestures, and a touch
+//! screen's own tap, are not driven — no runner has the hand that makes them
+//! — and are on the list kept by hand at the Stage's close.
+//!
+//! It spawns a process, so no mutation command runs it.
+
+use std::collections::BTreeMap;
+use std::io::BufRead as _;
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::time::Instant;
+
+use nc_canon::Value;
+use nc_daemon::testing::{Installed, PATIENCE};
+
+/// What tells a child of this binary to serve the install it names.
+const SERVES: &str = "NC_DESKTOP_WINDOW_SERVES";
+
+/// The one test, by the name the harness filters it with.
+const NAME: &str = "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat";
+
+/// One line the window printed of what it shows, by its words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Witnessed(BTreeMap<String, String>);
+
+impl Witnessed {
+    /// The line `line` is, where it is one the window prints of itself.
+    fn read(line: &str) -> Option<Self> {
+        let rest = line.strip_prefix("noctua-desktop: witnessed ")?;
+        Some(Self(
+            rest.split(' ')
+                .filter_map(|word| word.split_once('='))
+                .map(|(name, value)| (name.to_owned(), value.to_owned()))
+                .collect(),
+        ))
+    }
+
+    /// The value of `name`, or nothing where the line holds none.
+    fn get(&self, name: &str) -> &str {
+        self.0.get(name).map_or("", String::as_str)
+    }
+
+    /// Every seat's state on the page.
+    fn seats(&self) -> Vec<&str> {
+        match self.get("seats") {
+            "-" | "" => Vec::new(),
+            seats => seats.split(',').collect(),
+        }
+    }
+}
+
+/// The desktop's binary running for the install, what it prints read line
+/// by line on a thread of its own; killed and waited for however the suite
+/// leaves.
+struct Desktop {
+    /// The binary, running.
+    child: Child,
+    /// Each line it prints on its standard error, as it prints it.
+    lines: mpsc::Receiver<String>,
+    /// Every line it has printed so far, for a failure to show.
+    heard: Vec<String>,
+}
+
+impl Drop for Desktop {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Desktop {
+    /// `binary` started on `display`, its standard error piped.
+    fn start(binary: &Path, display: &nc_platform::testing::Display) -> Self {
+        nc_platform::process::keep_standard_handles_from_children()
+            .expect("this process's standard handles are kept from its children");
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the binary under test, its standard error read by this suite, so nothing \
+                      it writes reaches the gate's output"
+        )]
+        let mut command = Command::new(binary);
+        display
+            .handed_to(&mut command)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        let mut child = command.spawn().expect("the desktop starts");
+        let error = child.stderr.take().expect("its standard error");
+        let (sender, lines) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in std::io::BufReader::new(error).lines().map_while(Result::ok) {
+                if sender.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        Self {
+            child,
+            lines,
+            heard: Vec::new(),
+        }
+    }
+
+    /// The first line it prints from now on of which `wanted` holds, within
+    /// [`PATIENCE`]; the suite fails naming `what`, with everything it
+    /// printed, otherwise.
+    fn until(&mut self, what: &str, wanted: impl Fn(&Witnessed) -> bool) -> Witnessed {
+        let deadline = Instant::now() + PATIENCE;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match self.lines.recv_timeout(left) {
+                Ok(line) => {
+                    let seen = Witnessed::read(&line);
+                    self.heard.push(line);
+                    if let Some(seen) = seen
+                        && wanted(&seen)
+                    {
+                        return seen;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
+                    panic!(
+                        "the window never showed {what} within {PATIENCE:?}; it printed:\n{}",
+                        self.heard.join("\n")
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// An empty object: a command's arguments where it takes none.
+fn none() -> Value {
+    Value::object(Vec::<(&str, Value)>::new())
+}
+
+/// Whether the page `seen` holds has been laid out in a window shown: a
+/// webview a hidden window holds may have no size at all, which `WebKitGTK`
+/// gives it until the window is mapped, and says its size once it has one.
+fn laid_out(seen: &Witnessed) -> bool {
+    seen.get("shown") == "1"
+        && !seen.get("page").starts_with("0x")
+        && !seen.get("page").ends_with("x0")
+}
+
+/// The window opens hidden and undecorated with nothing but the footer,
+/// shows when the Leader is tapped with the keyboard on its prompt, opens
+/// the leader menu in its drawer at the next tap, draws a second seat's
+/// hover and keyboard where the state puts them and as the design system
+/// draws a state, keeps everything inside the smallest window with every
+/// control at least the least target, moves where the state puts it, puts
+/// the keyboard on the sidebar; killed, it leaves the daemon's state as it
+/// was, and started again it draws exactly what it drew, at its size and its
+/// place; and it hides when the state says so.
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one window's life, in order: each step stands on the state the one before left, \
+              and splitting it would start a daemon and a webview again for each"
+)]
+fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
+    if let Some(executable) = std::env::var_os(SERVES) {
+        nc_daemon::run::serve(Path::new(&executable)).expect("the daemon ran");
+        return;
+    }
+    let this = std::env::current_exe().expect("this test binary");
+    let installed = Installed::new(&this);
+    let built = Path::new(env!("CARGO_BIN_EXE_noctua-desktop"));
+    let desktop = installed
+        .layout
+        .install
+        .join(built.file_name().expect("a binary's name"));
+    // Linked where the system allows it, and copied where it does not, as
+    // the daemon's own binary is.
+    if std::fs::hard_link(built, &desktop).is_err() {
+        std::fs::copy(built, &desktop).expect("the desktop is copied beside the manifest");
+    }
+    let mut daemon = installed.spawn_as(
+        &this,
+        &["--exact", NAME, "--nocapture", "--test-threads=1"],
+        &[(SERVES, installed.executable.as_os_str())],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime");
+    drop(runtime.block_on(daemon.connected()));
+    let found = nc_channel::found::beside(&installed.executable).expect("the install");
+    let mut asker = nc_desktop::client::Asker::new(found);
+    let mut run = |command: &str, args: Value| -> Value {
+        runtime
+            .block_on(asker.dispatch(command, args))
+            .expect("the daemon answered")
+            .unwrap_or_else(|refusal| panic!("{command} was refused: {refusal:?}"))
+    };
+    let display = nc_platform::testing::Display::for_a_window().expect("a display");
+    let mut window = Desktop::start(&desktop, &display);
+
+    // **The first run**: hidden and undecorated — what its page draws is
+    // read once it is shown, since a webview a hidden window holds may not be
+    // laid out at all.
+    let first = window.until("its first run, hidden", |seen| seen.get("shown") == "0");
+    assert_eq!(first.get("decorated"), "0", "{first:?}");
+
+    // **Shown by the Leader**, the keyboard on the prompt, the footer alone
+    // and nothing outside the window.
+    run("leader.tap", none());
+    let shown = window.until("itself shown with the keyboard on its prompt", |seen| {
+        seen.get("shown") == "1" && seen.get("keyboard") == "prompt" && laid_out(seen)
+    });
+    assert_eq!(
+        (
+            shown.get("decorated"),
+            shown.get("shows"),
+            shown.get("fits"),
+            shown.get("reachable"),
+            shown.seats(),
+        ),
+        ("0", "footer", "1", "1", Vec::<&str>::new()),
+        "{shown:?}"
+    );
+
+    // **A page in the workspace area**, which the sidebar lists: the
+    // workspace area draws no page of its own yet, so the footer is still all
+    // the window draws.
+    run(
+        "page.open",
+        Value::object([
+            ("kind", Value::text("home")),
+            ("in", Value::text("workspace")),
+        ]),
+    );
+    let opened = window.until("a page opened in its workspace area", |seen| {
+        laid_out(seen) && seen.get("drawn") != shown.get("drawn")
+    });
+    assert_eq!(
+        (opened.get("shows"), opened.get("keyboard")),
+        ("footer", "prompt"),
+        "{opened:?}"
+    );
+
+    // **The leader menu**, in the drawer, the keyboard on it.
+    run("leader.tap", none());
+    window.until("the leader menu in its drawer", |seen| {
+        seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
+    });
+
+    // **A second seat**: its pointer over the info line's chevron and its
+    // keyboard on the prompt, where the system's own seat is not, each drawn
+    // by the design system's attribute and changing how its element is drawn.
+    run(
+        "shell.hover",
+        Value::object([
+            ("seat", Value::Integer(2)),
+            ("by", Value::text("pointer")),
+            ("target", Value::text("info.expand")),
+        ]),
+    );
+    run(
+        "shell.focus",
+        Value::object([
+            ("seat", Value::Integer(2)),
+            ("region", Value::text("prompt")),
+        ]),
+    );
+    let seated = window.until("a second seat's hover and keyboard", |seen| {
+        seen.seats() == ["2:hover:info.expand", "2:focus:prompt"]
+    });
+    assert_eq!(
+        (seated.get("styled"), seated.get("keyboard")),
+        ("1", "drawer"),
+        "a second seat is drawn as the first's states are, and moves nothing of the first's: \
+         {seated:?}"
+    );
+
+    // **The smallest window**: everything inside it, every control a target.
+    run(
+        "window.resize",
+        Value::object([
+            (
+                "width",
+                Value::Integer(i64::from(nc_catalog::KERNEL.shell_window_min_width)),
+            ),
+            (
+                "height",
+                Value::Integer(i64::from(nc_catalog::KERNEL.shell_window_min_height)),
+            ),
+        ]),
+    );
+    let least = format!(
+        "{}x{}",
+        nc_catalog::KERNEL.shell_window_min_width,
+        nc_catalog::KERNEL.shell_window_min_height
+    );
+    let small = window.until("its page at the least size", |seen| {
+        seen.get("page") == least
+    });
+    assert_eq!(
+        (
+            small.get("fits"),
+            small.get("reachable"),
+            small.get("styled")
+        ),
+        ("1", "1", "1"),
+        "{small:?}"
+    );
+
+    // **Moved by command**: its corner where the state puts it.
+    run(
+        "window.move",
+        Value::object([("x", Value::Integer(80)), ("y", Value::Integer(120))]),
+    );
+    window.until("its corner where the state put it", |seen| {
+        seen.get("at") == "80,120" && seen.get("page") == least
+    });
+
+    // **The sidebar**, shown and then given the keyboard, inside the
+    // smallest window as well.
+    run("sidebar.cycle", none());
+    run("sidebar.cycle", none());
+    let kept = window.until("the sidebar with the keyboard on it", |seen| {
+        seen.get("shows") == "footer,drawer,sidebar"
+            && seen.get("keyboard") == "sidebar"
+            && seen.get("page") == least
+    });
+    assert_eq!(
+        (
+            kept.get("shown"),
+            kept.get("fits"),
+            kept.get("reachable"),
+            kept.get("styled"),
+            kept.seats(),
+        ),
+        (
+            "1",
+            "1",
+            "1",
+            "1",
+            vec!["2:hover:info.expand", "2:focus:prompt"]
+        ),
+        "{kept:?}"
+    );
+
+    // **Killed**: the daemon keeps everything the window showed, changed in
+    // nothing.
+    let before = run("shell.read", none());
+    drop(window);
+    let after = run("shell.read", none());
+    assert_eq!(
+        before, after,
+        "killing the window changed the daemon's state"
+    );
+
+    // **Started again**: it draws exactly what it drew, from the daemon.
+    let mut window = Desktop::start(&desktop, &display);
+    window.until("exactly what it drew before it was killed", |seen| {
+        *seen == kept
+    });
+
+    // **Hidden by the state**.
+    run("window.hide", none());
+    let hidden = window.until("itself hidden", |seen| seen.get("shown") == "0");
+    assert_eq!(hidden.get("decorated"), "0", "{hidden:?}");
+    drop(window);
+    drop(display);
+}

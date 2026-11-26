@@ -37,6 +37,18 @@
 //! the asking connection, one in flight at a time, and taken back when the
 //! daemon refuses it.
 //!
+//! **Its size and its place are the state's** ([`asked_anew`]): a size the
+//! state asks that the window has not applied — `window.resize` — sizes it so
+//! its page is that many CSS pixels, through the one door that never makes
+//! it less than its least ([`Opened::size_to`]), and a place — `window.move`
+//! — puts its corner there, each once per change, so a window started again
+//! comes back at the size and the place the state holds. **What the system's
+//! own pointer is over is said, and every other seat drawn**
+//! ([`hover_said`], [`crate::seat`]): the system's own pointer as seat 1's
+//! hover, a note told once per target it moves onto, and every other seat the
+//! state holds written onto the page after every draw as the design system's
+//! seat attributes.
+//!
 //! **The keys are run here** ([`crate::keys`]): the Leader is asked of the
 //! system on this thread where the desktop is its listener — never for a
 //! test's install — and a refusal, or a registration lost, is said on the
@@ -67,7 +79,9 @@
 //! The webview's message channel carries a closed set of messages
 //! ([`said`]) and anything else is read as nothing; the webview loads the
 //! one document this build wrote, from bytes this build embeds, and is let
-//! to navigate nowhere else. **What it does not answer:** a process running
+//! to navigate nowhere else. What the page says it shows ([`Witnessed`]) is
+//! of a closed shape as well, runs nothing, and is printed for a test's
+//! install alone. **What it does not answer:** a process running
 //! as the same user, which can drive the interface through the CLI as the
 //! person can, or inject into this one.
 
@@ -76,7 +90,7 @@ use std::time::Instant;
 
 use nc_channel::found::Found;
 use noctua_design::model::Mode;
-use tao::dpi::LogicalSize;
+use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget};
 use tao::platform::run_return::EventLoopExtRunReturn as _;
@@ -150,6 +164,149 @@ pub enum Said {
     Focus(Region),
     /// `escape`: Esc on the drawer, or on a prompt that filters a list.
     Escape,
+    /// `hover <target>`, or `hover` alone: the system's own pointer moved
+    /// onto what names that target, or onto nothing that names one.
+    Hover(Option<String>),
+    /// `seen …`: what the page shows, as its witness says it — asked of a
+    /// test's install alone ([`Witnessed`]).
+    Seen(Witnessed),
+}
+
+/// What a page says it shows when the window asks it (`window.noctua.witness`
+/// in [`crate::page::SCRIPT`]): asked, and printed, only for a test's install.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Witnessed {
+    /// Its width and height in CSS pixels.
+    pub page: (u32, u32),
+    /// Whether every element drawn stands inside the window sideways, or
+    /// inside something that clips it.
+    pub fits: bool,
+    /// Whether every control drawn is at least `--noctua-target-min` each
+    /// way.
+    pub reachable: bool,
+    /// Whether every seat's attribute changes how the element it is on is
+    /// drawn, where the system's own seat is not in that state there.
+    pub styled: bool,
+    /// The part the system's own keyboard is in: `prompt`, `drawer`,
+    /// `sidebar`, `elsewhere`, or `-` for none.
+    pub keyboard: String,
+    /// The parts that draw anything, of `footer`, `drawer`, `sidebar` and
+    /// `workspace`, in that order.
+    pub shows: Vec<String>,
+    /// Every seat's state on the page, as `<seat>:<state>:<where>`: the
+    /// seat's number, `hover`, `focus`, `active` or `drag`, and the target the
+    /// element it is on names, or the part that element is in.
+    pub seats: Vec<String>,
+}
+
+/// The parts of the page a witness says draw anything, in their order.
+const PARTS: [&str; 4] = ["footer", "drawer", "sidebar", "workspace"];
+
+/// The parts the system's own keyboard may be said to be in.
+const KEYBOARDS: [&str; 5] = ["prompt", "drawer", "sidebar", "elsewhere", "-"];
+
+/// The states a seat may be said to be in.
+const STATES: [&str; 4] = ["hover", "focus", "active", "drag"];
+
+/// What a witness's words say, where they are what one says: its size, three
+/// bits, the keyboard, the parts and at most four states of each seat the
+/// kernel allows, each word of its closed shape.
+fn witnessed(words: &[&str]) -> Option<Witnessed> {
+    let [
+        width,
+        height,
+        fits,
+        reachable,
+        styled,
+        keyboard,
+        shows,
+        seats @ ..,
+    ] = words
+    else {
+        return None;
+    };
+    let shows: Vec<String> = if *shows == "-" {
+        Vec::new()
+    } else {
+        shows.split(',').map(str::to_owned).collect()
+    };
+    let ordered = shows
+        .iter()
+        .map(|part| PARTS.iter().position(|known| known == part))
+        .collect::<Option<Vec<usize>>>()?;
+    let seats_max = usize::try_from(nc_catalog::KERNEL.shell_seats_max).ok()? * STATES.len();
+    let seats = seats
+        .iter()
+        .map(
+            |seat| match seat.split(':').collect::<Vec<_>>().as_slice() {
+                [id, state, rest @ ..] if number::<u64>(id).is_some() && STATES.contains(state) => {
+                    let place = rest.join(":");
+                    is_target(&place).then(|| (*seat).to_owned())
+                }
+                _ => None,
+            },
+        )
+        .collect::<Option<Vec<String>>>()?;
+    (ordered.windows(2).all(|pair| pair[0] < pair[1])
+        && KEYBOARDS.contains(keyboard)
+        && seats.len() <= seats_max)
+        .then(|| {
+            Some(Witnessed {
+                page: (number(width)?, number(height)?),
+                fits: bit(fits)?,
+                reachable: bit(reachable)?,
+                styled: bit(styled)?,
+                keyboard: (*keyboard).to_owned(),
+                shows,
+                seats,
+            })
+        })
+        .flatten()
+}
+
+/// What the system says of a window, as a test's install prints it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Windowed {
+    /// Whether it is shown.
+    pub shown: bool,
+    /// Whether it draws the system's decorations.
+    pub decorated: bool,
+    /// Where its corner is, in the system's logical pixels, where the system
+    /// says.
+    pub at: Option<(i64, i64)>,
+}
+
+/// The line a test's install prints of what its window and its page show:
+/// what the system says of the window, the `drawn` digest of what its page
+/// holds ([`crate::footer::Drawing::digest`]), and what the page's witness
+/// says, each a `name=value` word.
+#[must_use]
+pub fn witnessed_line(window: Windowed, drawn: u64, seen: &Witnessed) -> String {
+    let bit = |held: bool| if held { '1' } else { '0' };
+    let listed = |words: &[String]| {
+        if words.is_empty() {
+            "-".to_owned()
+        } else {
+            words.join(",")
+        }
+    };
+    let at = window
+        .at
+        .map_or_else(|| "-".to_owned(), |(x, y)| format!("{x},{y}"));
+    format!(
+        "witnessed shown={} decorated={} at={at} drawn={drawn:016x} page={}x{} fits={} \
+         reachable={} styled={} keyboard={} shows={} seats={}",
+        bit(window.shown),
+        bit(window.decorated),
+        seen.page.0,
+        seen.page.1,
+        bit(seen.fits),
+        bit(seen.reachable),
+        bit(seen.styled),
+        seen.keyboard,
+        listed(&seen.shows),
+        listed(&seen.seats),
+    )
 }
 
 /// The most bytes the value of an option the page says may hold: a
@@ -244,6 +401,9 @@ pub fn said(message: &str) -> Option<Said> {
         ["focus", "prompt"] => Some(Said::Focus(Region::Prompt)),
         ["focus", "drawer"] => Some(Said::Focus(Region::Drawer)),
         ["focus", "sidebar"] => Some(Said::Focus(Region::Sidebar)),
+        ["hover"] => Some(Said::Hover(None)),
+        ["hover", target] => is_target(target).then(|| Said::Hover(Some((*target).to_owned()))),
+        ["seen", rest @ ..] => witnessed(rest).map(Said::Seen),
         _ => None,
     }
 }
@@ -350,6 +510,12 @@ pub struct Opened {
     /// The least the window is, in logical pixels: the catalog's least,
     /// fitted to the page's scale once the page has said it ([`fitted`]).
     least: LogicalSize<f64>,
+    /// How many device pixels one CSS pixel of the page is, in thousandths,
+    /// once the page has said it.
+    thousandths: Option<u32>,
+    /// The size in CSS pixels the interface's state last asked the window's
+    /// page to be, once it asked one.
+    asked: Option<LogicalSize<f64>>,
     /// What the page holds of the footer, and what brings it to the state.
     pub drawing: Drawing,
 }
@@ -365,18 +531,24 @@ impl Opened {
 
     /// The window's least size fitted to a page whose CSS pixel is
     /// `thousandths` device pixels, so its page is never smaller than the
-    /// catalog's least; a window already smaller is made that size.
+    /// catalog's least; a window already smaller is made that size. A scale
+    /// the page had not said before sizes the window again to the CSS pixels
+    /// the state asked for, which a system scaling its page by more than its
+    /// own factor would otherwise draw at another size.
     pub fn fit(&mut self, thousandths: u32) {
         let scale_factor = self.window.scale_factor();
+        let rescaled = self.thousandths.replace(thousandths) != Some(thousandths);
         let fitted = fitted(least(), thousandths, scale_factor);
-        if fitted == self.least {
-            return;
+        if fitted != self.least {
+            self.least = fitted;
+            self.window.set_min_inner_size(Some(fitted));
+            let inner = self.window.inner_size().to_logical::<f64>(scale_factor);
+            if inner.width < fitted.width || inner.height < fitted.height {
+                self.window.set_inner_size(at_least(inner, fitted));
+            }
         }
-        self.least = fitted;
-        self.window.set_min_inner_size(Some(fitted));
-        let inner = self.window.inner_size().to_logical::<f64>(scale_factor);
-        if inner.width < fitted.width || inner.height < fitted.height {
-            self.window.set_inner_size(at_least(inner, fitted));
+        if rescaled && let Some(asked) = self.asked {
+            self.resize(self.logical(asked));
         }
     }
 
@@ -385,6 +557,37 @@ impl Opened {
     pub fn resize(&self, asked: LogicalSize<f64>) {
         self.window.set_inner_size(at_least(asked, self.least));
     }
+
+    /// The size in logical pixels whose page is `css` CSS pixels, at the
+    /// scale the page said; `css` itself before it said one.
+    fn logical(&self, css: LogicalSize<f64>) -> LogicalSize<f64> {
+        self.thousandths.map_or(css, |thousandths| {
+            fitted(css, thousandths, self.window.scale_factor())
+        })
+    }
+
+    /// The window sized so its page is `css` CSS pixels, as the interface's
+    /// state asks (`window.resize`), through [`Opened::resize`], which never
+    /// makes it less than its least.
+    pub fn size_to(&mut self, css: LogicalSize<f64>) {
+        self.asked = Some(css);
+        self.resize(self.logical(css));
+    }
+
+    /// The window's corner put at `place`, in the system's logical pixels,
+    /// as the interface's state asks (`window.move`).
+    pub fn place_at(&self, place: LogicalPosition<f64>) {
+        self.window.set_outer_position(place);
+    }
+}
+
+/// What the interface's state asks of a window that the window has not
+/// applied yet: `wanted`, where it is something and not `applied`; nothing
+/// where it is what was applied, and nothing where the state asks nothing,
+/// which leaves the window as it is.
+#[must_use]
+pub fn asked_anew<T: Copy + PartialEq>(wanted: Option<T>, applied: Option<T>) -> Option<T> {
+    wanted.filter(|wanted| Some(*wanted) != applied)
 }
 
 impl core::fmt::Debug for Opened {
@@ -395,6 +598,8 @@ impl core::fmt::Debug for Opened {
             .field("webview", &self.webview.id())
             .field("theme", &self.theme)
             .field("least", &self.least)
+            .field("thousandths", &self.thousandths)
+            .field("asked", &self.asked)
             .field("drawing", &self.drawing)
             .finish()
     }
@@ -494,6 +699,8 @@ pub fn open(
         webview,
         theme,
         least: least(),
+        thousandths: None,
+        asked: None,
         drawing,
     })
 }
@@ -523,6 +730,12 @@ impl Showing {
     #[must_use]
     pub const fn shows(self) -> bool {
         self.wanted && self.loaded
+    }
+
+    /// Whether its document said it loaded.
+    #[must_use]
+    pub const fn is_loaded(self) -> bool {
+        self.loaded
     }
 }
 
@@ -569,13 +782,16 @@ pub struct Seen {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "nine facts a probe observes, each independent of the others: there is no state \
+    reason = "ten facts a probe observes, each independent of the others: there is no state \
               they move through, so no machine to write"
 )]
 pub struct Exercised {
     /// The design system's script enhanced the prompt: it is marked so, and
     /// its block is drawn.
     pub enhanced: bool,
+    /// A pointer moving onto the info line's chevron — a touch's — said the
+    /// command the chevron runs as what the system's own pointer is over.
+    pub hovered: bool,
     /// Typing into the prompt said what was typed, as a draft.
     pub drafted: bool,
     /// Activating the info line's chevron said `info.expand`.
@@ -615,7 +831,9 @@ const PROBED_TAB: u64 = 3;
 /// settled, its `{draw}` the call that brings the footer to markup with a
 /// message on the info line, expanded, and its `{drawer}` the one that brings
 /// the drawer to the command list over two pages: whether the design
-/// system's script enhanced the prompt; typing into it, and activating the
+/// system's script enhanced the prompt; a touch's pointer moving onto the
+/// info line's chevron, which the page says as what the system's own pointer
+/// is over; typing into the prompt, and activating the
 /// info line's chevron with the focus on it; the draw, after which the
 /// chevron still has the focus and says the line is expanded, the message is
 /// shown, the prompt still holds what was typed and is still enhanced; a
@@ -632,6 +850,7 @@ const EXERCISE: &str = "(() => {
   const enhanced = () => prompt.getAttribute('data-nd-enhanced') === 'true'
     && footer.querySelector('.nd-prompt-cursor') !== null;
   const wasEnhanced = enhanced();
+  toggle.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'touch' }));
   area.value = '{typed}';
   area.dispatchEvent(new Event('input', { bubbles: true }));
   toggle.focus();
@@ -853,6 +1072,11 @@ impl Watched {
                 self.exercised.tabbed = *value == PROBED_TAB.to_string();
             }
             Said::Control(control) => self.exercised.collapsed = control == Control::Collapse,
+            // Only the one hover the exercise makes counts, and a pointer
+            // that leaves later takes nothing back.
+            Said::Hover(ref target) => {
+                self.exercised.hovered |= target.as_deref() == Some(Action::ExpandInfo.command());
+            }
             Said::Exercised([enhanced, kept, written, rails, capped]) => {
                 self.seen.footer = Some(Exercised {
                     enhanced,
@@ -872,7 +1096,8 @@ impl Watched {
             | Said::Send(_)
             | Said::Active(..)
             | Said::Focus(_)
-            | Said::Escape => {}
+            | Said::Escape
+            | Said::Seen(_) => {}
         }
         false
     }
@@ -1378,10 +1603,57 @@ pub fn is_target(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:/".contains(&byte))
 }
 
+/// What the window says once the page said the system's own pointer is over
+/// `target`, or over nothing that names one: that seat's pointer fact, where
+/// it differs from what `mirror` holds of it — as this window said it, or as
+/// the state holds it — and nothing where it is the same, so a pointer that
+/// stays over one target is said once.
+#[must_use]
+pub fn hover_said(mirror: &Mirror, target: Option<String>) -> Option<Fact> {
+    let differs =
+        mirror.hovered(crate::seat::SYSTEMS_OWN, crate::mirror::By::Pointer) != target.as_deref();
+    differs.then_some(Fact::Hover {
+        seat: crate::seat::SYSTEMS_OWN,
+        by: crate::mirror::By::Pointer,
+        target,
+    })
+}
+
+/// What the window says once the page said the system's own keyboard moved
+/// to the option `value` of a list: that seat's keyboard fact, its selection
+/// on `value`, where `value` is a target `shell.hover` takes; nothing for any
+/// other value.
+#[must_use]
+pub fn selection_said(value: String) -> Option<Fact> {
+    is_target(&value).then_some(Fact::Hover {
+        seat: crate::seat::SYSTEMS_OWN,
+        by: crate::mirror::By::Keyboard,
+        target: Some(value),
+    })
+}
+
+/// `value`, a size or a place the state holds, as the system's pixels a
+/// window is asked in: the state holds each to a bound far inside `i32`.
+fn pixels(value: i64) -> f64 {
+    f64::from(i32::try_from(value).unwrap_or(if value < 0 { i32::MIN } else { i32::MAX }))
+}
+
+/// `value`, a coordinate the system said in logical pixels, rounded to the
+/// nearest whole one: what a test's install prints of where a window is.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "a coordinate on a screen, rounded first, and a value past `i64` saturates, \
+              which `as` does for a float"
+)]
+fn rounded(value: f64) -> i64 {
+    value.round() as i64
+}
+
 /// What the event loop keeps beside the window: the state mirrored, the keys
-/// in force, the commands the list shows, the Leader as heard, and where the
-/// keyboard was last put.
-struct Running {
+/// in force, the commands the list shows, the Leader as heard, where the
+/// keyboard was last put, the size and the place last applied, and, for a
+/// test's install, where what the window shows is said.
+struct Running<'said> {
     /// What the window knows of itself.
     context: Context,
     /// The interface's state, as this window holds it.
@@ -1402,9 +1674,16 @@ struct Running {
     unheard: Option<String>,
     /// The asking thread.
     asks: std::sync::mpsc::Sender<Ask>,
+    /// The size the state asked last that the window applied.
+    sized: Option<(i64, i64)>,
+    /// The place the state asked last that the window applied.
+    moved: Option<(i64, i64)>,
+    /// Where a line saying what the window and its page show goes, for a
+    /// test's install alone ([`witnessed_line`]).
+    witness: Option<&'said mut dyn FnMut(&str)>,
 }
 
-impl Running {
+impl Running<'_> {
     /// Sends `ask` to the asking thread, which outlives the loop.
     fn ask(&self, ask: Ask) {
         let _ = self.asks.send(ask);
@@ -1442,8 +1721,53 @@ impl Running {
         (shell.pages.get(&id)?.kind == crate::mirror::Kind::Leader).then_some(id)
     }
 
+    /// The window sized and placed as the state asks, where it asks what the
+    /// window has not applied yet.
+    fn arranged(&mut self, opened: &mut Opened) {
+        let Some(window) = self.mirror.shell().and_then(this_window) else {
+            return;
+        };
+        let (size, place) = (window.size, window.place);
+        if let Some((width, height)) = asked_anew(size, self.sized) {
+            opened.size_to(LogicalSize::new(pixels(width), pixels(height)));
+            self.sized = Some((width, height));
+        }
+        if let Some((x, y)) = asked_anew(place, self.moved) {
+            opened.place_at(LogicalPosition::new(pixels(x), pixels(y)));
+            self.moved = Some((x, y));
+        }
+    }
+
+    /// The page asked what it shows, for a test's install, once its document
+    /// has loaded.
+    fn witness(&self, opened: &Opened) {
+        if self.witness.is_some() && self.showing.is_loaded() {
+            opened.send(vec!["window.noctua.witness();".to_owned()]);
+        }
+    }
+
+    /// What the page said it shows, `seen`, printed with what the system says
+    /// of the window and the digest of what the page holds, for a test's
+    /// install.
+    fn witnessed(&mut self, opened: &Opened, seen: &Witnessed) {
+        if let Some(witness) = self.witness.as_mut() {
+            let scale_factor = opened.window.scale_factor();
+            let at = opened.window.outer_position().ok().map(|corner| {
+                let corner = corner.to_logical::<f64>(scale_factor);
+                (rounded(corner.x), rounded(corner.y))
+            });
+            let window = Windowed {
+                shown: opened.window.is_visible(),
+                decorated: opened.window.is_decorated(),
+                at,
+            };
+            witness(&witnessed_line(window, opened.drawing.digest(), seen));
+        }
+    }
+
     /// The footer, the drawer and the sidebar drawn from the state and what
-    /// this window said, and seat 1's keyboard put where the state says.
+    /// this window said, every seat but the system's own told to the page,
+    /// and seat 1's keyboard put where the state says.
     fn redraw(&mut self, opened: &mut Opened) {
         let draft = self.mirror.draft().unwrap_or_default().to_owned();
         let selected = self
@@ -1471,19 +1795,30 @@ impl Running {
                     .shows(crate::footer::markup(&footer), &shell.draft),
             );
         }
+        let told = match (shell, window) {
+            (Some(shell), Some(window)) => crate::seat::script(&crate::seat::told(shell, window)),
+            _ => crate::seat::NONE.to_owned(),
+        };
+        let redrawn = !scripts.is_empty();
+        scripts.extend(opened.drawing.seats(told, redrawn));
         opened.send(scripts);
+        self.keyboard(opened);
+    }
+
+    /// Seat 1's keyboard put where the state says, once the document has
+    /// loaded and been drawn — a place put before then would be lost with
+    /// the page that could not take it — and only when the state moved it.
+    fn keyboard(&mut self, opened: &Opened) {
+        if !self.showing.is_loaded() {
+            return;
+        }
         let region = self
             .window()
             .and_then(|window| self.mirror.focus(1).filter(|focus| focus.window == window))
             .map(|focus| focus.region);
         if region != self.placed {
             self.placed = region;
-            if let Some(word) = match region {
-                Some(Region::Prompt) => Some("prompt"),
-                Some(Region::Drawer) => Some("drawer"),
-                Some(Region::Sidebar) => Some("sidebar"),
-                _ => None,
-            } {
+            if let Some(word) = region.and_then(crate::seat::part_of) {
                 opened.send(vec![format!("window.noctua.focus('{word}');")]);
             }
         }
@@ -1625,12 +1960,8 @@ impl Running {
             }
             Said::Send(None) => self.sent(),
             Said::Active(_, value) => {
-                if is_target(&value) {
-                    self.said(Fact::Hover {
-                        seat: 1,
-                        by: crate::mirror::By::Keyboard,
-                        target: Some(value),
-                    });
+                if let Some(fact) = selection_said(value) {
+                    self.said(fact);
                 }
             }
             Said::Focus(region) => {
@@ -1649,6 +1980,11 @@ impl Running {
                     .is_some_and(|shell| shell.asking.is_some());
                 self.ask(Ask::bare(escaped(asking), self.context.locale));
             }
+            Said::Hover(target) => {
+                if let Some(fact) = hover_said(&self.mirror, target) {
+                    self.said(fact);
+                }
+            }
             Said::Choose(List::Shortcuts, _)
             | Said::Loaded
             | Said::Scale(_)
@@ -1657,7 +1993,8 @@ impl Running {
             | Said::FirstFrame(_)
             | Said::Settled(_)
             | Said::Viewport(..)
-            | Said::Exercised(_) => {}
+            | Said::Exercised(_)
+            | Said::Seen(_) => {}
         }
     }
 
@@ -1675,9 +2012,15 @@ impl Running {
                         self.keymap.told().to_canonical()
                     ));
                     opened.send(scripts);
+                    self.keyboard(opened);
                     apply(&opened.window, self.showing);
+                    self.witness(opened);
                 }
-                Said::Scale(thousandths) => opened.fit(thousandths),
+                Said::Scale(thousandths) => {
+                    opened.fit(thousandths);
+                    self.witness(opened);
+                }
+                Said::Seen(seen) => self.witnessed(opened, &seen),
                 Said::Action(action) => self.ask(Ask::Run(action)),
                 Said::Draft(text) => {
                     let (draft, scripts) = opened.drawing.typed(&text);
@@ -1706,10 +2049,12 @@ impl Running {
                 // A state this build does not read leaves the one held drawn.
                 if self.mirror.watched(changed).is_ok() {
                     self.redraw(opened);
+                    self.arranged(opened);
                     if let Some(shown) = shown(&self.mirror) {
                         self.showing.want(shown);
                         apply(&opened.window, self.showing);
                     }
+                    self.witness(opened);
                 }
             }
             Event::UserEvent(Arrived::Pressed) => {
@@ -1727,6 +2072,7 @@ impl Running {
             Event::UserEvent(Arrived::Registry(commands)) => {
                 self.commands = commands;
                 self.redraw(opened);
+                self.witness(opened);
             }
             Event::WindowEvent {
                 event: WindowEvent::Focused(focused),
@@ -1737,6 +2083,10 @@ impl Running {
                     self.leader.blurred();
                 }
             }
+            Event::WindowEvent {
+                event: WindowEvent::Moved(_),
+                ..
+            } => self.witness(opened),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
@@ -1757,10 +2107,17 @@ impl Running {
 /// listener, and every key, list and control run as the command it names,
 /// until the event loop ends — which nothing in this build asks it to.
 ///
+/// **A test's install is told what the window shows** — an install relocated
+/// under a namespace, which a real install never is: whenever the state, the
+/// page's scale, the registry or the window's place moved, the page is asked
+/// what it shows, and
+/// [`witnessed_line`] of it is handed to `said`, which the binary prints.
+/// Nothing is handed to it for any other install.
+///
 /// # Errors
 ///
 /// [`Unopened`], as [`open`] refuses, and for a thread not started.
-pub fn run(found: Found) -> Result<(), Unopened> {
+pub fn run(found: Found, said: &mut dyn FnMut(&str)) -> Result<(), Unopened> {
     let mut event_loop = EventLoopBuilder::<Arrived>::with_user_event().build();
     let context = Context {
         locale: nc_catalog::Locale::En,
@@ -1777,6 +2134,7 @@ pub fn run(found: Found) -> Result<(), Unopened> {
     // **Held on this thread**, the event loop's, as a registration must be
     // (`nc_platform::leader`), and given back when the loop has ended.
     let (held, unheard) = listened(&found, &keymap, &event_loop.create_proxy(), context.locale);
+    let witness = found.install.namespace.is_some().then_some(said);
     following(found.clone(), event_loop.create_proxy()).map_err(Unopened::Thread)?;
     let asks = asking(found, event_loop.create_proxy()).map_err(Unopened::Thread)?;
     let mut running = Running {
@@ -1790,6 +2148,9 @@ pub fn run(found: Found) -> Result<(), Unopened> {
         placed: None,
         unheard,
         asks,
+        sized: None,
+        moved: None,
+        witness,
     };
     running.ask(Ask::Registry);
     event_loop.run_return(|event, _, flow| {
@@ -1809,10 +2170,13 @@ pub(crate) mod tests {
 
     use nc_schema::keys::Key;
 
-    use super::{Ask, Said, Showing, at_least, fitted, least, said, shown, this_window, within};
+    use super::{
+        Ask, Said, Showing, Windowed, Witnessed, asked_anew, at_least, fitted, hover_said, least,
+        said, shown, this_window, within, witnessed_line,
+    };
     use crate::drawer::List;
     use crate::footer::Action;
-    use crate::mirror::{Mirror, Region};
+    use crate::mirror::{Fact, Mirror, Region};
 
     /// A state as the kernel writes one, its windows shown as `shown` says.
     fn state(shown: &[bool]) -> Value {
@@ -1840,7 +2204,7 @@ pub(crate) mod tests {
             mirror
                 .watched(Changed {
                     revision: 1,
-                    state: Some(state(windows)),
+                    state: Some(crate::mirror::tests::as_watched(state(windows))),
                 })
                 .expect("the state is read");
             assert_eq!(shown(&mirror), Some(first), "{windows:?}");
@@ -1858,7 +2222,9 @@ pub(crate) mod tests {
         assert!(!showing.shows(), "nothing asked");
         showing.want(true);
         assert!(!showing.shows(), "asked before the document loaded");
+        assert!(!showing.is_loaded());
         showing.loaded();
+        assert!(showing.is_loaded());
         assert!(showing.shows(), "asked, and loaded");
         showing.want(false);
         assert!(!showing.shows(), "hidden");
@@ -1999,6 +2365,220 @@ pub(crate) mod tests {
         ] {
             assert_eq!(said(other), None, "{other:?}");
         }
+    }
+
+    /// What the system's own pointer is over is read as a target of the
+    /// shape `shell.hover` takes, or as nothing, and what a page says it shows
+    /// in its one shape — every word of the closed set it is, the parts in
+    /// their order, each seat's state a number, a state and a target, and no
+    /// more of them than the seats the kernel allows can be in.
+    #[test]
+    pub(crate) fn the_pointer_and_the_witness_are_read_in_one_shape() {
+        assert_eq!(said("hover"), Some(Said::Hover(None)));
+        assert_eq!(
+            said("hover info.expand"),
+            Some(Said::Hover(Some("info.expand".to_owned())))
+        );
+        assert_eq!(said("hover 4"), Some(Said::Hover(Some("4".to_owned()))));
+        let seen = said(
+            "seen 320 240 1 0 1 drawer footer,drawer,sidebar 2:hover:info.expand 2:focus:prompt \
+             12:drag:a:b",
+        );
+        assert_eq!(
+            seen,
+            Some(Said::Seen(Witnessed {
+                page: (320, 240),
+                fits: true,
+                reachable: false,
+                styled: true,
+                keyboard: "drawer".to_owned(),
+                shows: vec![
+                    "footer".to_owned(),
+                    "drawer".to_owned(),
+                    "sidebar".to_owned()
+                ],
+                seats: vec![
+                    "2:hover:info.expand".to_owned(),
+                    "2:focus:prompt".to_owned(),
+                    "12:drag:a:b".to_owned(),
+                ],
+            }))
+        );
+        assert_eq!(
+            said("seen 800 600 0 1 0 - -"),
+            Some(Said::Seen(Witnessed {
+                page: (800, 600),
+                fits: false,
+                reachable: true,
+                styled: false,
+                keyboard: "-".to_owned(),
+                shows: Vec::new(),
+                seats: Vec::new(),
+            }))
+        );
+        let most = usize::try_from(nc_catalog::KERNEL.shell_seats_max).expect("small") * 4;
+        let seats = |count: usize| vec!["2:hover:x"; count].join(" ");
+        assert!(said(&format!("seen 1 1 1 1 1 - footer {}", seats(most))).is_some());
+        for other in [
+            "hover ".to_owned(),
+            "hover a b".to_owned(),
+            "hover a#b".to_owned(),
+            format!("hover {}", "a".repeat(65)),
+            "Hover a".to_owned(),
+            "seen".to_owned(),
+            "seen 320 240 1 1 1 prompt".to_owned(),
+            "seen 320 240 1 1 2 prompt footer".to_owned(),
+            "seen 320 240 1 1 1 window footer".to_owned(),
+            "seen 320 240 1 1 1 prompt drawer,footer".to_owned(),
+            "seen 320 240 1 1 1 prompt footer,footer".to_owned(),
+            "seen 320 240 1 1 1 prompt footer,page".to_owned(),
+            "seen 320 240 1 1 1 prompt ".to_owned(),
+            "seen 320 240 1 1 1 prompt footer 2:press:x".to_owned(),
+            "seen 320 240 1 1 1 prompt footer two:hover:x".to_owned(),
+            "seen 320 240 1 1 1 prompt footer 2:hover".to_owned(),
+            "seen 320 240 1 1 1 prompt footer 2:hover:a,b".to_owned(),
+            "seen -1 240 1 1 1 prompt footer".to_owned(),
+            format!("seen 1 1 1 1 1 - footer {}", seats(most + 1)),
+        ] {
+            assert_eq!(said(&other), None, "{other:?}");
+        }
+    }
+
+    /// What a test's install prints of its window is one line of `name=value`
+    /// words, a list joined by commas and none written `-`.
+    #[test]
+    fn a_witnessed_line_names_each_part() {
+        let seen = Witnessed {
+            page: (320, 240),
+            fits: true,
+            reachable: true,
+            styled: false,
+            keyboard: "prompt".to_owned(),
+            shows: vec!["footer".to_owned(), "drawer".to_owned()],
+            seats: vec![
+                "2:hover:info.expand".to_owned(),
+                "2:focus:prompt".to_owned(),
+            ],
+        };
+        let window = Windowed {
+            shown: true,
+            decorated: false,
+            at: Some((-4, 60)),
+        };
+        assert_eq!(
+            witnessed_line(window, 0xab, &seen),
+            "witnessed shown=1 decorated=0 at=-4,60 drawn=00000000000000ab page=320x240 fits=1 \
+             reachable=1 styled=0 keyboard=prompt shows=footer,drawer \
+             seats=2:hover:info.expand,2:focus:prompt"
+        );
+        let none = Witnessed {
+            fits: false,
+            reachable: false,
+            styled: true,
+            shows: Vec::new(),
+            seats: Vec::new(),
+            ..seen
+        };
+        let window = Windowed {
+            shown: false,
+            decorated: true,
+            at: None,
+        };
+        assert_eq!(
+            witnessed_line(window, u64::MAX, &none),
+            "witnessed shown=0 decorated=1 at=- drawn=ffffffffffffffff page=320x240 fits=0 \
+             reachable=0 styled=1 keyboard=prompt shows=- seats=-"
+        );
+        assert_eq!(super::rounded(59.6), 60);
+        assert_eq!(super::rounded(-4.4), -4);
+    }
+
+    /// The system's own pointer is said as seat 1's hover when it moves onto
+    /// another target than the one the window holds — as it said it, or as
+    /// the state holds it — and not again while it stays.
+    #[test]
+    pub(crate) fn the_systems_own_pointer_is_said_once_per_target() {
+        let mut mirror = Mirror::new();
+        let fact = |target: Option<&str>| Fact::Hover {
+            seat: crate::seat::SYSTEMS_OWN,
+            by: crate::mirror::By::Pointer,
+            target: target.map(str::to_owned),
+        };
+        assert_eq!(
+            hover_said(&mirror, None),
+            None,
+            "nothing held, nothing over"
+        );
+        assert_eq!(
+            hover_said(&mirror, Some("info.expand".to_owned())),
+            Some(fact(Some("info.expand")))
+        );
+        mirror.said(fact(Some("info.expand")));
+        assert_eq!(hover_said(&mirror, Some("info.expand".to_owned())), None);
+        assert_eq!(hover_said(&mirror, None), Some(fact(None)));
+        let mut held = Mirror::new();
+        let mut state = crate::mirror::tests::a_state_with_windows(Vec::new());
+        if let Value::Object(fields) = &mut state {
+            fields.insert(
+                "seats".to_owned(),
+                Value::Array(vec![Value::object([
+                    ("seat", Value::Integer(1)),
+                    ("latest", Value::text("pointer")),
+                    ("hover", Value::text("drawer.expand")),
+                ])]),
+            );
+        }
+        held.watched(Changed {
+            revision: 1,
+            state: Some(crate::mirror::tests::as_watched(state)),
+        })
+        .expect("read");
+        assert_eq!(hover_said(&held, Some("drawer.expand".to_owned())), None);
+        assert_eq!(
+            hover_said(&held, Some("info.expand".to_owned())),
+            Some(fact(Some("info.expand")))
+        );
+    }
+
+    /// The system's own keyboard moving to an option of a list is said as
+    /// seat 1's selection on that option's value, for a value of the shape
+    /// `shell.hover` takes and for no other.
+    #[test]
+    pub(crate) fn the_systems_own_selection_is_said_as_its_keyboards() {
+        assert_eq!(
+            super::selection_said("kernel.find".to_owned()),
+            Some(Fact::Hover {
+                seat: crate::seat::SYSTEMS_OWN,
+                by: crate::mirror::By::Keyboard,
+                target: Some("kernel.find".to_owned()),
+            })
+        );
+        for refused in ["", "a b", "a#b", &"a".repeat(65)] {
+            assert_eq!(
+                super::selection_said(refused.to_owned()),
+                None,
+                "{refused:?}"
+            );
+        }
+    }
+
+    /// A size or a place the state asks is applied once: when it is
+    /// something the window has not applied, and never when the state asks
+    /// nothing.
+    #[test]
+    pub(crate) fn a_size_or_a_place_is_applied_once_per_change() {
+        assert_eq!(asked_anew::<(i64, i64)>(None, None), None);
+        assert_eq!(asked_anew(Some((320, 240)), None), Some((320, 240)));
+        assert_eq!(asked_anew(Some((320, 240)), Some((320, 240))), None);
+        assert_eq!(
+            asked_anew(Some((800, 600)), Some((320, 240))),
+            Some((800, 600))
+        );
+        assert_eq!(asked_anew(None, Some((320, 240))), None);
+        assert_eq!(super::pixels(320), 320.0);
+        assert_eq!(super::pixels(-32_768), -32_768.0);
+        assert_eq!(super::pixels(i64::MAX), f64::from(i32::MAX));
+        assert_eq!(super::pixels(i64::MIN), f64::from(i32::MIN));
     }
 
     /// The keys, the lists and the focus the page says are read in one

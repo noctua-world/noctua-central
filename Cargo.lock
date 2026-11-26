@@ -2829,6 +2829,7 @@ dependencies = [
  "nc-canon",
  "nc-catalog",
  "nc-channel",
+ "nc-daemon",
  "nc-desktop",
  "nc-fuzzy",
  "nc-ipc",

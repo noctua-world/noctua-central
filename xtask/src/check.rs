@@ -7905,7 +7905,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 57] = [
+const SUITES: [(&str, &str); 58] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7953,6 +7953,10 @@ const SUITES: [(&str, &str); 57] = [
     // The desktop's binary asked `--probe`, its window opened on a display the
     // test is handed.
     ("nc-desktop", "the_window_opens_hidden.rs"),
+    // The desktop's binary opened over a real daemon, a child of the suite's
+    // own binary told to serve, on a display the test is handed, killed and
+    // started again.
+    ("nc-desktop", "the_window_follows_its_daemon.rs"),
     // The fuzzy core's laws over generated items and queries, and its corpus
     // replayed row by row: neither touches a disk or spawns anything.
     ("nc-fuzzy", "properties.rs"),
@@ -16360,15 +16364,17 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     #[test]
     fn the_walls_scope_is_read_by_something_that_would_notice_it_changing() {
         // Today, and stated as the fact it is: the kernel and the daemon are
-        // the crates that depend on `nc-log`, so the scope is the log's own
-        // source, the daemon's and the kernel's, and the consumer count is two.
-        // A crate that takes the dependency changes both here, in the same
-        // change as the code.
+        // the crates that depend on `nc-log`, and the desktop interface reaches
+        // it through the daemon its suite runs as a dev-dependency, so the
+        // scope is the log's own source, the daemon's, the desktop's and the
+        // kernel's, and the consumer count is three. A crate that takes the
+        // dependency changes both here, in the same change as the code.
         let scope = crates_that_can_log(root()).expect("cargo reads this workspace");
         assert_eq!(
             scope,
             vec![
                 "apps/daemon".to_owned(),
+                "apps/desktop".to_owned(),
                 "crates/nc-kernel".to_owned(),
                 LOG_CRATE.to_owned()
             ],
@@ -16376,7 +16382,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         );
         assert_eq!(
             scope.len().saturating_sub(1),
-            2,
+            3,
             "the sentence `check` prints counts consumers, not the list's length"
         );
 
@@ -17809,7 +17815,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-channel", 3),
         ("nc-cli", 5),
         ("nc-daemon", 12),
-        ("nc-desktop", 4),
+        ("nc-desktop", 5),
         ("nc-fuzzy", 3),
         ("nc-guest", 1),
         ("nc-ids", 3),
@@ -19863,7 +19869,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 268] = [
+    const DOCUMENTED: [(&str, usize, usize); 270] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19916,16 +19922,18 @@ mod the_frozen_path_rule {
         ("desktop/commands.rs", 35, 6),
         ("desktop/drawer.rs", 57, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 88, 4),
-        ("desktop/host.rs", 94, 11),
+        ("desktop/footer.rs", 95, 4),
+        ("desktop/host.rs", 119, 11),
         ("desktop/keys.rs", 29, 3),
-        ("desktop/lib.rs", 0, 13),
+        ("desktop/lib.rs", 0, 14),
         ("desktop/main.rs", 22, 6),
-        ("desktop/mirror.rs", 84, 19),
-        ("desktop/page.rs", 16, 1),
+        ("desktop/mirror.rs", 88, 18),
+        ("desktop/page.rs", 17, 1),
+        ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
         ("desktop/surface.rs", 67, 19),
+        ("desktop/the_window_follows_its_daemon.rs", 12, 4),
         ("desktop/the_window_opens_hidden.rs", 1, 0),
         ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
@@ -26100,7 +26108,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24795;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24902;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26119,7 +26127,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7721;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7817;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26136,7 +26144,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2644;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2678;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26153,7 +26161,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [208, 36, 61, 63, 107];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [228, 38, 63, 65, 107];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26170,7 +26178,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32225;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32395;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26188,7 +26196,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 746;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 773;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26224,8 +26232,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **746 of 32,225 are accepted by the first-line
-    /// rule alone, and 475 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **773 of 32,395 are accepted by the first-line
+    /// rule alone, and 501 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26246,8 +26254,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **208 ascending sorts, 36 descending, 61
-    /// swaps, 63 rotations and 107 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **228 ascending sorts, 38 descending, 63
+    /// swaps, 65 rotations and 107 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26257,7 +26265,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2644 of
+    /// this tree offers, **2678 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34959,7 +34967,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 70] = [
+    const NOT_MUTATED: [(&str, &str); 71] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -35160,6 +35168,17 @@ mod the_meta_gate {
              runs it: what it drives in `host.rs` — the window built hidden, and the \
              one word read from its document — is decided by that module's unit \
              tests, which the runner's command for it runs",
+        ),
+        (
+            "apps/desktop/tests/the_window_follows_its_daemon.rs",
+            "a suite: the desktop's binary opened over a real daemon, a child of the \
+             suite's own binary told to serve, on a display the test is handed, \
+             killed and started again. It spawns a process, so no mutation command \
+             runs it: what it drives in `host.rs`, `seat.rs`, `mirror.rs`, \
+             `footer.rs` and `page.rs` — the state read, the seats told, the size \
+             and the place applied, the keyboard put, and what a test's install is \
+             told — is decided by those modules' unit tests, which the runner's \
+             commands for them run",
         ),
         (
             "apps/desktop/src/lib.rs",
@@ -36168,7 +36187,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 18] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 19] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -36237,6 +36256,10 @@ mod the_meta_gate {
         ),
         (
             "apps/desktop/tests/the_window_opens_hidden.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/desktop/tests/the_window_follows_its_daemon.rs",
             SPAWNS_A_PROCESS,
         ),
     ];
@@ -38574,7 +38597,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 282,
+            walked, 284,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38614,7 +38637,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3323] = [
+    static OPERATORS: [(&str, &str, &str); 3344] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -53582,6 +53605,107 @@ Options:
             "a lost daemon is asked again after the heartbeat",
         ),
         ("desktop_client", "kept", "a refusal keeps the connection"),
+        (
+            "desktop_seat",
+            "told",
+            "the system's own seat is never told to the page",
+        ),
+        (
+            "desktop_seat",
+            "told",
+            "a seat whose keyboard is in another window is drawn there",
+        ),
+        (
+            "desktop_seat",
+            "part_of",
+            "a keyboard on the info line is drawn on nothing",
+        ),
+        ("desktop_seat", "script", "a seat's hover is told"),
+        (
+            "desktop_host",
+            "hover_said",
+            "a pointer that stays over one target is said once",
+        ),
+        (
+            "desktop_host",
+            "selection_said",
+            "a selection is a target of `shell.hover`'s shape",
+        ),
+        (
+            "desktop_host",
+            "asked_anew",
+            "a size applied is not applied again",
+        ),
+        (
+            "desktop_host",
+            "witnessed",
+            "a witness's parts are in their order",
+        ),
+        (
+            "desktop_host",
+            "witnessed",
+            "a witness names no more seats' states than the kernel allows",
+        ),
+        (
+            "desktop_host",
+            "said",
+            "a hover is a target of `shell.hover`'s shape",
+        ),
+        (
+            "desktop_host",
+            "is_loaded",
+            "a window has not loaded until its document said so",
+        ),
+        (
+            "desktop_host",
+            "witnessed_line",
+            "a window's decorations are said",
+        ),
+        (
+            "desktop_footer",
+            "seats",
+            "the seats are told again after a redraw",
+        ),
+        (
+            "desktop_footer",
+            "seats",
+            "no seat is told before the document loaded",
+        ),
+        (
+            "desktop_footer",
+            "digest",
+            "the digest is of the sidebar too",
+        ),
+        (
+            "desktop_mirror",
+            "watched_shell",
+            "a watch's state is its `shell`",
+        ),
+        (
+            "desktop_mirror",
+            "watched_shell",
+            "an environment names only the variables it may",
+        ),
+        (
+            "desktop_mirror",
+            "watched",
+            "a watch holding no state keeps the one held",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the system's own pointer is said by its target",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "a seat the window no longer names is taken off the page",
+        ),
+        (
+            "desktop_page",
+            "ENHANCES",
+            "the design system's seat calls are handed to the page",
+        ),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

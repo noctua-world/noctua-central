@@ -3,8 +3,11 @@
 //! until the daemon's state has taken them (`NOCTUA.md §12.1`).
 //!
 //! **The daemon's state is the authority, and this is a copy of it.** Each
-//! watch answers the whole state at a revision (`nc_ipc::client::Changed`),
-//! and [`Mirror::watched`] reads it strictly — every field the kernel writes
+//! watch answers the whole state at a revision (`nc_ipc::client::Changed`) —
+//! the `shell` of the one object a daemon answers a watch with, beside the
+//! graphical environment a connection announced and what came of the
+//! daemon's asking for the Leader ([`watched_shell`]) — and
+//! [`Mirror::watched`] reads it strictly — every field the kernel writes
 //! taken, of the type it writes it in, every word one of the closed set the
 //! kernel writes, and any other field refused — so a state of another shape is
 //! never drawn as one it is not: the copy held before stays, and the refusal
@@ -664,6 +667,58 @@ impl Shell {
     }
 }
 
+/// The interface's state a watch's answer holds, read as the daemon writes
+/// the one object it answers a watch with: `shell`, the kernel's state, once
+/// the daemon holds one; `display`, the graphical environment a connection
+/// announced last, each variable of the ones `nc_ipc::Graphical` names as a
+/// text; and `leader`, what came of the daemon's asking for the Leader —
+/// held, or refused with a code and a sentence — and no other field.
+///
+/// # Errors
+///
+/// [`Unread`] for an answer of another shape, a field this build does not
+/// read among them, or a state [`Shell::read`] refuses.
+pub fn watched_shell(value: &Value) -> Result<Option<Shell>, Unread> {
+    let mut top = Fields::of("what a watch answered", value)?;
+    if let Some(display) = top.optional("display") {
+        let Value::Object(variables) = display else {
+            return Err(Unread(
+                "the graphical environment a watch answered is not one object".to_owned(),
+            ));
+        };
+        if let Some((name, _)) = variables.iter().find(|(name, value)| {
+            !nc_ipc::Graphical::NAMES.contains(&name.as_str()) || !matches!(value, Value::Text(_))
+        }) {
+            return Err(Unread(format!(
+                "the graphical environment a watch answered holds `{}`, which is not a variable \
+                 it names, as a text",
+                name.escape_debug()
+            )));
+        }
+    }
+    if let Some(leader) = top.optional("leader") {
+        let mut asked = Fields::of("what came of asking for the Leader", leader)?;
+        match (asked.optional("held"), asked.optional("refused")) {
+            (Some(Value::Bool(true)), None) => {}
+            (None, Some(refused)) => {
+                let mut refused = Fields::of("the Leader's refusal", refused)?;
+                refused.text("code")?;
+                refused.text("sentence")?;
+                refused.done()?;
+            }
+            _ => {
+                return Err(Unread(
+                    "what came of asking for the Leader is neither held nor refused".to_owned(),
+                ));
+            }
+        }
+        asked.done()?;
+    }
+    let shell = top.optional("shell").map(Shell::read).transpose()?;
+    top.done()?;
+    Ok(shell)
+}
+
 /// A fact this window says at the rate it draws, as the arguments of the
 /// command that makes the same change (`NOCTUA.md §12.1`).
 ///
@@ -830,9 +885,11 @@ impl Mirror {
 
     /// Takes what a watch answered.
     ///
-    /// An answer holding a state replaces the one held — once it is read —
-    /// and retires every fact the daemon took before it; one holding none
-    /// says the state is the one held.
+    /// An answer holding a state replaces the one held — once it is read, as
+    /// [`watched_shell`] reads the object a watch is answered with — and
+    /// retires every fact the daemon took before it; one whose object holds
+    /// no interface's state yet keeps the state held, at the revision it
+    /// answered; one holding nothing says the state is the one held.
     ///
     /// # Errors
     ///
@@ -842,9 +899,11 @@ impl Mirror {
         let Some(state) = changed.state else {
             return Ok(Moved::Unchanged);
         };
-        let shell = Shell::read(&state)?;
+        let shell = watched_shell(&state)?;
         self.revision = Some(changed.revision);
-        self.shell = Some(shell);
+        if let Some(shell) = shell {
+            self.shell = Some(shell);
+        }
         self.said.retain(|_, (_, stage)| match stage {
             Stage::Taken(held) => held.is_some_and(|held| changed.revision <= held),
             Stage::Said | Stage::Told => true,
@@ -1405,8 +1464,125 @@ pub(crate) mod tests {
         );
     }
 
+    /// What a watch answered at `revision`: the object a daemon answers one
+    /// with, holding `state` as its interface's state, or nothing.
     fn changed(revision: u64, state: Option<Value>) -> Changed {
-        Changed { revision, state }
+        Changed {
+            revision,
+            state: state.map(as_watched),
+        }
+    }
+
+    /// `state`, as the one object a daemon answers a watch with holds it.
+    pub(crate) fn as_watched(state: Value) -> Value {
+        Value::object([("shell", state)])
+    }
+
+    /// The object a watch is answered with holds the interface's state as
+    /// its `shell`, beside the graphical environment a connection announced
+    /// and what came of asking for the Leader, each read strictly and
+    /// optional; an object holding no state keeps the one held, and one
+    /// holding anything else is refused whole — as the daemon writes it
+    /// (`Watched::state` in `apps/daemon/src/server.rs`).
+    #[test]
+    fn a_watch_is_answered_with_the_state_beside_the_environment_and_the_leader() {
+        let environment = Value::object([
+            ("DISPLAY", Value::text(":7")),
+            ("XDG_RUNTIME_DIR", Value::text("/run/user/1000")),
+        ]);
+        let held = Value::object([("held", Value::Bool(true))]);
+        let refused = Value::object([(
+            "refused",
+            Value::object([
+                (
+                    "code",
+                    Value::text(nc_catalog::ErrorCode::ValidationArgumentsInvalid.code()),
+                ),
+                ("sentence", Value::text("taken")),
+            ]),
+        )]);
+        for leader in [held.clone(), refused] {
+            let answered = Value::object([
+                ("display", environment.clone()),
+                ("shell", first_run()),
+                ("leader", leader),
+            ]);
+            assert_eq!(
+                super::watched_shell(&answered),
+                Ok(Some(read(&first_run())))
+            );
+        }
+        assert_eq!(
+            super::watched_shell(&Value::object([("leader", held.clone())])),
+            Ok(None)
+        );
+        let mut mirror = Mirror::new();
+        mirror.watched(changed(1, Some(first_run()))).expect("read");
+        assert_eq!(
+            mirror.watched(Changed {
+                revision: 2,
+                state: Some(Value::object([("display", environment.clone())])),
+            }),
+            Ok(Moved::To(2))
+        );
+        assert_eq!(
+            mirror.shell(),
+            Some(&read(&first_run())),
+            "the state held is kept"
+        );
+        for (answered, said) in [
+            (first_run(), "holds `drawer`"),
+            (
+                Value::object([("shell", first_run()), ("alert", Value::Bool(true))]),
+                "holds `alert`",
+            ),
+            (
+                Value::object([("display", Value::object([("HOME", Value::text("/"))]))]),
+                "`HOME`",
+            ),
+            (
+                Value::object([("display", Value::object([("DISPLAY", Value::Integer(1))]))]),
+                "`DISPLAY`",
+            ),
+            (
+                Value::object([("display", Value::text(":7"))]),
+                "not one object",
+            ),
+            (
+                Value::object([("leader", Value::object([("held", Value::Bool(false))]))]),
+                "neither held nor refused",
+            ),
+            (
+                Value::object([(
+                    "leader",
+                    Value::object([("held", Value::Bool(true)), ("refused", Value::Null)]),
+                )]),
+                "neither held nor refused",
+            ),
+            (
+                Value::object([(
+                    "leader",
+                    Value::object([(
+                        "refused",
+                        Value::object([(
+                            "code",
+                            Value::text(nc_catalog::ErrorCode::ValidationArgumentsInvalid.code()),
+                        )]),
+                    )]),
+                )]),
+                "holds no `sentence`",
+            ),
+            (
+                Value::object([(
+                    "leader",
+                    Value::object([("held", Value::Bool(true)), ("why", Value::Null)]),
+                )]),
+                "holds `why`",
+            ),
+        ] {
+            let refused = super::watched_shell(&answered).expect_err("refused");
+            assert!(refused.to_string().contains(said), "{said}: {refused}");
+        }
     }
 
     /// A watch that holds a state moves the mirror to it; one that holds none

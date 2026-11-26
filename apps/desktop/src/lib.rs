@@ -35,6 +35,12 @@
 //!   for each, read strictly as the kernel's closed set of nodes and drawn by
 //!   the design system's components, every text escaped and every control
 //!   found by its node, never by the command it runs.
+//! - **The seats** ([`seat`]): the system's own seat is the engine's, and
+//!   what its pointer is over is said to the daemon as that seat's hover;
+//!   every other seat the state holds is written onto the page as the design
+//!   system's seat attributes, which its sheets style as the native states.
+//!   The window is sized and placed as the state asks, never smaller than its
+//!   least.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -87,6 +93,7 @@ pub mod host;
 pub mod keys;
 pub mod mirror;
 pub mod page;
+pub mod seat;
 pub mod sheet;
 pub mod sidebar;
 pub mod surface;

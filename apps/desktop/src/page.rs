@@ -42,7 +42,11 @@
 //! the prompt's block among it, stays as they left it; the text area's
 //! content is never touched, since it is what the person typed.
 //! `window.noctua.draft` writes a draft into the prompt's text area, unless
-//! it holds it already or an input method is composing in it. What the
+//! it holds it already or an input method is composing in it. It says what
+//! the system's own pointer is over, `window.noctua.seats` writes every other
+//! seat the window names onto the page through the design system's
+//! `seats.js` (`crate::seat`, §12.18), and `window.noctua.witness` says what
+//! the page shows, which the window asks for a test's install alone. What the
 //! window does with each word is [`crate::host`]'s, and what it sends
 //! [`crate::footer::Drawing`]'s.
 //!
@@ -82,9 +86,36 @@ pub const ACTION: &str = "action";
 pub const DRAFT: &str = "draft";
 
 /// The document's own script: what the page says ([`LOADED`], [`SCALE`],
-/// [`ACTION`] and [`DRAFT`], and the keys, the lists and the focus), and
-/// `window.noctua`'s calls, `draw`, `draft`, `keys`, `held` and `focus`,
-/// which bring the page to the state and tell it the keys in force.
+/// [`ACTION`] and [`DRAFT`], and the keys, the lists, the focus and what the
+/// system's own pointer is over), and `window.noctua`'s calls, `draw`,
+/// `draft`, `keys`, `held`, `focus`, `seats` and `witness`, which bring the
+/// page to the state, tell it the keys in force and the seats that are not
+/// the system's own, and ask it what it shows.
+///
+/// **The system's own pointer is said by what it is over**: whenever it
+/// moves onto another element, the target the nearest control or option
+/// around it names — its `data-nd-action` or its `data-nd-value`, a word of
+/// the closed shape `shell.hover` takes — or, where there is none and once it
+/// leaves the page, nothing; a word said once is not said again until it
+/// changes. **Every other seat is written where the window says**
+/// (`crate::seat`): `seats` takes every seat drawn that the window no longer
+/// names off the page, then writes each seat named through the design
+/// system's `seats.js` — its hover and its drag on the element whose
+/// `data-nd-action` or `data-nd-value` is the word named, compared as text,
+/// and its keyboard on the element its selection names inside the part its
+/// keyboard is on, else on that part's own element, the one `focus` gives the
+/// system's own keyboard.
+///
+/// **`witness` answers what the page shows**, asked only for a test's install
+/// (`crate::host`), once every animation running that ends has ended — a
+/// drawer sliding open — or a second has passed: its size in CSS pixels;
+/// whether every element drawn stands
+/// inside the window sideways or inside something that clips it; whether
+/// every control drawn is at least `--noctua-target-min` each way; whether
+/// every seat's attribute changes how the element it is on is drawn, judged
+/// where the system's own seat is not in that state there; which part the
+/// system's own keyboard is in; which parts draw anything; and every seat's
+/// state, by the element it is on.
 ///
 /// **The keys are heard before anything else hears them**, on the window in
 /// its capture phase: the Leader's chord going down, which is said and kept
@@ -133,6 +164,42 @@ pub const SCRIPT: &str = r"(() => {
     else if (target && target.closest('#noctua-drawer')) say('focus drawer');
     else if (target && target.closest('#noctua-sidebar')) say('focus sidebar');
   });
+  const TARGET = /^[A-Za-z0-9._:\/-]{1,64}$/;
+  const targetOf = (element) => {
+    const word = element.getAttribute('data-nd-action') || element.getAttribute('data-nd-value');
+    return word && TARGET.test(word) ? word : null;
+  };
+  let hovered = null;
+  const hover = (target) => {
+    if (target === hovered) return;
+    hovered = target;
+    say(target === null ? 'hover' : 'hover ' + target);
+  };
+  document.addEventListener('pointerover', (event) => {
+    const element = event.target instanceof Element ? event.target.closest('[data-nd-action], [data-nd-value]') : null;
+    hover(element ? targetOf(element) : null);
+  });
+  document.documentElement.addEventListener('pointerleave', () => hover(null));
+  const partOf = (where) => where === 'prompt'
+    ? document.querySelector('footer .nd-prompt-input')
+    : where === 'drawer' || where === 'sidebar'
+      ? document.querySelector('#noctua-' + where + ' [role=listbox][tabindex]')
+        || document.querySelector('#noctua-' + where + ' [role=toolbar] button')
+      : null;
+  const within = (where) => where === 'prompt'
+    ? document.querySelector('footer')
+    : where === 'drawer' || where === 'sidebar' ? document.getElementById('noctua-' + where) : null;
+  const named = (word, inside) => {
+    const root = inside || document.getElementById('noctua');
+    if (word === null || !root) return null;
+    for (const element of root.querySelectorAll('[data-nd-action], [data-nd-value]')) {
+      if (element.getAttribute('data-nd-action') === word || element.getAttribute('data-nd-value') === word) return element;
+    }
+    return null;
+  };
+  const STAMPS = [['hover', 'data-nd-seat-hover'], ['focus', 'data-nd-seat-focus'], ['active', 'data-nd-seat-active'], ['drag', 'data-nd-seat-drag']];
+  const NATIVE = { hover: ':hover', focus: ':focus-within', active: ':active', drag: null };
+  const LOOKS = ['background-color', 'color', 'outline-style', 'outline-color', 'outline-width', 'box-shadow', 'border-top-color', 'border-left-color', 'border-right-color', 'text-decoration-line', 'opacity'];
   let keys = null;
   let held = false;
   let downs = [false, false, false, false];
@@ -230,11 +297,102 @@ pub const SCRIPT: &str = r"(() => {
       else say('leader up');
     },
     focus(where) {
-      const element = where === 'prompt'
-        ? document.querySelector('footer .nd-prompt-input')
-        : document.querySelector('#noctua-' + where + ' [role=listbox][tabindex]')
-          || document.querySelector('#noctua-' + where + ' [role=toolbar] button');
+      const element = partOf(where);
       if (element && document.activeElement !== element) element.focus();
+    },
+    seats(told) {
+      const seat = window.noctua.seat;
+      if (!seat) return;
+      const kept = new Set(told.map((one) => one.seat));
+      for (const [, name] of STAMPS) {
+        for (const element of document.querySelectorAll('[' + name + ']')) {
+          for (const id of element.getAttribute(name).split(' ')) if (id && !kept.has(id)) seat.clear(id);
+        }
+      }
+      for (const one of told) {
+        seat.hover(one.seat, named(one.hover));
+        seat.focus(one.seat, named(one.selection, within(one.part)) || partOf(one.part));
+        seat.drag(one.seat, named(one.drag));
+      }
+    },
+    witness() {
+      const root = document.getElementById('noctua');
+      if (!root) return;
+      root.getBoundingClientRect();
+      const ending = document.getAnimations()
+        .filter((one) => one.effect && Number.isFinite(one.effect.getComputedTiming().endTime))
+        .map((one) => one.finished.catch(() => null));
+      Promise.race([Promise.all(ending), new Promise((done) => setTimeout(done, 1000))])
+        .then(() => window.noctua.witnessed(root));
+    },
+    witnessed(root) {
+      const bit = (held) => (held ? '1' : '0');
+      const rendered = (element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0
+          && !element.closest('[hidden], [inert], [aria-hidden=true]')
+          && getComputedStyle(element).visibility !== 'hidden';
+      };
+      const clipped = (element) => {
+        for (let at = element.parentElement; at && at !== root.parentElement; at = at.parentElement) {
+          if (getComputedStyle(at).overflowX !== 'visible') return true;
+        }
+        return false;
+      };
+      const width = window.innerWidth;
+      let fits = true;
+      for (const element of [root, ...root.querySelectorAll('*')]) {
+        if (!rendered(element)) continue;
+        const box = element.getBoundingClientRect();
+        if ((box.left < -0.5 || box.right > width + 0.5) && !clipped(element)) fits = false;
+      }
+      const least = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--noctua-target-min'));
+      let reachable = least > 0;
+      for (const control of root.querySelectorAll('button, textarea, input, select, a[href], [role=option], [role=tab], [role=button]')) {
+        if (!rendered(control)) continue;
+        const box = control.getBoundingClientRect();
+        if (box.width < least - 0.5 || box.height < least - 0.5) reachable = false;
+      }
+      const regionOf = (element) => element.matches('.nd-prompt-input') ? 'prompt'
+        : element.closest('#noctua-drawer') ? 'drawer'
+          : element.closest('#noctua-sidebar') ? 'sidebar' : 'elsewhere';
+      const active = document.activeElement;
+      const keyboard = !active || active === document.body || active === document.documentElement ? '-' : regionOf(active);
+      const holds = (part) => part !== null && Array.from(part.querySelectorAll('*')).some(rendered);
+      const shows = [['footer', document.querySelector('footer')], ['drawer', document.getElementById('noctua-drawer')],
+        ['sidebar', document.getElementById('noctua-sidebar')], ['workspace', document.getElementById('noctua-workspace')]]
+        .filter(([, part]) => holds(part)).map(([word]) => word);
+      const look = (element) => [element, element.nextElementSibling, element.parentElement].map((one) => {
+        if (!one) return '';
+        const style = getComputedStyle(one);
+        return LOOKS.map((name) => style.getPropertyValue(name)).join('|');
+      }).join('/');
+      const seen = [];
+      let styled = true;
+      for (const [state, name] of STAMPS) {
+        for (const element of root.querySelectorAll('[' + name + ']')) {
+          for (const id of element.getAttribute(name).split(' ').filter(Boolean)) {
+            const deeper = Array.from(element.querySelectorAll('[' + name + ']'))
+              .some((inner) => inner.getAttribute(name).split(' ').includes(id));
+            if (deeper) continue;
+            seen.push(id + ':' + state + ':' + (targetOf(element) || regionOf(element)));
+            if (NATIVE[state] === null || element.matches(NATIVE[state])) continue;
+            const value = element.getAttribute(name);
+            const still = [element, element.nextElementSibling, element.parentElement].filter(Boolean);
+            const moving = still.map((one) => one.style.transition);
+            for (const one of still) one.style.transition = 'none';
+            const stamped = look(element);
+            element.removeAttribute(name);
+            const bare = look(element);
+            element.setAttribute(name, value);
+            look(element);
+            still.forEach((one, at) => { one.style.transition = moving[at]; });
+            if (stamped === bare) styled = false;
+          }
+        }
+      }
+      say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(reachable), bit(styled), keyboard,
+        shows.length ? shows.join(',') : '-', ...seen].join(' '));
     },
   };
 })();";
@@ -244,9 +402,12 @@ pub const SCRIPT: &str = r"(() => {
 /// cursor, a list's walk, a drawer's `inert` and its focus given back when it
 /// shuts around it, a strip's roles and its arrows, and a toolbar's one tab
 /// stop — and hands `window.noctua` the same calls for a part a draw put in
-/// the page, and the call that takes a list's and a strip's behaviour back
-/// before a draw changes them. A drawer's is never taken back, so where the
-/// focus came into it from is still known when a draw collapses it.
+/// the page, the call that takes a list's and a strip's behaviour back
+/// before a draw changes them, and the design system's four calls that write
+/// a seat's hover, focus and drag and take a seat off the page (`seats.js`).
+///
+/// A drawer's behaviour is never taken back, so where the focus came into it
+/// from is still known when a draw collapses it.
 pub const ENHANCES: &str = r#"
 import { enhancePrompts } from "./dist/prompt.js";
 enhancePrompts();
@@ -255,8 +416,10 @@ enhanceOptionLists();
 import { enhanceDrawers } from "./dist/drawer.js";
 import { enhanceTabs, releaseTabs } from "./dist/tabs.js";
 import { enhanceRoving } from "./dist/roving.js";
+import { seatHover, seatFocus, seatDrag, clearSeat } from "./dist/seats.js";
 window.noctua.enhance = (root) => { enhancePrompts(root); enhanceOptionLists(root); enhanceDrawers(root); enhanceTabs(root); enhanceRoving(root); };
-window.noctua.release = (root) => { releaseOptionLists(root); releaseTabs(root); };"#;
+window.noctua.release = (root) => { releaseOptionLists(root); releaseTabs(root); };
+window.noctua.seat = { hover: seatHover, focus: seatFocus, drag: seatDrag, clear: clearSeat };"#;
 
 /// The document, in `locale` and `theme`, its footer `footer`, as the
 /// webview is handed it.
@@ -434,7 +597,8 @@ pub(crate) mod tests {
                     "./dist/option-list.js",
                     "./dist/drawer.js",
                     "./dist/tabs.js",
-                    "./dist/roving.js"
+                    "./dist/roving.js",
+                    "./dist/seats.js"
                 ],
                 "{written}"
             );
@@ -525,6 +689,14 @@ pub(crate) mod tests {
             "say('choose pages ' + tab.getAttribute('data-nd-value'));".to_owned(),
             "window.addEventListener('keydown', (event) => {".to_owned(),
             "  }, true);\n  window.addEventListener('keyup'".to_owned(),
+            "say(target === null ? 'hover' : 'hover ' + target);".to_owned(),
+            "document.addEventListener('pointerover', (event) => {".to_owned(),
+            "document.documentElement.addEventListener('pointerleave', () => hover(null));"
+                .to_owned(),
+            "if (target === hovered) return;".to_owned(),
+            "say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(reachable), \
+             bit(styled), keyboard,"
+                .to_owned(),
         ] {
             assert!(SCRIPT.contains(&said), "{said} is not in {SCRIPT}");
         }
@@ -547,6 +719,9 @@ pub(crate) mod tests {
             ("tabs.js", "export function enhanceTabs("),
             ("tabs.js", "export function releaseTabs("),
             ("roving.js", "export function enhanceRoving("),
+            ("option-list.js", "export function enhanceOptionLists("),
+            ("option-list.js", "export function releaseOptionLists("),
+            ("prompt.js", "export function enhancePrompts("),
         ] {
             assert!(
                 noctua_design_dist::FILES
@@ -555,20 +730,47 @@ pub(crate) mod tests {
                 "the design system ships {exported} in {shipped}, which the module imports"
             );
         }
+    }
+
+    /// The script writes every seat the window names through the design
+    /// system's `seats.js`, which the module imports and hands it — a seat's
+    /// hover and drag on the element whose action or value is the word
+    /// named, its keyboard on what its selection names inside its part, or
+    /// on that part's own element — and takes every other seat off the page.
+    #[test]
+    fn the_script_writes_the_seats_the_window_names() {
+        for written in [
+            "seat.hover(one.seat, named(one.hover));",
+            "seat.focus(one.seat, named(one.selection, within(one.part)) || partOf(one.part));",
+            "seat.drag(one.seat, named(one.drag));",
+            "if (id && !kept.has(id)) seat.clear(id);",
+            "if (element.getAttribute('data-nd-action') === word || \
+             element.getAttribute('data-nd-value') === word) return element;",
+            "const element = partOf(where);",
+        ] {
+            assert!(SCRIPT.contains(written), "{written} is not in {SCRIPT}");
+        }
         assert!(
-            noctua_design_dist::FILES
-                .iter()
-                .any(|(name, contents)| *name == "option-list.js"
-                    && contents.contains("export function enhanceOptionLists(")
-                    && contents.contains("export function releaseOptionLists(")),
-            "the design system ships the list script the module imports"
+            ENHANCES.contains(
+                "import { seatHover, seatFocus, seatDrag, clearSeat } from \"./dist/seats.js\";"
+            ) && ENHANCES.contains(
+                "window.noctua.seat = { hover: seatHover, focus: seatFocus, drag: seatDrag, \
+                 clear: clearSeat };"
+            ),
+            "{ENHANCES}"
         );
-        assert!(
-            noctua_design_dist::FILES
-                .iter()
-                .any(|(name, contents)| *name == "prompt.js"
-                    && contents.contains("export function enhancePrompts(")),
-            "the design system ships the script the module imports"
-        );
+        for exported in [
+            "export function seatHover(",
+            "export function seatFocus(",
+            "export function seatDrag(",
+            "export function clearSeat(",
+        ] {
+            assert!(
+                noctua_design_dist::FILES
+                    .iter()
+                    .any(|(name, contents)| *name == "seats.js" && contents.contains(exported)),
+                "the design system ships {exported} in seats.js, which the module imports"
+            );
+        }
     }
 }
