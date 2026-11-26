@@ -9,8 +9,9 @@
 //! a window opened in the light and one in the dark, each hidden and
 //! undecorated, kept hidden though asked to show until its document loaded,
 //! its first frame painting the background its settled page paints — the
-//! dark one the design system's dark surface, the two differing — and its
-//! page the least size when asked for less, each closed — and answers exit
+//! dark one the design system's dark surface, the two differing — its page
+//! the least size when asked for less, and its footer and its drawer doing
+//! what they are for, each closed — and answers exit
 //! code 0 when all of it held and 1 when any did not, saying which; it needs
 //! no install and no daemon. Any other invocation is exit code 2; a refusal
 //! of the install or of the window is exit code 1, with its sentence.
@@ -177,6 +178,20 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
             footer.written,
             "a draft written into the prompt did not reach it",
         ),
+        (
+            footer.rails,
+            "the design system's scripts did not take the drawer and its tabs rail",
+        ),
+        (
+            footer.capped,
+            "the drawer, holding more than fits, did not stand below the footer inside the \
+             window with its content scrolling",
+        ),
+        (footer.tabbed, "pressing a tab said no page"),
+        (
+            footer.collapsed,
+            "pressing the drawer's collapse said no command",
+        ),
     ] {
         if !held {
             wrong.push(format!("in the {mode}, {what}"));
@@ -188,10 +203,13 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
 /// opened hidden and undecorated, stayed hidden until its document loaded,
 /// painted at its first frame what its settled page paints — the dark one
 /// the design system's dark surface, the light one another colour — kept its
-/// page the least size when asked for less, and its footer did what it is
-/// for when exercised: its prompt enhanced by the design system's script,
-/// typing and a control said, the footer drawn again keeping its focus, and
-/// a draft written; 1 naming each that did not, or why no window was opened.
+/// page the least size when asked for less, and its footer and its drawer did
+/// what they are for when exercised: its prompt enhanced by the design
+/// system's script, typing and a control said, the footer drawn again keeping
+/// its focus, a draft written, the drawer drawn and taken by the design
+/// system's scripts, standing below the footer inside the window with its
+/// content scrolling, and a tab and a rail's control said; 1 naming each that
+/// did not, or why no window was opened.
 fn probed(probe: Result<Probed, Unopened>) -> (u8, String) {
     let probed = match probe {
         Ok(probed) => probed,
@@ -223,8 +241,8 @@ fn probed(probe: Result<Probed, Unopened>) -> (u8, String) {
             "noctua-desktop: a window opened in the light and one in the dark, each hidden and \
              undecorated and kept hidden until its document loaded, each first frame painting \
              what its settled page paints and the dark one the dark surface, each page the \
-             least size when asked for less, each footer doing what it is for, and each \
-             window was closed"
+             least size when asked for less, each footer and drawer doing what they are for, \
+             and each window was closed"
                 .to_owned(),
         )
     } else {
@@ -364,6 +382,10 @@ mod tests {
                 acted: true,
                 kept: true,
                 written: true,
+                rails: true,
+                capped: true,
+                tabbed: true,
+                collapsed: true,
             }),
         }
     }
@@ -390,7 +412,10 @@ mod tests {
         let passing = passing();
         let (code, line) = super::probed(Ok(passing));
         assert_eq!(code, 0, "{line}");
-        assert!(line.contains("each footer doing what it is for"), "{line}");
+        assert!(
+            line.contains("each footer and drawer doing what they are for"),
+            "{line}"
+        );
         assert!(line.contains("each window was closed"), "{line}");
         let changed = |mode: &str, change: &dyn Fn(&mut Seen)| {
             let mut probed = passing;
@@ -447,8 +472,8 @@ mod tests {
     }
 
     /// A probe is exit code 1, naming what did not hold, when the footer of
-    /// either window was not exercised, or when any part of its exercise
-    /// did not do what it is for.
+    /// either window was not exercised, or when any part of its exercise —
+    /// the footer's or the drawer's — did not do what it is for.
     #[test]
     fn a_probe_passes_only_when_each_footer_did_what_it_is_for() {
         let passing = passing();
@@ -460,6 +485,10 @@ mod tests {
                 (Some(2), "said no action"),
                 (Some(3), "drawn again"),
                 (Some(4), "did not reach it"),
+                (Some(5), "did not take the drawer"),
+                (Some(6), "content scrolling"),
+                (Some(7), "said no page"),
+                (Some(8), "collapse said no command"),
             ] {
                 let mut probed = passing;
                 let seen = if mode == "light" {
@@ -477,6 +506,10 @@ mod tests {
                             &mut footer.acted,
                             &mut footer.kept,
                             &mut footer.written,
+                            &mut footer.rails,
+                            &mut footer.capped,
+                            &mut footer.tabbed,
+                            &mut footer.collapsed,
                         ]
                         .into_iter()
                         .nth(part)

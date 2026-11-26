@@ -1,12 +1,15 @@
-//! What the drawer shows of the lists the keys open (`NOCTUA.md §12.9`,
-//! §12.11): the leader menu, the command list and a chosen command's
-//! parameters, and the `/` and `w` lists — each the design system's
-//! `OptionList`, its rows `OptionItem`s and a row's matched characters
-//! `MatchText`, in a `Drawer` below the footer.
+//! The drawer (`NOCTUA.md §12.11`): the region below the footer, the design
+//! system's `Drawer`, with a controls rail down its left side, the page in
+//! focus in it, and a tabs rail down its right side while several pages are
+//! open in it — and what it shows of the lists the keys open (§12.9): the
+//! leader menu, the command list and a chosen command's parameters, and the
+//! `/` and `w` lists, each the design system's `OptionList`, its rows
+//! `OptionItem`s and a row's matched characters `MatchText`.
 //!
 //! **What it shows is a function of the state** ([`view`]), as the footer's
-//! is: the drawer's pages and the one in focus, what the prompt asks for and
-//! holds, and a seat's keyboard selection, with the keys in force and the
+//! is: the drawer's pages and the one in focus, whether it is collapsed, where
+//! the next page opened from the leader menu goes, what the prompt asks for
+//! and holds, and a seat's keyboard selection, with the keys in force and the
 //! registry's commands — so one state draws one drawer in every window.
 //!
 //! | The state shows | The drawer lists | A row runs |
@@ -17,24 +20,60 @@
 //! | the `w` list in focus | the window's own actions | the action, or its parameters asked for |
 //! | the `/` list in focus | the focused page's shortcuts: none, until pages declare them | — |
 //!
-//! **Not drawn yet**, and why: the drawer's rails, its tabs and what any
-//! other page shows in it, which arrive with the drawer and the pages; a word
-//! naming each list and the drawer in each locale, which arrives with the
-//! interface's own texts — a list is named by the display name of the command
-//! that opens it, and the drawer by the product's name; and the sentence an
-//! empty list says, for the same reason.
+//! **The rails are the design system's** (`DrawerRail`), each as wide as the
+//! footer's corners. The controls rail is a `Toolbar` in its rail density,
+//! drawn whenever the drawer is: collapse and close, two to a row, then the
+//! controls of the page in focus — the leader menu's direction control, which
+//! shows where the next page opened from the menu goes, a Leader tap's flip
+//! included. The tabs rail is a `Tabs` in its rail appearance, one tab for
+//! each page open in the drawer, in the order they were opened, the page in
+//! focus chosen, and no rail with one page open.
+//!
+//! **Every control and every tab runs a command, dispatched as the person**
+//! ([`Control`], [`tab`]): collapse is `drawer.collapse`; close is
+//! `page.close` in the drawer — the page in focus when the kernel runs it —
+//! or `prompt.clear` while the prompt's list is what the drawer shows, which
+//! closes that list as Esc does; the direction control is `drawer.toward`,
+//! naming the other place than the one it shows; and a tab is `page.focus`
+//! on the page it names, in the drawer. The window gives each its arguments
+//! from the state it holds and from nothing the page says but which control
+//! or which tab, so the CLI does all of it.
+//!
+//! **Decided here, where `NOCTUA.md` is silent**: a page in a tab is named by
+//! the display name of the command that opens its kind, and its topic after
+//! it, with a glyph for its kind, until pages declare their titles; the
+//! controls rail and the drawer are named by the product's name, a tabs rail
+//! by `page.focus`'s display name, a list by the display name of the command
+//! that opens it, until the interface's own texts exist in both locales.
+//!
+//! **Not drawn yet**, and why: what a page other than a list shows in the
+//! drawer, which arrives with the pages; the sentence an empty list says,
+//! which arrives with the interface's own texts; and the share of the height
+//! the state holds for the drawer (`drawer.resize`), since the design
+//! system's `Drawer` takes none — it is as tall as what it holds, up to its
+//! token, `--noctua-shell-drawer-max` of the window, which the document
+//! measures it against by putting it straight in the window's column.
 
 use dioxus::prelude::*;
+use nc_canon::Value;
 use nc_catalog::Locale;
-use noctua_design::{Drawer, DrawerSide, OptionItem, OptionList, OptionListLayout};
+use noctua_design::{
+    Button, ButtonSize, ButtonTone, ButtonVariant, Drawer, DrawerRail, DrawerRailSide, DrawerSide,
+    IconDrawing, OptionItem, OptionList, OptionListLayout, Tab, Tabs, TabsAppearance, Toolbar,
+    ToolbarDensity, ToolbarGroup,
+};
 
 use crate::commands::{Commands, offered};
 use crate::footer::title_of;
 use crate::keys::Keymap;
-use crate::mirror::{Asking, Kind, Shell};
+use crate::mirror::{Asking, Kind, Page, Place, Shell};
 
 /// The drawer's id in the document, which a draw brings it by.
 pub const ID: &str = "noctua-drawer";
+
+/// The name of the tabs rail's strip, which its tabs repeat and the page says
+/// a tab chosen by.
+pub const TABS: &str = "pages";
 
 /// The window's own actions, which the `w` list holds (§12.2, §12.9).
 pub const ACTIONS: [&str; 4] = [
@@ -44,7 +83,8 @@ pub const ACTIONS: [&str; 4] = [
     "window.resize",
 ];
 
-/// A list the drawer shows.
+/// A list the page says a choice in: the drawer's lists, its tabs rail and
+/// the sidebar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum List {
     /// The leader menu.
@@ -55,11 +95,22 @@ pub enum List {
     Actions,
     /// The `/` list.
     Shortcuts,
+    /// The drawer's tabs rail, a tab for each page open in it.
+    Tabs,
+    /// The sidebar (§12.14).
+    Sidebar,
 }
 
 impl List {
     /// Every one.
-    pub const ALL: [Self; 4] = [Self::Menu, Self::Commands, Self::Actions, Self::Shortcuts];
+    pub const ALL: [Self; 6] = [
+        Self::Menu,
+        Self::Commands,
+        Self::Actions,
+        Self::Shortcuts,
+        Self::Tabs,
+        Self::Sidebar,
+    ];
 
     /// Its name, which the page's events carry and the list's id is.
     #[must_use]
@@ -69,6 +120,8 @@ impl List {
             Self::Commands => "commands",
             Self::Actions => "actions",
             Self::Shortcuts => "shortcuts",
+            Self::Tabs => TABS,
+            Self::Sidebar => "sidebar",
         }
     }
 
@@ -80,13 +133,169 @@ impl List {
 
     /// The command whose display name names it, until the interface's own
     /// texts exist.
-    const fn named_by(self) -> &'static str {
+    #[must_use]
+    pub const fn named_by(self) -> &'static str {
         match self {
             Self::Menu => "leader.tap",
             Self::Commands => "kernel.find",
             Self::Actions => "page.actions",
             Self::Shortcuts => "page.shortcuts",
+            Self::Tabs => "page.focus",
+            Self::Sidebar => "sidebar.show",
         }
+    }
+}
+
+/// The command whose display name names a page of `kind`: the one that opens
+/// that kind, until pages declare their titles.
+const fn opened_by(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Home | Kind::Surface => "page.open",
+        Kind::Settings => "page.settings",
+        Kind::Help => "page.help",
+        Kind::Dev => "page.dev",
+        Kind::Leader => List::Menu.named_by(),
+        Kind::Commands => List::Commands.named_by(),
+        Kind::Shortcuts => List::Shortcuts.named_by(),
+        Kind::Actions => List::Actions.named_by(),
+    }
+}
+
+/// The glyph a page of `kind` is drawn with in a rail or a list.
+#[must_use]
+pub const fn glyph_of(kind: Kind) -> IconDrawing {
+    match kind {
+        Kind::Home => IconDrawing::HOUSE,
+        Kind::Settings => IconDrawing::SETTINGS,
+        Kind::Help => IconDrawing::CIRCLE_QUESTION_MARK,
+        Kind::Dev => IconDrawing::CODE,
+        Kind::Surface => IconDrawing::APP_WINDOW,
+        Kind::Leader => IconDrawing::KEYBOARD,
+        Kind::Commands => IconDrawing::SQUARE_TERMINAL,
+        Kind::Shortcuts => IconDrawing::SQUARE_SLASH,
+        Kind::Actions => IconDrawing::PANELS_TOP_LEFT,
+    }
+}
+
+/// What `page` is called in `locale`: the display name of the command that
+/// opens its kind, and its topic after it where it has one.
+#[must_use]
+pub fn page_title(page: &Page, locale: Locale) -> String {
+    let title = title_of(opened_by(page.kind), locale);
+    match &page.topic {
+        Some(topic) => format!("{title} {topic}"),
+        None => title,
+    }
+}
+
+/// The page `value` names, as a tab or an entry carries one: its identifier,
+/// written in ASCII digits alone; nothing for any other value.
+#[must_use]
+pub fn identifier(value: &str) -> Option<u64> {
+    (!value.is_empty() && value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| value.parse().ok())
+        .flatten()
+        .filter(|id| *id >= 1)
+}
+
+/// `page.focus` on `page` in `place`, in `window` where one is named: what
+/// choosing a page from a rail or a list runs.
+#[must_use]
+pub fn focused(page: u64, place: Place, window: Option<u64>) -> (String, Value) {
+    let page = Value::Integer(i64::try_from(page).unwrap_or(i64::MAX));
+    let place = Value::text(match place {
+        Place::Workspace => "workspace",
+        Place::Drawer => "drawer",
+    });
+    let arguments = match window {
+        Some(window) => Value::object([
+            ("page", page),
+            ("in", place),
+            (
+                "window",
+                Value::Integer(i64::try_from(window).unwrap_or(i64::MAX)),
+            ),
+        ]),
+        None => Value::object([("page", page), ("in", place)]),
+    };
+    ("page.focus".to_owned(), arguments)
+}
+
+/// The page of the drawer the tab `value` names: one open in it, and nothing
+/// for any other value, which the window runs nothing for.
+#[must_use]
+pub fn tab(shell: &Shell, value: &str) -> Option<u64> {
+    identifier(value).filter(|page| shell.drawer.pages.contains(page))
+}
+
+/// Where the next page opened from the leader menu goes: the drawer's
+/// direction, or the other place once a Leader tap flipped it (§12.8).
+#[must_use]
+pub const fn next_target(drawer: &crate::mirror::Drawer) -> Place {
+    match (drawer.toward, drawer.flipped) {
+        (Place::Workspace, true) | (Place::Drawer, false) => Place::Drawer,
+        (Place::Drawer, true) | (Place::Workspace, false) => Place::Workspace,
+    }
+}
+
+/// A control of the drawer's controls rail (§12.11): a closed set, each found
+/// by the name of the command it runs, which the page says back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Control {
+    /// Collapse: hide the whole drawer, keeping what is open in it.
+    Collapse,
+    /// Close: close the drawer page that has focus.
+    Close,
+    /// The leader menu's direction control (§12.9).
+    Toward,
+}
+
+impl Control {
+    /// Every one.
+    pub const ALL: [Self; 3] = [Self::Collapse, Self::Close, Self::Toward];
+
+    /// The word its control is found by: the name of the command it runs,
+    /// whose display name names it.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Collapse => "drawer.collapse",
+            Self::Close => "page.close",
+            Self::Toward => "drawer.toward",
+        }
+    }
+
+    /// The control whose word is `word`; none for any other word.
+    #[must_use]
+    pub fn of(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|control| control.word() == word)
+    }
+
+    /// The command it runs over `shell`, and its arguments: collapse
+    /// `drawer.collapse`; close `prompt.clear` while the prompt asks for
+    /// something, whose list is then what the drawer shows, and otherwise
+    /// `page.close` in the drawer, which closes the page in focus there when
+    /// it runs; the direction `drawer.toward`, naming the other place than
+    /// the one the next page goes to.
+    #[must_use]
+    pub fn run(self, shell: &Shell) -> (String, Value) {
+        let none = || Value::object(Vec::<(&str, Value)>::new());
+        let (command, arguments) = match self {
+            Self::Collapse => ("drawer.collapse", none()),
+            Self::Close if shell.asking.is_some() => ("prompt.clear", none()),
+            Self::Close => ("page.close", Value::object([("in", Value::text("drawer"))])),
+            Self::Toward => (
+                "drawer.toward",
+                Value::object([(
+                    "region",
+                    Value::text(match next_target(&shell.drawer) {
+                        Place::Workspace => "drawer",
+                        Place::Drawer => "workspace",
+                    }),
+                )]),
+            ),
+        };
+        (command.to_owned(), arguments)
     }
 }
 
@@ -107,6 +316,41 @@ pub struct Row {
     pub active: bool,
 }
 
+/// The leader menu's direction control: where the next page opened from the
+/// menu goes, and its name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Toward {
+    /// Whether it goes to the drawer, which the control shows pressed.
+    pub drawer: bool,
+    /// `drawer.toward`'s display name.
+    pub label: String,
+}
+
+/// The controls rail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rail {
+    /// `drawer.collapse`'s display name, collapse's.
+    pub collapse: String,
+    /// `page.close`'s display name, close's.
+    pub close: String,
+    /// The controls of the page in focus: the direction control, while the
+    /// leader menu is what the drawer shows.
+    pub toward: Option<Toward>,
+}
+
+/// One tab of the tabs rail: a page open in the drawer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTab {
+    /// The page's identifier, the tab's value.
+    pub page: u64,
+    /// What the page is called.
+    pub label: String,
+    /// Its kind's glyph.
+    pub glyph: IconDrawing,
+    /// Whether it is the page in focus in the drawer.
+    pub selected: bool,
+}
+
 /// What the drawer shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct View {
@@ -117,6 +361,11 @@ pub struct View {
     pub collapsed: bool,
     /// The list it shows, its name, and its rows.
     pub list: Option<(List, String, Vec<Row>)>,
+    /// The controls rail, whenever the drawer is there.
+    pub rail: Option<Rail>,
+    /// The tabs rail, its name and its tabs, while two pages or more are open
+    /// in the drawer.
+    pub tabs: Option<(String, Vec<PageTab>)>,
 }
 
 impl View {
@@ -127,6 +376,8 @@ impl View {
             shown: false,
             collapsed: false,
             list: None,
+            rail: None,
+            tabs: None,
         }
     }
 
@@ -276,10 +527,33 @@ pub fn view(
     if let Some(row) = at.and_then(|at| rows.get_mut(at)) {
         row.active = true;
     }
+    let shown = !shell.drawer.pages.is_empty() || shell.asking.is_some();
+    let rail = shown.then(|| Rail {
+        collapse: title_of(Control::Collapse.word(), locale),
+        close: title_of(Control::Close.word(), locale),
+        toward: (list == Some(List::Menu)).then(|| Toward {
+            drawer: next_target(&shell.drawer) == Place::Drawer,
+            label: title_of(Control::Toward.word(), locale),
+        }),
+    });
+    let tabs: Vec<PageTab> = shell
+        .drawer
+        .pages
+        .iter()
+        .filter_map(|id| shell.pages.get(id))
+        .map(|page| PageTab {
+            page: page.id,
+            label: page_title(page, locale),
+            glyph: glyph_of(page.kind),
+            selected: shell.drawer.focused == Some(page.id),
+        })
+        .collect();
     View {
-        shown: !shell.drawer.pages.is_empty() || shell.asking.is_some(),
+        shown,
         collapsed: shell.drawer.collapsed && shell.asking.is_none(),
         list: list.map(|list| (list, title_of(list.named_by(), locale), rows)),
+        rail,
+        tabs: (tabs.len() > 1).then(|| (title_of(List::Tabs.named_by(), locale), tabs)),
     }
 }
 
@@ -291,35 +565,113 @@ pub fn markup(view: &View) -> String {
     })
 }
 
-/// The drawer, below the footer: a region holding the list it shows, or
-/// nothing while nothing is open in it.
+/// The drawer, below the footer: a region holding its controls rail, the
+/// list it shows and its tabs rail, or nothing while nothing is open in it.
+///
+/// **Its region is no box of its own** (`contents`), so the design system's
+/// `Drawer` stands in the window's column and its cap, a share of the box
+/// around it, is a share of the window's height.
 #[component]
 pub fn TheDrawer(view: View) -> Element {
     let View {
         shown,
         collapsed,
         list,
+        rail,
+        tabs,
     } = view;
     rsx! {
-        div { id: ID,
+        div { id: ID, class: "contents",
             if shown {
                 Drawer { name: ID, label: crate::footer::NAME, side: DrawerSide::Bottom, collapsed,
-                    if let Some((list, label, rows)) = list {
-                        OptionList {
-                            name: list.name(),
-                            label,
-                            layout: if list == List::Menu { OptionListLayout::Columns } else { OptionListLayout::Rows },
-                            focusable: list != List::Commands,
-                            for row in rows {
-                                OptionItem {
-                                    value: row.value,
-                                    label: row.label,
-                                    hits: row.hits,
-                                    detail: row.detail,
-                                    shortcut: row.shortcut,
-                                    active: row.active,
+                    if let Some(rail) = rail {
+                        ControlsRail { rail }
+                    }
+                    div {
+                        if let Some((list, label, rows)) = list {
+                            OptionList {
+                                name: list.name(),
+                                label,
+                                layout: if list == List::Menu { OptionListLayout::Columns } else { OptionListLayout::Rows },
+                                focusable: list != List::Commands,
+                                for row in rows {
+                                    OptionItem {
+                                        value: row.value,
+                                        label: row.label,
+                                        hits: row.hits,
+                                        detail: row.detail,
+                                        shortcut: row.shortcut,
+                                        active: row.active,
+                                    }
                                 }
                             }
+                        }
+                    }
+                    if let Some((label, tabs)) = tabs {
+                        DrawerRail { side: DrawerRailSide::End,
+                            Tabs { name: TABS, label, appearance: TabsAppearance::Rail,
+                                for tab in tabs {
+                                    Tab {
+                                        name: TABS,
+                                        value: tab.page.to_string(),
+                                        label: tab.label,
+                                        icon: tab.glyph,
+                                        selected: tab.selected,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The controls rail, down the drawer's left side: collapse and close, two to
+/// a row, then the controls of the page in focus.
+#[component]
+fn ControlsRail(rail: Rail) -> Element {
+    let Rail {
+        collapse,
+        close,
+        toward,
+    } = rail;
+    rsx! {
+        DrawerRail { side: DrawerRailSide::Start,
+            Toolbar { label: crate::footer::NAME, density: ToolbarDensity::Rail,
+                ToolbarGroup {
+                    Button {
+                        variant: ButtonVariant::Transparent,
+                        tone: ButtonTone::Neutral,
+                        size: ButtonSize::Small,
+                        hide_label: true,
+                        icon: IconDrawing::PANEL_BOTTOM_CLOSE,
+                        label: collapse,
+                        action: Control::Collapse.word(),
+                    }
+                    Button {
+                        variant: ButtonVariant::Transparent,
+                        tone: ButtonTone::Neutral,
+                        size: ButtonSize::Small,
+                        hide_label: true,
+                        icon: IconDrawing::SQUARE_X,
+                        label: close,
+                        action: Control::Close.word(),
+                    }
+                }
+                if let Some(toward) = toward {
+                    ToolbarGroup {
+                        Button {
+                            variant: ButtonVariant::Transparent,
+                            tone: ButtonTone::Neutral,
+                            size: ButtonSize::Small,
+                            hide_label: true,
+                            icon: IconDrawing::ARROW_UP_TO_LINE,
+                            icon_alt: IconDrawing::ARROW_DOWN_TO_LINE,
+                            pressed: toward.drawer,
+                            label: toward.label,
+                            action: Control::Toward.word(),
                         }
                     }
                 }
@@ -335,7 +687,12 @@ pub(crate) mod tests {
     use nc_catalog::Locale;
     use nc_schema::keys::{Binding, Chord, Leader, LeaderPart, Modifier};
 
-    use super::{ACTIONS, List, markup, view};
+    use nc_canon::Value;
+
+    use super::{
+        ACTIONS, Control, List, PageTab, TABS, focused, glyph_of, identifier, markup, next_target,
+        page_title, tab, view,
+    };
     use crate::commands::Commands;
     use crate::footer::title_of;
     use crate::keys::Keymap;
@@ -630,5 +987,306 @@ pub(crate) mod tests {
             assert_eq!(List::of(list.name()), Some(list));
         }
         assert_eq!(List::of("menu"), None);
+    }
+
+    // -- the rails ------------------------------------------------------------
+
+    /// A state whose drawer holds a page of each of `kinds`, numbered from 3
+    /// in that order, the last in focus.
+    fn holding(kinds: &[(Kind, Option<&str>)]) -> Shell {
+        let mut shell = with(Kind::Home);
+        shell.pages.clear();
+        shell.drawer.pages.clear();
+        for (id, (kind, topic)) in (3_u64..).zip(kinds) {
+            shell.pages.insert(
+                id,
+                Page {
+                    id,
+                    kind: *kind,
+                    topic: topic.map(str::to_owned),
+                    trail: Vec::new(),
+                    scroll: 0,
+                },
+            );
+            shell.drawer.pages.push(id);
+            shell.drawer.focused = Some(id);
+        }
+        shell
+    }
+
+    /// What the drawer shows of `shell` in `locale`, with nothing typed.
+    fn of(shell: &Shell, locale: Locale) -> super::View {
+        view(
+            Some(shell),
+            "",
+            None,
+            (&keymap(), &Commands::from_catalog()),
+            locale,
+        )
+    }
+
+    /// Whenever something is open in the drawer, a controls rail runs down
+    /// its left side holding collapse and close, two to a row — one group of
+    /// two controls, each a glyph named by its command's display name in the
+    /// window's locale — and the drawer's region is no box of its own, so the
+    /// design system's cap is a share of the window's height. With nothing
+    /// open there is no rail.
+    #[test]
+    pub(crate) fn a_controls_rail_holds_collapse_and_close_whenever_something_is_open() {
+        for locale in Locale::ALL {
+            for kind in [Kind::Settings, Kind::Actions, Kind::Leader, Kind::Commands] {
+                let shown = of(&holding(&[(kind, None)]), *locale);
+                let rail = shown.rail.clone().expect("a controls rail");
+                assert_eq!(rail.collapse, title_of("drawer.collapse", *locale));
+                assert_eq!(rail.close, title_of("page.close", *locale));
+                let written = markup(&shown);
+                assert!(
+                    written.starts_with("<div id=\"noctua-drawer\" class=\"contents\">"),
+                    "{written}"
+                );
+                let start = written
+                    .find("class=\"nd-drawer-rail\" data-nd-side=\"start\"")
+                    .expect("a rail at the start");
+                let toolbar = &written[start..];
+                assert!(
+                    toolbar.contains("role=\"toolbar\"")
+                        && toolbar.contains("data-nd-density=\"rail\""),
+                    "{written}"
+                );
+                // One group of the rail's density is one row of two: the
+                // first group holds the two controls, and the page's own
+                // follow in a group of their own.
+                let (first, rest) = toolbar
+                    .split_once("role=\"group\"")
+                    .map(|(_, after)| after.split_once("role=\"group\"").unwrap_or((after, "")))
+                    .expect("a group of controls");
+                assert_eq!(
+                    first.matches("<button").count(),
+                    2,
+                    "collapse and close share one row: {written}"
+                );
+                assert!(
+                    matches!(
+                        (
+                            first.find("data-nd-action=\"drawer.collapse\""),
+                            first.find("data-nd-action=\"page.close\"")
+                        ),
+                        (Some(collapse), Some(close)) if collapse < close
+                    ),
+                    "collapse, then close: {written}"
+                );
+                assert_eq!(
+                    rest.is_empty(),
+                    kind != Kind::Leader,
+                    "only the leader menu has controls of its own: {written}"
+                );
+                assert!(
+                    written.find("nd-drawer-rail") < written.find("data-nd-option-list")
+                        || !written.contains("data-nd-option-list"),
+                    "the controls rail is written before the content: {written}"
+                );
+            }
+        }
+        let mut empty = holding(&[]);
+        empty.drawer.focused = None;
+        assert_eq!(of(&empty, Locale::En).rail, None);
+    }
+
+    /// A collapsed drawer with something open in it is the design system's
+    /// drawer collapsed, its pages and its rails kept, and the modeline shows
+    /// how many there are (`crate::footer`).
+    #[test]
+    pub(crate) fn a_collapsed_drawer_keeps_what_is_open_in_it() {
+        let mut shell = holding(&[(Kind::Settings, None), (Kind::Help, None)]);
+        shell.drawer.collapsed = true;
+        let shown = of(&shell, Locale::En);
+        assert!(shown.shown && shown.collapsed);
+        assert!(shown.rail.is_some() && shown.tabs.is_some());
+        assert!(markup(&shown).contains("data-nd-collapsed=\"true\""));
+    }
+
+    /// The controls of the page in focus follow the controls rail's first
+    /// row: while the leader menu is what the drawer shows, the direction
+    /// control, pressed while the next page opened from the menu goes to the
+    /// drawer — the drawer's direction, or the other place once a Leader tap
+    /// flipped it — and named by `drawer.toward`'s display name; on any other
+    /// page, none.
+    #[test]
+    pub(crate) fn the_leader_menus_direction_control_shows_where_the_next_page_goes() {
+        for (toward, flipped, drawer) in [
+            (Place::Workspace, false, false),
+            (Place::Workspace, true, true),
+            (Place::Drawer, false, true),
+            (Place::Drawer, true, false),
+        ] {
+            let mut shell = holding(&[(Kind::Leader, None)]);
+            shell.drawer.toward = toward;
+            shell.drawer.flipped = flipped;
+            assert_eq!(next_target(&shell.drawer) == Place::Drawer, drawer);
+            let shown = of(&shell, Locale::PtBR);
+            let control = shown
+                .rail
+                .clone()
+                .and_then(|rail| rail.toward)
+                .expect("the direction control");
+            assert_eq!(control.drawer, drawer, "{toward:?} {flipped}");
+            assert_eq!(control.label, title_of("drawer.toward", Locale::PtBR));
+            let written = markup(&shown);
+            let groups = written.matches("role=\"group\"").count();
+            assert_eq!(groups, 2, "its own row, beneath the first: {written}");
+            assert_eq!(
+                written.contains("aria-pressed=\"true\""),
+                drawer,
+                "pressed while the next page goes to the drawer: {written}"
+            );
+            assert!(written.contains("data-nd-action=\"drawer.toward\""));
+        }
+        for kind in [Kind::Actions, Kind::Settings, Kind::Commands] {
+            let shown = of(&holding(&[(kind, None)]), Locale::En);
+            assert_eq!(shown.rail.and_then(|rail| rail.toward), None, "{kind:?}");
+        }
+    }
+
+    /// With several pages open in the drawer a tabs rail runs down its right
+    /// side, a tab for each in the order they were opened — named by what
+    /// opens its kind and its topic, drawn by its kind's glyph — the page in
+    /// focus chosen; with one page open there is no tabs rail.
+    #[test]
+    pub(crate) fn a_tabs_rail_lists_the_pages_only_while_several_are_open() {
+        for locale in Locale::ALL {
+            let single = of(&holding(&[(Kind::Settings, None)]), *locale);
+            assert_eq!(single.tabs, None);
+            assert!(!markup(&single).contains("data-nd-tabs"));
+            let mut shell = holding(&[
+                (Kind::Settings, Some("mcp")),
+                (Kind::Help, None),
+                (Kind::Leader, None),
+            ]);
+            for in_focus in [5_u64, 4] {
+                shell.drawer.focused = Some(in_focus);
+                let shown = of(&shell, *locale);
+                let (label, tabs) = shown.tabs.clone().expect("a tabs rail");
+                assert_eq!(label, title_of("page.focus", *locale));
+                assert_eq!(
+                    tabs,
+                    [3_u64, 4, 5]
+                        .iter()
+                        .map(|id| {
+                            let page = shell.pages.get(id).expect("held");
+                            PageTab {
+                                page: *id,
+                                label: page_title(page, *locale),
+                                glyph: glyph_of(page.kind),
+                                selected: *id == in_focus,
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    tabs.first().map(|tab| tab.label.clone()),
+                    Some(format!("{} mcp", title_of("page.settings", *locale)))
+                );
+                let written = markup(&shown);
+                let end = written
+                    .find("class=\"nd-drawer-rail\" data-nd-side=\"end\"")
+                    .expect("a rail at the end");
+                if in_focus == 5 {
+                    assert!(
+                        written
+                            .find("data-nd-option-list")
+                            .is_some_and(|content| content < end),
+                        "the tabs rail is written after the content: {written}"
+                    );
+                }
+                let rail = &written[end..];
+                assert!(
+                    rail.contains(&format!("data-nd-tabs=\"{TABS}\"")),
+                    "{written}"
+                );
+                assert!(rail.contains("data-nd-appearance=\"rail\""), "{written}");
+                assert_eq!(rail.matches("class=\"nd-tab\"").count(), 3, "{written}");
+                assert_eq!(
+                    rail.matches("data-nd-selected=\"true\"").count(),
+                    1,
+                    "{written}"
+                );
+                assert!(
+                    rail.contains(&format!(
+                        "data-nd-value=\"{in_focus}\" data-nd-selected=\"true\""
+                    )),
+                    "{written}"
+                );
+            }
+        }
+    }
+
+    /// Every control runs its command with the arguments the window gives
+    /// it from the state: collapse `drawer.collapse`; close the page in focus
+    /// in the drawer, or the prompt's list while it is what the drawer shows;
+    /// the direction control the other place than the one it shows. A tab
+    /// runs `page.focus` on a page the drawer holds, and on no other.
+    #[test]
+    pub(crate) fn every_control_and_tab_runs_its_command() {
+        let ran = |command: &str, arguments: Value| (command.to_owned(), arguments);
+        let none = Value::object(Vec::<(&str, Value)>::new());
+        let shell = holding(&[(Kind::Settings, None), (Kind::Leader, None)]);
+        assert_eq!(
+            Control::Collapse.run(&shell),
+            ran("drawer.collapse", none.clone())
+        );
+        assert_eq!(
+            Control::Close.run(&shell),
+            ran("page.close", Value::object([("in", Value::text("drawer"))]))
+        );
+        let mut asking = shell.clone();
+        asking.asking = Some(Asking::Commands);
+        assert_eq!(Control::Close.run(&asking), ran("prompt.clear", none));
+        for (toward, flipped, named) in [
+            (Place::Workspace, false, "drawer"),
+            (Place::Workspace, true, "workspace"),
+            (Place::Drawer, false, "workspace"),
+            (Place::Drawer, true, "drawer"),
+        ] {
+            let mut turned = shell.clone();
+            turned.drawer.toward = toward;
+            turned.drawer.flipped = flipped;
+            assert_eq!(
+                Control::Toward.run(&turned),
+                ran(
+                    "drawer.toward",
+                    Value::object([("region", Value::text(named))])
+                ),
+                "{toward:?} {flipped}"
+            );
+        }
+        for control in Control::ALL {
+            assert_eq!(Control::of(control.word()), Some(control));
+            assert!(
+                nc_catalog::command(control.word()).is_some(),
+                "{}",
+                control.word()
+            );
+            assert!(
+                nc_catalog::command(&control.run(&asking).0).is_some()
+                    && nc_catalog::command(&control.run(&shell).0).is_some()
+            );
+        }
+        for other in ["drawer.expand", "page.close ", "", "drawer.back"] {
+            assert_eq!(Control::of(other), None, "{other:?}");
+        }
+        assert_eq!(tab(&shell, "4"), Some(4));
+        for other in ["7", "0", "", " 4", "4a", "-4", "+4", &"4".repeat(21)] {
+            assert_eq!(tab(&shell, other), None, "{other:?}");
+        }
+        assert_eq!(identifier("0"), None, "no page is numbered 0");
+        assert_eq!(identifier("18446744073709551615"), Some(u64::MAX));
+        assert_eq!(identifier("18446744073709551616"), None);
+        assert_eq!(
+            focused(4, Place::Drawer, None),
+            ran(
+                "page.focus",
+                Value::object([("page", Value::Integer(4)), ("in", Value::text("drawer"))])
+            )
+        );
     }
 }

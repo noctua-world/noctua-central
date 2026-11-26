@@ -56,8 +56,10 @@
 //! one, in the light and then in the dark, asked to show at once, and
 //! watched — whether it stayed hidden until its document loaded, what its
 //! first frame and a settled frame painted, how large its page is when it is
-//! asked to be smaller than the least, and whether its footer does what it is
-//! for in the system's own webview ([`Exercised`]) — and closed, so an
+//! asked to be smaller than the least, and whether its footer and its drawer
+//! do what they are for in the system's own webview ([`Exercised`]) — the
+//! drawer standing below the footer inside the window however much it holds
+//! — and closed, so an
 //! installer or a test can ask it of any machine with a display.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
@@ -82,7 +84,7 @@ use tao::window::{Window, WindowBuilder};
 
 use crate::client::{Asker, Flow, Heard};
 use crate::commands::Commands;
-use crate::drawer::List;
+use crate::drawer::{Control, List};
 use crate::footer::{Action, Context, Drawing};
 use crate::keys::{Act, Keymap, key_of};
 use crate::mirror::{Fact, Mirror, Region, Shell};
@@ -114,13 +116,16 @@ pub enum Said {
     /// `action <command>`: a control was activated, the footer's
     /// [`Action`] whose command it names.
     Action(Action),
+    /// `action <command>`: a control of the drawer's controls rail was
+    /// activated, the [`Control`] whose command it names.
+    Control(Control),
     /// `draft <text>`: an edit changed the prompt's text, which is
     /// everything after the word and its one space.
     Draft(String),
-    /// `exercised <enhanced> <kept> <written>`, each `1` or `0`: what a
-    /// probe's exercise of the footer found (`EXERCISE`) — said by a
-    /// probe's exercise alone.
-    Exercised([bool; 3]),
+    /// `exercised <enhanced> <kept> <written> <rails> <capped>`, each `1` or
+    /// `0`: what a probe's exercise of the footer and the drawer found
+    /// (`EXERCISE`) — said by a probe's exercise alone.
+    Exercised([bool; 5]),
     /// `leader down`: the page saw the Leader's chord go down.
     LeaderDown,
     /// `leader up`: one of the Leader's modifiers was let go while it was
@@ -140,7 +145,8 @@ pub enum Said {
     Send(Option<String>),
     /// `active <list> <value>`: the keyboard moved to an option of a list.
     Active(List, String),
-    /// `focus <region>`: the keyboard went to the prompt or to the drawer.
+    /// `focus <region>`: the keyboard went to the prompt, to the drawer or to
+    /// the sidebar.
     Focus(Region),
     /// `escape`: Esc on the drawer, or on a prompt that filters a list.
     Escape,
@@ -212,9 +218,9 @@ pub fn said(message: &str) -> Option<Said> {
     }
     let words: Vec<&str> = message.split(' ').collect();
     match words.as_slice() {
-        [action, command] if *action == crate::page::ACTION => {
-            Action::of(command).map(Said::Action)
-        }
+        [action, command] if *action == crate::page::ACTION => Action::of(command)
+            .map(Said::Action)
+            .or_else(|| Control::of(command).map(Said::Control)),
         [loaded] if *loaded == crate::page::LOADED => Some(Said::Loaded),
         [scale, thousandths] if *scale == crate::page::SCALE => {
             number(thousandths).map(Said::Scale)
@@ -222,9 +228,13 @@ pub fn said(message: &str) -> Option<Said> {
         ["first-frame", rest @ ..] => channels(rest).map(Said::FirstFrame),
         ["settled", rest @ ..] => channels(rest).map(Said::Settled),
         ["viewport", width, height] => Some(Said::Viewport(number(width)?, number(height)?)),
-        ["exercised", enhanced, kept, written] => {
-            Some(Said::Exercised([bit(enhanced)?, bit(kept)?, bit(written)?]))
-        }
+        ["exercised", enhanced, kept, written, rails, capped] => Some(Said::Exercised([
+            bit(enhanced)?,
+            bit(kept)?,
+            bit(written)?,
+            bit(rails)?,
+            bit(capped)?,
+        ])),
         ["send"] => Some(Said::Send(None)),
         ["escape"] => Some(Said::Escape),
         ["leader", "down"] => Some(Said::LeaderDown),
@@ -233,6 +243,7 @@ pub fn said(message: &str) -> Option<Said> {
         ["key", "menu", code] => key_of(code).map(Said::InMenu),
         ["focus", "prompt"] => Some(Said::Focus(Region::Prompt)),
         ["focus", "drawer"] => Some(Said::Focus(Region::Drawer)),
+        ["focus", "sidebar"] => Some(Said::Focus(Region::Sidebar)),
         _ => None,
     }
 }
@@ -546,18 +557,19 @@ pub struct Seen {
     /// The page's size in CSS pixels once the window, settled, was asked to
     /// be half the least in each dimension.
     pub least: Option<(u32, u32)>,
-    /// What the exercise of its footer found, once the page settled;
-    /// nothing when it was not said within the wait.
+    /// What the exercise of its footer and its drawer found, once the page
+    /// settled; nothing when it was not said within the wait.
     pub footer: Option<Exercised>,
 }
 
-/// What a probe's exercise of a window's footer found (`EXERCISE`), in the
-/// real webview: the design system's script, the page's own and the window's
-/// two calls into it, each doing what it is for.
+/// What a probe's exercise of a window's footer and drawer found
+/// (`EXERCISE`), in the real webview: the design system's scripts, the
+/// page's own, the window's calls into it and the document's layout, each
+/// doing what it is for.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "five facts a probe observes, each independent of the others: there is no state \
+    reason = "nine facts a probe observes, each independent of the others: there is no state \
               they move through, so no machine to write"
 )]
 pub struct Exercised {
@@ -574,6 +586,16 @@ pub struct Exercised {
     pub kept: bool,
     /// A draft written into the prompt reached its text area.
     pub written: bool,
+    /// The design system's scripts took the drawer drawn into the page and
+    /// its tabs rail: the drawer is marked enhanced, the strip a tab list.
+    pub rails: bool,
+    /// The drawer, holding more than fits, stood below the footer and
+    /// inside the window, its content scrolling: its cap held.
+    pub capped: bool,
+    /// Pressing a tab of the tabs rail said the page it names.
+    pub tabbed: bool,
+    /// Pressing the controls rail's collapse said its command.
+    pub collapsed: bool,
 }
 
 /// The text a probe's exercise types into the prompt.
@@ -585,15 +607,23 @@ const PROBED_MESSAGE: &str = "probed message";
 /// The draft a probe's exercise writes into the prompt.
 const PROBED_WRITTEN: &str = "probed written";
 
-/// A probe's exercise of the footer, in the page once it has settled, its
-/// `{draw}` the call that brings the footer to markup with a message on the
-/// info line, expanded: whether the design system's script enhanced the
-/// prompt; typing into it, and activating the info line's chevron with the
-/// focus on it; the draw, after which the chevron still has the focus and
-/// says the line is expanded, the message is shown, the prompt still holds
-/// what was typed and is still enhanced; and a draft written. It says what
-/// it found as [`Said::Exercised`], after the draft and the action the
-/// page's own script said.
+/// The page whose tab a probe's exercise presses: the leader menu's, the
+/// one not in focus in the drawer it draws ([`probed_drawer`]).
+const PROBED_TAB: u64 = 3;
+
+/// A probe's exercise of the footer and the drawer, in the page once it has
+/// settled, its `{draw}` the call that brings the footer to markup with a
+/// message on the info line, expanded, and its `{drawer}` the one that brings
+/// the drawer to the command list over two pages: whether the design
+/// system's script enhanced the prompt; typing into it, and activating the
+/// info line's chevron with the focus on it; the draw, after which the
+/// chevron still has the focus and says the line is expanded, the message is
+/// shown, the prompt still holds what was typed and is still enhanced; a
+/// draft written; the drawer drawn, after which the design system's scripts
+/// took it and its tabs rail, and it stands below the footer inside the
+/// window with its content scrolling; and a tab and collapse pressed. It says
+/// what it found as [`Said::Exercised`], after the draft, the action, the
+/// tab and the control the page's own script said.
 const EXERCISE: &str = "(() => {
   const footer = document.querySelector('footer');
   const prompt = footer.querySelector('[data-nd-prompt]');
@@ -614,12 +644,86 @@ const EXERCISE: &str = "(() => {
     && enhanced();
   window.noctua.draft('{written}');
   const written = area.value === '{written}';
+  {drawer}
+  const region = document.getElementById('noctua-drawer');
+  const drawer = region.querySelector('[data-nd-drawer]');
+  const content = drawer ? drawer.querySelector('.nd-drawer-panel > :not(.nd-drawer-rail)') : null;
+  const strip = region.querySelector('[data-nd-tabs]');
+  const rails = drawer !== null && drawer.getAttribute('data-nd-enhanced') === 'drawer'
+    && strip !== null && strip.getAttribute('role') === 'tablist';
+  const whole = document.getElementById('noctua').getBoundingClientRect();
+  const lines = footer.getBoundingClientRect();
+  const box = drawer ? drawer.getBoundingClientRect() : null;
+  const capped = box !== null && content !== null && content.scrollHeight > content.clientHeight
+    && lines.top >= whole.top - 0.5 && lines.bottom <= box.top + 0.5
+    && box.bottom <= whole.bottom + 0.5;
+  const other = strip ? strip.querySelector('.nd-tab[data-nd-value=\"{tab}\"]') : null;
+  if (other) other.click();
+  const collapse = region.querySelector('[data-nd-action=\"drawer.collapse\"]');
+  if (collapse) collapse.click();
   const bit = (held) => (held ? '1' : '0');
-  window.ipc.postMessage('exercised ' + bit(wasEnhanced) + ' ' + bit(kept) + ' ' + bit(written));
+  window.ipc.postMessage('exercised ' + bit(wasEnhanced) + ' ' + bit(kept) + ' ' + bit(written)
+    + ' ' + bit(rails) + ' ' + bit(capped));
 })();";
 
-/// The exercise of the footer a window opened for `context` is put
-/// through (`EXERCISE`).
+/// The drawer a probe's exercise draws: the command list over the leader
+/// menu's page, every command of the catalog's in it — more than any window
+/// holds — with its controls rail and a tabs rail of the two pages.
+fn probed_drawer(locale: nc_catalog::Locale) -> crate::drawer::View {
+    use crate::mirror::{Asking, Drawer, Kind, Page, Place};
+    let page = |id: u64, kind: Kind| Page {
+        id,
+        kind,
+        topic: None,
+        trail: Vec::new(),
+        scroll: 0,
+    };
+    let shell = Shell {
+        windows: Vec::new(),
+        pages: [
+            page(PROBED_TAB, Kind::Leader),
+            page(PROBED_TAB + 1, Kind::Commands),
+        ]
+        .into_iter()
+        .map(|page| (page.id, page))
+        .collect(),
+        drawer: Drawer {
+            pages: vec![PROBED_TAB, PROBED_TAB + 1],
+            focused: Some(PROBED_TAB + 1),
+            collapsed: false,
+            toward: Place::Workspace,
+            flipped: false,
+            share: 33,
+        },
+        sidebar: false,
+        footer: true,
+        expanded: false,
+        message: None,
+        draft: ";".to_owned(),
+        asking: Some(Asking::Commands),
+        seats: std::collections::BTreeMap::new(),
+        next: PROBED_TAB + 2,
+    };
+    // The command list draws no key, so the drawer is drawn with none bound.
+    let channel = nc_channel::Channel::Production;
+    let keymap = Keymap::new(
+        nc_schema::keys::LeaderPart {
+            leader: channel.leader(),
+            chord: channel.chord_modifier(),
+        },
+        nc_schema::keys::Tables::default(),
+    );
+    crate::drawer::view(
+        Some(&shell),
+        ";",
+        None,
+        (&keymap, &Commands::from_catalog()),
+        locale,
+    )
+}
+
+/// The exercise of the footer and the drawer a window opened for `context`
+/// is put through (`EXERCISE`).
 fn exercise(context: Context) -> String {
     let mut view = crate::footer::view(None, context);
     view.info.expanded = true;
@@ -628,9 +732,14 @@ fn exercise(context: Context) -> String {
         .replace("{typed}", PROBED_DRAFT)
         .replace("{message}", PROBED_MESSAGE)
         .replace("{written}", PROBED_WRITTEN)
+        .replace("{tab}", &PROBED_TAB.to_string())
         .replace(
             "{draw}",
             &crate::footer::draw(&crate::footer::markup(&view)),
+        )
+        .replace(
+            "{drawer}",
+            &crate::footer::draw(&crate::drawer::markup(&probed_drawer(context.locale))),
         )
 }
 
@@ -662,8 +771,8 @@ struct Watched {
     shrunk: bool,
     /// The page's size it had last said when the window was asked.
     before: Option<(u32, u32)>,
-    /// What the page's own script said while the footer was exercised: a
-    /// draft, and an action.
+    /// What the page's own script said while the footer and the drawer were
+    /// exercised: a draft, an action, a tab and a control.
     exercised: Exercised,
     /// What the window was opened for.
     context: Context,
@@ -740,11 +849,17 @@ impl Watched {
             }
             Said::Draft(ref text) => self.exercised.drafted = text == PROBED_DRAFT,
             Said::Action(action) => self.exercised.acted = action == Action::ExpandInfo,
-            Said::Exercised([enhanced, kept, written]) => {
+            Said::Choose(List::Tabs, ref value) => {
+                self.exercised.tabbed = *value == PROBED_TAB.to_string();
+            }
+            Said::Control(control) => self.exercised.collapsed = control == Control::Collapse,
+            Said::Exercised([enhanced, kept, written, rails, capped]) => {
                 self.seen.footer = Some(Exercised {
                     enhanced,
                     kept,
                     written,
+                    rails,
+                    capped,
                     ..self.exercised
                 });
                 return self.seen.least.is_some();
@@ -1327,14 +1442,15 @@ impl Running {
         (shell.pages.get(&id)?.kind == crate::mirror::Kind::Leader).then_some(id)
     }
 
-    /// The footer and the drawer drawn from the state and what this window
-    /// said, and seat 1's keyboard put where the state says.
+    /// The footer, the drawer and the sidebar drawn from the state and what
+    /// this window said, and seat 1's keyboard put where the state says.
     fn redraw(&mut self, opened: &mut Opened) {
         let draft = self.mirror.draft().unwrap_or_default().to_owned();
         let selected = self
             .mirror
             .hovered(1, crate::mirror::By::Keyboard)
             .map(str::to_owned);
+        let window = self.window();
         let shell = self.mirror.shell();
         let drawer = crate::drawer::view(
             shell,
@@ -1343,7 +1459,9 @@ impl Running {
             (&self.keymap, &self.commands),
             self.context.locale,
         );
+        let sidebar = crate::sidebar::view(shell, window, selected.as_deref(), self.context.locale);
         let mut scripts = opened.drawing.drawer(crate::drawer::markup(&drawer));
+        scripts.extend(opened.drawing.sidebar(crate::sidebar::markup(&sidebar)));
         if let Some(shell) = shell {
             let mut footer = crate::footer::view(Some(shell), self.context);
             footer.controls = drawer.controls();
@@ -1363,6 +1481,7 @@ impl Running {
             if let Some(word) = match region {
                 Some(Region::Prompt) => Some("prompt"),
                 Some(Region::Drawer) => Some("drawer"),
+                Some(Region::Sidebar) => Some("sidebar"),
                 _ => None,
             } {
                 opened.send(vec![format!("window.noctua.focus('{word}');")]);
@@ -1477,6 +1596,32 @@ impl Running {
             }
             Said::Choose(List::Commands, value) | Said::Send(Some(value)) => {
                 self.picked(opened, &value);
+            }
+            Said::Choose(List::Tabs, value) => {
+                if let Some(page) = self
+                    .mirror
+                    .shell()
+                    .and_then(|shell| crate::drawer::tab(shell, &value))
+                {
+                    let (command, arguments) =
+                        crate::drawer::focused(page, crate::mirror::Place::Drawer, None);
+                    self.run(&command, arguments, false);
+                }
+            }
+            Said::Choose(List::Sidebar, value) => {
+                if let Some((page, window)) = self.window().and_then(|window| {
+                    let shell = self.mirror.shell()?;
+                    crate::sidebar::chosen(shell, window, &value).map(|page| (page, window))
+                }) {
+                    let (command, arguments) = crate::sidebar::chosen_run(page, window);
+                    self.run(&command, arguments, false);
+                }
+            }
+            Said::Control(control) => {
+                if let Some(shell) = self.mirror.shell() {
+                    let (command, arguments) = control.run(shell);
+                    self.run(&command, arguments, false);
+                }
             }
             Said::Send(None) => self.sent(),
             Said::Active(_, value) => {
@@ -1772,13 +1917,19 @@ pub(crate) mod tests {
                 Some(Said::Action(action))
             );
         }
+        for control in crate::drawer::Control::ALL {
+            assert_eq!(
+                said(&format!("action {}", control.word())),
+                Some(Said::Control(control))
+            );
+        }
         assert_eq!(
-            said("exercised 1 0 1"),
-            Some(Said::Exercised([true, false, true]))
+            said("exercised 1 0 1 0 1"),
+            Some(Said::Exercised([true, false, true, false, true]))
         );
         assert_eq!(
-            said("exercised 0 1 0"),
-            Some(Said::Exercised([false, true, false]))
+            said("exercised 0 1 0 1 0"),
+            Some(Said::Exercised([false, true, false, true, false]))
         );
         for (message, text) in [
             ("draft ", ""),
@@ -1834,12 +1985,17 @@ pub(crate) mod tests {
             "action  sidebar.show",
             "action sidebar.show drawer.expand",
             "Action sidebar.show",
+            "action drawer.expand ",
+            "action drawer.back",
+            "action page.focus",
             "exercised",
             "exercised 1 1",
+            "exercised 1 1 1",
             "exercised 1 1 1 1",
-            "exercised 1 1 2",
-            "exercised true 1 1",
-            "exercised 1  1 1",
+            "exercised 1 1 1 1 1 1",
+            "exercised 1 1 2 1 1",
+            "exercised true 1 1 1 1",
+            "exercised 1  1 1 1 1",
         ] {
             assert_eq!(said(other), None, "{other:?}");
         }
@@ -1874,7 +2030,8 @@ pub(crate) mod tests {
             "send ",
             "send\n",
             "focus",
-            "focus sidebar",
+            "focus workspace",
+            "focus info",
             "focus prompt ",
             "escape ",
             "Escape",
@@ -1908,6 +2065,12 @@ pub(crate) mod tests {
             ),
             ("focus prompt", Said::Focus(Region::Prompt)),
             ("focus drawer", Said::Focus(Region::Drawer)),
+            ("focus sidebar", Said::Focus(Region::Sidebar)),
+            ("choose pages 4", Said::Choose(List::Tabs, "4".to_owned())),
+            (
+                "choose sidebar 3",
+                Said::Choose(List::Sidebar, "3".to_owned()),
+            ),
             ("escape", Said::Escape),
         ] {
             assert_eq!(said(message), Some(read), "{message:?}");

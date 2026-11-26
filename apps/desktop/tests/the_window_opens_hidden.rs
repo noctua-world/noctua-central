@@ -1,8 +1,9 @@
 //! The shipped binary opens its window hidden and undecorated, keeps it
 //! hidden until its document has loaded though it is asked to show at once,
 //! paints the theme it was opened in from its first frame, never makes its
-//! page smaller than the least, and closes the window (`NOCTUA.md §12.2`,
-//! §12.10, §12.19, §9.6).
+//! page smaller than the least, keeps its drawer below the footer inside the
+//! window however much it holds, and closes the window (`NOCTUA.md §12.2`,
+//! §12.10, §12.11, §12.19, §9.6).
 //!
 //! **The built `noctua-desktop`, asked `--probe`**, which needs no install
 //! and no daemon: a window opened through `tao` in the light and then one in
@@ -11,7 +12,8 @@
 //! interface's document through its custom protocol, and what the document
 //! and the probe's observer say read from its message channel: the page's
 //! background at its first frame and once settled, each painted into a pixel
-//! and read back, and the page's size. **On a display the test is handed**
+//! and read back, the page's size, and what its footer and its drawer did
+//! when exercised. **On a display the test is handed**
 //! (`nc_platform::testing::Display`): on Linux an `Xvfb` of its own, so no
 //! window reaches a person's session, and the session's own on macOS and
 //! Windows. It spawns a process, so no mutation command runs it.
@@ -50,8 +52,8 @@ fn the_window_opens_hidden_paints_its_theme_first_and_closes() {
             "noctua-desktop: a window opened in the light and one in the dark, each hidden and \
              undecorated and kept hidden until its document loaded, each first frame painting \
              what its settled page paints and the dark one the dark surface, each page the \
-             least size when asked for less, each footer doing what it is for, and each \
-             window was closed"
+             least size when asked for less, each footer and drawer doing what they are for, \
+             and each window was closed"
         ),
         "{said}"
     );

@@ -26,6 +26,11 @@
 //!   window hears it, every key a physical key run by the binding in force,
 //!   and the leader menu, the command list and a command's parameters drawn
 //!   in the drawer — each press, entry and row a command run as the person.
+//! - **The drawer and the sidebar** ([`drawer`], [`sidebar`]): the drawer
+//!   below the footer, with its controls rail, the page in focus and its tabs
+//!   rail, and the sidebar beside the workspace area, listing what is open in
+//!   it — both drawn from the state, every control, tab and entry a command
+//!   run as the person.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -46,10 +51,12 @@
 //! message channel is read for a closed set of messages. A page asking the
 //! window to run what it pleases: a control's word is run only when it is
 //! one of the footer's closed set of commands, none of which takes an
-//! argument, a key, an entry or a row only as what a binding in force, the
-//! `w` list or the window's own list offers, and the prompt's text is said
-//! only as `prompt.set`'s, cut to its bound — so the page can do nothing the
-//! person could not do from the CLI.
+//! argument, or one of the drawer's rail, whose arguments the window takes
+//! from the state it holds, a key, an entry or a row only as what a binding
+//! in force, the `w` list or the window's own list offers, a tab or an entry
+//! of the sidebar only as a page the drawer or the window's workspace area
+//! holds, and the prompt's text is said only as `prompt.set`'s, cut to its
+//! bound — so the page can do nothing the person could not do from the CLI.
 //! Markup drawn as something it is not: every text the footer shows is
 //! escaped where it is rendered, and the page is handed markup only as a
 //! script's string literal.
@@ -77,4 +84,5 @@ pub mod keys;
 pub mod mirror;
 pub mod page;
 pub mod sheet;
+pub mod sidebar;
 pub mod theme;

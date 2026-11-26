@@ -581,6 +581,10 @@ pub struct Drawing {
     drawer_drawn: String,
     /// The drawer's markup the state shows.
     drawer_wanted: String,
+    /// The sidebar's markup the page holds.
+    sidebar_drawn: String,
+    /// The sidebar's markup the state shows.
+    sidebar_wanted: String,
     /// A draft to write into the page once it has loaded.
     waiting: Option<String>,
     /// What the page's prompt holds.
@@ -592,12 +596,15 @@ impl Drawing {
     #[must_use]
     pub fn new(markup: String) -> Self {
         let drawer = crate::drawer::markup(&crate::drawer::View::hidden());
+        let sidebar = crate::sidebar::markup(&crate::sidebar::View::hidden());
         Self {
             loaded: false,
             drawn: markup.clone(),
             wanted: markup,
             drawer_drawn: drawer.clone(),
             drawer_wanted: drawer,
+            sidebar_drawn: sidebar.clone(),
+            sidebar_wanted: sidebar,
             waiting: None,
             typed: Typed::default(),
         }
@@ -616,6 +623,10 @@ impl Drawing {
         if self.drawer_wanted != self.drawer_drawn {
             self.drawer_drawn.clone_from(&self.drawer_wanted);
             scripts.push(draw(&self.drawer_drawn));
+        }
+        if self.sidebar_wanted != self.sidebar_drawn {
+            self.sidebar_drawn.clone_from(&self.sidebar_wanted);
+            scripts.push(draw(&self.sidebar_drawn));
         }
         if let Some(waiting) = self.waiting.take() {
             scripts.push(draft(&waiting));
@@ -644,6 +655,13 @@ impl Drawing {
     /// to it.
     pub fn drawer(&mut self, markup: String) -> Vec<String> {
         self.drawer_wanted = markup;
+        self.brought()
+    }
+
+    /// The state shows the sidebar `markup`: the scripts that bring the page
+    /// to it.
+    pub fn sidebar(&mut self, markup: String) -> Vec<String> {
+        self.sidebar_wanted = markup;
         self.brought()
     }
 
@@ -1318,10 +1336,10 @@ mod tests {
         Later(&'static str),
     }
 
-    /// Every bullet of `NOCTUA.md` §12.3, §12.5–§12.7 and §12.9, by its
-    /// section and the first 32 characters of its text with its emphasis taken
-    /// out, and how each is held.
-    const BULLETS: [(&str, &str, Held); 36] = [
+    /// Every bullet of `NOCTUA.md` §12.3, §12.5–§12.7, §12.9, §12.11 and
+    /// §12.14, by its section and the first 32 characters of its text with its
+    /// emphasis taken out, and how each is held.
+    const BULLETS: [(&str, &str, Held); 46] = [
         (
             "12.3",
             "Backgrounds. The modeline and th",
@@ -1521,9 +1539,9 @@ mod tests {
             "12.9",
             "Pressing an entry's key closes t",
             Held::Partly(
-                crate::host::tests::an_entry_closes_the_menu_first_unless_it_opens_a_page,
-                "the direction control in the drawer's controls rail, with the drawer; the flip \
-                 is the kernel's `leader.tap`",
+                an_entry_acts_and_the_direction_control_shows_where_it_opens,
+                "the flip is the kernel's `leader.tap` and the direction kept the kernel's \
+                 `drawer.toward`, held in `crates/nc-kernel/src/shell.rs`",
             ),
         ),
         (
@@ -1559,7 +1577,112 @@ mod tests {
             "Parameters are optional where th",
             Held::By(crate::host::tests::a_command_chosen_runs_or_asks_for_its_parameters),
         ),
+        (
+            "12.11",
+            "Its height is capped by a token,",
+            Held::Partly(
+                crate::drawer::tests::a_controls_rail_holds_collapse_and_close_whenever_something_is_open,
+                "the cap is `Drawer`'s `--noctua-shell-drawer-max`, which the window's layout \
+                 lets act — held in a real webview by `--probe` in \
+                 `apps/desktop/tests/the_window_opens_hidden.rs`; a drawer shorter than the \
+                 workspace area in a window under 480 CSS pixels tall, and the share \
+                 `drawer.resize` keeps, wait for the design system's `Drawer`",
+            ),
+        ),
+        (
+            "12.11",
+            "Several pages can be open in it ",
+            Held::By(crate::drawer::tests::a_tabs_rail_lists_the_pages_only_while_several_are_open),
+        ),
+        (
+            "12.11",
+            "Whenever something is open in it",
+            Held::By(a_controls_rail_holds_its_two_and_the_pages_own),
+        ),
+        (
+            "12.11",
+            "collapse — hide the whole drawer",
+            Held::By(crate::drawer::tests::every_control_and_tab_runs_its_command),
+        ),
+        (
+            "12.11",
+            "close — close the drawer page th",
+            Held::By(crate::drawer::tests::every_control_and_tab_runs_its_command),
+        ),
+        (
+            "12.11",
+            "Both rails are exactly as wide a",
+            Held::Design(
+                "`DrawerRail` is `--noctua-shell-rail` wide, as `FooterCorner` is, and a rail's \
+                 `Toolbar` and `Tabs` hold each control to `--noctua-target-min`",
+            ),
+        ),
+        (
+            "12.11",
+            "Esc closes the drawer page that ",
+            Held::Partly(
+                crate::host::tests::the_prompts_list_chooses_completes_and_runs,
+                "going back one sub-page is the kernel's `drawer.back`, held in \
+                 `crates/nc-kernel/src/shell.rs`; the page's script saying Esc on the drawer \
+                 is exercised in a real window by no test yet — with the seats",
+            ),
+        ),
+        (
+            "12.11",
+            "Collapsing the drawer with somet",
+            Held::By(a_collapsed_drawer_keeps_its_pages_and_the_modeline_counts_them),
+        ),
+        (
+            "12.14",
+            "It opens from the modeline's fir",
+            Held::Partly(
+                the_sidebar_opens_from_the_modeline_and_slides_shut,
+                "show, focus and hide are the kernel's `sidebar.cycle`, held in \
+                 `crates/nc-kernel/src/shell.rs`, and Leader Space the catalog's binding; the \
+                 window putting the keyboard on the sidebar is exercised in a real window by \
+                 no test yet — with the seats",
+            ),
+        ),
+        (
+            "12.14",
+            "Choosing an entry focuses it; th",
+            Held::Partly(
+                crate::sidebar::tests::choosing_an_entry_focuses_its_page,
+                "the prompt line filtering the list while the sidebar has focus, with the \
+                 pages that are lists (§12.7)",
+            ),
+        ),
     ];
+
+    /// An entry of the leader menu closes it first unless it opens a page,
+    /// and the direction control shows where that page goes (§12.9).
+    fn an_entry_acts_and_the_direction_control_shows_where_it_opens() {
+        crate::host::tests::an_entry_closes_the_menu_first_unless_it_opens_a_page();
+        crate::drawer::tests::the_leader_menus_direction_control_shows_where_the_next_page_goes();
+    }
+
+    /// The drawer's controls rail holds collapse and close, and beneath them
+    /// the page in focus's own controls (§12.11).
+    fn a_controls_rail_holds_its_two_and_the_pages_own() {
+        crate::drawer::tests::a_controls_rail_holds_collapse_and_close_whenever_something_is_open();
+        crate::drawer::tests::the_leader_menus_direction_control_shows_where_the_next_page_goes();
+    }
+
+    /// A collapsed drawer keeps what is open in it, and the modeline counts
+    /// it (§12.11).
+    fn a_collapsed_drawer_keeps_its_pages_and_the_modeline_counts_them() {
+        crate::drawer::tests::a_collapsed_drawer_keeps_what_is_open_in_it();
+        the_drawer_indicator_shows_only_while_the_drawer_is_collapsed_with_pages();
+    }
+
+    /// The modeline's first glyph opens the sidebar, which lists what is
+    /// open, and a hidden sidebar is the design system's drawer collapsed
+    /// (§12.14).
+    fn the_sidebar_opens_from_the_modeline_and_slides_shut() {
+        the_modeline_opens_with_the_sidebars_glyph();
+        crate::sidebar::tests::the_sidebar_lists_the_workspace_and_its_pages();
+        crate::sidebar::tests::a_hidden_sidebar_is_collapsed_and_none_is_drawn_before_the_state();
+    }
 
     /// The bullets of the sections `BULLETS` answers to in `reference`, the
     /// text of `NOCTUA.md`, each by its section and its opening as `BULLETS`
@@ -1569,10 +1692,9 @@ mod tests {
         let mut section: Option<&str> = None;
         for text in reference.lines() {
             if let Some(heading) = text.strip_prefix("### ") {
-                section = heading
-                    .split(' ')
-                    .next()
-                    .filter(|number| ["12.3", "12.5", "12.6", "12.7", "12.9"].contains(number));
+                section = heading.split(' ').next().filter(|number| {
+                    ["12.3", "12.5", "12.6", "12.7", "12.9", "12.11", "12.14"].contains(number)
+                });
                 continue;
             }
             if text.starts_with("## ") {
@@ -1605,11 +1727,11 @@ mod tests {
             .then(|| workspace.to_path_buf())
     }
 
-    /// Every bullet of §12.3 and §12.5–§12.7 is a row of `BULLETS`, and
-    /// every row a bullet, in order — read from `NOCTUA.md` where this
-    /// repository is in its workspace, and said to be skipped where it is
-    /// not; and each row says how it is held — a test of this module, which
-    /// passes, the design system's own, or what builds it.
+    /// Every bullet of §12.3, §12.5–§12.7, §12.9, §12.11 and §12.14 is a row
+    /// of `BULLETS`, and every row a bullet, in order — read from `NOCTUA.md`
+    /// where this repository is in its workspace, and said to be skipped where
+    /// it is not; and each row says how it is held — a test of this module,
+    /// which passes, the design system's own, or what builds it.
     #[test]
     #[expect(
         clippy::print_stdout,
@@ -1646,8 +1768,8 @@ mod tests {
             .collect();
         assert_eq!(
             found, rows,
-            "a bullet of §12.3, §12.5–§12.7 or §12.9 changed: each is a row of `BULLETS`, held \
-             by a test, or said to be the design system's or still to come"
+            "a bullet of §12.3, §12.5–§12.7, §12.9, §12.11 or §12.14 changed: each is a row of \
+             `BULLETS`, held by a test, or said to be the design system's or still to come"
         );
     }
 

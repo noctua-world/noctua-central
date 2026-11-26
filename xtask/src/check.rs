@@ -19863,7 +19863,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 266] = [
+    const DOCUMENTED: [(&str, usize, usize); 267] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19914,16 +19914,17 @@ mod the_frozen_path_rule {
         ("desktop/assets.rs", 19, 3),
         ("desktop/client.rs", 13, 1),
         ("desktop/commands.rs", 35, 6),
-        ("desktop/drawer.rs", 24, 3),
+        ("desktop/drawer.rs", 48, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 78, 4),
-        ("desktop/host.rs", 92, 11),
+        ("desktop/footer.rs", 83, 4),
+        ("desktop/host.rs", 94, 11),
         ("desktop/keys.rs", 29, 3),
-        ("desktop/lib.rs", 0, 11),
+        ("desktop/lib.rs", 0, 12),
         ("desktop/main.rs", 22, 6),
         ("desktop/mirror.rs", 84, 19),
         ("desktop/page.rs", 16, 1),
         ("desktop/sheet.rs", 1, 0),
+        ("desktop/sidebar.rs", 14, 2),
         ("desktop/the_window_opens_hidden.rs", 1, 0),
         ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
@@ -26098,7 +26099,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24555;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24642;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26117,7 +26118,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7545;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7629;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26134,7 +26135,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2582;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2611;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26151,7 +26152,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [189, 32, 60, 62, 105];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [197, 32, 61, 63, 105];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26168,7 +26169,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32013;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32110;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26186,7 +26187,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 718;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 729;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26222,8 +26223,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **718 of 32,013 are accepted by the first-line
-    /// rule alone, and 448 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **729 of 32,110 are accepted by the first-line
+    /// rule alone, and 458 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26244,8 +26245,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **189 ascending sorts, 32 descending, 60
-    /// swaps, 62 rotations and 105 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **197 ascending sorts, 32 descending, 61
+    /// swaps, 63 rotations and 105 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26255,7 +26256,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2582 of
+    /// this tree offers, **2611 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38572,7 +38573,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 280,
+            walked, 281,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38612,7 +38613,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3258] = [
+    static OPERATORS: [(&str, &str, &str); 3284] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -53262,6 +53263,128 @@ Options:
             "desktop_drawer",
             "TheDrawer",
             "the leader menu fills the drawer in columns",
+        ),
+        (
+            "desktop_drawer",
+            "TheDrawer",
+            "the drawer's region is no box of its own",
+        ),
+        (
+            "desktop_drawer",
+            "view",
+            "the controls rail is drawn whenever the drawer is",
+        ),
+        (
+            "desktop_drawer",
+            "view",
+            "the direction control is the leader menu's alone",
+        ),
+        ("desktop_drawer", "view", "a tabs rail needs two pages open"),
+        (
+            "desktop_drawer",
+            "view",
+            "the tab of the page in focus is the chosen one",
+        ),
+        (
+            "desktop_drawer",
+            "next_target",
+            "a Leader tap flips where the next page goes",
+        ),
+        (
+            "desktop_drawer",
+            "run",
+            "close while the prompt asks closes its list",
+        ),
+        (
+            "desktop_drawer",
+            "run",
+            "the direction control names the other place",
+        ),
+        (
+            "desktop_drawer",
+            "tab",
+            "a tab names a page the drawer holds",
+        ),
+        (
+            "desktop_drawer",
+            "identifier",
+            "a page is named in digits alone",
+        ),
+        ("desktop_drawer", "identifier", "no page is numbered 0"),
+        (
+            "desktop_drawer",
+            "focused",
+            "a page chosen is focused in the place it is chosen in",
+        ),
+        (
+            "desktop_drawer",
+            "page_title",
+            "a page's topic follows its name",
+        ),
+        (
+            "desktop_sidebar",
+            "view",
+            "the page in front is the list's answer",
+        ),
+        (
+            "desktop_sidebar",
+            "view",
+            "the keyboard's entry is the seat's selection",
+        ),
+        (
+            "desktop_sidebar",
+            "view",
+            "the sidebar is shown as the state says",
+        ),
+        (
+            "desktop_sidebar",
+            "view",
+            "the sidebar lists its own window's pages",
+        ),
+        (
+            "desktop_sidebar",
+            "chosen",
+            "an entry names a page of the window's workspace area",
+        ),
+        (
+            "desktop_sidebar",
+            "TheSidebar",
+            "a hidden sidebar is collapsed",
+        ),
+        (
+            "desktop_sidebar",
+            "TheSidebar",
+            "the sidebar's region is no box of its own",
+        ),
+        (
+            "desktop_host",
+            "said",
+            "a rail's control is one the drawer's rail runs",
+        ),
+        (
+            "desktop_host",
+            "said",
+            "the keyboard on the sidebar is said",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "a tab pressed is said by the page it names",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the keyboard going to the sidebar is said",
+        ),
+        (
+            "desktop_page",
+            "ENHANCES",
+            "a strip's behaviour is taken back before a draw",
+        ),
+        (
+            "desktop_page",
+            "Document",
+            "the row the sidebar is in hides what overflows it",
         ),
         (
             "desktop_host",

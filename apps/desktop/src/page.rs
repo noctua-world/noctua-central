@@ -14,7 +14,11 @@
 //! **What the first run shows is the footer alone** (§12.2, §12.3): the
 //! workspace area above it holds nothing, and the footer is
 //! [`crate::footer`]'s, drawn from the view of the state the window holds
-//! when the document is built — none, before the daemon has answered.
+//! when the document is built — none, before the daemon has answered — with
+//! the sidebar's region beside the workspace area and the drawer's below the
+//! footer ([`crate::sidebar`], [`crate::drawer`]), each empty until a state
+//! draws it, and neither a box of its own, so the design system's drawers
+//! stand in the window's own row and column.
 //!
 //! **Everything it links is the custom protocol's** ([`crate::assets`]), by a
 //! path relative to the document, so no address in it names a host or a
@@ -27,9 +31,11 @@
 //! [`LOADED`] once the document and every sheet it links have loaded, and
 //! the scale again whenever the page is resized; the command a control runs
 //! when it is activated, by the `data-nd-action` the design system writes on
-//! it ([`ACTION`]); and the prompt's text whenever an edit changes it
-//! ([`DRAFT`]). `window.noctua.draw` brings the footer to the markup it is
-//! handed by changing only what that markup changed since the last: an
+//! it ([`ACTION`]), and the page a tab of the drawer's tabs rail names when it
+//! is pressed; and the prompt's text whenever an edit changes it
+//! ([`DRAFT`]). `window.noctua.draw` brings the footer, the drawer or the
+//! sidebar to the markup it is handed by changing only what that markup
+//! changed since the last: an
 //! attribute set, removed or changed, a text changed, an element whose name
 //! changed replaced and one added or taken away — so an element that stays
 //! keeps its focus, and what the design system's scripts added to the page,
@@ -56,6 +62,7 @@ use dioxus::prelude::*;
 
 use crate::drawer::TheDrawer;
 use crate::footer::{TheFooter, View};
+use crate::sidebar::TheSidebar;
 use crate::theme::Theme;
 
 /// The word the document's script says once the document and every sheet it
@@ -97,6 +104,8 @@ pub const SCRIPT: &str = r"(() => {
   document.addEventListener('click', (event) => {
     const control = event.target instanceof Element ? event.target.closest('[data-nd-action]') : null;
     if (control) say('action ' + control.getAttribute('data-nd-action'));
+    const tab = event.target instanceof Element ? event.target.closest('#noctua-drawer .nd-tab') : null;
+    if (tab) say('choose pages ' + tab.getAttribute('data-nd-value'));
   });
   document.addEventListener('input', (event) => {
     const area = event.target;
@@ -122,6 +131,7 @@ pub const SCRIPT: &str = r"(() => {
     const target = event.target instanceof Element ? event.target : null;
     if (target && target.matches('.nd-prompt-input')) say('focus prompt');
     else if (target && target.closest('#noctua-drawer')) say('focus drawer');
+    else if (target && target.closest('#noctua-sidebar')) say('focus sidebar');
   });
   let keys = null;
   let held = false;
@@ -163,7 +173,7 @@ pub const SCRIPT: &str = r"(() => {
   }, true);
   window.addEventListener('blur', () => { downs = [false, false, false, false]; held = false; });
   const drawn = new Map();
-  const regions = () => [document.querySelector('footer'), document.getElementById('noctua-drawer')];
+  const regions = () => [document.querySelector('footer'), document.getElementById('noctua-drawer'), document.getElementById('noctua-sidebar')];
   for (const region of regions()) if (region) drawn.set(region.id || region.localName, region.cloneNode(true));
   const alike = (one, other) => one.nodeType === other.nodeType && one.nodeName === other.nodeName;
   const bring = (live, was, next) => {
@@ -222,22 +232,31 @@ pub const SCRIPT: &str = r"(() => {
     focus(where) {
       const element = where === 'prompt'
         ? document.querySelector('footer .nd-prompt-input')
-        : document.querySelector('#noctua-drawer [role=listbox][tabindex]');
+        : document.querySelector('#noctua-' + where + ' [role=listbox][tabindex]')
+          || document.querySelector('#noctua-' + where + ' [role=toolbar] button');
       if (element && document.activeElement !== element) element.focus();
     },
   };
 })();";
 
-/// The module that hands the prompt and the drawer's lists to the design
-/// system's scripts — the prompt's block cursor, and a list's walk — and hands
-/// `window.noctua` the same calls for a part a draw put in the page, and the
-/// call that takes a list's behaviour back before a draw changes it.
-pub const ENHANCES: &str = r#"import { enhancePrompts } from "./dist/prompt.js";
+/// The module that hands the prompt, the lists, the drawers, the tabs rail
+/// and the controls rail to the design system's scripts — the prompt's block
+/// cursor, a list's walk, a drawer's `inert` and its focus given back when it
+/// shuts around it, a strip's roles and its arrows, and a toolbar's one tab
+/// stop — and hands `window.noctua` the same calls for a part a draw put in
+/// the page, and the call that takes a list's and a strip's behaviour back
+/// before a draw changes them. A drawer's is never taken back, so where the
+/// focus came into it from is still known when a draw collapses it.
+pub const ENHANCES: &str = r#"
+import { enhancePrompts } from "./dist/prompt.js";
 enhancePrompts();
 import { enhanceOptionLists, releaseOptionLists } from "./dist/option-list.js";
 enhanceOptionLists();
-window.noctua.enhance = (root) => { enhancePrompts(root); enhanceOptionLists(root); };
-window.noctua.release = releaseOptionLists;"#;
+import { enhanceDrawers } from "./dist/drawer.js";
+import { enhanceTabs, releaseTabs } from "./dist/tabs.js";
+import { enhanceRoving } from "./dist/roving.js";
+window.noctua.enhance = (root) => { enhancePrompts(root); enhanceOptionLists(root); enhanceDrawers(root); enhanceTabs(root); enhanceRoving(root); };
+window.noctua.release = (root) => { releaseOptionLists(root); releaseTabs(root); };"#;
 
 /// The document, in `locale` and `theme`, its footer `footer`, as the
 /// webview is handed it.
@@ -261,8 +280,13 @@ pub fn document(locale: nc_catalog::Locale, theme: Theme, footer: &View) -> Stri
 
 /// The document's markup: its head, linking `sheets` of the design system
 /// and then the interface's sheet, and the interface's root, filling the
-/// window — the workspace area, which holds nothing yet, and the footer —
-/// then the page's script and the module that enhances the prompt.
+/// window in one column — a row holding the sidebar at its start and the
+/// workspace area, which holds nothing yet, then the footer and the drawer
+/// below it — then the page's script and the module that enhances the
+/// prompt. **The row and the workspace area take what the footer and the
+/// drawer leave**, and the row hides what overflows it, so a sidebar's list
+/// scrolls inside the sidebar rather than pushing the footer out of the
+/// window.
 #[component]
 fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
     let linked = sheets
@@ -278,7 +302,10 @@ fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
         }
         body { class: "h-screen overflow-hidden",
             main { id: "noctua", class: "flex h-full w-full flex-col",
-                div { id: "noctua-workspace", class: "flex-1" }
+                div { class: "flex flex-1 overflow-hidden",
+                    TheSidebar { view: crate::sidebar::View::hidden() }
+                    div { id: "noctua-workspace", class: "flex-1" }
+                }
                 TheFooter { view: footer }
                 TheDrawer { view: crate::drawer::View::hidden() }
             }
@@ -402,7 +429,13 @@ mod tests {
                 .collect();
             assert_eq!(
                 imported,
-                ["./dist/prompt.js", "./dist/option-list.js"],
+                [
+                    "./dist/prompt.js",
+                    "./dist/option-list.js",
+                    "./dist/drawer.js",
+                    "./dist/tabs.js",
+                    "./dist/roving.js"
+                ],
                 "{written}"
             );
             let addresses: Vec<&str> = ["href", "src", "action", "srcset"]
@@ -437,10 +470,10 @@ mod tests {
         }
     }
 
-    /// The first run shows the footer alone: the body holds the workspace
-    /// area, empty, then the footer — the first run's, as
-    /// [`crate::footer::markup`] writes it — then the drawer's region,
-    /// empty, and nothing else but the scripts.
+    /// The first run shows the footer alone: the body holds a row of the
+    /// sidebar's region, empty, and the workspace area, empty, then the
+    /// footer — the first run's, as [`crate::footer::markup`] writes it —
+    /// then the drawer's region, empty, and nothing else but the scripts.
     #[test]
     fn the_first_run_shows_the_footer_alone() {
         for locale in Locale::ALL {
@@ -455,8 +488,10 @@ mod tests {
                 body,
                 format!(
                     "<main id=\"noctua\" class=\"flex h-full w-full flex-col\">\
-                     <div id=\"noctua-workspace\" class=\"flex-1\"></div>{}\
-                     <div id=\"noctua-drawer\"></div></main>",
+                     <div class=\"flex flex-1 overflow-hidden\">\
+                     <div id=\"noctua-sidebar\" class=\"contents\"></div>\
+                     <div id=\"noctua-workspace\" class=\"flex-1\"></div></div>{}\
+                     <div id=\"noctua-drawer\" class=\"contents\"></div></main>",
                     markup(&first)
                 )
             );
@@ -486,6 +521,8 @@ mod tests {
             "say(active === null ? 'send' : 'send ' + active);".to_owned(),
             "say('focus prompt');".to_owned(),
             "say('focus drawer');".to_owned(),
+            "say('focus sidebar');".to_owned(),
+            "say('choose pages ' + tab.getAttribute('data-nd-value'));".to_owned(),
             "window.addEventListener('keydown', (event) => {".to_owned(),
             "  }, true);\n  window.addEventListener('keyup'".to_owned(),
         ] {
@@ -499,10 +536,24 @@ mod tests {
         );
         for handed in [
             "enhanceOptionLists();",
-            "enhancePrompts(root); enhanceOptionLists(root);",
-            "window.noctua.release = releaseOptionLists;",
+            "enhancePrompts(root); enhanceOptionLists(root); enhanceDrawers(root); \
+             enhanceTabs(root); enhanceRoving(root);",
+            "window.noctua.release = (root) => { releaseOptionLists(root); releaseTabs(root); };",
         ] {
             assert!(ENHANCES.contains(handed), "{handed} is not in {ENHANCES}");
+        }
+        for (shipped, exported) in [
+            ("drawer.js", "export function enhanceDrawers("),
+            ("tabs.js", "export function enhanceTabs("),
+            ("tabs.js", "export function releaseTabs("),
+            ("roving.js", "export function enhanceRoving("),
+        ] {
+            assert!(
+                noctua_design_dist::FILES
+                    .iter()
+                    .any(|(name, contents)| *name == shipped && contents.contains(exported)),
+                "the design system ships {exported} in {shipped}, which the module imports"
+            );
         }
         assert!(
             noctua_design_dist::FILES
