@@ -845,11 +845,21 @@ impl Counters {
     /// not restored goes inactive, and its counters with it, so it says only
     /// that an instance ended otherwise, by the unit's `failed` state. A
     /// task's last result is an end only once no instance runs.
+    ///
+    /// **launchd's last exit code is an end only once its state is `not
+    /// running`**: a start is counted in `runs` before its program runs, and
+    /// until it does launchd writes another state beside the code of the
+    /// instance before, so a code read then would answer for an instance that
+    /// has not run yet.
     #[must_use]
     pub fn ended_well(&self) -> Option<bool> {
         match self {
             Self::Systemd { active_state, .. } => (active_state == "failed").then_some(false),
-            Self::Launchd { last_exit, .. } => last_exit.map(|code| code == 0),
+            Self::Launchd {
+                state, last_exit, ..
+            } => last_exit
+                .filter(|_| state == "not running")
+                .map(|code| code == 0),
             Self::TaskScheduler { last_result, .. } => {
                 (!self.running()).then_some(*last_result == 0)
             }
@@ -2811,9 +2821,17 @@ mod tests {
                      \tlast exit code = (never exited)\n}\n";
         let read = Counters::read(Manager::Launchd, never, "x").expect("read");
         assert_eq!(read.ended_well(), None, "{read:?}");
-        let failed = never.replace("(never exited)", "78");
-        let read = Counters::read(Manager::Launchd, &failed, "x").expect("read");
+        let failed = "gui/501/x = {\n\tstate = not running\n\truns = 1\n\
+                      \tlast exit code = 78\n}\n";
+        let read = Counters::read(Manager::Launchd, failed, "x").expect("read");
         assert_eq!(read.ended_well(), Some(false), "{read:?}");
+        // **A start under way is no end**: counted in `runs` before its
+        // program runs, beside the code of the instance before it.
+        let starting = "gui/501/x = {\n\tstate = spawn scheduled\n\truns = 2\n\
+                        \tlast exit code = 0\n}\n";
+        let read = Counters::read(Manager::Launchd, starting, "x").expect("read");
+        assert!(!read.running(), "{read:?}");
+        assert_eq!(read.ended_well(), None, "{read:?}");
         for unreadable in [
             "gui/501/x = {\n\tstate = running\n}\n",
             "gui/501/x = {\n\truns = 1\n}\n",
@@ -2973,7 +2991,8 @@ mod tests {
     ///
     /// For systemd that is only a unit that failed, since one that ended well is
     /// forgotten with its counters; a task's last result is an end only once
-    /// no instance runs.
+    /// no instance runs, and launchd's last exit code only once its state is
+    /// `not running`.
     #[test]
     fn how_the_last_instance_ended_is_its_managers_word_or_none() {
         let systemd = |active_state: &str| Counters::Systemd {
@@ -2995,15 +3014,26 @@ mod tests {
         for running in [super::TASK_RUNNING, super::REFUSED_WHILE_RUNNING] {
             assert_eq!(task(running).ended_well(), None, "{running}");
         }
-        let launchd = |last_exit| Counters::Launchd {
-            state: "not running".to_owned(),
+        let launchd = |state: &str, last_exit| Counters::Launchd {
+            state: state.to_owned(),
             pid: None,
             runs: 2,
             last_exit,
         };
-        assert_eq!(launchd(Some(0)).ended_well(), Some(true));
-        assert_eq!(launchd(Some(1)).ended_well(), Some(false));
-        assert_eq!(launchd(None).ended_well(), None);
+        assert_eq!(launchd("not running", Some(0)).ended_well(), Some(true));
+        assert_eq!(launchd("not running", Some(1)).ended_well(), Some(false));
+        assert_eq!(launchd("not running", None).ended_well(), None);
+        // A start counted and not yet running, or running, beside the code of
+        // the instance before it.
+        for starting in ["spawn scheduled", "running"] {
+            for before in [Some(0), Some(1)] {
+                assert_eq!(
+                    launchd(starting, before).ended_well(),
+                    None,
+                    "{starting} {before:?}"
+                );
+            }
+        }
     }
 
     /// What each manager reads at login is beside the user's configuration:

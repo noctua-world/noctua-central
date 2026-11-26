@@ -3590,7 +3590,9 @@ and the sweep's judgement of a scratch whose owner lives, one dead, one never lo
 too new and another checkout's, a unit linked to start at login and unlinked without a
 reload, a unit still wanted once its file is gone read from systemd's own answer and
 reloaded away only where a login reads it, lingering asked for only where logind does not
-keep it and its refusal said in its words, and how each manager says an instance ended — by
+keep it and its refusal said in its words, and how each manager says an instance ended,
+launchd's last exit code an end only once its state is `not running` and never beside a
+start it has counted and not yet run — by
 the three scratch services in `with_the_manager`, run on
 Linux, macOS and Windows in CI: one killed and restored as a new instance, read through the
 manager's own counter and the instance's record of itself, having been handed its

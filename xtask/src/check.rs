@@ -25955,7 +25955,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23661;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23662;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26043,7 +26043,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 619;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 620;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26079,7 +26079,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **619 of 31,180 are accepted by the first-line
+    /// rules the gates apply: **620 of 31,180 are accepted by the first-line
     /// rule alone, and 355 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -38201,7 +38201,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3151] = [
+    static OPERATORS: [(&str, &str, &str); 3152] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -51386,6 +51386,11 @@ Options:
             "platform_service",
             "ended_well",
             "a task's last result is an end only once nothing runs",
+        ),
+        (
+            "platform_service",
+            "ended_well",
+            "launchd's last exit code is an end only once it is not running",
         ),
         (
             "platform_service",
