@@ -3937,7 +3937,7 @@ fn the_excused_lines_are_counted(
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 74),
-    ("allow-logging:", 85),
+    ("allow-logging:", 90),
     ("allow-nondeterminism:", 24),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
@@ -3962,10 +3962,12 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 79] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 81] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     ("apps/daemon/src/testing.rs", "allow-logging:", 1),
+    ("apps/desktop/src/assets.rs", "allow-logging:", 3),
+    ("apps/desktop/src/theme.rs", "allow-logging:", 2),
     (
         "crates/nc-catalog-compiler/src/ledger.rs",
         "allow-nondeterminism:",
@@ -4124,10 +4126,12 @@ const EXCUSED_WHERE: [(&str, &str, usize); 79] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 52] = [
+const EXCUSED_IN: [(&str, usize); 54] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("apps/daemon/src/testing.rs", 1),
+    ("apps/desktop/src/assets.rs", 3),
+    ("apps/desktop/src/theme.rs", 2),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
     ("crates/nc-catalog-compiler/src/lib.rs", 8),
     ("crates/nc-catalog-compiler/src/load.rs", 2),
@@ -19859,7 +19863,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 260] = [
+    const DOCUMENTED: [(&str, usize, usize); 262] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19907,15 +19911,17 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
+        ("desktop/assets.rs", 19, 3),
         ("desktop/client.rs", 12, 1),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/host.rs", 21, 7),
-        ("desktop/lib.rs", 0, 5),
-        ("desktop/main.rs", 16, 6),
+        ("desktop/host.rs", 45, 10),
+        ("desktop/lib.rs", 0, 7),
+        ("desktop/main.rs", 21, 6),
         ("desktop/mirror.rs", 84, 19),
-        ("desktop/page.rs", 7, 1),
+        ("desktop/page.rs", 14, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/the_window_opens_hidden.rs", 1, 0),
+        ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
         ("kuchikiki/lib.rs", 0, 0),
         ("nc-authz/agents.rs", 69, 47),
@@ -20079,7 +20085,7 @@ mod the_frozen_path_rule {
         ("nc-platform/service.rs", 185, 21),
         ("nc-platform/testing.rs", 40, 7),
         ("nc-platform/unix.rs", 106, 4),
-        ("nc-platform/webview.rs", 2, 3),
+        ("nc-platform/webview.rs", 3, 3),
         ("nc-platform/windows.rs", 154, 15),
         ("nc-platform/x11.rs", 225, 39),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
@@ -26088,7 +26094,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24051;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24174;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26107,7 +26113,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7108;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7226;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26124,7 +26130,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2424;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2468;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26141,7 +26147,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [138, 27, 54, 55, 101];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [150, 29, 56, 57, 102];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26158,7 +26164,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31493;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31626;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26176,7 +26182,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 644;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 663;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26212,8 +26218,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **644 of 31,493 are accepted by the first-line
-    /// rule alone, and 375 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **663 of 31,626 are accepted by the first-line
+    /// rule alone, and 394 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26234,8 +26240,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **138 ascending sorts, 27 descending, 54
-    /// swaps, 55 rotations and 101 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **150 ascending sorts, 29 descending, 56
+    /// swaps, 57 rotations and 102 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26245,7 +26251,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2424 of
+    /// this tree offers, **2468 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38562,7 +38568,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 274,
+            walked, 276,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38602,7 +38608,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3179] = [
+    static OPERATORS: [(&str, &str, &str); 3199] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -52880,13 +52886,33 @@ Options:
         ),
         (
             "desktop_main",
-            "probed",
+            "wrong_with",
             "a decorated window fails the probe",
         ),
         (
             "desktop_main",
+            "wrong_with",
+            "a window shown before its document loaded fails the probe",
+        ),
+        (
+            "desktop_main",
+            "wrong_with",
+            "a first frame unlike the settled page fails the probe",
+        ),
+        (
+            "desktop_main",
+            "wrong_with",
+            "a page smaller than the least fails the probe",
+        ),
+        (
+            "desktop_main",
             "probed",
-            "a window shown once loaded fails the probe",
+            "a dark first frame not the dark surface fails the probe",
+        ),
+        (
+            "desktop_main",
+            "probed",
+            "the light and the dark painting the same fails the probe",
         ),
         ("desktop_mirror", "id", "an identifier is one at least"),
         (
@@ -52936,9 +52962,77 @@ Options:
             "the script says the word the window reads",
         ),
         (
+            "desktop_page",
+            "Document",
+            "the interface's sheet is linked after the design system's",
+        ),
+        ("desktop_page", "Shell", "the footer holds its prompt line"),
+        (
+            "desktop_theme",
+            "chosen",
+            "the system's mode is the one the system prefers",
+        ),
+        (
+            "desktop_theme",
+            "sheets",
+            "the palette's own sheet is linked once",
+        ),
+        (
+            "desktop_theme",
+            "backdrop",
+            "the light is given no backdrop",
+        ),
+        (
+            "desktop_theme",
+            "dark_value",
+            "a backdrop is read from the dark values",
+        ),
+        (
+            "desktop_theme",
+            "linked",
+            "only a stylesheet's link is read",
+        ),
+        (
+            "desktop_assets",
+            "answer",
+            "a method other than GET is not allowed",
+        ),
+        (
+            "desktop_assets",
+            "embedded",
+            "a design system's file is found by its whole name",
+        ),
+        (
+            "desktop_assets",
+            "type_of",
+            "a type is its whole extension's",
+        ),
+        ("desktop_assets", "status", "a path not found is 404"),
+        (
             "desktop_host",
-            "is_loaded",
-            "only the document's word is read",
+            "said",
+            "only the closed set is read from the webview",
+        ),
+        ("desktop_host", "number", "a number is digits alone"),
+        (
+            "desktop_host",
+            "shows",
+            "a window is shown only once its document has loaded",
+        ),
+        (
+            "desktop_host",
+            "fitted",
+            "the least is rounded up to whole pixels",
+        ),
+        (
+            "desktop_host",
+            "at_least",
+            "no size asked for is less than the least",
+        ),
+        (
+            "desktop_host",
+            "within",
+            "a navigation stays under the root",
         ),
         (
             "desktop_host",

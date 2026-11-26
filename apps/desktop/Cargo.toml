@@ -43,6 +43,17 @@ wry.workspace = true
 # window is ever shown.
 dioxus.workspace = true
 dioxus-ssr.workspace = true
+# **The design system** (`NOCTUA.md §9`): its components — the footer, its
+# lines and its corners (`§12.3`) — and its theme model, the palette and the
+# mode the document's root is stamped with before the first paint (`§9.6`).
+noctua-design.workspace = true
+# **What the design system ships to a page, embedded**: its stylesheets, its
+# behaviour modules and its palettes' values, every one served by name through
+# the interface's custom protocol, and the order its sheets are linked in read
+# from its own list, its `base.html`.
+noctua-design-dist.workspace = true
+# The script Dioxus applies a virtual DOM's edits with, served beside them.
+dioxus-interpreter-js.workspace = true
 # The runtime the two connections to the daemon run on, one thread each
 # (`rt`), the endpoint's socket or pipe (`net`), and the protocol's bounds and
 # the wait between two tries (`time`). Already in the graph with each; never

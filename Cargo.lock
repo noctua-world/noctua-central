@@ -1057,6 +1057,7 @@ dependencies = [
  "dioxus-config-macros",
  "dioxus-core",
  "dioxus-core-macro",
+ "dioxus-hooks",
  "dioxus-html",
  "dioxus-signals",
  "dioxus-stores",
@@ -1160,6 +1161,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "dioxus-interpreter-js"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11999d6eb5bb179a9512dad30e5de408aab66f2cb65de9098c9fbe02927e2978"
+dependencies = [
+ "lazy-js-bundle",
 ]
 
 [[package]]
@@ -2814,6 +2824,7 @@ name = "nc-desktop"
 version = "0.1.0-rc.1"
 dependencies = [
  "dioxus",
+ "dioxus-interpreter-js",
  "dioxus-ssr",
  "nc-canon",
  "nc-catalog",
@@ -2821,6 +2832,8 @@ dependencies = [
  "nc-desktop",
  "nc-ipc",
  "nc-platform",
+ "noctua-design",
+ "noctua-design-dist",
  "tao",
  "tokio",
  "wry",
@@ -3035,10 +3048,54 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
+name = "noctua-design"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1edf5dccd66482d4d0b3619d3bf17af0a5335e9df968163ff14e1035d91eb6d0"
+dependencies = [
+ "dioxus",
+ "noctua-design-grammars",
+ "noctua-design-icons",
+ "noctua-design-lineage",
+ "noctua-design-theme",
+ "noctua-design-tokens",
+]
+
+[[package]]
 name = "noctua-design-dist"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "717b45d58b3b1205437055b249d1a363ed8df748c766a60f6dbb0a166e33cb4e"
+
+[[package]]
+name = "noctua-design-grammars"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7096167ce81e2a1b8ba61f498d91d0b5d65eef0cab4f981e129dcd21a96cf2c0"
+
+[[package]]
+name = "noctua-design-icons"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9360a9f541e8234c647d86b265ed0357364023cf5938186b5b85fcff01f34f63"
+
+[[package]]
+name = "noctua-design-lineage"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1bfd105c6a4f8473bf1b6ead4b558be98b0b0755d38a21db8e3ef1df2c17696"
+
+[[package]]
+name = "noctua-design-theme"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb45c465373b4d235461a4fb351943b1db469533b8b61672f6e4786dfb9a5dee"
+
+[[package]]
+name = "noctua-design-tokens"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb4b9dd759281ac865a91ca1a9f60d000a78aaa97bbdbfda51eab20083a4c250"
 
 [[package]]
 name = "nonempty"

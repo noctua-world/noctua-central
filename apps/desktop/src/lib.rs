@@ -9,13 +9,17 @@
 //!   binary of an install reads it (`nc_channel::found`), and names the
 //!   daemon this window is a view of.
 //! - **The window** ([`host`]): built hidden and undecorated before anybody
-//!   asks to see it, its webview handed the document [`page`] builds —
-//!   markup written as `rsx!`, with the interface's sheet of layout
-//!   utilities ([`sheet`]) inlined.
+//!   asks to see it, in the theme the system prefers ([`theme`]), its webview
+//!   loading the document [`page`] builds — markup written as `rsx!`, its
+//!   root stamped with the theme, linking the design system's sheets and the
+//!   interface's sheet of layout utilities ([`sheet`]) — through the
+//!   `noctua` custom protocol, which answers a closed list of paths from
+//!   bytes this build embeds ([`assets`]).
 //! - **The daemon's state** ([`client`], [`mirror`]): followed by a watch on a
 //!   connection of its own, read strictly, and drawn — the window shown and
-//!   hidden as the state says; and what the window asks, a command or a note,
-//!   sent on the other connection.
+//!   hidden as the state says, a show waiting for the document to have
+//!   loaded; and what the window asks, a command or a note, sent on the other
+//!   connection.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -30,8 +34,10 @@
 //! judged this user's alone, and sends nothing to what has not proven it holds
 //! it. A state of another shape drawn as one it is not: the mirror reads every
 //! field strictly, and keeps the state it held over one it cannot read. The
-//! webview loading what this build did not write: it is handed one document,
-//! which links nothing, and its message channel is read for one word.
+//! webview loading what this build did not write, or a file of the machine's:
+//! everything it loads is answered from bytes compiled in, by a closed list
+//! of paths no request can step out of, it navigates nowhere else, and its
+//! message channel is read for a closed set of messages.
 //!
 //! # What it does not
 //!
@@ -46,8 +52,10 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod assets;
 pub mod client;
 pub mod host;
 pub mod mirror;
 pub mod page;
 pub mod sheet;
+pub mod theme;

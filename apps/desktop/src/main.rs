@@ -6,11 +6,14 @@
 //! (`nc_desktop::host::run`): a window kept hidden until the daemon's state
 //! shows it, which runs until it is ended. `noctua-desktop --probe` asks
 //! whether this system can host the interface (`nc_desktop::host::probe`) —
-//! a window opened hidden and undecorated, its document loaded, the window
-//! closed — and answers exit code 0 when all of it held and 1 when any did
-//! not, saying which; it needs no install and no daemon. Any other
-//! invocation is exit code 2; a refusal of the install or of the window is
-//! exit code 1, with its sentence.
+//! a window opened in the light and one in the dark, each hidden and
+//! undecorated, kept hidden though asked to show until its document loaded,
+//! its first frame painting the background its settled page paints — the
+//! dark one the design system's dark surface, the two differing — and its
+//! page the least size when asked for less, each closed — and answers exit
+//! code 0 when all of it held and 1 when any did not, saying which; it needs
+//! no install and no daemon. Any other invocation is exit code 2; a refusal
+//! of the install or of the window is exit code 1, with its sentence.
 //!
 //! **A window of the system's own kind, never a console's**: on Windows the
 //! binary is built for the windows subsystem, so starting it opens no
@@ -29,7 +32,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use nc_desktop::host::{Probed, Unopened};
+use nc_desktop::host::{Probed, Seen, Unopened};
 
 /// The exit code of an invocation this build does not answer.
 const UNANSWERED: u8 = 2;
@@ -109,31 +112,86 @@ fn answer(
     }
 }
 
-/// The exit code and the line a probe is answered with: 0 when the window
-/// opened hidden and undecorated, its document loaded and it stayed hidden;
-/// 1 naming each that did not, or why no window was opened.
+/// What is wrong with the window a probe opened in `mode`, by what it `seen`.
+fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
+    if !seen.hidden_when_opened {
+        wrong.push(format!(
+            "the window in the {mode} was shown once it was opened"
+        ));
+    }
+    if !seen.undecorated {
+        wrong.push(format!(
+            "the window in the {mode} draws the system's decorations"
+        ));
+    }
+    match seen.hidden_when_loaded {
+        None => wrong.push(format!(
+            "the document in the {mode} did not say it loaded within the wait"
+        )),
+        Some(false) => wrong.push(format!(
+            "the window in the {mode} was shown before its document had loaded"
+        )),
+        Some(true) => {}
+    }
+    match (seen.first_frame, seen.settled) {
+        (Some(first), Some(settled)) if first == settled => {}
+        (Some(first), Some(settled)) => wrong.push(format!(
+            "the first frame in the {mode} painted {first:?} and the settled page {settled:?}"
+        )),
+        _ => wrong.push(format!(
+            "what the page in the {mode} painted was not read within the wait"
+        )),
+    }
+    let least = (
+        nc_catalog::KERNEL.shell_window_min_width,
+        nc_catalog::KERNEL.shell_window_min_height,
+    );
+    if seen.least != Some(least) {
+        wrong.push(format!(
+            "the page in the {mode}, asked to be smaller than {least:?}, was {:?}",
+            seen.least
+        ));
+    }
+}
+
+/// The exit code and the line a probe is answered with: 0 when each window
+/// opened hidden and undecorated, stayed hidden until its document loaded,
+/// painted at its first frame what its settled page paints — the dark one
+/// the design system's dark surface, the light one another colour — and
+/// kept its page the least size when asked for less; 1 naming each that did
+/// not, or why no window was opened.
 fn probed(probe: Result<Probed, Unopened>) -> (u8, String) {
     let probed = match probe {
         Ok(probed) => probed,
         Err(unopened) => return (REFUSED, format!("noctua-desktop: {unopened}")),
     };
     let mut wrong = Vec::new();
-    if !probed.hidden_when_opened {
-        wrong.push("the window was shown once it was opened");
+    wrong_with("light", &probed.light, &mut wrong);
+    wrong_with("dark", &probed.dark, &mut wrong);
+    let dark = probed
+        .dark
+        .first_frame
+        .map(|[red, green, blue, alpha]| ([red, green, blue], alpha));
+    match (dark, probed.dark_backdrop) {
+        (Some((painted, u8::MAX)), Some(backdrop)) if painted == backdrop => {}
+        (_, None) => {
+            wrong
+                .push("the design system gives no dark surface for the default palette".to_owned());
+        }
+        (painted, Some(backdrop)) => wrong.push(format!(
+            "the first frame in the dark painted {painted:?}, not the dark surface {backdrop:?}"
+        )),
     }
-    if !probed.undecorated {
-        wrong.push("the window draws the system's decorations");
-    }
-    match probed.hidden_when_loaded {
-        None => wrong.push("its document did not say it loaded within the wait"),
-        Some(false) => wrong.push("the window was shown once its document had loaded"),
-        Some(true) => {}
+    if probed.light.first_frame.is_some() && probed.light.first_frame == probed.dark.first_frame {
+        wrong.push("the first frame painted the same in the light and in the dark".to_owned());
     }
     if wrong.is_empty() {
         (
             0,
-            "noctua-desktop: a window opened hidden and undecorated, its document loaded \
-             with the window still hidden, and the window was closed"
+            "noctua-desktop: a window opened in the light and one in the dark, each hidden and \
+             undecorated and kept hidden until its document loaded, each first frame painting \
+             what its settled page paints and the dark one the dark surface, each page the \
+             least size when asked for less, and each window was closed"
                 .to_owned(),
         )
     } else {
@@ -164,7 +222,7 @@ mod tests {
     use std::ffi::OsString;
     use std::path::PathBuf;
 
-    use nc_desktop::host::Probed;
+    use nc_desktop::host::{Probed, Seen};
 
     /// A scratch directory for one test, removed however the test leaves.
     struct Scratch(PathBuf);
@@ -255,51 +313,136 @@ mod tests {
         assert!(line.contains("could not say which executable"), "{line}");
     }
 
-    /// A probe is exit code 0 only when the window opened hidden and
-    /// undecorated and stayed hidden once its document loaded; each of
-    /// those that did not hold is exit code 1, named.
-    #[test]
-    fn a_probe_passes_only_when_every_part_held() {
-        let held = Probed {
+    /// What a window that held everything was seen to do, painting `colour`.
+    fn held(colour: [u8; 4]) -> Seen {
+        Seen {
             hidden_when_opened: true,
             undecorated: true,
             hidden_when_loaded: Some(true),
-        };
-        let (code, line) = super::probed(Ok(held));
+            first_frame: Some(colour),
+            settled: Some(colour),
+            least: Some((
+                nc_catalog::KERNEL.shell_window_min_width,
+                nc_catalog::KERNEL.shell_window_min_height,
+            )),
+        }
+    }
+
+    /// The colour the dark surface is, in the probes below.
+    const DARK: [u8; 4] = [10, 20, 30, 255];
+
+    /// A probe in which everything held, painting [`DARK`] in the dark.
+    fn passing() -> Probed {
+        Probed {
+            light: held([250, 250, 250, 255]),
+            dark: held(DARK),
+            dark_backdrop: Some([10, 20, 30]),
+        }
+    }
+
+    /// A probe is exit code 0 only when each window opened hidden and
+    /// undecorated, stayed hidden until its document loaded, painted at its
+    /// first frame what its settled page paints, and kept its page the least
+    /// size; each of those that did not hold, in either mode, is exit code
+    /// 1, named.
+    #[test]
+    fn a_probe_passes_only_when_every_part_held() {
+        let passing = passing();
+        let (code, line) = super::probed(Ok(passing));
         assert_eq!(code, 0, "{line}");
-        assert!(line.contains("the window was closed"), "{line}");
+        assert!(line.contains("each window was closed"), "{line}");
+        let changed = |mode: &str, change: &dyn Fn(&mut Seen)| {
+            let mut probed = passing;
+            change(if mode == "light" {
+                &mut probed.light
+            } else {
+                &mut probed.dark
+            });
+            probed
+        };
+        for mode in ["light", "dark"] {
+            for (probed, said) in [
+                (
+                    changed(mode, &|seen| seen.hidden_when_opened = false),
+                    "shown once it was opened",
+                ),
+                (
+                    changed(mode, &|seen| seen.undecorated = false),
+                    "draws the system's decorations",
+                ),
+                (
+                    changed(mode, &|seen| seen.hidden_when_loaded = None),
+                    "did not say it loaded",
+                ),
+                (
+                    changed(mode, &|seen| seen.hidden_when_loaded = Some(false)),
+                    "shown before its document had loaded",
+                ),
+                (
+                    changed(mode, &|seen| seen.first_frame = Some([1, 2, 3, 255])),
+                    "the settled page",
+                ),
+                (
+                    changed(mode, &|seen| seen.settled = None),
+                    "was not read within the wait",
+                ),
+                (
+                    changed(mode, &|seen| seen.least = Some((160, 120))),
+                    "asked to be smaller",
+                ),
+                (
+                    changed(mode, &|seen| seen.least = None),
+                    "asked to be smaller",
+                ),
+            ] {
+                let (code, line) = super::probed(Ok(probed));
+                assert_eq!(code, 1, "{mode}, {said}: {line}");
+                assert!(
+                    line.contains(&format!("in the {mode}")) && line.contains(said),
+                    "{mode}, {said}: {line}"
+                );
+            }
+        }
+    }
+
+    /// A probe is exit code 1 when the first frame in the dark painted
+    /// anything but the dark surface, opaque, when the design system gives
+    /// none, or when the light and the dark painted the same.
+    #[test]
+    fn a_probe_passes_only_when_the_dark_is_the_dark_surface() {
+        let passing = passing();
         for (probed, said) in [
             (
                 Probed {
-                    hidden_when_opened: false,
-                    ..held
+                    dark: held([10, 20, 31, 255]),
+                    ..passing
                 },
-                "shown once it was opened",
+                "not the dark surface",
             ),
             (
                 Probed {
-                    undecorated: false,
-                    ..held
+                    dark: held([10, 20, 30, 254]),
+                    ..passing
                 },
-                "draws the system's decorations",
+                "not the dark surface",
             ),
             (
                 Probed {
-                    hidden_when_loaded: None,
-                    ..held
+                    dark_backdrop: None,
+                    ..passing
                 },
-                "did not say it loaded",
+                "no dark surface",
             ),
             (
                 Probed {
-                    hidden_when_loaded: Some(false),
-                    ..held
+                    light: held(DARK),
+                    ..passing
                 },
-                "shown once its document had loaded",
+                "the same in the light and in the dark",
             ),
         ] {
             let (code, line) = super::probed(Ok(probed));
-            assert_eq!(code, 1, "{line}");
+            assert_eq!(code, 1, "{said}: {line}");
             assert!(line.contains(said), "{said}: {line}");
         }
         let (code, line) = super::probed(Err(nc_desktop::host::Unopened::Thread(

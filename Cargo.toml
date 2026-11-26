@@ -92,14 +92,15 @@ noctua-design-dist = "0.3.0"
 # on macOS, WebView2 on Windows — and neither is viable in-house (`§2.3` names
 # a browser engine). **Exact pins**: `wry` 0.57 still takes `dirs`, and `tao`
 # 0.38 asks for a `gdk-sys` WebKitGTK's crate does not link beside, so a move
-# is measured on three systems before it is made. `wry` takes the webview and
-# nothing else (`os-webview`): no drag and drop, no custom protocol until the
-# interface serves its assets through one, and no X11-only path, since a
-# window is built through GTK on Linux (`nc_platform::webview`). `tao` takes
+# is measured on three systems before it is made. `wry` takes the webview
+# (`os-webview`) and the custom protocol the interface serves every asset
+# through (`protocol`, `apps/desktop/src/assets.rs`) and nothing else: no drag
+# and drop, and no X11-only path, since a window is built through GTK on Linux
+# (`nc_platform::webview`). `tao` takes
 # the window handle `wry` builds on macOS and Windows (`rwh_06`) and no X11
 # extension of its own. Two crates their trees name are stood in for, in
 # `stand-ins/` (`[patch.crates-io]`, below).
-wry = { version = "=0.53.5", default-features = false, features = ["os-webview"] }
+wry = { version = "=0.53.5", default-features = false, features = ["os-webview", "protocol"] }
 tao = { version = "=0.34.8", default-features = false, features = ["rwh_06"] }
 # **The interface's markup, written in Dioxus** (`NOCTUA.md §4`, "Rust UI
 # framework"), at the release `noctua-design` 0.3.0 is built with — every
@@ -111,6 +112,12 @@ tao = { version = "=0.34.8", default-features = false, features = ["rwh_06"] }
 # is handed before it is shown (`apps/desktop/src/page.rs`).
 dioxus = { version = "=0.7.9", default-features = false, features = ["macro", "html", "signals"] }
 dioxus-ssr = "=0.7.9"
+# **Dioxus's interpreter**, the script that applies a virtual DOM's edits in a
+# webview, which the interface's custom protocol serves beside the design
+# system's files (`apps/desktop/src/assets.rs`). No feature: the two scripts it
+# ships ready-made as text, and none of the bindings its features generate,
+# which take crates of their own.
+dioxus-interpreter-js = { version = "=0.7.9", default-features = false }
 
 # Internal. Path only: nothing here is published to a registry
 # (`NOCTUA.md §10.11`).

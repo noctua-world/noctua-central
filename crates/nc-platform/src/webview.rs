@@ -1,13 +1,17 @@
-//! The one call that puts a webview into a window, which each system makes
-//! its own way (`NOCTUA.md §2.7`, §4): behind the `webview` feature, which
-//! only the desktop interface turns on.
+//! The one call that puts a webview into a window, and the one address a
+//! custom protocol's pages are at, which each system makes its own way
+//! (`NOCTUA.md §2.7`, §4): behind the `webview` feature, which only the
+//! desktop interface turns on.
 //!
 //! **Linux builds it through GTK**, into the box `tao` keeps in every window,
 //! because `wry`'s other path takes the window's raw handle, which is an X
 //! window's alone — a Wayland session would have no webview at all. **macOS
 //! and Windows build it on the window's own handle**, which is the only path
-//! `wry` has there. Every other decision about the window and its webview is
-//! the desktop's, made the same on every system.
+//! `wry` has there. **A custom protocol's page is at `<scheme>://localhost/`
+//! on Linux and macOS, and at `http://<scheme>.localhost/` on Windows**
+//! (`origin`), where `WebView2` serves a custom scheme under a host of its
+//! own. Every other decision about the window and its webview is the
+//! desktop's, made the same on every system.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -71,5 +75,18 @@ pub fn into<'a>(
     #[cfg(not(target_os = "linux"))]
     {
         builder.build(window).map_err(Unbuilt::Refused)
+    }
+}
+
+/// The address of the root of the pages a custom protocol named `scheme`
+/// serves, as this system's webview loads them, ending in `/`:
+/// `<scheme>://localhost/` on Linux and macOS, and `http://<scheme>.localhost/`
+/// on Windows.
+#[must_use]
+pub fn origin(scheme: &str) -> String {
+    if cfg!(windows) {
+        format!("http://{scheme}.localhost/")
+    } else {
+        format!("{scheme}://localhost/")
     }
 }
