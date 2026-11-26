@@ -20,7 +20,7 @@
 //! A tree holds at most `ui_tree_nodes` nodes and nests at most
 //! `ui_tree_depth` deep; each text is at most `ui_text_bytes` bytes and holds
 //! no character a reader sees nothing of but a line break; `max_length` is at
-//! most `ui_text_bytes`. **An interaction names a command, and the kernel
+//! most `ui_text_bytes`, and counts characters. **An interaction names a command, and the kernel
 //! holds it to the registry**: the command a `button` or a `toggle` names is
 //! registered when the tree is rendered, every key of its `args` and every name
 //! it binds is a property of that command's schema — never one written in
@@ -63,7 +63,10 @@
 //! changes state: the activation opens no unit of its own
 //! ([`dispatches_what_it_shows`]) and is no step, and the command's unit is,
 //! labelled by the command. A surface or a node not there is `[NC-KERN-0036]`,
-//! and a node that runs nothing or an input it does not bind is
+//! and a node that runs nothing, an input it does not bind, or a text typed
+//! into an input past its bounds — the input's own `max_length` in
+//! characters, where it declares one, and `ui_text_bytes` in bytes, which the
+//! command's schema cannot say, since its `maxLength` counts characters — is
 //! `[NC-KERN-0037]`.
 //!
 //! What this answers (`NOCTUA.md §2.4`): a plugin drawing what the host does
@@ -617,16 +620,7 @@ impl Surfaces {
             Some(Value::Object(args)) => args.clone(),
             _ => BTreeMap::new(),
         };
-        let binds: Vec<&str> = match fields.get("bind") {
-            Some(Value::Array(names)) => names
-                .iter()
-                .filter_map(|name| match name {
-                    Value::Text(name) => Some(name.as_str()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        };
+        let binds = binds_of(fields);
         for (name, typed) in inputs {
             let input = quoted(name);
             if !binds.contains(&name.as_str()) {
@@ -634,6 +628,7 @@ impl Surfaces {
                     "the node at {pointer} binds no input {input}"
                 )));
             }
+            within_bounds(&tree, name, typed).map_err(refused)?;
             let value = if input_kind(&tree, name) == Some("integer") {
                 Value::Integer(typed.parse().map_err(|_| {
                     refused(format!(
@@ -698,25 +693,81 @@ fn at<'a>(tree: &'a Value, pointer: &str) -> Option<&'a Value> {
     Some(here)
 }
 
+/// The names of the inputs the node `fields` binds.
+fn binds_of(fields: &BTreeMap<String, Value>) -> Vec<&str> {
+    match fields.get("bind") {
+        Some(Value::Array(names)) => names
+            .iter()
+            .filter_map(|name| match name {
+                Value::Text(name) => Some(name.as_str()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Whether `typed`, typed into the input named `name` in `tree`, is within its bounds.
+///
+/// Its bounds are `ui_text_bytes` in bytes, which a schema's `maxLength`
+/// cannot say since it counts characters, and the input's own `max_length` in
+/// characters where it declares one; otherwise the sentence that says why not.
+fn within_bounds(tree: &Value, name: &str, typed: &str) -> Result<(), String> {
+    let input = quoted(name);
+    if u64::try_from(typed.len()).unwrap_or(u64::MAX) > KERNEL.ui_text_bytes {
+        return Err(format!(
+            "the text typed into the input {input} is {} bytes, past the {} a text may be",
+            typed.len(),
+            KERNEL.ui_text_bytes
+        ));
+    }
+    if let Some(most) = input_max_length(tree, name)
+        && typed.chars().count() > most
+    {
+        return Err(format!(
+            "the input {input} takes at most {most} characters, and {} were typed",
+            typed.chars().count()
+        ));
+    }
+    Ok(())
+}
+
 /// The `kind` of the input named `name` in `tree` — `text` when it names
 /// none — or none when no input of the tree is named so.
 fn input_kind<'a>(tree: &'a Value, name: &str) -> Option<&'a str> {
+    input_named(tree, name).map(|fields| match fields.get("kind") {
+        Some(Value::Text(kind)) => kind.as_str(),
+        _ => "text",
+    })
+}
+
+/// The most characters the input named `name` in `tree` takes.
+///
+/// Its `max_length`, or none where it declares none
+/// or no input is named so.
+fn input_max_length(tree: &Value, name: &str) -> Option<usize> {
+    match input_named(tree, name)?.get("max_length") {
+        Some(Value::Integer(most)) => usize::try_from(*most).ok(),
+        _ => None,
+    }
+}
+
+/// The fields of the input named `name` in `tree`, or none when no input of
+/// the tree is named so.
+fn input_named<'a>(tree: &'a Value, name: &str) -> Option<&'a BTreeMap<String, Value>> {
     match tree {
         Value::Object(fields) => {
             let is_it = fields.get("node") == Some(&Value::text("input"))
                 && fields.get("name") == Some(&Value::text(name));
             if is_it {
-                return Some(match fields.get("kind") {
-                    Some(Value::Text(kind)) => kind.as_str(),
-                    _ => "text",
-                });
+                return Some(fields);
             }
             ["children", "items"]
                 .iter()
                 .filter_map(|key| fields.get(*key))
-                .find_map(|nodes| input_kind(nodes, name))
+                .find_map(|nodes| input_named(nodes, name))
         }
-        Value::Array(nodes) => nodes.iter().find_map(|node| input_kind(node, name)),
+        Value::Array(nodes) => nodes.iter().find_map(|node| input_named(node, name)),
         _ => None,
     }
 }
@@ -1973,6 +2024,64 @@ mod tests {
         );
     }
 
+    /// What is typed into an input is held to the input's own `max_length`
+    /// in characters and to `ui_text_bytes` in bytes, before anything is
+    /// dispatched.
+    ///
+    /// **Characters for the one, bytes for the other**: eight characters fit
+    /// an input of `max_length` 8 whatever bytes they take, and a ninth is
+    /// `[NC-KERN-0037]`; an input that declares none takes `ui_text_bytes`
+    /// bytes, and one byte more is refused — so is a text of fewer characters
+    /// than that taking more bytes, which the command's schema, counting
+    /// characters, lets through.
+    #[test]
+    fn what_is_typed_is_held_to_its_inputs_length_and_to_a_texts_bytes() {
+        /// A tree whose button binds an input of `max_length` 8 and one that
+        /// declares none.
+        const BOUNDED: &str = r#"{"node":"column","children":[{"node":"input","name":"title","label":"Title","max_length":8},{"node":"input","name":"extension","label":"Extension","kind":"multiline"},{"node":"button","label":"Go","command":"naming.propose","bind":["title","extension"]}]}"#;
+        let mut surfaces = Surfaces::default();
+        let id = showing(&mut surfaces, BOUNDED, by_ana());
+        let typed = |name: &str, value: String| vec![(name.to_owned(), value)];
+        let most = usize::try_from(KERNEL.ui_text_bytes).expect("a count");
+        for (inputs, why) in [
+            (typed("title", "abcdefgh".to_owned()), "eight characters"),
+            (
+                typed("title", "é".repeat(8)),
+                "eight characters of two bytes",
+            ),
+            (
+                typed("extension", "a".repeat(most)),
+                "as many bytes as a text may be",
+            ),
+        ] {
+            assert!(
+                surfaces.activation(&id, "/children/2", &inputs).is_ok(),
+                "{why}"
+            );
+        }
+        for (inputs, why) in [
+            (typed("title", "abcdefghi".to_owned()), "a ninth character"),
+            (
+                typed("extension", "a".repeat(most + 1)),
+                "one byte past a text's",
+            ),
+            (
+                typed("extension", "é".repeat(most / 2 + 1)),
+                "fewer characters than a text's bytes, taking more bytes",
+            ),
+        ] {
+            assert_eq!(
+                refused_as(surfaces.activation(&id, "/children/2", &inputs)),
+                (
+                    RefusalKind::Invalid,
+                    nc_catalog::ErrorCode::KernelNotActivatable,
+                    "not-activatable".to_owned()
+                ),
+                "{why}"
+            );
+        }
+    }
+
     /// A pointer's segments are read as JSON pointers write them: `~1` is
     /// `/` and `~0` is `~`, in that order.
     #[test]
@@ -2091,6 +2200,11 @@ mod tests {
 
     /// Every bound the surfaces' schemas declare is the one this module and
     /// the catalog hold.
+    ///
+    /// A schema's `maxLength` counts characters: what is typed into an input
+    /// is declared at most `ui_text_bytes` characters there, and held to that
+    /// many bytes by `activation`
+    /// (`what_is_typed_is_held_to_its_inputs_length_and_to_a_texts_bytes`).
     #[test]
     fn every_bound_the_surfaces_schemas_declare_is_the_one_held_here() {
         let schema = |name: &str| -> serde_json::Value {

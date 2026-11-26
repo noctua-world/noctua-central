@@ -909,8 +909,11 @@ args_schema = """
 # The bounds: a surface's identifier at most 64 characters, a node's pointer at
 # most 512 — the pointer to the deepest node a tree may hold fits — an input's
 # name at most 64 characters, as a tree names an input, what is typed into one
-# at most `[kernel] ui_text_bytes`, and at most `ui_tree_nodes` inputs; each held
-# equal to its source by a test beside the commands.
+# at most `[kernel] ui_text_bytes` characters, and at most `ui_tree_nodes`
+# inputs; each held equal to its source by a test beside the commands. A
+# schema's `maxLength` counts characters, so the kernel holds what is typed to
+# `ui_text_bytes` in bytes as well, and to the input's own `max_length` in
+# characters, when the node is activated (`[NC-KERN-0037]`).
 [[command]]
 name = "surfaces.list"
 title = "command.surfaces.list.title"

@@ -998,8 +998,9 @@ retryable = false
 # What `surfaces.activate` runs is read from the node: a `button` or a
 # `toggle` that is not disabled, with the text typed into the inputs it binds.
 # A node of another kind, one disabled, an input it does not bind or named
-# twice, and an integer input given what is not one, are refused before
-# anything is dispatched. Not NC-VAL-0002: the arguments are well formed, and
+# twice, a text past the input's `max_length` in characters or past
+# `ui_text_bytes` in bytes, and an integer input given what is not one, are
+# refused before anything is dispatched. Not NC-VAL-0002: the arguments are well formed, and
 # it is the tree they name that refuses them.
 code = "NC-KERN-0037"
 description = "A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read"
