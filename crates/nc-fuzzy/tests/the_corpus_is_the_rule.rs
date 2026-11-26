@@ -2,9 +2,9 @@
 //!
 //! `fuzzy-corpus.tsv` beside this file is the rule written as data: what each
 //! character folds to, how a query splits into words, how a query matches an
-//! item and in what order a list comes back. `noctua-design`'s matcher is
-//! brought to the same rows when the interface arrives, so the two
-//! implementations are each held to one case file and never to each other.
+//! item and in what order a list comes back. `noctua-design`'s matcher replays
+//! the same rows from a copy it vendors, so the two implementations are each
+//! held to one case file and never to each other.
 //!
 //! The reader is strict on purpose. A row it cannot read fails the suite naming
 //! its line, rather than being skipped: a corpus whose malformed rows vanish is

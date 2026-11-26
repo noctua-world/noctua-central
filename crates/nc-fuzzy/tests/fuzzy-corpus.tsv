@@ -1,10 +1,10 @@
 # The fuzzy core's rule, as rows its implementations replay.
 #
 # crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs replays every row against the
-# Rust core, and noctua-design's matcher replays the same rows once the
-# interface brings it to this rule. A row is a claim about the rule, so a change
-# to the rule changes a row in the same edit, and a row nobody can explain is a
-# defect in the rule or in the row.
+# Rust core, and noctua-design's matcher replays the same rows from the copy it
+# vendors. A row is a claim about the rule, so a change to the rule changes a row
+# in the same edit, and a row nobody can explain is a defect in the rule or in
+# the row.
 #
 # Tab-separated, one row per line; a line opening with # is a comment, and a
 # blank line is nothing.
@@ -100,6 +100,10 @@ match	a	-_.	-
 match	ab	lab Ab	4-5
 match	gr	ButtonGroup	6-7
 match	ver	Vast Error Report, sever	21-23
+# Wherever it is: the earlier run, inside a word, holds as many word starts and is earlier, and loses.
+match	AA	baAA	2-3
+# Of two runs inside a word, the one holding a word start; the first found does not win for being first.
+match	AA	BAaA	2-3
 # Scattered: more word starts, then more adjacent characters, then earlier.
 match	bg	ButtonGroup	0,6
 match	ver	Vast Error Report	0,5,11
@@ -151,6 +155,12 @@ order	ver	Verify everything;Verify it	1;0
 order	ver hist	Verificar o histórico;tag:verificar|tag:histórico	0;1
 order	h	Verify the history;Hide;ah	1;0;2
 order	한	한국;대한민국;하늘	0;1
+# Earliness counts the characters before a match as they were written, separators included.
+order	x	-x;x	1;0
+# The words' tiers are summed: two runs outrank a run and a scattered word that opens its field.
+order	xb b	xaabx;axb	1;0
+# A title-case letter is no capital, so after a small letter it opens no word.
+order	\u{1C5}	x\u{1C5};\u{20}\u{1C5}a	1;0
 # A query in Portuguese finds through a Portuguese synonym, one in English through the English name.
 order	procurar	Find a command|tag:search|tag:procurar;Verify the history|tag:verificar	0
 order	verify	Find a command|tag:search;Verify the history|tag:verificar	1

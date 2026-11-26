@@ -38077,7 +38077,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3010] = [
+    static OPERATORS: [(&str, &str, &str); 3014] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -51162,6 +51162,11 @@ Options:
             "is_upper",
             "a capital is a character its lower case changes",
         ),
+        (
+            "fuzzy_fold",
+            "is_upper",
+            "a title-case letter is no capital",
+        ),
         ("fuzzy_query", "parse", "a query past its bound is refused"),
         (
             "fuzzy_query",
@@ -51216,6 +51221,11 @@ Options:
         ),
         (
             "fuzzy_align",
+            "quality",
+            "earliness counts the characters before a word as they were written",
+        ),
+        (
+            "fuzzy_align",
             "holds",
             "a word is a subsequence only in its own order",
         ),
@@ -51243,6 +51253,11 @@ Options:
             "fuzzy_align",
             "best_run",
             "every occurrence of a run is weighed, not the first",
+        ),
+        (
+            "fuzzy_align",
+            "best_run",
+            "of two runs at one tier the one of better quality is kept",
         ),
         (
             "fuzzy_align",
@@ -51305,6 +51320,11 @@ Options:
             "fuzzy_score",
             "plus",
             "every component of a word's score is summed",
+        ),
+        (
+            "fuzzy_score",
+            "plus",
+            "the words' tiers are summed, not the largest taken",
         ),
         ("fuzzy_rank", "matched", "every word must match"),
         (
