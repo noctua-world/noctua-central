@@ -316,7 +316,7 @@ fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use nc_catalog::Locale;
     use nc_channel::Channel;
     use noctua_design::model::{Mode, Palette};
@@ -475,7 +475,7 @@ mod tests {
     /// footer — the first run's, as [`crate::footer::markup`] writes it —
     /// then the drawer's region, empty, and nothing else but the scripts.
     #[test]
-    fn the_first_run_shows_the_footer_alone() {
+    pub(crate) fn the_first_run_shows_the_footer_alone() {
         for locale in Locale::ALL {
             let first = footer(*locale);
             let written = document(*locale, themes()[0], &first);

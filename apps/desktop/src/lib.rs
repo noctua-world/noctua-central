@@ -31,6 +31,10 @@
 //!   rail, and the sidebar beside the workspace area, listing what is open in
 //!   it — both drawn from the state, every control, tab and entry a command
 //!   run as the person.
+//! - **The surfaces a plugin shows** ([`surface`]): the tree the kernel kept
+//!   for each, read strictly as the kernel's closed set of nodes and drawn by
+//!   the design system's components, every text escaped and every control
+//!   found by its node, never by the command it runs.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -85,4 +89,5 @@ pub mod mirror;
 pub mod page;
 pub mod sheet;
 pub mod sidebar;
+pub mod surface;
 pub mod theme;

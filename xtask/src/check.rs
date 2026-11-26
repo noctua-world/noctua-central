@@ -19863,7 +19863,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 267] = [
+    const DOCUMENTED: [(&str, usize, usize); 268] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19914,17 +19914,18 @@ mod the_frozen_path_rule {
         ("desktop/assets.rs", 19, 3),
         ("desktop/client.rs", 13, 1),
         ("desktop/commands.rs", 35, 6),
-        ("desktop/drawer.rs", 48, 4),
+        ("desktop/drawer.rs", 57, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 83, 4),
+        ("desktop/footer.rs", 88, 4),
         ("desktop/host.rs", 94, 11),
         ("desktop/keys.rs", 29, 3),
-        ("desktop/lib.rs", 0, 12),
+        ("desktop/lib.rs", 0, 13),
         ("desktop/main.rs", 22, 6),
         ("desktop/mirror.rs", 84, 19),
         ("desktop/page.rs", 16, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
+        ("desktop/surface.rs", 67, 19),
         ("desktop/the_window_opens_hidden.rs", 1, 0),
         ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
@@ -26099,7 +26100,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24642;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24795;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26118,7 +26119,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7629;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7721;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26135,7 +26136,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2611;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2644;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26152,7 +26153,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [197, 32, 61, 63, 105];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [208, 36, 61, 63, 107];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26169,7 +26170,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32110;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32225;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26187,7 +26188,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 729;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 746;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26223,8 +26224,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **729 of 32,110 are accepted by the first-line
-    /// rule alone, and 458 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **746 of 32,225 are accepted by the first-line
+    /// rule alone, and 475 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26245,8 +26246,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **197 ascending sorts, 32 descending, 61
-    /// swaps, 63 rotations and 105 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **208 ascending sorts, 36 descending, 61
+    /// swaps, 63 rotations and 107 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26256,7 +26257,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2611 of
+    /// this tree offers, **2644 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38573,7 +38574,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 281,
+            walked, 282,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38613,7 +38614,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3284] = [
+    static OPERATORS: [(&str, &str, &str); 3323] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -53355,6 +53356,149 @@ Options:
             "desktop_sidebar",
             "TheSidebar",
             "the sidebar's region is no box of its own",
+        ),
+        (
+            "desktop_surface",
+            "read",
+            "a surface is named in digits alone",
+        ),
+        (
+            "desktop_surface",
+            "read",
+            "a surface's number is at most twenty digits",
+        ),
+        (
+            "desktop_surface",
+            "node",
+            "a tree holds no more nodes than the kernel's bound",
+        ),
+        (
+            "desktop_surface",
+            "node",
+            "a tree nests no deeper than the kernel's bound",
+        ),
+        ("desktop_surface", "node", "a key a kind may hold is read"),
+        (
+            "desktop_surface",
+            "node",
+            "a key a kind does not hold is refused",
+        ),
+        (
+            "desktop_surface",
+            "node",
+            "a key a kind must hold is required",
+        ),
+        (
+            "desktop_surface",
+            "under",
+            "the root's pointer is `/` and its children's open with it",
+        ),
+        (
+            "desktop_surface",
+            "hook",
+            "a control is found by its surface and its node",
+        ),
+        ("desktop_surface", "level", "a heading's level is 1, 2 or 3"),
+        (
+            "desktop_surface",
+            "max_length",
+            "an input's bound is one character at least",
+        ),
+        ("desktop_surface", "blob", "a blob is named by 64 digits"),
+        (
+            "desktop_surface",
+            "blob",
+            "a blob's digits are lower-case hexadecimal",
+        ),
+        ("desktop_surface", "maybe_text", "a text is text"),
+        ("desktop_surface", "flag", "a flag left out is false"),
+        (
+            "desktop_surface",
+            "choice",
+            "a choice left out is its first word",
+        ),
+        ("desktop_surface", "choice", "a choice is one of its words"),
+        ("desktop_surface", "commanded", "a command is named as text"),
+        (
+            "desktop_surface",
+            "commanded",
+            "the arguments are an object",
+        ),
+        (
+            "desktop_surface",
+            "binds",
+            "a control binds inputs by their names",
+        ),
+        (
+            "desktop_surface",
+            "is_a_name",
+            "an input's name is at most 64 bytes",
+        ),
+        (
+            "desktop_surface",
+            "is_a_name",
+            "an input's name opens with a lower-case letter",
+        ),
+        (
+            "desktop_surface",
+            "TheSurface",
+            "a surface's region is named by its title",
+        ),
+        ("desktop_surface", "tone_of", "a muted text reads quieter"),
+        (
+            "desktop_surface",
+            "size_of",
+            "a heading is drawn at its level's size",
+        ),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a row wraps where it has no room",
+        ),
+        ("desktop_surface", "Drawn", "a text keeps its line breaks"),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a heading is drawn at its level",
+        ),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a button the node disables is disabled",
+        ),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a switch is on where its node is checked",
+        ),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a toggle's two values are the words `checked` is written in",
+        ),
+        (
+            "desktop_surface",
+            "Drawn",
+            "an input's field is named by its surface and its name",
+        ),
+        ("desktop_surface", "Drawn", "an input's bound is drawn"),
+        ("desktop_surface", "Drawn", "several lines are a text area"),
+        (
+            "desktop_surface",
+            "Drawn",
+            "a list holding nothing says its empty text",
+        ),
+        ("desktop_surface", "Drawn", "an image is said by its words"),
+        ("desktop_surface", "holds", "a heading holds its level"),
+        (
+            "desktop_surface",
+            "may_hold",
+            "an input may hold its value, its kind and its bound",
+        ),
+        (
+            "desktop_surface",
+            "word",
+            "a toggle is the kernel's `toggle`",
         ),
         (
             "desktop_host",

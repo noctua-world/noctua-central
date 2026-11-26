@@ -1323,23 +1323,108 @@ mod tests {
 
     // -- every bullet, held ------------------------------------------------
 
-    /// How a bullet of `NOCTUA.md` the footer answers to is held.
+    /// How a bullet of `NOCTUA.md` the interface answers to is held.
     #[derive(Debug, Clone, Copy)]
     enum Held {
         /// By this test.
         By(fn()),
         /// By this test, but for what is said, which arrives later.
         Partly(fn(), &'static str),
+        /// By a test of another crate of this repository, or a suite of this
+        /// crate's that starts a process: its file, from the repository's
+        /// root, and its name.
+        Elsewhere(&'static str, &'static str),
+        /// By such a test, but for what is said, which arrives later.
+        ElsewherePartly(&'static str, &'static str, &'static str),
         /// By the design system's own suite: the primitive's, as it says.
         Design(&'static str),
         /// Not yet: what builds it.
         Later(&'static str),
+        /// By nothing, since it claims nothing a test could hold: why.
+        Unclaimed(&'static str),
     }
 
-    /// Every bullet of `NOCTUA.md` §12.3, §12.5–§12.7, §12.9, §12.11 and
-    /// §12.14, by its section and the first 32 characters of its text with its
-    /// emphasis taken out, and how each is held.
-    const BULLETS: [(&str, &str, Held); 46] = [
+    /// The sections of `NOCTUA.md §12` Stage 16 builds: every one but the
+    /// workspaces' and the layout modes' (§12.12, §12.13), which are Stage
+    /// 17's, and what a page can be and the terminals (§12.20, §12.21),
+    /// which are later stages'.
+    const SECTIONS: [&str; 17] = [
+        "12.1", "12.2", "12.3", "12.4", "12.5", "12.6", "12.7", "12.8", "12.9", "12.10", "12.11",
+        "12.14", "12.15", "12.16", "12.17", "12.18", "12.19",
+    ];
+
+    /// Every bullet of the sections of `NOCTUA.md §12` Stage 16 builds
+    /// ([`SECTIONS`]), by its section and the first 32 characters of its text
+    /// with its emphasis taken out, and how each is held.
+    const BULLETS: [(&str, &str, Held); 99] = [
+        (
+            "12.1",
+            "Closing the interface stops noth",
+            Held::ElsewherePartly(
+                "crates/nc-kernel/src/shell.rs",
+                "a_window_opens_shown_and_closes_with_what_only_it_showed_and_the_last_hides",
+                "the desktop killed while the daemon keeps what it showed, by a suite against a \
+                 real daemon later in Stage 16 (acceptance criterion 2)",
+            ),
+        ),
+        (
+            "12.1",
+            "Opening it again shows everythin",
+            Held::ElsewherePartly(
+                "crates/nc-kernel/tests/the_decision_point.rs",
+                "the_interface_is_kept_outside_every_unit_and_read_back_when_the_kernel_opens_again",
+                "the desktop opened again drawing exactly what it showed, by a suite against a \
+                 real daemon later in Stage 16 (acceptance criterion 2)",
+            ),
+        ),
+        (
+            "12.1",
+            "Several interface windows may at",
+            Held::Partly(
+                crate::host::tests::this_window_is_the_states_first_shown_as_it_says,
+                "a second desktop attached to the same daemon and drawing the same state, by a \
+                 suite against a real daemon later in Stage 16",
+            ),
+        ),
+        (
+            "12.1",
+            "Every action the interface perfo",
+            Held::Partly(
+                every_act_of_the_window_is_a_command,
+                "the person's answer to a call held for them, which is no command, with the \
+                 confirmation surface later in Stage 16",
+            ),
+        ),
+        (
+            "12.2",
+            "No title bar and no system butto",
+            Held::Elsewhere(
+                "apps/desktop/tests/the_window_opens_hidden.rs",
+                "the_window_opens_hidden_paints_its_theme_first_and_closes",
+            ),
+        ),
+        (
+            "12.2",
+            "The first time the app opens, it",
+            Held::By(crate::page::tests::the_first_run_shows_the_footer_alone),
+        ),
+        (
+            "12.2",
+            "\"No buttons\" is a visual decisio",
+            Held::Partly(
+                the_window_hides_closes_moves_and_resizes_by_command,
+                "moving and resizing by the system's own gestures, which no test drives, on the \
+                 list kept by hand at the Stage's close",
+            ),
+        ),
+        (
+            "12.2",
+            "Under a tiling window manager th",
+            Held::Unclaimed(
+                "how a compositor arranges an undecorated window is the system's, on the list kept \
+                 by hand at the Stage's close",
+            ),
+        ),
         (
             "12.3",
             "Backgrounds. The modeline and th",
@@ -1367,6 +1452,120 @@ mod tests {
             "12.3",
             "The line height, the corners' si",
             Held::By(every_glyph_is_an_icon_and_every_shade_a_token),
+        ),
+        (
+            "12.4",
+            "The query is split into words at",
+            Held::By(crate::drawer::tests::a_row_one_word_cannot_match_is_not_listed),
+        ),
+        (
+            "12.4",
+            "The text matched is the item's n",
+            Held::By(crate::drawer::tests::a_word_found_in_either_language_lists_its_row),
+        ),
+        (
+            "12.4",
+            "Matched characters are coloured ",
+            Held::By(crate::drawer::tests::a_rows_name_is_coloured_per_word),
+        ),
+        (
+            "12.4",
+            "the first word's characters take",
+            Held::Partly(
+                crate::drawer::tests::the_third_and_every_later_word_share_one_tone,
+                "the shade of each word's mark is the design system's `MatchText`, from the colour \
+                 system's match contexts",
+            ),
+        ),
+        (
+            "12.4",
+            "the second word's take a softer ",
+            Held::Partly(
+                crate::drawer::tests::the_third_and_every_later_word_share_one_tone,
+                "the shade of each word's mark is the design system's `MatchText`, from the colour \
+                 system's match contexts",
+            ),
+        ),
+        (
+            "12.4",
+            "the third and every later word's",
+            Held::Partly(
+                crate::drawer::tests::the_third_and_every_later_word_share_one_tone,
+                "the shade of each word's mark is the design system's `MatchText`, from the colour \
+                 system's match contexts",
+            ),
+        ),
+        (
+            "12.4",
+            "The selected item keeps its matc",
+            Held::Partly(
+                crate::drawer::tests::the_selected_row_keeps_its_match_colours,
+                "that the selected row's background leaves its marks legible is `OptionItem`'s and \
+                 `MatchText`'s, in the design system's suite",
+            ),
+        ),
+        (
+            "12.4",
+            "Ranking favours matches at word ",
+            Held::Elsewhere(
+                "crates/nc-fuzzy/src/align.rs",
+                "a_run_at_a_word_start_outranks_a_run_inside_a_word",
+            ),
+        ),
+        (
+            "12.4",
+            "Case and accents are folded one ",
+            Held::Elsewhere(
+                "crates/nc-fuzzy/src/fold.rs",
+                "a_letter_folds_to_its_lower_case_base_letter",
+            ),
+        ),
+        (
+            "12.4",
+            "Separators — every space, and `-",
+            Held::Elsewhere(
+                "crates/nc-fuzzy/src/query.rs",
+                "separators_inside_a_word_are_dropped_and_a_word_of_separators_is_no_word",
+            ),
+        ),
+        (
+            "12.4",
+            "Each word is matched on its own.",
+            Held::Partly(
+                crate::drawer::tests::two_words_claiming_one_character_draw_it_in_the_first_words_tone,
+                "each word matched alone, and the words in another order changing only the \
+                 colours, are the fuzzy core's: `two_words_may_claim_the_same_characters` in \
+                 `crates/nc-fuzzy/src/rank.rs`",
+            ),
+        ),
+        (
+            "12.4",
+            "Ranking: a word typed whole, the",
+            Held::Elsewhere(
+                "crates/nc-fuzzy/tests/the_corpus_is_the_rule.rs",
+                "every_order_row_ranks_as_it_says",
+            ),
+        ),
+        (
+            "12.4",
+            "Positions are character indices ",
+            Held::By(crate::drawer::tests::a_position_is_a_character_and_a_cluster_is_marked_whole),
+        ),
+        (
+            "12.4",
+            "A query is read to `nc_fuzzy::QU",
+            Held::Elsewhere(
+                "crates/nc-fuzzy/src/query.rs",
+                "a_query_longer_than_its_bound_is_refused",
+            ),
+        ),
+        (
+            "12.4",
+            "The daemon filters through `kern",
+            Held::Elsewhere(
+                "crates/nc-kernel/src/find.rs",
+                "an_english_query_finds_a_command_through_its_english_display_name",
+            ),
         ),
         (
             "12.5",
@@ -1531,6 +1730,92 @@ mod tests {
             ),
         ),
         (
+            "12.8",
+            "Wayland delivers a global key on",
+            Held::Elsewhere(
+                "crates/nc-ipc/src/leader.rs",
+                "a_hotkey_is_registered_a_binding_asks_nothing_and_a_refusal_is_told",
+            ),
+        ),
+        (
+            "12.8",
+            "X11, Windows and macOS offer a g",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "the_delivery_is_read_from_the_system_and_the_session",
+            ),
+        ),
+        (
+            "12.8",
+            "Neither the portal nor Windows' ",
+            Held::By(crate::keys::tests::a_press_without_the_keyboard_is_a_tap_and_with_it_a_hold),
+        ),
+        (
+            "12.8",
+            "One interface, `nc_platform::lea",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "a_registration_is_refused_where_the_session_delivers_none",
+            ),
+        ),
+        (
+            "12.8",
+            "Each system is asked for a physi",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "every_key_has_the_code_each_systems_list_gives_it",
+            ),
+        ),
+        (
+            "12.8",
+            "X11 by this repository's own cli",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "this_system_grants_the_chord_hears_it_and_gives_it_back",
+            ),
+        ),
+        (
+            "12.8",
+            "Windows by `RegisterHotKey` with",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "this_system_grants_the_chord_hears_it_and_gives_it_back",
+            ),
+        ),
+        (
+            "12.8",
+            "macOS by Carbon's `RegisterEvent",
+            Held::ElsewherePartly(
+                "crates/nc-platform/src/leader.rs",
+                "this_system_grants_the_chord_hears_it_and_gives_it_back",
+                "a press of the chord on macOS, which no test may send there, on the list kept by \
+                 hand at the Stage's close",
+            ),
+        ),
+        (
+            "12.8",
+            "A chord another program holds is",
+            Held::Elsewhere(
+                "crates/nc-platform/src/leader.rs",
+                "a_chord_another_program_holds_is_taken_on_each_system",
+            ),
+        ),
+        (
+            "12.8",
+            "Not claimed: that macOS refuses ",
+            Held::Unclaimed("it says what the Leader's delivery does not claim"),
+        ),
+        (
+            "12.8",
+            "GNOME and KDE bind Alt+Space by ",
+            Held::Later("the installer, which frees the chord (Stage 19)"),
+        ),
+        (
+            "12.8",
+            "The staging and development Lead",
+            Held::Later("those channels' installers, which free the chords (Stage 19)"),
+        ),
+        (
             "12.9",
             "It fills the drawer's width in c",
             Held::By(crate::drawer::tests::the_leader_menu_is_its_keys_and_names_in_columns),
@@ -1652,6 +1937,107 @@ mod tests {
                  pages that are lists (§12.7)",
             ),
         ),
+        (
+            "12.15",
+            "On the left, a list of categorie",
+            Held::Later("the settings pages, later in Stage 16"),
+        ),
+        (
+            "12.15",
+            "Choosing a category lists, in a ",
+            Held::Later("the settings pages, later in Stage 16"),
+        ),
+        (
+            "12.15",
+            "Each one opens a page for exactl",
+            Held::Later("the settings pages, later in Stage 16"),
+        ),
+        (
+            "12.16",
+            "Live logs — every log and error ",
+            Held::Later("the help and dev pages, later in Stage 16"),
+        ),
+        (
+            "12.16",
+            "The registries page — documentat",
+            Held::Later("the help and dev pages, later in Stage 16"),
+        ),
+        (
+            "12.16",
+            "The minimum §15.3 sets: every er",
+            Held::Later("the help and dev pages, later in Stage 16"),
+        ),
+        (
+            "12.17",
+            "It says that the local server is",
+            Held::Later("the alert line, later in Stage 16"),
+        ),
+        (
+            "12.17",
+            "It offers restore now, which sta",
+            Held::Later("the alert line, later in Stage 16"),
+        ),
+        (
+            "12.17",
+            "It shows a countdown; if the dae",
+            Held::Later("the alert line, later in Stage 16"),
+        ),
+        (
+            "12.17",
+            "An explicit stop is respected. W",
+            Held::Later("the alert line, later in Stage 16"),
+        ),
+        (
+            "12.17",
+            "When the daemon returns, the lin",
+            Held::Later("the alert line, later in Stage 16"),
+        ),
+        (
+            "12.18",
+            "A seat is one pointer with one k",
+            Held::ElsewherePartly(
+                "crates/nc-kernel/src/shell.rs",
+                "each_seat_keeps_its_own_focus_hover_selection_and_drag",
+                "a second seat's focus, selection and drag drawn by the window, with the seats \
+                 later in Stage 16",
+            ),
+        ),
+        (
+            "12.18",
+            "The system's own seat uses the n",
+            Held::Later(
+                "the window writing a seat's attributes, with the seats later in Stage 16; their \
+                 styling as the native pseudo-classes is the design system's `seats.js`",
+            ),
+        ),
+        (
+            "12.18",
+            "How each system delivers several",
+            Held::Elsewhere(
+                "crates/nc-ipc/src/leader.rs",
+                "a_press_is_a_tap_of_the_systems_own_seat",
+            ),
+        ),
+        (
+            "12.18",
+            "tap, long-press and drag on a to",
+            Held::Later("touch, with the seats later in Stage 16"),
+        ),
+        (
+            "12.18",
+            "two-finger scrolling;",
+            Held::Later("touch, with the seats later in Stage 16"),
+        ),
+        (
+            "12.18",
+            "pinch to zoom in the infinite an",
+            Held::Later("the infinite and 3D layout modes (Stage 17)"),
+        ),
+        (
+            "12.18",
+            "swipes to move along the scroll ",
+            Held::Later("the scroll mode and the workspaces (Stage 17)"),
+        ),
     ];
 
     /// An entry of the leader menu closes it first unless it opens a page,
@@ -1675,6 +2061,24 @@ mod tests {
         the_drawer_indicator_shows_only_while_the_drawer_is_collapsed_with_pages();
     }
 
+    /// Every act of the window is a command: each control of the footer, of
+    /// the drawer's rail and of a surface, and each word the page says, read
+    /// only as one of the closed set it runs (§12.1).
+    fn every_act_of_the_window_is_a_command() {
+        every_action_is_a_command_without_arguments();
+        crate::drawer::tests::every_control_and_tab_runs_its_command();
+        crate::host::tests::only_the_closed_set_is_read_from_the_webview();
+        crate::surface::tests::every_control_is_found_by_its_node_and_never_by_its_command();
+    }
+
+    /// The window hides, closes, moves and resizes by command: the `w` list
+    /// holds its four actions, and a close the system asks for is
+    /// `window.close` (§12.2).
+    fn the_window_hides_closes_moves_and_resizes_by_command() {
+        crate::drawer::tests::the_w_list_holds_the_windows_actions_and_nothing_else_is_listed();
+        crate::host::tests::a_close_is_window_close_naming_the_window();
+    }
+
     /// The modeline's first glyph opens the sidebar, which lists what is
     /// open, and a hidden sidebar is the design system's drawer collapsed
     /// (§12.14).
@@ -1692,9 +2096,10 @@ mod tests {
         let mut section: Option<&str> = None;
         for text in reference.lines() {
             if let Some(heading) = text.strip_prefix("### ") {
-                section = heading.split(' ').next().filter(|number| {
-                    ["12.3", "12.5", "12.6", "12.7", "12.9", "12.11", "12.14"].contains(number)
-                });
+                section = heading
+                    .split(' ')
+                    .next()
+                    .filter(|number| SECTIONS.contains(number));
                 continue;
             }
             if text.starts_with("## ") {
@@ -1727,27 +2132,79 @@ mod tests {
             .then(|| workspace.to_path_buf())
     }
 
-    /// Every bullet of §12.3, §12.5–§12.7, §12.9, §12.11 and §12.14 is a row
-    /// of `BULLETS`, and every row a bullet, in order — read from `NOCTUA.md`
-    /// where this repository is in its workspace, and said to be skipped where
-    /// it is not; and each row says how it is held — a test of this module,
-    /// which passes, the design system's own, or what builds it.
+    /// The repository this crate is in.
+    fn repository() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("the repository is there")
+    }
+
+    /// Whether the file `file` of the repository declares the test `test`: a
+    /// function of that name under a `#[test]` or a `#[tokio::test]`, among
+    /// the attributes right above it.
+    fn declares(file: &str, test: &str) -> bool {
+        let Ok(source) = std::fs::read_to_string(repository().join(file)) else {
+            return false;
+        };
+        let lines: Vec<&str> = source.lines().collect();
+        lines.iter().enumerate().any(|(at, line)| {
+            let declared = line
+                .trim_start()
+                .trim_start_matches("pub(crate) ")
+                .trim_start_matches("async ")
+                .starts_with(&format!("fn {test}("));
+            declared
+                && lines[..at]
+                    .iter()
+                    .rev()
+                    .map(|above| above.trim())
+                    .take_while(|above| {
+                        !above.is_empty()
+                            && !above.starts_with("//")
+                            && !above.ends_with('}')
+                            && !above.ends_with(';')
+                    })
+                    .any(|above| above == "#[test]" || above.starts_with("#[tokio::test"))
+        })
+    }
+
+    /// Every bullet of the sections Stage 16 builds is a row of `BULLETS`,
+    /// and every row a bullet, in order — read from `NOCTUA.md` where this
+    /// repository is in its workspace, and said to be skipped where it is
+    /// not; and each row says how it is held — a test of this crate, which
+    /// passes, a test elsewhere in this repository, which its file declares,
+    /// the design system's own, what builds it, or why nothing could.
     #[test]
     #[expect(
         clippy::print_stdout,
         reason = "a test that cannot read the reference says so on the harness's own output, \
                   as every skip of this tree's is said"
     )]
-    fn every_bullet_of_the_footers_sections_is_held() {
+    fn every_bullet_of_the_interfaces_sections_is_held() {
         for (section, opening, held) in BULLETS {
             assert_eq!(opening.chars().count().min(32), opening.chars().count());
+            assert!(SECTIONS.contains(&section), "{section} {opening}");
             match held {
                 Held::By(test) => test(),
                 Held::Partly(test, said) => {
                     test();
                     assert!(!said.trim().is_empty(), "{section} {opening}");
                 }
-                Held::Design(said) | Held::Later(said) => {
+                Held::Elsewhere(file, test) => {
+                    assert!(
+                        declares(file, test),
+                        "{section} {opening}: `{file}` declares no test `{test}`"
+                    );
+                }
+                Held::ElsewherePartly(file, test, said) => {
+                    assert!(
+                        declares(file, test),
+                        "{section} {opening}: `{file}` declares no test `{test}`"
+                    );
+                    assert!(!said.trim().is_empty(), "{section} {opening}");
+                }
+                Held::Design(said) | Held::Later(said) | Held::Unclaimed(said) => {
                     assert!(!said.trim().is_empty(), "{section} {opening}");
                 }
             }
@@ -1768,8 +2225,8 @@ mod tests {
             .collect();
         assert_eq!(
             found, rows,
-            "a bullet of §12.3, §12.5–§12.7, §12.9, §12.11 or §12.14 changed: each is a row of \
-             `BULLETS`, held by a test, or said to be the design system's or still to come"
+            "a bullet of a section Stage 16 builds changed: each is a row of `BULLETS`, held by \
+             a test, or said to be the design system's, still to come or claiming nothing"
         );
     }
 

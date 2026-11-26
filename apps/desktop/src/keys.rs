@@ -405,7 +405,7 @@ pub(crate) mod tests {
     /// A press heard without the keyboard is a tap at once; one heard with
     /// it begins a hold, which a release with nothing pressed makes a tap.
     #[test]
-    fn a_press_without_the_keyboard_is_a_tap_and_with_it_a_hold() {
+    pub(crate) fn a_press_without_the_keyboard_is_a_tap_and_with_it_a_hold() {
         let mut leader = Leader::default();
         assert_eq!(leader.pressed(false), Some(Act::Tap));
         assert!(!leader.is_held());

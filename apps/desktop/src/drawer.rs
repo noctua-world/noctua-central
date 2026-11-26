@@ -872,7 +872,7 @@ pub(crate) mod tests {
     /// A row's name is coloured per word, by the positions each word matched
     /// on it: the first word's characters one tone, the second's another.
     #[test]
-    fn a_rows_name_is_coloured_per_word() {
+    pub(crate) fn a_rows_name_is_coloured_per_word() {
         let mut shell = with(Kind::Commands);
         shell.asking = Some(Asking::Commands);
         let one = Commands::new(vec![crate::commands::Command {
@@ -907,6 +907,181 @@ pub(crate) mod tests {
             written.contains("data-nd-word=\"1\">Open</mark>")
                 && written.contains("data-nd-word=\"2\">set</mark>"),
             "{written}"
+        );
+    }
+
+    /// Commands named `a.<n>`, each its display name in English and in
+    /// Brazilian Portuguese as `titles` gives them, with no tag.
+    fn named(titles: &[(&str, &str)]) -> Commands {
+        Commands::new(
+            titles
+                .iter()
+                .enumerate()
+                .map(|(at, (english, portuguese))| crate::commands::Command {
+                    name: format!("a.{at}"),
+                    texts: Locale::ALL
+                        .iter()
+                        .map(|locale| crate::commands::Texts {
+                            title: (*if *locale == Locale::En {
+                                english
+                            } else {
+                                portuguese
+                            })
+                            .to_owned(),
+                            line: "A line.".to_owned(),
+                            tags: Vec::new(),
+                        })
+                        .collect(),
+                    parameters: Vec::new(),
+                })
+                .collect(),
+        )
+    }
+
+    /// The command list `commands` holds for `typed` after the `;`, with the
+    /// keyboard on `selected`, in `locale`, as markup.
+    fn listed(commands: &Commands, typed: &str, selected: Option<&str>, locale: Locale) -> String {
+        let mut shell = with(Kind::Commands);
+        shell.asking = Some(Asking::Commands);
+        markup(&view(
+            Some(&shell),
+            &format!(";{typed}"),
+            selected,
+            (&keymap(), commands),
+            locale,
+        ))
+    }
+
+    /// The option of the command `name` in `written`, whole.
+    fn option<'a>(written: &'a str, name: &str) -> &'a str {
+        let start = written
+            .find(&format!("data-nd-value=\"{name}\""))
+            .unwrap_or_else(|| panic!("{name} is not listed: {written}"));
+        let end = written[start..].find("</li>").expect("closed") + start;
+        &written[start..end]
+    }
+
+    /// The query is split into words at its spaces and every word must match:
+    /// a row one word cannot match is not listed, and each listed row is one
+    /// every word matched (§12.4).
+    #[test]
+    pub(crate) fn a_row_one_word_cannot_match_is_not_listed() {
+        let commands = named(&[
+            ("Open settings", "Abrir ajustes"),
+            ("Open help", "Abrir ajuda"),
+        ]);
+        let written = listed(&commands, "open set", None, Locale::En);
+        assert_eq!(written.matches("role=\"option\"").count(), 1, "{written}");
+        assert!(written.contains("data-nd-value=\"a.0\""), "{written}");
+        let both = listed(&commands, "open", None, Locale::En);
+        assert_eq!(both.matches("role=\"option\"").count(), 2, "{both}");
+    }
+
+    /// The text matched is every language's at once: a word of the other
+    /// locale's display name lists the row, which shows the window's own and
+    /// marks nothing on it, since no word matched that field (§12.4).
+    #[test]
+    pub(crate) fn a_word_found_in_either_language_lists_its_row() {
+        let commands = named(&[
+            ("Open settings", "Abrir ajustes"),
+            ("Open help", "Abrir ajuda"),
+        ]);
+        for (typed, locale, shown) in [
+            ("ajustes", Locale::En, "Open settings"),
+            ("settings", Locale::PtBR, "Abrir ajustes"),
+        ] {
+            let written = listed(&commands, typed, None, locale);
+            assert_eq!(written.matches("role=\"option\"").count(), 1, "{written}");
+            let row = option(&written, "a.0");
+            assert!(row.contains(&format!(">{shown}</span>")), "{row}");
+            assert!(!row.contains("<mark"), "{row}");
+        }
+    }
+
+    /// The first word's characters are marked as the first, the second's as
+    /// the second, and the third's and every later word's share the one
+    /// mark of the rest (§12.4).
+    #[test]
+    pub(crate) fn the_third_and_every_later_word_share_one_tone() {
+        let commands = named(&[("Alpha Beta Gamma Delta", "Um dois tr\u{ea}s quatro")]);
+        let written = listed(&commands, "alpha beta gamma delta", None, Locale::En);
+        let row = option(&written, "a.0");
+        for (word, tone) in [("Alpha", 1), ("Beta", 2), ("Gamma", 3), ("Delta", 3)] {
+            assert!(
+                row.contains(&format!("data-nd-word=\"{tone}\">{word}</mark>")),
+                "{word}: {row}"
+            );
+        }
+        assert_eq!(row.matches("<mark").count(), 4, "{row}");
+    }
+
+    /// Two words may claim one character, which is marked as the first
+    /// word's; the second word marks what it alone matched (§12.4).
+    #[test]
+    pub(crate) fn two_words_claiming_one_character_draw_it_in_the_first_words_tone() {
+        let commands = named(&[("Settings", "Ajustes")]);
+        let row = listed(&commands, "set settings", None, Locale::En);
+        let row = option(&row, "a.0");
+        assert!(
+            row.contains("data-nd-word=\"1\">Set</mark><mark class=\"nd-match\" role=\"none\" data-nd-word=\"2\">tings</mark>"),
+            "{row}"
+        );
+    }
+
+    /// A position is a character of the name drawn, never a byte: a word
+    /// folded over its accents marks the accented characters it matched,
+    /// and a grapheme cluster is marked whole (§12.4).
+    #[test]
+    pub(crate) fn a_position_is_a_character_and_a_cluster_is_marked_whole() {
+        let commands = named(&[
+            ("A\u{e7}\u{e3}o r\u{e1}pida", "A\u{e7}\u{e3}o r\u{e1}pida"),
+            ("Cafe\u{301} menu", "Card\u{e1}pio"),
+        ]);
+        let accented = option(&listed(&commands, "acao rap", None, Locale::En), "a.0").to_owned();
+        assert!(
+            accented.contains("data-nd-word=\"1\">A\u{e7}\u{e3}o</mark> <mark class=\"nd-match\" role=\"none\" data-nd-word=\"2\">r\u{e1}p</mark>ida"),
+            "{accented}"
+        );
+        let combined = option(&listed(&commands, "cafe", None, Locale::En), "a.1").to_owned();
+        assert!(
+            combined.contains("data-nd-word=\"1\">Cafe\u{301}</mark> menu"),
+            "{combined}"
+        );
+    }
+
+    /// The row the keyboard is on keeps its marks as they are on every other
+    /// row: being selected draws them alike, each word's in its own tone
+    /// (§12.4).
+    #[test]
+    pub(crate) fn the_selected_row_keeps_its_match_colours() {
+        let commands = named(&[
+            ("Open settings", "Abrir ajustes"),
+            ("Open setup", "Abrir preparo"),
+        ]);
+        let marks = |row: &str| -> String {
+            let (_, text) = row
+                .split_once("<span class=\"nd-option-item-text\">")
+                .expect("its text");
+            text.to_owned()
+        };
+        let resting = listed(&commands, "open set", Some("a.0"), Locale::En);
+        let chosen = listed(&commands, "open set", Some("a.1"), Locale::En);
+        assert!(
+            option(&chosen, "a.1").contains("data-nd-active=\"true\""),
+            "{chosen}"
+        );
+        assert!(
+            !option(&resting, "a.1").contains("data-nd-active"),
+            "{resting}"
+        );
+        assert_eq!(
+            marks(option(&chosen, "a.1")),
+            marks(option(&resting, "a.1"))
+        );
+        assert!(
+            marks(option(&chosen, "a.1")).contains("data-nd-word=\"1\">Open</mark>")
+                && marks(option(&chosen, "a.1")).contains("data-nd-word=\"2\">set</mark>"),
+            "{chosen}"
         );
     }
 

@@ -1833,7 +1833,7 @@ pub(crate) mod tests {
     /// The window this process shows is the state's first, shown as the
     /// state says, and nothing is said before the daemon has answered.
     #[test]
-    fn this_window_is_the_states_first_shown_as_it_says() {
+    pub(crate) fn this_window_is_the_states_first_shown_as_it_says() {
         let mut mirror = Mirror::new();
         assert_eq!(shown(&mirror), None);
         for (windows, first) in [(&[true, false][..], true), (&[false, true], false)] {
@@ -1874,7 +1874,7 @@ pub(crate) mod tests {
     /// Closing the window is `window.close`, naming it; a control's action
     /// is its command, with no argument; and a note dispatches nothing.
     #[test]
-    fn a_close_is_window_close_naming_the_window() {
+    pub(crate) fn a_close_is_window_close_naming_the_window() {
         let close = Ask::Close(3);
         assert_eq!(close.command(), Some("window.close"));
         assert_eq!(
@@ -1901,7 +1901,7 @@ pub(crate) mod tests {
     /// The webview's channel is read for the closed set of messages, each
     /// written one way, and nothing else is one.
     #[test]
-    fn only_the_closed_set_is_read_from_the_webview() {
+    pub(crate) fn only_the_closed_set_is_read_from_the_webview() {
         assert_eq!(said(crate::page::LOADED), Some(Said::Loaded));
         assert_eq!(
             said("first-frame 1 2 3 255"),
