@@ -503,7 +503,22 @@ pub(crate) struct Held {
 /// by a unit inside the same tree, computed from this one — is newer, and is
 /// left as it is.
 pub(crate) fn released<E: Environment>(shared: &Shared<E>, held: Held) {
-    release(&mut dispatch::lock(&shared.shell), held);
+    let revision = {
+        let mut cell = dispatch::lock(&shared.shell);
+        release(&mut cell, held);
+        cell.revision
+    };
+    told(&shared.shell_moves, revision);
+}
+
+/// Tells `moves` the revision the state is at, once the state is there: a
+/// receiver woken by it reads that state or a later one.
+fn told(moves: &tokio::sync::watch::Sender<u64>, revision: u64) {
+    moves.send_if_modified(|seen| {
+        let another = *seen != revision;
+        *seen = revision;
+        another
+    });
 }
 
 /// Releases `held` into `cell`, answering whether it was released.
@@ -721,6 +736,120 @@ const TEXT: &str = "text";
 const COMMAND: &str = "command";
 /// The parameter the prompt asks for.
 const PARAMETER: &str = "parameter";
+
+/// What a note may say: each fact by the name a note says it under, beside the
+/// command it is the equivalent of, in the order of their names.
+///
+/// **What moves at the rate an interface draws** (`NOCTUA.md §12.1`): the
+/// prompt's draft, where a seat's keyboard is, what its pointer or keyboard
+/// selection is on, and how far a page is scrolled. Each is said as the
+/// arguments its command takes, so the CLI and MCP reach the same change by
+/// that command, journaled — and an interface by a note, journaled nowhere.
+pub(crate) const FACTS: [(&str, Verb); 4] = [
+    ("draft", Verb::PromptSet),
+    ("focus", Verb::ShellFocus),
+    ("hover", Verb::ShellHover),
+    ("scroll", Verb::PageScroll),
+];
+
+/// The facts `detail` says, each as the command it is the equivalent of and
+/// the arguments it is said with, in the order of their names.
+///
+/// # Errors
+///
+/// `invalid` with `[NC-VAL-0002]` for a detail that is not one object, says
+/// no fact, or says one that is none of [`FACTS`].
+pub(crate) fn facts(detail: &Value) -> Result<Vec<(&str, Verb, &Value)>, Refusal> {
+    let Value::Object(fields) = detail else {
+        return Err(invalid("a note is one object".to_owned()));
+    };
+    if fields.is_empty() {
+        return Err(invalid(format!(
+            "a note says one fact at least, of {}",
+            the_facts()
+        )));
+    }
+    fields
+        .iter()
+        .map(|(name, args)| {
+            FACTS
+                .iter()
+                .find(|(fact, _)| fact == name)
+                .map(|(fact, verb)| (*fact, *verb, args))
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "a note says `{}`, which is none of the facts a note says: {}",
+                        name.escape_debug(),
+                        the_facts()
+                    ))
+                })
+        })
+        .collect()
+}
+
+/// The facts a note says, as a refusal lists them.
+fn the_facts() -> String {
+    FACTS
+        .iter()
+        .map(|(fact, verb)| format!("`{fact}`, as `{}` takes it", verb.name()))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Applies the note `detail` to the kernel's state for `acting`, journaled
+/// nowhere: what [`crate::Kernel::note`] does.
+///
+/// **In order, the first refusal the answer, and nothing applied before it**:
+/// the facts read ([`facts`]); each one's arguments held to its command's
+/// schema and its resource taken as the command's is
+/// (`dispatch::understood`); each decided for `acting` as its command would
+/// be, by the decision point's probe, which journals and spends nothing; then,
+/// under the bus — between two call trees, so no tree holds a state computed
+/// over one the note moves — each made by its command's rule, in order, over
+/// one copy of the state, which is released whole or not at all.
+pub(crate) async fn noted<E: Environment>(
+    shared: &Shared<E>,
+    acting: &crate::session::Acting,
+    detail: &Value,
+) -> Result<(), Refusal> {
+    let said = facts(detail)?;
+    let began = std::time::Instant::now();
+    let mut understood = Vec::with_capacity(said.len());
+    for (fact, verb, args) in said {
+        let name = verb.name();
+        let command = shared.command(name).ok_or_else(|| {
+            Refusal::new(
+                RefusalKind::Internal,
+                ErrorCode::KernelUnknownCommand,
+                format!("the note's `{fact}` is what `{name}` changes, which no registry holds"),
+            )
+        })?;
+        let (_, json, resource) =
+            dispatch::understood(shared, &command, name, &args.to_canonical())?;
+        let action = &command.listed().action;
+        if !crate::session::may(shared, began, acting, acting.spent(), action, &resource).await {
+            return Err(Refusal::new(
+                RefusalKind::Denied,
+                ErrorCode::PolicyDenied,
+                format!(
+                    "the note's `{fact}` is what `{name}` changes, which the decision point does \
+                     not allow; nothing of the note was applied"
+                ),
+            ));
+        }
+        understood.push((verb, json));
+    }
+    let _between_trees = shared.bus.lock().await;
+    let (mut state, base) = {
+        let cell = dispatch::lock(&shared.shell);
+        (cell.state.clone(), cell.released)
+    };
+    for (verb, json) in &understood {
+        changed(&mut state, *verb, json, &Now { shared })?;
+    }
+    released(shared, Held { state, base });
+    Ok(())
+}
 
 /// What a command of the interface needs to know of the rest of the kernel:
 /// which settings, commands and surfaces there are.
@@ -3599,5 +3728,86 @@ mod tests {
         for bad in ["", "a b", "é", "a\u{200B}", &"a".repeat(65), "a\n"] {
             assert!(!is_word(bad), "{bad:?}");
         }
+    }
+
+    /// A note says the four facts of the interface's rate, each as the command
+    /// it is the equivalent of, and nothing else.
+    ///
+    /// **One fact for each command an interface tells at the rate it draws**:
+    /// the facts are in the order of their names, each one's command is a
+    /// change of the interface's state, and a note of all four is read as
+    /// them, each with its own arguments. A detail that is not an object, a
+    /// note of no fact, one naming no fact, and one naming a command where a
+    /// fact goes are refused with `[NC-VAL-0002]`, the refusal listing the
+    /// facts.
+    #[test]
+    fn a_note_says_the_four_facts_of_the_interfaces_rate_and_nothing_else() {
+        let names: Vec<&str> = super::FACTS.iter().map(|(fact, _)| *fact).collect();
+        assert_eq!(names, ["draft", "focus", "hover", "scroll"]);
+        assert_eq!(
+            super::FACTS.map(|(_, verb)| verb),
+            [
+                Verb::PromptSet,
+                Verb::ShellFocus,
+                Verb::ShellHover,
+                Verb::PageScroll
+            ]
+        );
+        let note = Value::object([
+            ("scroll", Value::object([("to", Value::Integer(3))])),
+            ("draft", Value::object([("text", Value::text("a"))])),
+        ]);
+        let read = super::facts(&note).expect("read");
+        assert_eq!(
+            read.iter()
+                .map(|(fact, verb, args)| (*fact, *verb, args.to_canonical()))
+                .collect::<Vec<_>>(),
+            [
+                ("draft", Verb::PromptSet, r#"{"text":"a"}"#.to_owned()),
+                ("scroll", Verb::PageScroll, r#"{"to":3}"#.to_owned()),
+            ]
+        );
+        for (detail, saying) in [
+            (Value::Array(Vec::new()), "one object"),
+            (
+                Value::object(Vec::<(&str, Value)>::new()),
+                "one fact at least",
+            ),
+            (Value::object([("zoom", Value::Null)]), "`zoom`"),
+            (
+                Value::object([("page.scroll", Value::Null)]),
+                "`page.scroll`",
+            ),
+        ] {
+            let refused = super::facts(&detail).expect_err("refused");
+            assert_eq!(
+                said(&refused),
+                (RefusalKind::Invalid, ErrorCode::ValidationArgumentsInvalid),
+                "{detail:?}"
+            );
+            assert!(refused.sentence().contains(saying), "{refused:?}");
+        }
+        let refused = super::facts(&Value::object([("zoom", Value::Null)])).expect_err("none");
+        assert!(
+            refused
+                .sentence()
+                .contains("`scroll`, as `page.scroll` takes it"),
+            "{refused:?}"
+        );
+    }
+
+    /// A move is told only when the revision is another one.
+    #[test]
+    fn a_move_is_told_only_when_the_revision_is_another_one() {
+        let moves = tokio::sync::watch::Sender::new(0_u64);
+        let mut seen = moves.subscribe();
+        super::told(&moves, 0);
+        assert!(
+            !seen.has_changed().expect("held"),
+            "the same revision was told"
+        );
+        super::told(&moves, 3);
+        assert!(seen.has_changed().expect("held"));
+        assert_eq!(*seen.borrow_and_update(), 3);
     }
 }

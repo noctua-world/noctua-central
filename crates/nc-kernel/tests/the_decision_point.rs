@@ -1519,7 +1519,7 @@ fn only<'a>(entries: &'a [Entry], command: &str) -> &'a Entry {
 }
 
 /// Whether `refusal` is of `kind`, carrying `code`.
-fn is(refusal: &Result<String, Refusal>, kind: RefusalKind, code: ErrorCode) -> bool {
+fn is<T>(refusal: &Result<T, Refusal>, kind: RefusalKind, code: ErrorCode) -> bool {
     refusal
         .as_ref()
         .err()
@@ -10353,11 +10353,7 @@ const ON_THE_INTERFACE: &str = r#"{"id":"interface","type":"Feature"}"#;
 fn interface<J: nc_journal::Store + Debug + Send + Sync + 'static>(
     fixture: &Fixture<J>,
 ) -> (u64, Value) {
-    let (revision, shell) = fixture.kernel.shell();
-    (
-        revision,
-        nc_canon::parse(&shell).expect("the state is canonical JSON"),
-    )
+    fixture.kernel.shell()
 }
 
 /// Whether the first window of `shell` is shown.
@@ -10513,6 +10509,188 @@ async fn a_change_of_the_interface_the_journal_did_not_take_is_never_made() {
         .await
         .expect("a change the journal takes is made");
     assert!(shown_in(&interface(&fixture).1));
+}
+
+/// A note of the four facts an interface tells at the rate it draws: seat 2's
+/// keyboard on the prompt line and its pointer on the modeline, the draft, and
+/// the first page opened scrolled.
+const FOUR_FACTS: &str = r#"{"draft":{"text":"ab"},"focus":{"region":"prompt","seat":2},"hover":{"by":"pointer","seat":2,"target":"modeline"},"scroll":{"page":2,"to":120}}"#;
+
+/// The note `text` holds.
+fn noted(text: &str) -> Value {
+    nc_canon::parse(text).expect("a note is canonical JSON")
+}
+
+/// A note applies its facts as their commands would, journaled nowhere, and
+/// the move of the revision is told.
+///
+/// **Against the commands themselves**: the state a note of all four facts
+/// leaves is the state `prompt.set`, `shell.focus`, `shell.hover` and
+/// `page.scroll` leave, dispatched with the same arguments on a kernel opened
+/// alike — at the next revision, which a receiver of the moves is told, and
+/// with no entry more in the journal. The same note again moves nothing and
+/// tells nothing.
+#[tokio::test]
+async fn a_note_applies_its_facts_as_their_commands_do_and_is_journaled_nowhere() {
+    let (fixture, _) = with(&[], "").await;
+    let (commanded, _) = with(&[], "").await;
+    for kernel in [&fixture, &commanded] {
+        kernel
+            .as_("ana", "page.open", r#"{"kind":"settings"}"#)
+            .await
+            .expect("opened");
+    }
+    for (command, args) in [
+        ("prompt.set", r#"{"text":"ab"}"#),
+        ("shell.focus", r#"{"region":"prompt","seat":2}"#),
+        (
+            "shell.hover",
+            r#"{"by":"pointer","seat":2,"target":"modeline"}"#,
+        ),
+        ("page.scroll", r#"{"page":2,"to":120}"#),
+    ] {
+        commanded
+            .as_("ana", command, args)
+            .await
+            .unwrap_or_else(|refused| panic!("{command}: {refused}"));
+    }
+    let ana = Caller::new(fixture.principal("ana"));
+    let mut moves = fixture.kernel.shell_moves();
+    assert_eq!(*moves.borrow_and_update(), 1);
+    let journaled = fixture.entries().await.len();
+    fixture
+        .kernel
+        .note(&ana, &noted(FOUR_FACTS))
+        .await
+        .expect("the note is applied");
+    let (revision, shell) = interface(&fixture);
+    assert_eq!(
+        shell,
+        interface(&commanded).1,
+        "a note left another state than its commands"
+    );
+    assert_eq!(revision, 2, "a note moves the revision once");
+    assert!(moves.has_changed().expect("told"), "the move was not told");
+    assert_eq!(*moves.borrow_and_update(), 2);
+    fixture
+        .kernel
+        .note(&ana, &noted(FOUR_FACTS))
+        .await
+        .expect("the same note again");
+    assert_eq!(interface(&fixture), (2, shell));
+    assert!(
+        !moves.has_changed().expect("told"),
+        "a note that changed nothing told a move"
+    );
+    assert_eq!(
+        fixture.entries().await.len(),
+        journaled,
+        "a note was journaled"
+    );
+}
+
+/// A note is applied whole or not at all, and only where its commands would
+/// be allowed.
+///
+/// **Nothing refused moves the state, tells a move or is journaled**: a note
+/// scrolling a page the state does not hold is refused with `[NC-KERN-0027]`
+/// and its draft, which it says first, is not made; a scroll the schema
+/// refuses, a fact that is none, a command's name for a fact and a note of no
+/// fact are refused with `[NC-VAL-0002]`; and a frozen account and a device,
+/// which the decision point does not allow the interface, with
+/// `[NC-POL-0001]`.
+#[tokio::test]
+async fn a_note_is_applied_whole_or_not_at_all_and_only_where_its_commands_are_allowed() {
+    let (fixture, _) = with(&[], "").await;
+    fixture
+        .as_("ana", "page.open", r#"{"kind":"settings"}"#)
+        .await
+        .expect("opened");
+    let shown = interface(&fixture);
+    let mut moves = fixture.kernel.shell_moves();
+    let _ = moves.borrow_and_update();
+    let journaled = fixture.entries().await.len();
+    let ana = Caller::new(fixture.principal("ana"));
+    for (note, kind, code) in [
+        (
+            r#"{"draft":{"text":"cd"},"scroll":{"page":9,"to":1}}"#,
+            RefusalKind::NotFound,
+            ErrorCode::KernelShellUnknown,
+        ),
+        (
+            r#"{"scroll":{"page":2,"to":-1}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            r#"{"zoom":{"to":2}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            r#"{"page.scroll":{"to":2}}"#,
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+        (
+            "{}",
+            RefusalKind::Invalid,
+            ErrorCode::ValidationArgumentsInvalid,
+        ),
+    ] {
+        let refused = fixture.kernel.note(&ana, &noted(note)).await;
+        assert!(is(&refused, kind, code), "{note}: {refused:?}");
+    }
+    for (kind, id) in [
+        (PrincipalKind::User, "dora"),
+        (PrincipalKind::Device, "ana-laptop"),
+    ] {
+        let caller = Caller::new(fixture.world.principal(kind, id).expect("in the world"));
+        let refused = fixture
+            .kernel
+            .note(&caller, &noted(r#"{"draft":{"text":"cd"}}"#))
+            .await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "{id}: {refused:?}"
+        );
+    }
+    assert_eq!(interface(&fixture), shown, "a refused note moved the state");
+    assert!(!moves.has_changed().expect("told"), "a refusal told a move");
+    assert_eq!(
+        fixture.entries().await.len(),
+        journaled,
+        "a refused note was journaled"
+    );
+}
+
+/// A note is made between two call trees, never inside one: it waits for the
+/// tree that runs.
+///
+/// **With a tree held inside a plugin's read of its store**: a note asked then
+/// is not made while the tree runs, so no change the tree holds is computed
+/// over a state the note moved; once the tree ends, it is.
+#[tokio::test]
+async fn a_note_is_made_between_two_call_trees() {
+    let fixture = reference_and_peer().await;
+    fixture.store.stalls.store(true, Ordering::SeqCst);
+    let read = note("photo", None);
+    tokio::select! {
+        answered = fixture.as_("ana", "peer.note.get", &read) => {
+            panic!("the stalled dispatch answered: {answered:?}")
+        }
+        () = fixture.store.reached.notified() => {}
+    }
+    fixture.store.stalls.store(false, Ordering::SeqCst);
+    let ana = Caller::new(fixture.principal("ana"));
+    let draft = noted(r#"{"draft":{"text":"ab"}}"#);
+    let mut noting = core::pin::pin!(fixture.kernel.note(&ana, &draft));
+    let waited = tokio::time::timeout(Duration::from_millis(200), noting.as_mut()).await;
+    assert!(waited.is_err(), "a note was made while a tree ran");
+    assert_eq!(interface(&fixture).0, 0);
+    fixture.store.released.notify_one();
+    noting.await.expect("made once the tree ended");
+    assert_eq!(interface(&fixture).0, 1);
 }
 
 /// The interface is no step: an undo passes over every change of it to the

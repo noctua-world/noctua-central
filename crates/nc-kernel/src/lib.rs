@@ -58,7 +58,10 @@
 //! nothing; [`Kernel::surfaces`] lists what every plugin shows;
 //! [`Kernel::shell`] answers the interface's own state, which the commands of
 //! the interface change as reads that make no step and the pump keeps outside
-//! every unit (`crate::shell`); and [`Kernel::unload`] takes a plugin out with
+//! every unit (`crate::shell`), [`Kernel::shell_moves`] tells each move of its
+//! revision, and [`Kernel::note`] applies what an interface says at the rate
+//! it draws, each fact decided as its command would be and journaled nowhere;
+//! and [`Kernel::unload`] takes a plugin out with
 //! its commands, timers and surfaces.
 //!
 //! **What this answers (`NOCTUA.md §2.4`).** A plugin is compiled from bytes on
@@ -245,6 +248,9 @@ pub(crate) struct Shared<E: Environment> {
     /// The interface's own state, and the revision it is at
     /// (`crate::shell`).
     pub(crate) shell: Mutex<shell::Cell>,
+    /// The revision the interface's state is at, told each time it moves, so
+    /// whoever watches it waits for no poll (`crate::shell::released`).
+    pub(crate) shell_moves: tokio::sync::watch::Sender<u64>,
     /// Every unit this kernel left committed in the store and open in the
     /// journal — its close not taken, its reversal refused — until a prune
     /// reverts it first (`crate::units::reverted_again`): what the pruner may
@@ -358,6 +364,7 @@ impl<E: Environment> Kernel<E> {
                 timers: Mutex::new(timers::Timers::default()),
                 surfaces: Mutex::new(ui::Surfaces::default()),
                 shell: Mutex::new(shell::Cell::default()),
+                shell_moves: tokio::sync::watch::Sender::new(0),
                 left_committed: Mutex::new(BTreeSet::new()),
                 ticker,
             }),
@@ -380,15 +387,57 @@ impl<E: Environment> Kernel<E> {
     ///
     /// **What every window of the interface draws**: the windows and their
     /// pages, the drawer, the sidebar, the footer, the info line, the prompt
-    /// and each seat — the object `shell.read` answers as `shell`, as
-    /// canonical JSON. The revision moves by one each time a command changes
-    /// the state, and is this kernel's alone: it begins at zero when the
-    /// kernel opens over the state the store kept.
+    /// and each seat — the object `shell.read` answers as `shell`. The
+    /// revision moves by one each time a command or a note changes the state,
+    /// and is this kernel's alone: it begins at zero when the kernel opens
+    /// over the state the store kept.
     #[must_use]
-    pub fn shell(&self) -> (u64, String) {
+    pub fn shell(&self) -> (u64, nc_canon::Value) {
         let cell = dispatch::lock(&self.shared.shell);
         let (revision, state) = cell.read();
-        (revision, state.to_value().to_canonical())
+        (revision, state.to_value())
+    }
+
+    /// The revision the interface's state is at, told each time it moves:
+    /// what a watcher of [`Kernel::shell`] waits on.
+    ///
+    /// **Told after the state moved, never before**: a receiver that saw a
+    /// revision and then reads [`Kernel::shell`] reads that revision's state
+    /// or a later one, so a watcher that marks what it saw before it reads
+    /// misses no move.
+    #[must_use]
+    pub fn shell_moves(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.shared.shell_moves.subscribe()
+    }
+
+    /// Applies what an interface says at the rate it draws — where a page is
+    /// scrolled to, what the prompt holds, what a seat's pointer hovers and
+    /// where its keyboard is (`NOCTUA.md §12.1`) — to the interface's state,
+    /// for `asker`, journaled nowhere.
+    ///
+    /// **Each fact is the arguments of the command it is the equivalent of**
+    /// (`crate::shell`'s `FACTS`), so the CLI reaches each by that command:
+    /// held to its schema, decided for `asker` as the command would be — the
+    /// same action on the same resource, which journals and spends nothing —
+    /// and changed by the same rule. **The whole note or none of it**: a fact
+    /// refused leaves the state as it was. It is made between two call trees,
+    /// never inside one, so no change a tree holds is computed over a state
+    /// the note moved.
+    ///
+    /// # Errors
+    ///
+    /// A [`Refusal`]: `invalid` with `[NC-VAL-0002]` for a note that says no
+    /// fact or one that is none, and for arguments its command's schema
+    /// refuses; `denied` with `[NC-POL-0001]` for a fact the decision point
+    /// would not allow `asker` by its command; and what the command's rule
+    /// refuses — `[NC-KERN-0027]` for a page, a window or a seat the state
+    /// does not hold, `[NC-KERN-0028]` past a bound.
+    pub async fn note<'a>(
+        &self,
+        asker: impl Into<Asker<'a>>,
+        detail: &nc_canon::Value,
+    ) -> Result<(), Refusal> {
+        shell::noted(&self.shared, &asker.into().acting(), detail).await
     }
 
     /// Every command this kernel can dispatch, in name order: its own and every
