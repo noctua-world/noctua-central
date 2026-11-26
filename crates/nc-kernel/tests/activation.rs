@@ -982,6 +982,7 @@ async fn a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled() {
         "settings",
         "shell",
         "sidebar",
+        "surfaces",
         "window",
     ] {
         let refused = kernel

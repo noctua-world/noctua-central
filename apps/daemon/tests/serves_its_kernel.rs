@@ -542,7 +542,7 @@ async fn an_agent_and_its_grants_are_held_again_after_the_daemon_starts_again() 
         before,
         [(agent.clone(), vec![(naming.clone(), "naming".to_owned())])]
     );
-    dispatched(&mut client, "settings.mcp.set", r#"{"on":true}"#).await;
+    daemon.switch_mcp(true).await;
     stopped(&mut client, &mut daemon).await;
     let mut again = installed.spawn();
     let (mut client, _) = again.connected().await;

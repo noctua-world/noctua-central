@@ -3746,6 +3746,118 @@ async fn a_call_held_and_declined_or_left_unanswered_is_refused_with_what_came_o
     );
 }
 
+/// MCP switched on waits for the person's confirmation as a call that cannot
+/// be undone does, and switched off never waits.
+///
+/// **Held as the set it is, refused by its own codes**: ana's
+/// `settings.mcp.set` asking for on, asked to be held, waits — MCP still off —
+/// and is listed as a `write`, the command it is declared as; confirmed, it
+/// runs and MCP is on. Asked for off it is answered at once, never held. Asked
+/// for on again and declined, it is refused with `[NC-KERN-0034]`; cut short,
+/// with `[NC-KERN-0033]`; and through the plain dispatch, with nobody to ask,
+/// with `[NC-KERN-0032]` — each journaled once under
+/// `kernel.mcp_on_needs_confirmation`, MCP staying off.
+#[tokio::test]
+async fn mcp_switched_on_waits_for_the_persons_confirmation_and_switched_off_never_does() {
+    let fixture = reference_and_peer().await;
+    let caller = Caller::new(fixture.principal("ana"));
+    let (on, off) = (r#"{"on":true}"#, r#"{"on":false}"#);
+    let mcp = || async {
+        fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings read")
+            .mcp
+    };
+    let mut moves = fixture.kernel.pending_moves();
+    let holding = fixture.kernel.dispatch_held(&caller, MCP_SET, on, never());
+    let answering = async {
+        let serial = first_held(&mut moves).await;
+        assert!(!mcp().await, "MCP is off while the switch waits");
+        let read = fixture
+            .as_(
+                "ana",
+                "confirmations.read",
+                &format!(r#"{{"serial":{serial}}}"#),
+            )
+            .await
+            .expect("ana reads what waits for her");
+        assert_eq!(
+            (field(&read, "command"), field(&read, "reversibility")),
+            (Value::text(MCP_SET), Value::text("write")),
+            "{read}"
+        );
+        fixture
+            .kernel
+            .settle(serial, nc_kernel::Settled::Confirmed)
+            .expect("the held switch is answered");
+    };
+    let (held, ()) = tokio::join!(holding, answering);
+    assert_eq!(held.as_deref(), Ok(on), "confirmed, the switch runs");
+    assert!(mcp().await, "MCP is on once she confirmed it");
+    let switched_off = fixture
+        .kernel
+        .dispatch_held(&caller, MCP_SET, off, never())
+        .await;
+    assert_eq!(switched_off.as_deref(), Ok(off), "off is never held");
+    assert!(!mcp().await);
+    let holding = fixture.kernel.dispatch_held(&caller, MCP_SET, on, never());
+    let declining = async {
+        let serial = first_held(&mut moves).await;
+        fixture
+            .kernel
+            .settle(serial, nc_kernel::Settled::Declined)
+            .expect("answered");
+    };
+    let (declined, ()) = tokio::join!(holding, declining);
+    assert!(
+        is(&declined, RefusalKind::Denied, ErrorCode::KernelMcpDeclined),
+        "{declined:?}"
+    );
+    let lapsed = fixture
+        .kernel
+        .dispatch_held(&caller, MCP_SET, on, core::future::ready(()))
+        .await;
+    assert!(
+        is(
+            &lapsed,
+            RefusalKind::Denied,
+            ErrorCode::KernelMcpNotConfirmedInTime
+        ),
+        "{lapsed:?}"
+    );
+    let unasked = fixture.kernel.dispatch(&caller, MCP_SET, on).await;
+    assert!(
+        is(
+            &unasked,
+            RefusalKind::Denied,
+            ErrorCode::KernelMcpUnconfirmed
+        ),
+        "{unasked:?}"
+    );
+    assert!(!mcp().await, "no refused switch switched MCP on");
+    assert!(moves.borrow().is_empty(), "nothing is held any more");
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    let decided: Vec<(Outcome, Option<&str>)> = entries_of(&entries, MCP_SET)
+        .into_iter()
+        .map(|entry| (entry.record.result, deciding(entry)))
+        .collect();
+    let refused = (Outcome::Denied, Some("kernel.mcp_on_needs_confirmation"));
+    assert_eq!(
+        decided,
+        [
+            (Outcome::Allowed, Some(SWITCHES_MCP)),
+            (Outcome::Allowed, Some(SWITCHES_MCP)),
+            refused,
+            refused,
+            refused
+        ],
+        "each switch is journaled once"
+    );
+}
+
 /// An agent's call held for a confirmation runs once its person confirms it,
 /// and the agent holds nothing and spends once.
 ///
@@ -8043,34 +8155,55 @@ const MCP_SET: &str = "settings.mcp.set";
 const SWITCHES_MCP: &str = "family.a_member_switches_mcp";
 
 /// The MCP setting is read and switched by a person alone, decided on its
-/// feature.
+/// feature, and switched on only once the person confirmed it.
 ///
 /// **A person's permit, a child's included, and the denials beside it**
 /// (`NOCTUA.md §20.6`): a guardian, an adult and a child each switch MCP on,
 /// read it on and switch it off, each decided on `Feature::"mcp"` by the
 /// permit that gives every person of the realm the switch — the set in a unit
-/// of its own, the read in none. A frozen account and a device are each
-/// refused with the code alone, the journal naming what decided it, and
-/// neither switches anything.
+/// of its own, the read in none. **The switch on waits for a confirmation the
+/// kernel issued** (`NOCTUA.md §12.15`): asked without one it is refused with
+/// `[NC-KERN-0032]`, journaled under `kernel.mcp_on_needs_confirmation` after
+/// the permit allowed it, and MCP stays off; the switch off never waits. A
+/// frozen account and a device are each refused with the code alone, the
+/// journal naming what decided it, and neither switches anything.
 #[tokio::test]
 async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_feature() {
     let (kernel, world) = naming(None).await;
     let mcp = || async { kernel.settings().await.expect("the settings are read").mcp };
     assert!(!mcp().await, "MCP is on before anybody switched it");
     let persons = ["ana", "bruno", "carla"];
+    let on = r#"{"on":true}"#;
     for person in persons {
-        let caller = Caller::new(
-            world
-                .principal(PrincipalKind::User, person)
-                .expect("a person"),
+        let principal = world
+            .principal(PrincipalKind::User, person)
+            .expect("a person");
+        let caller = Caller::new(principal.clone());
+        let refused = kernel.dispatch(&caller, MCP_SET, on).await;
+        assert!(
+            is(
+                &refused,
+                RefusalKind::Denied,
+                ErrorCode::KernelMcpUnconfirmed
+            ),
+            "{person}: a switch on nobody confirmed: {refused:?}"
         );
-        for (command, args, answer, on) in [
-            (MCP_SET, r#"{"on":true}"#, r#"{"on":true}"#, true),
-            (MCP_READ, "{}", r#"{"on":true}"#, true),
-            (MCP_SET, r#"{"on":false}"#, r#"{"on":false}"#, false),
+        assert!(!mcp().await, "{person} switched MCP on unconfirmed");
+        let confirmed = Caller::new(principal.clone())
+            .confirmed(kernel.confirmation_for_tests(&principal, MCP_SET, on));
+        for (caller, command, args, answer, on) in [
+            (&confirmed, MCP_SET, on, on, true),
+            (&caller, MCP_READ, "{}", on, true),
+            (
+                &caller,
+                MCP_SET,
+                r#"{"on":false}"#,
+                r#"{"on":false}"#,
+                false,
+            ),
         ] {
             let answered = kernel
-                .dispatch(&caller, command, args)
+                .dispatch(caller, command, args)
                 .await
                 .unwrap_or_else(|refused| panic!("{person}: {command} {args}: {refused}"));
             assert_eq!(answered, answer, "{person}: {command} {args}");
@@ -8079,8 +8212,24 @@ async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_f
     }
     let entries = kernel.journal_for_tests().await.expect("the journal reads");
     let decided = dispatched(&entries);
-    assert_eq!(decided.len(), persons.len() * 3, "{entries:#?}");
+    assert_eq!(decided.len(), persons.len() * 4, "{entries:#?}");
     let feature = Some(r#"{"id":"mcp","type":"Feature"}"#);
+    let (unconfirmed, decided): (Vec<&Entry>, Vec<&Entry>) = decided
+        .into_iter()
+        .partition(|entry| entry.record.result == Outcome::Denied);
+    assert_eq!(unconfirmed.len(), persons.len(), "{unconfirmed:#?}");
+    for entry in &unconfirmed {
+        assert_eq!(
+            (command_of(entry).as_deref(), deciding(entry)),
+            (Some(MCP_SET), Some("kernel.mcp_on_needs_confirmation")),
+            "{entry:?}"
+        );
+        assert_eq!(entity_of(entry).as_deref(), feature, "{entry:?}");
+        assert_eq!(
+            entry.record.work_unit, None,
+            "a refused switch opened a unit"
+        );
+    }
     for entry in &decided {
         assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
         assert_eq!(deciding(entry), Some(SWITCHES_MCP), "{entry:?}");
@@ -8106,6 +8255,17 @@ async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_f
         .repeat(persons.len() * 2),
         "each switch was a unit of its own, kept"
     );
+    neither_a_frozen_account_nor_a_device_reads_or_switches_mcp(&kernel, &world).await;
+}
+
+/// A frozen account and a device are each refused MCP's read and switch with
+/// the code alone, the journal naming what decided it, and neither switches
+/// anything.
+async fn neither_a_frozen_account_nor_a_device_reads_or_switches_mcp(
+    kernel: &Kernel<Env<nc_journal::InMemory>>,
+    world: &MemoryDirectory,
+) {
+    let feature = Some(r#"{"id":"mcp","type":"Feature"}"#);
     for (kind, id, decided) in [
         (
             PrincipalKind::User,
@@ -8138,8 +8298,100 @@ async fn the_mcp_setting_is_read_and_switched_by_a_person_alone_decided_on_its_f
             assert_eq!(deciding(entry), Some(decided), "{id}: {command}");
             assert_eq!(entity_of(entry).as_deref(), feature, "{id}: {command}");
         }
-        assert!(!mcp().await, "{id} switched MCP on");
+        assert!(
+            !kernel.settings().await.expect("the settings are read").mcp,
+            "{id} switched MCP on"
+        );
     }
+}
+
+/// An undo or a redo that would switch MCP on waits for the person's
+/// confirmation, and one that switches it off does not.
+///
+/// **No way around the person's confirmation, and no barrier either**: ana
+/// switches MCP on, confirmed, and undoes it — off, never waiting — but her
+/// redo, which would switch it on again, is refused unconfirmed with
+/// `[NC-KERN-0032]`, journaled under `kernel.mcp_on_needs_confirmation` and
+/// leaving MCP off, and runs once she confirms it. Switched off again, her undo
+/// of the switch off is refused the same way, `kernel.history` still naming
+/// that step, and runs confirmed, MCP on again; and her undo then reaches the
+/// step before it.
+#[tokio::test]
+async fn an_undo_or_a_redo_that_would_switch_mcp_on_waits_for_the_persons_confirmation() {
+    let (kernel, world) = naming(None).await;
+    let ana = world
+        .principal(PrincipalKind::User, "ana")
+        .expect("a person");
+    let caller = Caller::new(ana.clone());
+    let confirmed = |command: &str, args: &str| {
+        Caller::new(ana.clone()).confirmed(kernel.confirmation_for_tests(&ana, command, args))
+    };
+    let on = r#"{"on":true}"#;
+    let mcp = || async { kernel.settings().await.expect("the settings are read").mcp };
+    let unconfirmed = |answer: &Result<String, Refusal>| {
+        is(answer, RefusalKind::Denied, ErrorCode::KernelMcpUnconfirmed)
+    };
+    kernel
+        .dispatch(&confirmed(MCP_SET, on), MCP_SET, on)
+        .await
+        .expect("a confirmed switch on runs");
+    kernel
+        .dispatch(&caller, "kernel.undo", "{}")
+        .await
+        .expect("the undo of a switch on switches it off, unconfirmed");
+    assert!(!mcp().await);
+    let redone = kernel.dispatch(&caller, "kernel.redo", "{}").await;
+    assert!(unconfirmed(&redone), "{redone:?}");
+    assert!(!mcp().await, "the redo switched MCP on unconfirmed");
+    kernel
+        .dispatch(&confirmed("kernel.redo", "{}"), "kernel.redo", "{}")
+        .await
+        .expect("a confirmed redo runs");
+    assert!(mcp().await, "the confirmed redo switched MCP on");
+    kernel
+        .dispatch(&caller, MCP_SET, r#"{"on":false}"#)
+        .await
+        .expect("off");
+    let undone = kernel.dispatch(&caller, "kernel.undo", "{}").await;
+    assert!(unconfirmed(&undone), "{undone:?}");
+    assert!(!mcp().await, "the undo switched MCP on unconfirmed");
+    let history = kernel
+        .dispatch(&caller, "kernel.history", "{}")
+        .await
+        .expect("the history reads");
+    assert!(
+        history.contains(r#""label":"settings.mcp.set""#),
+        "the switch off is still the step undo would take back: {history}"
+    );
+    kernel
+        .dispatch(&confirmed("kernel.undo", "{}"), "kernel.undo", "{}")
+        .await
+        .expect("a confirmed undo of the switch off runs");
+    assert!(mcp().await, "the confirmed undo switched MCP on");
+    kernel
+        .dispatch(&caller, "kernel.undo", "{}")
+        .await
+        .expect("the step before it is in reach: the switch on, undone to off");
+    assert!(!mcp().await);
+    let entries = kernel.journal_for_tests().await.expect("the journal reads");
+    let refused: Vec<(Option<String>, Option<&str>)> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| entry.record.result != Outcome::Allowed)
+        .map(|entry| (command_of(entry), deciding(entry)))
+        .collect();
+    assert_eq!(
+        refused,
+        [
+            (
+                Some("kernel.redo".to_owned()),
+                Some("kernel.mcp_on_needs_confirmation")
+            ),
+            (
+                Some("kernel.undo".to_owned()),
+                Some("kernel.mcp_on_needs_confirmation")
+            )
+        ]
+    );
 }
 
 /// A plugin switches no MCP from inside a command.
@@ -9603,6 +9855,7 @@ const FITTING: &[(&str, &str)] = &[
     ("info.say", r#"{"text":"a"}"#),
     ("journal.verify", r#"{"from":0}"#),
     ("kernel.find", r#"{"query":"a"}"#),
+    ("kernel.history", "{}"),
     ("kernel.redo", "{}"),
     ("kernel.undo", "{}"),
     ("leader.tap", "{}"),
@@ -9629,6 +9882,9 @@ const FITTING: &[(&str, &str)] = &[
     ("sidebar.cycle", "{}"),
     ("sidebar.hide", "{}"),
     ("sidebar.show", "{}"),
+    ("surfaces.activate", r#"{"node":"","surface":"surface-1"}"#),
+    ("surfaces.list", "{}"),
+    ("surfaces.read", r#"{"surface":"surface-1"}"#),
     ("window.close", "{}"),
     ("window.hide", "{}"),
     ("window.move", r#"{"x":0,"y":0}"#),

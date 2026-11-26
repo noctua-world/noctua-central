@@ -337,6 +337,18 @@ pub enum ErrorCode {
     KernelDeclined,
     /// NC-KERN-0031 — No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held
     KernelNothingHeld,
+    /// NC-KERN-0032 — A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window
+    KernelMcpUnconfirmed,
+    /// NC-KERN-0033 — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed
+    KernelMcpNotConfirmedInTime,
+    /// NC-KERN-0034 — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it
+    KernelMcpDeclined,
+    /// NC-KERN-0035 — A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person
+    KernelSurfaceByAnAgent,
+    /// NC-KERN-0036 — A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold
+    KernelSurfaceUnknown,
+    /// NC-KERN-0037 — A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read
+    KernelNotActivatable,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -564,6 +576,12 @@ impl ErrorCode {
         Self::KernelNotConfirmedInTime,
         Self::KernelDeclined,
         Self::KernelNothingHeld,
+        Self::KernelMcpUnconfirmed,
+        Self::KernelMcpNotConfirmedInTime,
+        Self::KernelMcpDeclined,
+        Self::KernelSurfaceByAnAgent,
+        Self::KernelSurfaceUnknown,
+        Self::KernelNotActivatable,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -751,6 +769,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => "NC-KERN-0029",
             Self::KernelDeclined => "NC-KERN-0030",
             Self::KernelNothingHeld => "NC-KERN-0031",
+            Self::KernelMcpUnconfirmed => "NC-KERN-0032",
+            Self::KernelMcpNotConfirmedInTime => "NC-KERN-0033",
+            Self::KernelMcpDeclined => "NC-KERN-0034",
+            Self::KernelSurfaceByAnAgent => "NC-KERN-0035",
+            Self::KernelSurfaceUnknown => "NC-KERN-0036",
+            Self::KernelNotActivatable => "NC-KERN-0037",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -939,6 +963,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => "KERN",
             Self::KernelDeclined => "KERN",
             Self::KernelNothingHeld => "KERN",
+            Self::KernelMcpUnconfirmed => "KERN",
+            Self::KernelMcpNotConfirmedInTime => "KERN",
+            Self::KernelMcpDeclined => "KERN",
+            Self::KernelSurfaceByAnAgent => "KERN",
+            Self::KernelSurfaceUnknown => "KERN",
+            Self::KernelNotActivatable => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -1355,6 +1385,24 @@ impl ErrorCode {
             Self::KernelNothingHeld => {
                 "No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held"
             }
+            Self::KernelMcpUnconfirmed => {
+                "A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window"
+            }
+            Self::KernelMcpNotConfirmedInTime => {
+                "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+            }
+            Self::KernelMcpDeclined => {
+                "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it"
+            }
+            Self::KernelSurfaceByAnAgent => {
+                "A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person"
+            }
+            Self::KernelSurfaceUnknown => {
+                "A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold"
+            }
+            Self::KernelNotActivatable => {
+                "A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read"
+            }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
             Self::PluginCapabilityDenied => {
@@ -1609,6 +1657,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => "error.kernel.not-confirmed-in-time",
             Self::KernelDeclined => "error.kernel.declined",
             Self::KernelNothingHeld => "error.kernel.nothing-held",
+            Self::KernelMcpUnconfirmed => "error.kernel.mcp-unconfirmed",
+            Self::KernelMcpNotConfirmedInTime => "error.kernel.mcp-not-confirmed-in-time",
+            Self::KernelMcpDeclined => "error.kernel.mcp-declined",
+            Self::KernelSurfaceByAnAgent => "error.kernel.surface-by-an-agent",
+            Self::KernelSurfaceUnknown => "error.kernel.surface-unknown",
+            Self::KernelNotActivatable => "error.kernel.not-activatable",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1797,6 +1851,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => Severity::Warning,
             Self::KernelDeclined => Severity::Warning,
             Self::KernelNothingHeld => Severity::Info,
+            Self::KernelMcpUnconfirmed => Severity::Warning,
+            Self::KernelMcpNotConfirmedInTime => Severity::Warning,
+            Self::KernelMcpDeclined => Severity::Warning,
+            Self::KernelSurfaceByAnAgent => Severity::Warning,
+            Self::KernelSurfaceUnknown => Severity::Warning,
+            Self::KernelNotActivatable => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1985,6 +2045,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => false,
             Self::KernelDeclined => false,
             Self::KernelNothingHeld => false,
+            Self::KernelMcpUnconfirmed => false,
+            Self::KernelMcpNotConfirmedInTime => false,
+            Self::KernelMcpDeclined => false,
+            Self::KernelSurfaceByAnAgent => false,
+            Self::KernelSurfaceUnknown => false,
+            Self::KernelNotActivatable => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -2173,6 +2239,12 @@ impl ErrorCode {
             Self::KernelNotConfirmedInTime => &[],
             Self::KernelDeclined => &[],
             Self::KernelNothingHeld => &[],
+            Self::KernelMcpUnconfirmed => &[],
+            Self::KernelMcpNotConfirmedInTime => &[],
+            Self::KernelMcpDeclined => &[],
+            Self::KernelSurfaceByAnAgent => &[],
+            Self::KernelSurfaceUnknown => &[],
+            Self::KernelNotActivatable => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

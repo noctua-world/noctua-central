@@ -278,6 +278,9 @@ mod tests {
     /// attached.
     const ATTACHED: &str = "stand-in.attached";
 
+    /// How many held calls the stand-in answers before it ends.
+    const ANSWERS: u32 = 4;
+
     /// A plugin manifest granting the reference plugin what its commands use.
     const GRANTED: &str = "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = \
                            [\"context\", \"store\", \"blobs.read\", \"blobs.write\", \
@@ -293,8 +296,8 @@ mod tests {
 
     /// The desktop the daemon starts: what it was handed down its standard
     /// input read to its end, a connection to the daemon attached by it, and
-    /// each call held for a confirmation answered as it comes — the first
-    /// confirmed, the second declined — then the end.
+    /// each call held for a confirmation answered as it comes — the first and
+    /// the third confirmed, the second and the fourth declined — then the end.
     fn stand_in() {
         use std::io::Read as _;
         let mut bytes = Vec::new();
@@ -319,7 +322,7 @@ mod tests {
                 .expect("the attach is told");
             let (mut seen, mut answered) = (None, 0);
             let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
-            while answered < 2 && tokio::time::Instant::now() < deadline {
+            while answered < ANSWERS && tokio::time::Instant::now() < deadline {
                 let changed = connection
                     .watch(seen, Duration::from_secs(5))
                     .await
@@ -334,7 +337,7 @@ mod tests {
                 if let Some(nc_canon::Value::Integer(serial)) = held {
                     let serial = u64::try_from(serial).expect("a serial");
                     connection
-                        .settle(serial, answered == 0)
+                        .settle(serial, answered % 2 == 0)
                         .await
                         .expect("answered");
                     answered += 1;
@@ -362,6 +365,38 @@ mod tests {
         client.ask(&request).await.expect("answered")
     }
 
+    /// MCP switched on from the CLI of `found`'s install, in `english`, while
+    /// the stand-in answers: the third call held is confirmed and the fourth
+    /// declined, and the switch off between them is never held.
+    fn mcp_waits_for_the_desktop(found: &nc_channel::found::Found, english: &nc_cli::Env) {
+        let words = |words: &[&str]| {
+            words
+                .iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>()
+        };
+        let mcp = || {
+            let read = nc_cli::run(&words(&["--json", "settings.mcp.read"]), found, english);
+            assert_eq!(read.code(), 0, "{read:?}");
+            read.stdout
+        };
+        let switched_on = nc_cli::run(&words(&["settings.mcp.set", "--on"]), found, english);
+        assert_eq!(switched_on.code(), 0, "{switched_on:?}");
+        assert!(mcp().contains(r#""on":true"#), "confirmed, MCP is on");
+        let switched_off = nc_cli::run(&words(&["settings.mcp.set", "--on=false"]), found, english);
+        assert_eq!(switched_off.code(), 0, "{switched_off:?}");
+        let refused_on = nc_cli::run(&words(&["settings.mcp.set", "--on"]), found, english);
+        assert_eq!(refused_on.code(), 15, "{refused_on:?}");
+        assert!(
+            refused_on
+                .stderr
+                .contains(ErrorCode::KernelMcpDeclined.code()),
+            "{}",
+            refused_on.stderr
+        );
+        assert!(mcp().contains(r#""on":false"#), "declined, MCP stays off");
+    }
+
     /// A desktop the daemon started attaches, and answers what waits for the
     /// person; nothing else does.
     ///
@@ -371,7 +406,11 @@ mod tests {
     /// daemon starts it, and it attaches by that secret, from that process.
     /// Then an irreversible command from the CLI waits for it and runs once it
     /// confirms, ending in 0; the next it declines ends in 15 with
-    /// `NC-KERN-0030`. A person's connection that did not attach answering a
+    /// `NC-KERN-0030`. **MCP switched on from the CLI waits for it the same
+    /// way** (`NOCTUA.md §12.15`): confirmed, it ends in 0 and MCP reads on;
+    /// switched off, it is never held and ends in 0 at once; switched on
+    /// again and declined, it ends in 15 with `NC-KERN-0034` and MCP reads
+    /// off. A person's connection that did not attach answering a
     /// held call is refused with `NC-DMN-0018`, and one attaching with a proof
     /// of no secret is refused with `NC-DMN-0017` and closed.
     #[test]
@@ -440,6 +479,7 @@ mod tests {
             "{}",
             declined.stderr
         );
+        mcp_waits_for_the_desktop(&found, &english);
         runtime.block_on(async {
             match asked(&mut person, Request::Confirm { pending: 1 }).await {
                 Answer::Refused(refusal) => {

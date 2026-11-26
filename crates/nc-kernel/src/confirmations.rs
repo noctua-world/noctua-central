@@ -3,7 +3,12 @@
 //!
 //! **A command that cannot be undone runs only with a confirmation the kernel
 //! issued for that principal, that command and those arguments** (the decision
-//! point's precondition, `crate::dispatch`). Through
+//! point's precondition, `crate::dispatch`) — **and so does MCP switched on**
+//! (`crate::settings::switches_mcp_on`), which can be undone but lets an agent
+//! in, under codes of its own: `[NC-KERN-0032]`, `[NC-KERN-0033]` and
+//! `[NC-KERN-0034]` where this module names `[NC-KERN-0006]`,
+//! `[NC-KERN-0029]` and `[NC-KERN-0030]`, recorded as
+//! `kernel.mcp_on_needs_confirmation`. Through
 //! [`crate::Kernel::dispatch`] such a call is refused with `[NC-KERN-0006]`, as
 //! it always was. Through [`crate::Kernel::dispatch_held`] — what the daemon
 //! asks when the desktop interface it started is attached — the call is
@@ -71,6 +76,7 @@ use nc_authz::Principal;
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, KERNEL};
 use nc_ids::Clock as _;
+use nc_schema::descriptor::Reversibility;
 
 use crate::dispatch::{self, Asker, Came, Failure, Refusal, RefusalKind, Unconfirmed};
 use crate::session::Acting;
@@ -113,6 +119,9 @@ pub(crate) struct HeldCall {
     agent: Option<Principal>,
     /// What the session had spent when the call was first decided.
     spent: u64,
+    /// What the command is declared as: `irreversible`, or `write` for MCP
+    /// switched on (`crate::settings::switches_mcp_on`).
+    reversibility: Reversibility,
 }
 
 impl HeldCall {
@@ -132,7 +141,14 @@ impl HeldCall {
             person: acting.whose_history().clone(),
             agent: acting.via_agent().then(|| acting.principal().clone()),
             spent,
+            reversibility: Reversibility::Irreversible,
         }
+    }
+
+    /// The same call, its command declared as `reversibility`.
+    pub(crate) const fn declared(mut self, reversibility: Reversibility) -> Self {
+        self.reversibility = reversibility;
+        self
     }
 }
 
@@ -315,8 +331,8 @@ fn nothing_held(serial: u64) -> Refusal {
 ///
 /// `{"pending":[…]}`, each with its `serial`, its `command`, the `person`
 /// whose confirmation it waits for, the `agent` that asked or `null`, its
-/// `reversibility` — `irreversible`, the one kind held — and its
-/// `deadline_ms`. Never its arguments, which `confirmations.read` answers one
+/// `reversibility` as its command is declared — `irreversible`, or `write`
+/// for MCP switched on — and its `deadline_ms`. Never its arguments, which `confirmations.read` answers one
 /// call at a time, so the list stays within a frame whatever each holds.
 pub(crate) fn listed<E: Environment>(shared: &Shared<E>) -> String {
     let pending = dispatch::lock(&shared.pending);
@@ -374,7 +390,14 @@ fn summary(serial: u64, waiting: &Waiting) -> BTreeMap<String, Value> {
                 .as_ref()
                 .map_or(Value::Null, |agent| Value::text(agent.id().as_str())),
         ),
-        ("reversibility", Value::text("irreversible")),
+        (
+            "reversibility",
+            Value::text(match waiting.call.reversibility {
+                Reversibility::Read => "read",
+                Reversibility::Write => "write",
+                Reversibility::Irreversible => "irreversible",
+            }),
+        ),
         ("deadline_ms", count(waiting.deadline_ms)),
     ]
     .into_iter()

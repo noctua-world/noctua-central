@@ -93,7 +93,8 @@
 //! system names it at the other end; one that does not is refused with
 //! `NC-DMN-0017`, logged as `ipc.refused`, and closed, and one attached already
 //! is refused the same way. **While a connection is attached, a dispatch of a
-//! command that cannot be undone is held for the person's confirmation**
+//! command that cannot be undone, or of MCP switched on, is held for the
+//! person's confirmation**
 //! (`nc_kernel::Kernel::dispatch_held`) — the person's and an agent's session's
 //! alike — its wait ending early once a stop begins; with none attached it is
 //! dispatched as ever, and refused at once. **Only an attached connection
@@ -1836,10 +1837,20 @@ mod tests {
             nc_canon::parse(&answered).expect("one value")
         }
 
-        /// MCP switched `on` by the profile's person.
+        /// MCP switched `on` by the profile's person — on with a
+        /// confirmation the kernel issued, as their answer in the Noctua
+        /// window would be.
         async fn switched(&self, on: bool) {
-            self.as_the_person("settings.mcp.set", &format!(r#"{{"on":{on}}}"#))
-                .await;
+            let args = format!(r#"{{"on":{on}}}"#);
+            let person = &self.server.named.person;
+            let caller = nc_kernel::Caller::new(person.clone()).confirmed(
+                self.kernel
+                    .confirmation_for_tests(person, "settings.mcp.set", &args),
+            );
+            self.kernel
+                .dispatch(&caller, "settings.mcp.set", &args)
+                .await
+                .unwrap_or_else(|refusal| panic!("the switch was refused: {refusal:?}"));
         }
 
         /// The entries of `command` the journal holds, each by whom it names

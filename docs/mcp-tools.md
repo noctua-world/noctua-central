@@ -273,6 +273,20 @@ In `pt-BR`:
 {"name":"kernel_find","description":"Encontrar comandos pelas palavras do nome ou das etiquetas, nas duas línguas.\n\nProcura, entre todos os comandos que o Noctua pode executar, os dele e os de cada plugin, aqueles cujos nomes e etiquetas, em inglês e em português, contêm cada palavra digitada, com as letras na ordem, sem distinguir acentos nem maiúsculas. Responde primeiro os melhores resultados, no máximo quantos você pedir, com onde cada palavra foi encontrada e quantos foram encontrados ao todo. Não muda nada.","inputSchema":{"type":"object","properties":{"query":{"type":"string","maxLength":64},"limit":{"type":"integer","minimum":1,"maximum":32}},"required":["query"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `kernel.history`
+
+In `en`:
+
+```json
+{"name":"kernel_history","description":"Name the step your next undo takes back, and whether an agent took it.\n\nShows the step your next undo would take back: its name, when it was taken, whether undo stops there, and the agent that took it when one of your agents did — an agent's steps are yours to undo, as your own are. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"kernel_history","description":"Dizer qual passo o seu próximo desfazer desfaz, e se um agente o deu.\n\nMostra o passo que o seu próximo desfazer desfaria: seu nome, quando foi dado, se o desfazer para ali e o agente que o deu, quando foi um dos seus agentes — os passos de um agente são seus para desfazer, como os seus. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `kernel.redo`
 
 In `en`:
@@ -530,13 +544,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"settings_mcp_set","description":"Let MCP clients act here as agents, or stop them.\n\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"settings_mcp_set","description":"Let MCP clients act here as agents, or stop them.\n\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"settings_mcp_set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"settings_mcp_set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 ## `shell.drag`
@@ -635,6 +649,48 @@ In `pt-BR`:
 
 ```json
 {"name":"sidebar_show","description":"Mostrar a lista do que está aberto na interface.\n\nMostra a barra lateral, a lista de tudo o que está aberto na interface.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `surfaces.activate`
+
+In `en`:
+
+```json
+{"name":"surfaces_activate","description":"Run what a button or a toggle on a surface runs, as a click would.\n\nDoes what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"surfaces_activate","description":"Executar o que um botão ou chave de uma superfície executa, como um clique.\n\nFaz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `surfaces.list`
+
+In `en`:
+
+```json
+{"name":"surfaces_list","description":"Show the surfaces plugins have open, and who drew what each shows.\n\nLists every surface the plugins hold open: its name, where it is shown, its title, the plugin that holds it, and who drew what it shows now — the person the plugin acted for, and the agent that acted for them when one did. It does not show what each surface holds; read one surface for that. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"surfaces_list","description":"Mostrar as superfícies abertas pelos plugins e quem desenhou cada uma.\n\nLista cada superfície que os plugins mantêm abertas: seu nome, onde aparece, seu título, o plugin que a mantém e quem desenhou o que ela mostra agora — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Não mostra o conteúdo de cada superfície; leia uma superfície para isso. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `surfaces.read`
+
+In `en`:
+
+```json
+{"name":"surfaces_read","description":"Show one surface a plugin has open, with what it shows and who drew it.\n\nShows the surface named: where it is shown, its title, the plugin that holds it, everything it shows now, and who drew that — the person the plugin acted for, and the agent that acted for them when one did. A surface no longer open is refused. It changes nothing.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64}},"required":["surface"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"surfaces_read","description":"Mostrar uma superfície aberta, com o que ela mostra e quem o desenhou.\n\nMostra a superfície indicada: onde aparece, seu título, o plugin que a mantém, tudo o que ela mostra agora e quem desenhou isso — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Uma superfície que não está mais aberta é recusada. Não altera nada.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64}},"required":["surface"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `window.close`

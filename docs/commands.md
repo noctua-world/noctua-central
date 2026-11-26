@@ -401,6 +401,27 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"query":{"type":"string","maxLength":64},"limit":{"type":"integer","minimum":1,"maximum":32}},"required":["query"],"additionalProperties":false}
 ```
 
+## `kernel.history`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.history` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the next undo | Mostrar o próximo desfazer |
+| Line description | Name the step your next undo takes back, and whether an agent took it. | Dizer qual passo o seu próximo desfazer desfaz, e se um agente o deu. |
+| Paragraph | Shows the step your next undo would take back: its name, when it was taken, whether undo stops there, and the agent that took it when one of your agents did — an agent's steps are yours to undo, as your own are. It changes nothing. | Mostra o passo que o seu próximo desfazer desfaria: seu nome, quando foi dado, se o desfazer para ali e o agente que o deu, quando foi um dos seus agentes — os passos de um agente são seus para desfazer, como os seus. Não altera nada. |
+| Tags | history, undo, next step, agent, steps | histórico, desfazer, próximo passo, agente, passos |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
 ## `kernel.redo`
 
 | | |
@@ -781,7 +802,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Action | `Write` |
 | Resource selector | `feature:mcp` |
 | Mutating | yes |
-| Can it be undone | yes — its one effect is the value it writes, which `kernel.undo` puts back as it was and `kernel.redo` writes again (§11.5) |
+| Can it be undone | yes — its one effect is the value it writes, which `kernel.undo` puts back as it was and `kernel.redo` writes again — each waiting for a person's confirmation when it would switch MCP on (§11.5) |
 | Categories | `noctua.settings` |
 | Glyph | `U+F205` |
 
@@ -789,7 +810,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 |---|---|---|
 | Display name | Switch MCP on or off | Ligar ou desligar o MCP |
 | Line description | Let MCP clients act here as agents, or stop them. | Deixar clientes MCP agirem aqui como agentes, ou impedi-los. |
-| Paragraph | Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was. | Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava. |
+| Paragraph | Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on. | Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue. |
 | Tags | mcp, agents, settings, turn on, turn off, model context protocol, ai tools | mcp, agentes, configurações, ligar, desligar, ferramentas de ia, protocolo de contexto |
 
 ```json
@@ -934,6 +955,66 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `surfaces.activate`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | yes |
+| Can it be undone | as what it runs — no step of its own: the command it dispatches is a step of its own when it changes state, which `kernel.undo` takes back as that command's (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Press something on a surface | Acionar algo em uma superfície |
+| Line description | Run what a button or a toggle on a surface runs, as a click would. | Executar o que um botão ou chave de uma superfície executa, como um clique. |
+| Paragraph | Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own. | Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio. |
+| Tags | surface, click, press, button, submit, interface | superfície, clicar, acionar, botão, enviar, interface |
+
+```json
+{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false}
+```
+
+## `surfaces.list`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | List the surfaces open | Listar as superfícies abertas |
+| Line description | Show the surfaces plugins have open, and who drew what each shows. | Mostrar as superfícies abertas pelos plugins e quem desenhou cada uma. |
+| Paragraph | Lists every surface the plugins hold open: its name, where it is shown, its title, the plugin that holds it, and who drew what it shows now — the person the plugin acted for, and the agent that acted for them when one did. It does not show what each surface holds; read one surface for that. It changes nothing. | Lista cada superfície que os plugins mantêm abertas: seu nome, onde aparece, seu título, o plugin que a mantém e quem desenhou o que ela mostra agora — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Não mostra o conteúdo de cada superfície; leia uma superfície para isso. Não altera nada. |
+| Tags | surface, panel, plugin, view, list, interface | superfície, painel, plugin, visão, listar, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `surfaces.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read a surface | Ler uma superfície |
+| Line description | Show one surface a plugin has open, with what it shows and who drew it. | Mostrar uma superfície aberta, com o que ela mostra e quem o desenhou. |
+| Paragraph | Shows the surface named: where it is shown, its title, the plugin that holds it, everything it shows now, and who drew that — the person the plugin acted for, and the agent that acted for them when one did. A surface no longer open is refused. It changes nothing. | Mostra a superfície indicada: onde aparece, seu título, o plugin que a mantém, tudo o que ela mostra agora e quem desenhou isso — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Uma superfície que não está mais aberta é recusada. Não altera nada. |
+| Tags | surface, panel, plugin, view, read, contents | superfície, painel, plugin, visão, ler, conteúdo |
+
+```json
+{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64}},"required":["surface"],"additionalProperties":false}
 ```
 
 ## `window.close`

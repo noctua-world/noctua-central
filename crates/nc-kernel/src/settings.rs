@@ -20,7 +20,13 @@
 //! journal entry or not at all (`crate::units`), and its one effect is that
 //! entry — so it is no step that left the machine
 //! ([`writes_only_its_entry`], `crate::history`), and an undo puts the value
-//! back as it was and reaches the steps before it. **It runs only at the top of
+//! back as it was and reaches the steps before it. **Switching it on waits for
+//! the person's confirmation in the desktop interface** ([`switches_mcp_on`]),
+//! as a command that cannot be undone does — held while the desktop the daemon
+//! started is attached, refused with `[NC-KERN-0032]` otherwise — and so does
+//! an undo of a switch off or a redo of a switch on, which would put it back
+//! on ([`puts_mcp_on`], `crate::history::would_switch_mcp_on`); switching it
+//! off never does. **It runs only at the top of
 //! a call tree** (`crate::registry::only_at_the_top`): dispatched from inside a
 //! command — a plugin run as the person, a timer's or an event's callback — it
 //! is refused with `[NC-KERN-0025]` before it is decided. The read runs
@@ -30,12 +36,16 @@
 //!
 //! Who may switch whether agents are let in: a person, by a decided and
 //! journaled dispatch of their own, never a plugin, a timer or an event in
-//! their name, and never an agent or a device, which the permit refuses. A
+//! their name, and never an agent or a device, which the permit refuses; and
+//! who may switch them in: that person, confirmed in the desktop interface,
+//! never anything that only speaks the protocol — the CLI, a process running
+//! as the person, an undo or a redo. A
 //! value this module did not write — any text in the entry but the two it
 //! writes — is refused as a row the kernel did not write (`internal`), never
 //! read as on or as off. **What it does not answer:** a process running as the
-//! same user, which can run the CLI as the person or edit the entry in the
-//! profile's database, as it can any of the person's data; and what MCP being
+//! same user, which can run the CLI as the person — to switch MCP off — or
+//! edit the entry in the profile's database, as it can any of the person's
+//! data, or tamper with the desktop interface (`NOCTUA.md §11.1`); and what MCP being
 //! on lets in, which is the daemon's to enforce and the decision point's to
 //! decide per call.
 
@@ -96,6 +106,32 @@ fn written(on: bool) -> String {
 /// leave the machine is not taken back by being a setting.
 pub(crate) fn writes_only_its_entry(name: &str) -> bool {
     name == MCP_SET
+}
+
+/// Whether a call of `name` with `args` switches MCP on: the set asking for
+/// on, whatever MCP is now, and never the set asking for off.
+///
+/// **What the decision point holds for a person's confirmation in the
+/// desktop interface**, as it holds a command that cannot be undone
+/// (`crate::dispatch`): MCP on lets an agent in, so nothing that only speaks
+/// the protocol — the CLI, a process running as the person, a dispatched
+/// command — switches it on.
+pub(crate) fn switches_mcp_on(name: &str, args: &serde_json::Value) -> bool {
+    name == MCP_SET && args.get(ON).and_then(serde_json::Value::as_bool) == Some(true)
+}
+
+/// Whether putting `to` back in the key `key` of `holder`, over `from`, would
+/// switch MCP on: what an undo of a switch off and a redo of a switch on wait
+/// for a person's confirmation for, as the set asking for on does
+/// (`crate::history::would_switch_mcp_on`).
+pub(crate) fn puts_mcp_on(
+    holder: &str,
+    key: &str,
+    from: Option<&Entry>,
+    to: Option<&Entry>,
+) -> bool {
+    let on = |entry: Option<&Entry>| entry.is_some_and(|entry| entry.value == written(true));
+    holder == HOLDER && key == MCP && on(to) && !on(from)
 }
 
 /// The settings `store` holds committed for `realm`.

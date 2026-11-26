@@ -41,26 +41,164 @@
 //! at once (`[NC-PLUG-0017]`), and a surface it does not hold, another's or
 //! none, is not found (`[NC-PLUG-0019]`).
 //!
+//! **Who rendered each tree is kept with it** ([`Renderer`]): the plugin is
+//! the surface's owner, and beside it the person the call tree acted for and,
+//! when an agent's session acted for them — its command's tree, or a timer's
+//! or an event's callback it put off — that agent. `surfaces.list` and
+//! `surfaces.read` show it, reads on `Feature::"interface"`.
+//!
+//! **A person activates a node by a command, and the kernel reads what it
+//! runs from the tree it kept** (`surfaces.activate`, [`Surfaces::activation`]): the
+//! surface by its identifier and the node by the JSON pointer a refusal of the
+//! tree names it by — `""` or `/` for the tree's root — a `button` or a
+//! `toggle` that is not `disabled`, its command and its `args` read from the
+//! kept tree and never from the caller, who gives only the text typed into
+//! each input the node binds, read as the input's `kind` says. **A surface whose
+//! kept tree an agent's call tree rendered is never activated**
+//! (`[NC-KERN-0035]`): what it names would run with the person's whole
+//! authority, chosen by the agent. Otherwise the command is dispatched nested in
+//! the activation's own call tree, as the tree acts — through the decision
+//! point as any dispatch, journaled, never confirmed, and refused there when it
+//! runs only at the top of a call tree — and is a step of its own when it
+//! changes state: the activation opens no unit of its own
+//! ([`dispatches_what_it_shows`]) and is no step, and the command's unit is,
+//! labelled by the command. A surface or a node not there is `[NC-KERN-0036]`,
+//! and a node that runs nothing or an input it does not bind is
+//! `[NC-KERN-0037]`.
+//!
 //! What this answers (`NOCTUA.md §2.4`): a plugin drawing what the host does
 //! not render — markup, a script, a remote image, a style — an interaction
 //! that dispatches a command nothing registered or with arguments its command
-//! does not take, a tree that grows the kernel without end, and a plugin
-//! drawing into another's surface. What it does not answer: the click itself,
-//! which a renderer dispatches through the decision point as the person who
-//! clicked, as any dispatch, and which is never a confirmation — there is no
-//! renderer in this build, so no click is dispatched at all; and whether this
+//! does not take, a tree that grows the kernel without end, a plugin drawing
+//! into another's surface, and a click on a tree an agent rendered run as the
+//! person. What it does not answer: whether a tree a person's call tree
+//! rendered was drawn from what an agent wrote before — a plugin rendering
+//! from its own store, which an agent's command may have written, renders as
+//! the person; a renderer that dispatches a node's command by its name rather
+//! than through `surfaces.activate`, which is any client's to do as the
+//! person, and a click is never a confirmation; and whether this
 //! machine holds the blob an image names, which judging a tree does not ask —
 //! a blob can arrive or be swept after the tree naming it is kept, so it is the
 //! renderer's to ask where the blob is when it draws one.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use nc_authz::Principal;
 use nc_canon::Value;
 use nc_catalog::{ErrorCode, KERNEL};
 
-use crate::PluginSlot;
-use crate::dispatch::{Refusal, RefusalKind};
+use crate::dispatch::{Failure, Refusal, RefusalKind};
 use crate::registry::Admitted;
+use crate::session::Acting;
+use crate::{Environment, PluginSlot, Shared};
+
+/// The command that lists the surfaces open.
+pub(crate) const LIST: &str = "surfaces.list";
+
+/// The command that reads one surface, with the tree it shows.
+pub(crate) const READ: &str = "surfaces.read";
+
+/// The command that activates a node of a surface's tree: what a click or a
+/// submit is.
+pub(crate) const ACTIVATE: &str = "surfaces.activate";
+
+/// The surface `surfaces.read` and `surfaces.activate` name.
+const SURFACE: &str = "surface";
+
+/// The node `surfaces.activate` names, as a JSON pointer into the tree.
+const NODE: &str = "node";
+
+/// What a person typed into each input the node binds.
+const INPUTS: &str = "inputs";
+
+/// An input's name, in `inputs`.
+const INPUT_NAME: &str = "name";
+
+/// What was typed into it, in `inputs`.
+const INPUT_VALUE: &str = "value";
+
+/// The most characters a surface's identifier is named by: `surface-` and a
+/// `u64`'s twenty digits, with room.
+pub(crate) const SURFACE_CHARS: usize = 64;
+
+/// Every identifier [`Surfaces::open`] hands out fits [`SURFACE_CHARS`]:
+/// `surface-` and the twenty digits of the largest `u64`.
+const _: () = assert!("surface-".len() + 20 <= SURFACE_CHARS);
+
+/// The most characters a node's pointer holds.
+pub(crate) const NODE_CHARS: usize = 512;
+
+/// How many digits a number below `bound` is written with, at most.
+const fn digits(bound: u32) -> usize {
+    let mut digits = 1;
+    let mut left = bound / 10;
+    while left > 0 {
+        digits += 1;
+        left /= 10;
+    }
+    digits
+}
+
+/// The pointer to the deepest node a tree may hold fits [`NODE_CHARS`]: each
+/// level below the root `/children/` and an index below `ui_tree_nodes`.
+const _: () = assert!(
+    (KERNEL.ui_tree_depth as usize - 1) * ("/children/".len() + digits(KERNEL.ui_tree_nodes))
+        <= NODE_CHARS
+);
+
+/// Whether `name` is the command that dispatches what a surface shows: the
+/// one command of the kernel's own that changes state only through what it
+/// dispatches, so it opens no unit of its own and leaves no note of having
+/// left the machine — the command it dispatches is decided, noted and kept as
+/// itself.
+pub(crate) fn dispatches_what_it_shows(name: &str) -> bool {
+    name == ACTIVATE
+}
+
+/// Who rendered a surface's tree: the person the call tree acted for, and the
+/// agent that acted for them when an agent's session did. The plugin that
+/// rendered it is the surface's owner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Renderer {
+    person: Principal,
+    agent: Option<Principal>,
+}
+
+impl Renderer {
+    /// Who a call tree acting as `acting` renders as.
+    pub(crate) fn of(acting: &Acting) -> Self {
+        Self {
+            person: acting.whose_history().clone(),
+            agent: acting.via_agent().then(|| acting.principal().clone()),
+        }
+    }
+
+    /// The person the call tree acted for: who acted, or the person an
+    /// agent's session acts for.
+    #[must_use]
+    pub const fn person(&self) -> &Principal {
+        &self.person
+    }
+
+    /// The agent whose session acted, when one did.
+    #[must_use]
+    pub const fn agent(&self) -> Option<&Principal> {
+        self.agent.as_ref()
+    }
+
+    /// What `surfaces.list` and `surfaces.read` show of it.
+    fn shown(&self) -> Value {
+        Value::object([
+            ("person", Value::text(self.person.id().as_str())),
+            (
+                "agent",
+                self.agent
+                    .as_ref()
+                    .map_or(Value::Null, |agent| Value::text(agent.id().as_str())),
+            ),
+        ])
+    }
+}
 
 /// Where a surface is shown, as the world's `surface-kind` names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +227,8 @@ impl SurfaceKind {
 }
 
 /// One surface a plugin holds open: its identifier, its owner, where it is
-/// shown, its title, and the last tree rendered into it that the kernel kept.
+/// shown, its title, and the last tree rendered into it that the kernel kept,
+/// with who rendered it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Surface {
     id: String,
@@ -97,6 +236,7 @@ pub struct Surface {
     kind: SurfaceKind,
     title: String,
     tree: Option<String>,
+    rendered_by: Option<Renderer>,
 }
 
 impl Surface {
@@ -129,6 +269,31 @@ impl Surface {
     #[must_use]
     pub fn tree(&self) -> Option<&str> {
         self.tree.as_deref()
+    }
+
+    /// Who rendered the tree it shows: none until one is kept.
+    #[must_use]
+    pub const fn rendered_by(&self) -> Option<&Renderer> {
+        self.rendered_by.as_ref()
+    }
+
+    /// What `surfaces.list` shows of it, but the plugin that holds it, whose
+    /// identity is the plugins' to say: everything but its tree.
+    fn listed(&self) -> BTreeMap<String, Value> {
+        [
+            ("id", Value::text(self.id.as_str())),
+            ("kind", Value::text(self.kind.word())),
+            ("title", Value::text(self.title.as_str())),
+            (
+                "rendered_by",
+                self.rendered_by
+                    .as_ref()
+                    .map_or(Value::Null, Renderer::shown),
+            ),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value))
+        .collect()
     }
 }
 
@@ -166,7 +331,7 @@ pub(crate) enum Shown {
     /// A surface opened, under the identifier its plugin was answered.
     Opened(Surface),
     /// A tree [`validated`] accepted, rendered into the surface `id` of the
-    /// plugin in `owner`.
+    /// plugin in `owner` by a call tree acting as `by` says.
     Rendered {
         /// The plugin that rendered it.
         owner: PluginSlot,
@@ -174,6 +339,8 @@ pub(crate) enum Shown {
         id: String,
         /// The tree, as canonical text.
         tree: String,
+        /// Who the call tree that rendered it acted as.
+        by: Renderer,
     },
     /// The surface `id` of the plugin in `owner`, closed.
     Closed {
@@ -240,6 +407,7 @@ impl Surfaces {
             kind,
             title: title.to_owned(),
             tree: None,
+            rendered_by: None,
         })
     }
 
@@ -276,6 +444,7 @@ impl Surfaces {
             kind: surface.kind,
             title: surface.title.clone(),
             tree: None,
+            rendered_by: None,
         };
         let mut open: BTreeMap<String, Surface> = self
             .open
@@ -299,7 +468,7 @@ impl Surfaces {
     }
 
     /// Keeps `tree`, a tree [`validated`] accepted, as what the surface `id`
-    /// of the plugin in `owner` shows.
+    /// of the plugin in `owner` shows, rendered `by` whom.
     ///
     /// # Errors
     ///
@@ -310,10 +479,12 @@ impl Surfaces {
         owner: PluginSlot,
         id: &str,
         tree: String,
+        by: Renderer,
     ) -> Result<(), Refusal> {
         match self.open.get_mut(id) {
             Some(surface) if surface.owner == owner => {
                 surface.tree = Some(tree);
+                surface.rendered_by = Some(by);
                 Ok(())
             }
             _ => Err(not_held(id)),
@@ -333,8 +504,13 @@ impl Surfaces {
             Shown::Opened(surface) => {
                 self.open.insert(surface.id.clone(), surface);
             }
-            Shown::Rendered { owner, id, tree } => {
-                let _closed_meanwhile = self.render(owner, &id, tree);
+            Shown::Rendered {
+                owner,
+                id,
+                tree,
+                by,
+            } => {
+                let _closed_meanwhile = self.render(owner, &id, tree, by);
             }
             Shown::Closed { owner, id } => {
                 let _closed_meanwhile = self.close(owner, &id);
@@ -351,6 +527,320 @@ impl Surfaces {
     pub(crate) fn forget(&mut self, owner: PluginSlot) {
         self.open.retain(|_, surface| surface.owner != owner);
     }
+
+    /// What activating the node `node` of the surface `surface` runs, with
+    /// `inputs` — each input's name and the text typed into it — given to the
+    /// inputs the node binds.
+    ///
+    /// **Read from the tree the surface shows, never from the caller**: the
+    /// command and its `args` are the node's, and the caller gives only the
+    /// text of each input it binds, read as the input's `kind` says — an
+    /// `integer`'s as an integer, every other as text.
+    ///
+    /// # Errors
+    ///
+    /// `denied` with `[NC-KERN-0035]` when an agent's call tree rendered the
+    /// tree the surface shows, whatever the node; `not-found` with
+    /// `[NC-KERN-0036]` for a surface not open, one that shows no tree yet,
+    /// and a pointer that names nothing in the tree; and `invalid` with
+    /// `[NC-KERN-0037]` for a node that is not a `button` or a `toggle`, one
+    /// that is `disabled`, an input the node does not bind or named twice,
+    /// and an `integer` input given what is not one.
+    pub(crate) fn activation(
+        &self,
+        surface: &str,
+        node: &str,
+        inputs: &[(String, String)],
+    ) -> Result<Activation, Failure> {
+        let unknown = |why: String| {
+            Failure::new(
+                Refusal::new(RefusalKind::NotFound, ErrorCode::KernelSurfaceUnknown, why),
+                "surface-unknown",
+            )
+        };
+        let shown = quoted(surface);
+        let Some(open) = self.open.get(surface) else {
+            return Err(unknown(format!("no surface {shown} is open")));
+        };
+        if open
+            .rendered_by
+            .as_ref()
+            .and_then(Renderer::agent)
+            .is_some()
+        {
+            return Err(Failure::new(
+                Refusal::new(
+                    RefusalKind::Denied,
+                    ErrorCode::KernelSurfaceByAnAgent,
+                    format!(
+                        "the tree the surface {shown} shows was rendered by an agent's call tree, \
+                         so nothing it names is run for the person"
+                    ),
+                ),
+                "rendered-by-an-agent",
+            ));
+        }
+        let Some(tree) = open
+            .tree
+            .as_deref()
+            .and_then(|tree| nc_canon::parse(tree).ok())
+        else {
+            return Err(unknown(format!("the surface {shown} shows no tree yet")));
+        };
+        let pointer = quoted(node);
+        let Some(Value::Object(fields)) = at(&tree, node) else {
+            return Err(unknown(format!(
+                "{pointer} names no node of the tree the surface {shown} shows"
+            )));
+        };
+        let refused = |why: String| {
+            Failure::new(
+                Refusal::new(RefusalKind::Invalid, ErrorCode::KernelNotActivatable, why),
+                "not-activatable",
+            )
+        };
+        let kind = match fields.get("node") {
+            Some(Value::Text(kind)) => kind.as_str(),
+            _ => "",
+        };
+        let Some(Value::Text(command)) = fields.get("command").filter(|_| ACTIVE.contains(&kind))
+        else {
+            return Err(refused(format!(
+                "the node at {pointer} is a `{kind}`, which runs nothing: only a `button` or a \
+                 `toggle` is activated"
+            )));
+        };
+        if fields.get("disabled") == Some(&Value::Bool(true)) {
+            return Err(refused(format!("the node at {pointer} is disabled")));
+        }
+        let mut args = match fields.get("args") {
+            Some(Value::Object(args)) => args.clone(),
+            _ => BTreeMap::new(),
+        };
+        let binds: Vec<&str> = match fields.get("bind") {
+            Some(Value::Array(names)) => names
+                .iter()
+                .filter_map(|name| match name {
+                    Value::Text(name) => Some(name.as_str()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        for (name, typed) in inputs {
+            let input = quoted(name);
+            if !binds.contains(&name.as_str()) {
+                return Err(refused(format!(
+                    "the node at {pointer} binds no input {input}"
+                )));
+            }
+            let value = if input_kind(&tree, name) == Some("integer") {
+                Value::Integer(typed.parse().map_err(|_| {
+                    refused(format!(
+                        "the input {input} takes an integer, and {} is not one",
+                        quoted(typed)
+                    ))
+                })?)
+            } else {
+                Value::text(typed.as_str())
+            };
+            if args.insert(name.clone(), value).is_some() {
+                return Err(refused(format!("the input {input} is given twice")));
+            }
+        }
+        Ok(Activation {
+            command: command.clone(),
+            args: Value::Object(args).to_canonical(),
+        })
+    }
+}
+
+/// The kinds of node a person activates.
+const ACTIVE: [&str; 2] = ["button", "toggle"];
+
+/// What activating a node runs: the command its tree names, and the
+/// arguments' canonical text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Activation {
+    /// The command.
+    pub(crate) command: String,
+    /// Its arguments, as canonical JSON.
+    pub(crate) args: String,
+}
+
+/// `text` as a refusal of the surfaces repeats it.
+fn quoted(text: &str) -> String {
+    crate::registry::quoted_up_to(text, QUOTED)
+}
+
+/// The node of `tree` the JSON pointer `pointer` names: the root for `""` or
+/// `/`, which no node's key can be, and otherwise each segment a key of an
+/// object or the index of a list, `~1` read as `/` and `~0` as `~`.
+fn at<'a>(tree: &'a Value, pointer: &str) -> Option<&'a Value> {
+    if pointer.is_empty() || pointer == "/" {
+        return Some(tree);
+    }
+    let mut here = tree;
+    for segment in pointer.strip_prefix('/')?.split('/') {
+        let key = segment.replace("~1", "/").replace("~0", "~");
+        here = match here {
+            Value::Object(fields) => fields.get(&key)?,
+            Value::Array(items) => {
+                let index = (key == "0"
+                    || (!key.starts_with('0') && key.bytes().all(|byte| byte.is_ascii_digit())))
+                .then(|| key.parse::<usize>().ok())
+                .flatten()?;
+                items.get(index)?
+            }
+            _ => return None,
+        };
+    }
+    Some(here)
+}
+
+/// The `kind` of the input named `name` in `tree` — `text` when it names
+/// none — or none when no input of the tree is named so.
+fn input_kind<'a>(tree: &'a Value, name: &str) -> Option<&'a str> {
+    match tree {
+        Value::Object(fields) => {
+            let is_it = fields.get("node") == Some(&Value::text("input"))
+                && fields.get("name") == Some(&Value::text(name));
+            if is_it {
+                return Some(match fields.get("kind") {
+                    Some(Value::Text(kind)) => kind.as_str(),
+                    _ => "text",
+                });
+            }
+            ["children", "items"]
+                .iter()
+                .filter_map(|key| fields.get(*key))
+                .find_map(|nodes| input_kind(nodes, name))
+        }
+        Value::Array(nodes) => nodes.iter().find_map(|node| input_kind(node, name)),
+        _ => None,
+    }
+}
+
+/// Each input `args` gives `surfaces.activate`, by its name, with the text
+/// typed into it.
+fn inputs_of(args: &serde_json::Value) -> Vec<(String, String)> {
+    args.get(INPUTS)
+        .and_then(serde_json::Value::as_array)
+        .map(|inputs| {
+            inputs
+                .iter()
+                .filter_map(|input| {
+                    let text = |key| input.get(key).and_then(serde_json::Value::as_str);
+                    Some((text(INPUT_NAME)?.to_owned(), text(INPUT_VALUE)?.to_owned()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The text `args` holds under `key`, or none.
+fn text_of<'a>(args: &'a serde_json::Value, key: &str) -> &'a str {
+    args.get(key)
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+}
+
+/// `surfaces.list`: every surface open, in the order their identifiers sort.
+///
+/// `{"surfaces":[…]}`, each with its `id`, its `kind`, its `title`, the
+/// identity of the `plugin` that holds it, and `rendered_by` — the `person`
+/// and the `agent`, or `null`, of the call tree that rendered the tree it
+/// shows — `null` until one is kept. Never the tree, which `surfaces.read`
+/// answers one surface at a time.
+pub(crate) fn listed<E: Environment>(shared: &Shared<E>) -> String {
+    // **The surfaces' lock let go before the plugins' is taken**, which an
+    // unload takes in the other order.
+    let open: Vec<(PluginSlot, BTreeMap<String, Value>)> = crate::dispatch::lock(&shared.surfaces)
+        .open
+        .values()
+        .map(|surface| (surface.owner, surface.listed()))
+        .collect();
+    let shown = open
+        .into_iter()
+        .map(|(owner, fields)| Value::Object(with_its_plugin(shared, owner, fields)))
+        .collect();
+    Value::object([("surfaces", Value::Array(shown))]).to_canonical()
+}
+
+/// `fields`, with the identity of the plugin in `owner` as their `plugin`:
+/// `null` for one no longer loaded.
+fn with_its_plugin<E: Environment>(
+    shared: &Shared<E>,
+    owner: PluginSlot,
+    mut fields: BTreeMap<String, Value>,
+) -> BTreeMap<String, Value> {
+    fields.insert(
+        "plugin".to_owned(),
+        shared.plugin_of(owner).map_or(Value::Null, Value::text),
+    );
+    fields
+}
+
+/// `surfaces.read`: the surface `args` names, as `surfaces.list` shows it and
+/// with its `tree`, `null` until one is kept.
+///
+/// # Errors
+///
+/// `not-found` with `[NC-KERN-0036]` when no surface of that identifier is
+/// open.
+pub(crate) fn read<E: Environment>(
+    shared: &Shared<E>,
+    args: &serde_json::Value,
+) -> Result<String, Failure> {
+    let id = text_of(args, SURFACE);
+    let found = crate::dispatch::lock(&shared.surfaces)
+        .open
+        .get(id)
+        .cloned();
+    let Some(surface) = found else {
+        return Err(Failure::new(
+            Refusal::new(
+                RefusalKind::NotFound,
+                ErrorCode::KernelSurfaceUnknown,
+                format!("no surface {} is open", quoted(id)),
+            ),
+            "surface-unknown",
+        ));
+    };
+    let mut fields = with_its_plugin(shared, surface.owner, surface.listed());
+    fields.insert(
+        "tree".to_owned(),
+        surface
+            .tree
+            .as_deref()
+            .and_then(|tree| nc_canon::parse(tree).ok())
+            .unwrap_or(Value::Null),
+    );
+    Ok(Value::Object(fields).to_canonical())
+}
+
+/// `surfaces.activate`: the node `args` names of the surface it names,
+/// activated — the command the tree names dispatched nested in `tree`, as it
+/// acts, with the arguments [`Surfaces::activation`] reads, and answered as
+/// it answers.
+///
+/// # Errors
+///
+/// What [`Surfaces::activation`] refuses, and what the decision point or the
+/// command refuses the dispatch with, its code and its kind kept.
+pub(crate) async fn activated<E: Environment>(
+    shared: &std::sync::Arc<Shared<E>>,
+    tree: &std::sync::Arc<std::sync::Mutex<crate::dispatch::CallTree>>,
+    args: &serde_json::Value,
+) -> Result<String, Failure> {
+    let activation = crate::dispatch::lock(&shared.surfaces).activation(
+        text_of(args, SURFACE),
+        text_of(args, NODE),
+        &inputs_of(args),
+    )?;
+    crate::dispatch::nested(shared, tree, &activation.command, &activation.args, None)
+        .await
+        .map_err(|refusal| Failure::new(refusal, "activated-refused"))
 }
 
 /// Refuses `title` unless a person can read it.
@@ -740,10 +1230,49 @@ mod tests {
 
     use nc_catalog::{ErrorCode, KERNEL};
 
-    use super::{Fault, Shown, Surface, SurfaceKind, Surfaces, Walk, titled, validated};
+    use nc_authz::{Principal, PrincipalKind};
+
+    use super::{
+        ACTIVATE, Activation, Fault, INPUT_NAME, INPUT_NAME_MAX, INPUT_VALUE, INPUTS, LIST, NODE,
+        NODE_CHARS, READ, Renderer, SURFACE, SURFACE_CHARS, Shown, Surface, SurfaceKind, Surfaces,
+        Walk, dispatches_what_it_shows, titled, validated,
+    };
     use crate::PluginSlot;
     use crate::dispatch::{Refusal, RefusalKind};
     use crate::registry::{Admitted, Registry};
+    use crate::session::{Acting, Session};
+
+    /// The world the policy cases are about.
+    fn world() -> nc_authz::MemoryDirectory {
+        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
+        nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
+            .expect("the world loads")
+    }
+
+    /// `ana`, the person the world names first, and an agent of hers.
+    fn ana_and_her_agent() -> (Principal, Principal) {
+        let world = world();
+        let of = |kind, id: &str| {
+            world
+                .principal(kind, id)
+                .unwrap_or_else(|| panic!("the world holds {id}"))
+        };
+        (
+            of(PrincipalKind::User, "ana"),
+            of(PrincipalKind::Agent, "ana-assistant"),
+        )
+    }
+
+    /// Who a call tree of `ana`'s own renders as.
+    fn by_ana() -> Renderer {
+        Renderer::of(&Acting::Itself(ana_and_her_agent().0))
+    }
+
+    /// Who a call tree of her agent's session renders as.
+    fn by_her_agent() -> Renderer {
+        let (ana, agent) = ana_and_her_agent();
+        Renderer::of(&Acting::Agent(Session::opened_for(agent, ana)))
+    }
 
     /// The kernel's own commands, as a registry holds them: `journal.verify`
     /// takes `from`, and `kernel.undo` takes nothing.
@@ -1082,7 +1611,7 @@ mod tests {
         let id = shown_open(&mut surfaces, one, SurfaceKind::Panel, "Notes").expect("opened");
         assert!(surfaces.holds(one, &id, &[]) && !surfaces.holds(two, &id, &[]));
         let foreign = surfaces
-            .render(two, &id, "{}".to_owned())
+            .render(two, &id, "{}".to_owned(), by_ana())
             .expect_err("another's");
         assert_eq!(
             (foreign.kind(), foreign.code()),
@@ -1097,7 +1626,7 @@ mod tests {
             ErrorCode::PluginNotFound
         );
         surfaces
-            .render(one, &id, r#"{"node":"divider"}"#.to_owned())
+            .render(one, &id, r#"{"node":"divider"}"#.to_owned(), by_ana())
             .expect("its own");
         let listed = surfaces.listed();
         assert_eq!(listed.len(), 1);
@@ -1188,6 +1717,7 @@ mod tests {
             owner: one,
             id: first.clone(),
             tree: r#"{"node":"divider"}"#.to_owned(),
+            by: by_her_agent(),
         });
         let refs: Vec<&Shown> = held.iter().collect();
         assert!(!surfaces.holds(one, &shown, &refs), "closed in the tree");
@@ -1209,6 +1739,14 @@ mod tests {
                 .and_then(Surface::tree),
             Some(r#"{"node":"divider"}"#)
         );
+        assert_eq!(
+            listed
+                .iter()
+                .find(|surface| surface.id() == first)
+                .and_then(Surface::rendered_by),
+            Some(&by_her_agent()),
+            "a tree is shown with who rendered it"
+        );
     }
 
     #[test]
@@ -1227,5 +1765,365 @@ mod tests {
             assert_eq!(refused.code(), ErrorCode::PluginUiInvalid, "{title:?}");
         }
         assert_eq!(SurfaceKind::Node3d.word(), "node-3d");
+    }
+
+    /// A surface keeps who rendered the tree it shows: the person a call tree
+    /// acted for and, for an agent's session, the agent — the last tree's,
+    /// never the first's.
+    #[test]
+    fn a_surface_keeps_who_rendered_the_tree_it_shows() {
+        let (ana, agent) = ana_and_her_agent();
+        let (person, agents) = (by_ana(), by_her_agent());
+        assert_eq!((person.person(), person.agent()), (&ana, None));
+        assert_eq!((agents.person(), agents.agent()), (&ana, Some(&agent)));
+        let mut surfaces = Surfaces::default();
+        let id =
+            shown_open(&mut surfaces, PluginSlot(0), SurfaceKind::Panel, "Notes").expect("open");
+        assert_eq!(
+            surfaces.listed()[0].rendered_by(),
+            None,
+            "none until a tree is"
+        );
+        for by in [by_her_agent(), by_ana(), by_her_agent()] {
+            surfaces
+                .render(
+                    PluginSlot(0),
+                    &id,
+                    r#"{"node":"divider"}"#.to_owned(),
+                    by.clone(),
+                )
+                .expect("its own");
+            assert_eq!(surfaces.listed()[0].rendered_by(), Some(&by));
+        }
+        let listed = surfaces.listed()[0].listed();
+        assert_eq!(
+            nc_canon::Value::Object(listed).to_canonical(),
+            format!(
+                r#"{{"id":"{id}","kind":"panel","rendered_by":{{"agent":"{}","person":"{}"}},"title":"Notes"}}"#,
+                agent.id().as_str(),
+                ana.id().as_str()
+            )
+        );
+    }
+
+    /// A surface open in `surfaces`, owned by the first plugin, showing
+    /// `tree` as rendered `by` whom: its identifier.
+    fn showing(surfaces: &mut Surfaces, tree: &str, by: Renderer) -> String {
+        let id = shown_open(surfaces, PluginSlot(0), SurfaceKind::Panel, "Form").expect("open");
+        let kept = validated(tree, &registered).expect("a tree the kernel keeps");
+        surfaces
+            .render(PluginSlot(0), &id, kept, by)
+            .expect("its own");
+        id
+    }
+
+    /// A form: a text input, an integer input and a button binding both,
+    /// under fixed arguments of its own, beside a disabled button and a text.
+    const FORM: &str = r#"{"node":"column","children":[{"node":"input","name":"title","label":"Title"},{"node":"input","name":"from","label":"From","kind":"integer"},{"node":"button","label":"Go","command":"naming.propose","args":{"extension":"txt"},"bind":["title"]},{"node":"button","label":"Verify","command":"journal.verify","bind":["from"]},{"node":"button","label":"Off","command":"kernel.undo","disabled":true},{"node":"text","text":"x"},{"node":"toggle","label":"T","checked":true,"command":"kernel.find","args":{"query":"a/b"}}]}"#;
+
+    /// The refusal `activated` is, by its kind, its code and its word.
+    fn refused_as(
+        activated: Result<Activation, crate::dispatch::Failure>,
+    ) -> (RefusalKind, nc_catalog::ErrorCode, String) {
+        let failure = activated.expect_err("refused");
+        (
+            failure.refusal().kind(),
+            failure.refusal().code(),
+            failure.word().to_owned(),
+        )
+    }
+
+    /// What a node runs is read from the tree the surface shows: its command
+    /// and its arguments, each input it binds given as its kind reads it.
+    #[test]
+    fn what_a_node_runs_is_read_from_the_tree_and_its_inputs_as_their_kind_reads_them() {
+        let mut surfaces = Surfaces::default();
+        let id = showing(&mut surfaces, FORM, by_ana());
+        let typed = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+        assert_eq!(
+            surfaces
+                .activation(&id, "/children/2", &[typed("title", "A note")])
+                .expect("a button"),
+            Activation {
+                command: "naming.propose".to_owned(),
+                args: r#"{"extension":"txt","title":"A note"}"#.to_owned(),
+            }
+        );
+        assert_eq!(
+            surfaces
+                .activation(&id, "/children/3", &[typed("from", "12")])
+                .expect("an integer input"),
+            Activation {
+                command: "journal.verify".to_owned(),
+                args: r#"{"from":12}"#.to_owned(),
+            }
+        );
+        assert_eq!(
+            surfaces
+                .activation(&id, "/children/2", &[])
+                .expect("an input left out is the command's schema's to judge")
+                .args,
+            r#"{"extension":"txt"}"#
+        );
+        assert_eq!(
+            surfaces
+                .activation(&id, "/children/6", &[])
+                .expect("a toggle")
+                .command,
+            "kernel.find"
+        );
+    }
+
+    /// What a node does not run, and what names no node, is refused before
+    /// anything is dispatched: a node that runs nothing, one disabled, an
+    /// input it does not bind, given twice or not of its kind, each with
+    /// `[NC-KERN-0037]`; a surface not open, one with no tree, and a pointer
+    /// that names nothing, each with `[NC-KERN-0036]`.
+    #[test]
+    fn what_a_node_does_not_run_and_what_names_no_node_are_refused() {
+        let mut surfaces = Surfaces::default();
+        let id = showing(&mut surfaces, FORM, by_ana());
+        let typed = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+        for (node, inputs, why) in [
+            ("/children/5", vec![], "a text runs nothing"),
+            ("", vec![], "the root, a column, runs nothing"),
+            ("/", vec![], "the root, a column, runs nothing"),
+            ("/children/4", vec![], "a disabled button"),
+            (
+                "/children/2",
+                vec![typed("from", "1")],
+                "an input it does not bind",
+            ),
+            (
+                "/children/3",
+                vec![typed("from", "twelve")],
+                "an integer that is not one",
+            ),
+            (
+                "/children/2",
+                vec![typed("title", "a"), typed("title", "b")],
+                "an input given twice",
+            ),
+            (
+                "/children/2",
+                vec![typed("extension", "md")],
+                "its own argument, not an input",
+            ),
+        ] {
+            assert_eq!(
+                refused_as(surfaces.activation(&id, node, &inputs)),
+                (
+                    RefusalKind::Invalid,
+                    nc_catalog::ErrorCode::KernelNotActivatable,
+                    "not-activatable".to_owned()
+                ),
+                "{why}"
+            );
+        }
+        for (surface, node, why) in [
+            ("surface-99", "/children/2", "a surface not open"),
+            (id.as_str(), "/children/9", "an index past the list"),
+            (
+                id.as_str(),
+                "/children/02",
+                "an index written with a leading zero",
+            ),
+            (id.as_str(), "/children/-1", "an index that is not one"),
+            (id.as_str(), "/items/0", "a key the node does not hold"),
+            (
+                id.as_str(),
+                "children/2",
+                "a pointer without its leading slash",
+            ),
+            (id.as_str(), "/children/2/label/x", "past a text"),
+        ] {
+            assert_eq!(
+                refused_as(surfaces.activation(surface, node, &[])),
+                (
+                    RefusalKind::NotFound,
+                    nc_catalog::ErrorCode::KernelSurfaceUnknown,
+                    "surface-unknown".to_owned()
+                ),
+                "{why}"
+            );
+        }
+        let bare =
+            shown_open(&mut surfaces, PluginSlot(0), SurfaceKind::Panel, "Bare").expect("open");
+        assert_eq!(
+            refused_as(surfaces.activation(&bare, "", &[])).1,
+            nc_catalog::ErrorCode::KernelSurfaceUnknown,
+            "a surface that shows no tree yet"
+        );
+        // **Only a button or a toggle, whatever a node holds**: no kind but
+        // those two may hold a `command` today, which `validated` refuses, so
+        // the tree is kept as a renderer would be handed one a later kind
+        // made — and its command is still not run.
+        surfaces
+            .render(
+                PluginSlot(0),
+                &bare,
+                r#"{"command":"kernel.find","label":"x","name":"a","node":"input"}"#.to_owned(),
+                by_ana(),
+            )
+            .expect("its own");
+        assert_eq!(
+            refused_as(surfaces.activation(&bare, "", &[])).1,
+            nc_catalog::ErrorCode::KernelNotActivatable,
+            "a node of another kind holding a command"
+        );
+    }
+
+    /// A pointer's segments are read as JSON pointers write them: `~1` is
+    /// `/` and `~0` is `~`, in that order.
+    #[test]
+    fn a_pointer_reads_its_escapes_as_json_pointers_write_them() {
+        let tree = nc_canon::parse(r#"{"a/b":{"~1":[0,{"node":"divider"}]}}"#).expect("a value");
+        assert_eq!(
+            super::at(&tree, "/a~1b/~01/1"),
+            Some(&nc_canon::parse(r#"{"node":"divider"}"#).expect("a node"))
+        );
+        assert_eq!(
+            super::at(&tree, "/a~1b/~01/0"),
+            Some(&nc_canon::Value::Integer(0))
+        );
+        assert_eq!(super::at(&tree, "/a/b"), None);
+        assert_eq!(super::at(&tree, ""), Some(&tree));
+    }
+
+    /// A surface whose tree an agent's call tree rendered is never activated,
+    /// whatever its node — and is again once the person's tree renders it.
+    #[test]
+    fn a_surface_an_agent_rendered_is_never_activated() {
+        let mut surfaces = Surfaces::default();
+        let id = showing(&mut surfaces, FORM, by_her_agent());
+        for node in ["/children/2", "/children/5", "/children/9", ""] {
+            assert_eq!(
+                refused_as(surfaces.activation(&id, node, &[])),
+                (
+                    RefusalKind::Denied,
+                    nc_catalog::ErrorCode::KernelSurfaceByAnAgent,
+                    "rendered-by-an-agent".to_owned()
+                ),
+                "{node}"
+            );
+        }
+        let kept = validated(FORM, &registered).expect("kept");
+        surfaces
+            .render(PluginSlot(0), &id, kept, by_ana())
+            .expect("its own");
+        assert!(surfaces.activation(&id, "/children/2", &[]).is_ok());
+    }
+
+    /// The activation alone dispatches what a surface shows, which opens no
+    /// unit of its own and leaves no note of having left the machine.
+    #[test]
+    fn only_the_activation_dispatches_what_a_surface_shows() {
+        assert!(dispatches_what_it_shows(ACTIVATE));
+        for name in [
+            LIST,
+            READ,
+            "kernel.undo",
+            "settings.mcp.set",
+            "surfaces.other",
+        ] {
+            assert!(!dispatches_what_it_shows(name), "`{name}`");
+        }
+    }
+
+    /// The declared surfaces commands are the ones this module implements: the
+    /// arguments each reads, both ways, and the decision each is made under —
+    /// on the interface's feature, the two reads changing nothing and the
+    /// activation a write.
+    #[test]
+    fn the_declared_surfaces_commands_are_the_ones_this_module_implements() {
+        for (name, reads, action, mutating) in [
+            (LIST, &[][..], "Read", false),
+            (READ, &[SURFACE][..], "Read", false),
+            (ACTIVATE, &[SURFACE, NODE, INPUTS][..], "Write", true),
+        ] {
+            let declared =
+                nc_catalog::command(name).unwrap_or_else(|| panic!("`{name}` is declared"));
+            let takes: BTreeSet<&str> = declared.arguments.iter().copied().collect();
+            let read: BTreeSet<&str> = reads.iter().copied().collect();
+            assert_eq!(takes, read, "`{name}` declares {:?}", declared.arguments);
+            assert_eq!(declared.arguments.len(), reads.len(), "`{name}`");
+            assert_eq!(
+                (
+                    declared.action,
+                    declared.resource_selector,
+                    declared.mutating
+                ),
+                (action, "feature:interface", mutating),
+                "`{name}`"
+            );
+            assert!(
+                matches!(
+                    (declared.reversibility, mutating),
+                    (nc_catalog::Reversibility::Read, false)
+                        | (nc_catalog::Reversibility::Write, true)
+                ),
+                "`{name}`"
+            );
+        }
+        assert_eq!(
+            (
+                LIST,
+                READ,
+                ACTIVATE,
+                SURFACE,
+                NODE,
+                INPUTS,
+                INPUT_NAME,
+                INPUT_VALUE
+            ),
+            (
+                "surfaces.list",
+                "surfaces.read",
+                "surfaces.activate",
+                "surface",
+                "node",
+                "inputs",
+                "name",
+                "value"
+            )
+        );
+    }
+
+    /// Every bound the surfaces' schemas declare is the one this module and
+    /// the catalog hold.
+    #[test]
+    fn every_bound_the_surfaces_schemas_declare_is_the_one_held_here() {
+        let schema = |name: &str| -> serde_json::Value {
+            serde_json::from_str(nc_catalog::command(name).expect("declared").args_schema)
+                .expect("a schema is JSON")
+        };
+        for name in [READ, ACTIVATE] {
+            assert_eq!(
+                schema(name)["properties"][SURFACE]["maxLength"].as_u64(),
+                Some(SURFACE_CHARS as u64),
+                "`{name}`"
+            );
+        }
+        let activate = schema(ACTIVATE);
+        let properties = &activate["properties"];
+        let input = &properties[INPUTS]["items"]["properties"];
+        assert_eq!(
+            (
+                properties[NODE]["maxLength"].as_u64(),
+                properties[INPUTS]["maxItems"].as_u64(),
+                input[INPUT_NAME]["maxLength"].as_u64(),
+                input[INPUT_VALUE]["maxLength"].as_u64(),
+            ),
+            (
+                Some(NODE_CHARS as u64),
+                Some(u64::from(KERNEL.ui_tree_nodes)),
+                Some(INPUT_NAME_MAX as u64),
+                Some(KERNEL.ui_text_bytes),
+            )
+        );
+        assert!(
+            format!("surface-{}", u64::MAX).len() <= SURFACE_CHARS,
+            "every identifier the kernel hands out fits"
+        );
     }
 }

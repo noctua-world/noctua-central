@@ -146,13 +146,20 @@ impl Exit {
     /// and what fixes it is a person in the Noctua window, never another try
     /// from a command line — so it has a code of its own; and so do the two
     /// ends of a call that waited for one there, `NC-KERN-0029` not
-    /// confirmed in time and `NC-KERN-0030` declined.
+    /// confirmed in time and `NC-KERN-0030` declined. MCP switched on waits
+    /// for one too, and ends the same three ways under codes of its own —
+    /// `NC-KERN-0032`, `NC-KERN-0033` and `NC-KERN-0034` — in the same exit
+    /// codes.
     #[must_use]
     pub const fn of_refusal(refusal: &Refusal) -> Self {
         match refusal.code {
-            ErrorCode::KernelUnconfirmed => return Self::NeedsTheInterface,
-            ErrorCode::KernelNotConfirmedInTime => return Self::NotConfirmedInTime,
-            ErrorCode::KernelDeclined => return Self::Declined,
+            ErrorCode::KernelUnconfirmed | ErrorCode::KernelMcpUnconfirmed => {
+                return Self::NeedsTheInterface;
+            }
+            ErrorCode::KernelNotConfirmedInTime | ErrorCode::KernelMcpNotConfirmedInTime => {
+                return Self::NotConfirmedInTime;
+            }
+            ErrorCode::KernelDeclined | ErrorCode::KernelMcpDeclined => return Self::Declined,
             _ => {}
         }
         match refusal.kind {
@@ -272,6 +279,12 @@ mod tests {
                     Exit::NotConfirmedInTime,
                 ),
                 (ErrorCode::KernelDeclined, Exit::Declined),
+                (ErrorCode::KernelMcpUnconfirmed, Exit::NeedsTheInterface),
+                (
+                    ErrorCode::KernelMcpNotConfirmedInTime,
+                    Exit::NotConfirmedInTime,
+                ),
+                (ErrorCode::KernelMcpDeclined, Exit::Declined),
             ] {
                 assert_eq!(
                     Exit::of_refusal(&refusal(code, kind)),

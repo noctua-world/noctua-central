@@ -2921,6 +2921,19 @@ async fn an_agents_timer_step_joins_its_operators_history_and_they_undo_it() {
         "{theirs:?}"
     );
     assert_eq!(fixture.held(PEER, "note/photo").await, grouped);
+    // **Named before it is undone, and as her agent's**: the unit the
+    // callback began says so, which is what she is shown.
+    let next = field(&fixture.ana("kernel.history", "{}").await, "undo")
+        .into_object()
+        .expect("a step to undo");
+    assert_eq!(
+        (next.get("agent"), next.get("unit")),
+        (
+            Some(&Value::text("ana-assistant")),
+            Some(&Value::text(unit.to_crockford()))
+        ),
+        "{next:?}"
+    );
     fixture.ana("kernel.undo", "{}").await;
     assert_eq!(
         fixture.held(PEER, "note/photo").await,
@@ -2951,6 +2964,119 @@ async fn an_agents_timer_step_joins_its_operators_history_and_they_undo_it() {
         "{undone:?}"
     );
     assert_eq!((undone[1].0, undone[1].1), (Outcome::Allowed, "ana"));
+}
+
+/// A tree an agent rendered is kept as the agent's, and a person's click on
+/// it runs nothing.
+///
+/// **Who rendered it is the call tree's, read back from the kernel**: ana's
+/// assistant shows a surface whose button would write ana's photo, and the
+/// surfaces are listed with ana as the person and her assistant as the agent.
+/// Her activation of that button is refused with `[NC-KERN-0035]`, journaled
+/// as failed, and nothing it names is dispatched; the assistant may not
+/// activate it either, refused on the interface's feature. Once ana's own call
+/// renders the same tree into it, her click writes the photo, nested in the
+/// activation, as hers.
+#[tokio::test]
+async fn a_tree_an_agent_rendered_is_kept_as_its_and_a_persons_click_on_it_runs_nothing() {
+    let fixture = opened_in(
+        &a_world_where_the_assistant_holds(1000),
+        family(),
+        &["ana-assistant"],
+    )
+    .await;
+    let session = fixture.the_assistant().await;
+    let tree = r#"{"node":"column","children":[{"node":"button","label":"Save","command":"reference.note.put","args":{"note":"photo","text":"theirs"}}]}"#;
+    let shown = |surface: Option<&str>| {
+        let mut args = vec![
+            ("note", Value::text("photo")),
+            ("title", Value::text("Notes")),
+            ("tree", Value::text(tree)),
+        ];
+        if let Some(surface) = surface {
+            args.push(("surface", Value::text(surface)));
+        }
+        Value::object(args).to_canonical()
+    };
+    let surface = text(
+        &fixture
+            .by(&session, "reference.ui.show", &shown(None))
+            .await,
+        "surface",
+    );
+    let listed = fixture.ana("surfaces.list", "{}").await;
+    assert_eq!(
+        listed,
+        format!(
+            r#"{{"surfaces":[{{"id":"{surface}","kind":"panel","plugin":"{REFERENCE}","rendered_by":{{"agent":"ana-assistant","person":"ana"}},"title":"Notes"}}]}}"#
+        )
+    );
+    let click = Value::object([
+        ("node", Value::text("/children/0")),
+        ("surface", Value::text(surface.as_str())),
+    ])
+    .to_canonical();
+    let refused = fixture.as_("ana", "surfaces.activate", &click).await;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Denied,
+            ErrorCode::KernelSurfaceByAnAgent
+        ),
+        "{refused:?}"
+    );
+    let theirs = fixture
+        .kernel
+        .dispatch(&session, "surfaces.activate", &click)
+        .await;
+    assert!(
+        is(&theirs, RefusalKind::Denied, ErrorCode::PolicyDenied),
+        "{theirs:?}"
+    );
+    assert_eq!(fixture.held(REFERENCE, "note/photo").await, None);
+    let entries = fixture.entries().await;
+    assert_eq!(
+        entries_of(&entries, "reference.note.put"),
+        [] as [&Entry; 0],
+        "nothing the agent's tree names was dispatched"
+    );
+    let activations: Vec<(Outcome, &str)> = entries_of(&entries, "surfaces.activate")
+        .into_iter()
+        .map(|entry| (entry.record.result, entry.record.principal.as_str()))
+        .collect();
+    assert_eq!(
+        activations,
+        [(Outcome::Failed, "ana"), (Outcome::Denied, "ana-assistant")]
+    );
+    let rendered = fixture
+        .ana("reference.ui.show", &shown(Some(&surface)))
+        .await;
+    assert_eq!(
+        field(&rendered, "rendered"),
+        Value::text("answered"),
+        "{rendered}"
+    );
+    let read = fixture
+        .ana("surfaces.read", &format!(r#"{{"surface":"{surface}"}}"#))
+        .await;
+    assert_eq!(
+        field(&read, "rendered_by"),
+        Value::object([("agent", Value::Null), ("person", Value::text("ana"))])
+    );
+    fixture.ana("surfaces.activate", &click).await;
+    assert!(
+        fixture.held(REFERENCE, "note/photo").await.is_some(),
+        "her click wrote the photo"
+    );
+    let entries = fixture.entries().await;
+    let written = entries_of(&entries, "reference.note.put");
+    assert_eq!(
+        written
+            .iter()
+            .map(|entry| (entry.record.result, entry.record.principal.as_str()))
+            .collect::<Vec<_>>(),
+        [(Outcome::Allowed, "ana")]
+    );
 }
 
 /// The numbers of the windows the interface's state `shell` holds, in its

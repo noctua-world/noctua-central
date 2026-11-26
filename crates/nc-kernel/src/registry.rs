@@ -94,7 +94,7 @@ use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands: its own, and the
 /// interface's state's (`crate::shell`).
-pub const RESERVED: [&str; 16] = [
+pub const RESERVED: [&str; 17] = [
     "agents",
     "confirmations",
     "drawer",
@@ -110,6 +110,7 @@ pub const RESERVED: [&str; 16] = [
     "settings",
     "shell",
     "sidebar",
+    "surfaces",
     "window",
 ];
 

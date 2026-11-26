@@ -15,7 +15,9 @@
 //! person and the dispatch, whether a human confirmed it and whether a quorum
 //! approved it — is the kernel's alone. A command that cannot be undone is
 //! refused after Cedar allows it unless a confirmation the kernel issued is
-//! redeemed for it. **The plugin runs after all of that or not at all.**
+//! redeemed for it, and so is MCP switched on (`crate::settings`), recorded
+//! under a sentinel of its own. **The plugin runs after all of that or not at
+//! all.**
 //!
 //! **Who acts is a caller acting as itself, or an agent's session**
 //! (`crate::session`). A tree of an agent's is decided once for each link —
@@ -634,6 +636,7 @@ enum Reason {
     MalformedArguments,
     Denied,
     Unconfirmed,
+    McpOnUnconfirmed,
     ReadOnly,
     TopLevelOnly,
     TooDeep,
@@ -654,6 +657,7 @@ impl Reason {
             Self::MalformedArguments => "kernel.malformed_arguments",
             Self::Denied => sentinel::NO_PERMIT_MATCHED,
             Self::Unconfirmed => "kernel.irreversible_needs_confirmation",
+            Self::McpOnUnconfirmed => "kernel.mcp_on_needs_confirmation",
             Self::ReadOnly => "kernel.read_only",
             Self::TopLevelOnly => "kernel.top_level_only",
             Self::TooDeep => "kernel.too_deep",
@@ -673,6 +677,7 @@ impl Reason {
             Self::MalformedArguments => nc_log::variant!("malformed_arguments"),
             Self::Denied => nc_log::variant!("denied"),
             Self::Unconfirmed => nc_log::variant!("unconfirmed"),
+            Self::McpOnUnconfirmed => nc_log::variant!("mcp_on_unconfirmed"),
             Self::ReadOnly => nc_log::variant!("read_only"),
             Self::TopLevelOnly => nc_log::variant!("top_level_only"),
             Self::TooDeep => nc_log::variant!("too_deep"),
@@ -2000,7 +2005,16 @@ async fn authorize<E: Environment>(
             denied.decided,
         ))
     })?;
-    if asked.command.listed().reversibility == Reversibility::Irreversible && !held.confirmed {
+    let irreversible = asked.command.listed().reversibility == Reversibility::Irreversible;
+    // **MCP switched on waits for a person as what cannot be undone does**
+    // (`crate::settings::switches_mcp_on`): it lets an agent in, so nothing
+    // that only speaks the protocol switches it on — by its set, or by an
+    // undo or a redo that puts it back on (`history::would_switch_mcp_on`) —
+    // and off never waits.
+    let needs = irreversible
+        || crate::settings::switches_mcp_on(&asked.name, &asked.json)
+        || history::would_switch_mcp_on(shared, &asked.name, asked.acting.principal()).await;
+    if needs && !held.confirmed {
         // An asking is the top of a tree's alone: a nested dispatch is asked
         // with none, so only the call at the top is ever held.
         let unconfirmed = asking.map_or(
@@ -2016,19 +2030,25 @@ async fn authorize<E: Environment>(
                         asked.canonical.clone(),
                         &asked.acting,
                         asked.spent,
-                    ),
+                    )
+                    .declared(asked.command.listed().reversibility),
                 )));
             }
-            Unconfirmed::Refused(code) => code,
+            Unconfirmed::Refused(code) => unconfirmed_code(code, irreversible),
+        };
+        let reason = if irreversible {
+            Reason::Unconfirmed
+        } else {
+            Reason::McpOnUnconfirmed
         };
         let mut turned = denial(
             asked,
             code,
-            Reason::Unconfirmed.sentinel(),
+            reason.sentinel(),
             unconfirmed_why(code),
             Some(decided),
         );
-        turned.reason = Reason::Unconfirmed;
+        turned.reason = reason;
         return Err(Unauthorized::Turned(turned));
     }
     Ok(Authorized {
@@ -2038,8 +2058,23 @@ async fn authorize<E: Environment>(
     })
 }
 
-/// What a caller is told of a command that cannot be undone and was not
-/// confirmed, by the code it is refused with.
+/// The code a call that waits for a person's confirmation and has none is
+/// refused with, `code` being what came of it as a command that cannot be
+/// undone: that code for one, and MCP's switch's own of the same outcome for
+/// the switch on (`crate::settings::switches_mcp_on`), which can be undone.
+const fn unconfirmed_code(code: ErrorCode, irreversible: bool) -> ErrorCode {
+    if irreversible {
+        return code;
+    }
+    match code {
+        ErrorCode::KernelNotConfirmedInTime => ErrorCode::KernelMcpNotConfirmedInTime,
+        ErrorCode::KernelDeclined => ErrorCode::KernelMcpDeclined,
+        _ => ErrorCode::KernelMcpUnconfirmed,
+    }
+}
+
+/// What a caller is told of a call that waits for a person's confirmation and
+/// was not confirmed, by the code it is refused with.
 const fn unconfirmed_why(code: ErrorCode) -> &'static str {
     match code {
         ErrorCode::KernelNotConfirmedInTime => {
@@ -2048,6 +2083,16 @@ const fn unconfirmed_why(code: ErrorCode) -> &'static str {
         }
         ErrorCode::KernelDeclined => {
             "it cannot be undone, and it was declined in the desktop interface"
+        }
+        ErrorCode::KernelMcpNotConfirmedInTime => {
+            "it switches MCP on, and nobody confirmed it in the desktop interface before the \
+             wait lapsed"
+        }
+        ErrorCode::KernelMcpDeclined => {
+            "it switches MCP on, and it was declined in the desktop interface"
+        }
+        ErrorCode::KernelMcpUnconfirmed => {
+            "it switches MCP on, and no confirmation the kernel issued for it was redeemed"
         }
         _ => "it cannot be undone, and no confirmation the kernel issued for it was redeemed",
     }
@@ -2518,8 +2563,14 @@ async fn run<E: Environment>(
     }
     // **A command that changes state where the tree holds no unit opens
     // one**: the top of a tree, and a dispatch from a timer's callback that
-    // began none, each of which is a step of its own.
-    let opens = asked.command.listed().mutating && lock(tree).unit().is_none();
+    // began none, each of which is a step of its own. **But the activation
+    // of a surface's node**, which changes state only through the command it
+    // dispatches: that command opens its own, labelled by it, and one that
+    // only reads opens none — no step of the activation's own is kept for an
+    // undo to spend a press on (`crate::ui`).
+    let opens = asked.command.listed().mutating
+        && lock(tree).unit().is_none()
+        && !crate::ui::dispatches_what_it_shows(&asked.name);
     let opened = if opens {
         Some(opened(shared, tree, asked).await?)
     } else {
@@ -2559,7 +2610,11 @@ async fn opened<E: Environment>(
         .await;
     match opened {
         Ok(unit) => {
-            lock(tree).unit = Some(Ambient::new(unit).waiting(asked.waits));
+            lock(tree).unit = Some(
+                Ambient::new(unit)
+                    .acted_for(&asked.acting)
+                    .waiting(asked.waits),
+            );
             Ok(unit)
         }
         Err(error) => {
@@ -2923,6 +2978,10 @@ async fn builtin<E: Environment>(
         Some(Builtin::Shell(verb)) => crate::shell::ran(shared, tree, verb, &asked.json),
         Some(Builtin::ConfirmationsList) => Ok(crate::confirmations::listed(shared)),
         Some(Builtin::ConfirmationsRead) => crate::confirmations::read(shared, &asked.json),
+        Some(Builtin::SurfacesList) => Ok(crate::ui::listed(shared)),
+        Some(Builtin::SurfacesRead) => crate::ui::read(shared, &asked.json),
+        Some(Builtin::SurfacesActivate) => crate::ui::activated(shared, tree, &asked.json).await,
+        Some(Builtin::History) => history::next(shared, asked.acting.principal()).await,
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

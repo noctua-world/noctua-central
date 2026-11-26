@@ -134,7 +134,7 @@ pub use pump::Pumped;
 pub use session::Session;
 pub use settings::Settings;
 pub use supervisor::{Kill, PluginStatus};
-pub use ui::{Surface, SurfaceKind};
+pub use ui::{Renderer, Surface, SurfaceKind};
 
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
@@ -509,9 +509,10 @@ impl<E: Environment> Kernel<E> {
     }
 
     /// Dispatches the command `name` with `args` for `asker`, as
-    /// [`Kernel::dispatch`] does — **but a command that cannot be undone, which
-    /// the decision point allowed and nothing confirmed, is held for the
-    /// person's confirmation** rather than refused (`NOCTUA.md §11.1`): put
+    /// [`Kernel::dispatch`] does — **but a command that cannot be undone, or
+    /// MCP switched on, which the decision point allowed and nothing
+    /// confirmed, is held for the person's confirmation** rather than refused
+    /// (`NOCTUA.md §11.1`, §12.15): put
     /// before whoever watches [`Kernel::pending_moves`], answered by
     /// [`Kernel::settle`], and decided again from the start, for at most
     /// `confirmation_ttl_ms` or until `lapsed` ends the wait.
@@ -528,8 +529,9 @@ impl<E: Environment> Kernel<E> {
     ///
     /// What [`Kernel::dispatch`] refuses with, and for a call held:
     /// `[NC-KERN-0006]` past `confirmations_pending_max`, `[NC-KERN-0030]`
-    /// declined, `[NC-KERN-0029]` not answered before the wait lapsed, and what
-    /// the decision point refuses when it decides the call again.
+    /// declined, `[NC-KERN-0029]` not answered before the wait lapsed — MCP's
+    /// switch on `[NC-KERN-0032]`, `[NC-KERN-0034]` and `[NC-KERN-0033]` — and
+    /// what the decision point refuses when it decides the call again.
     pub async fn dispatch_held<'a>(
         &self,
         asker: impl Into<Asker<'a>>,
@@ -771,10 +773,11 @@ impl<E: Environment> Kernel<E> {
         Some(read)
     }
 
-    /// Every surface a plugin holds open, with the last tree kept for each.
+    /// Every surface a plugin holds open, with the last tree kept for each
+    /// and who rendered it.
     ///
     /// In the order their identifiers sort: what a renderer, Stage 16's,
-    /// draws.
+    /// draws, and what `surfaces.list` and `surfaces.read` answer.
     #[must_use]
     pub fn surfaces(&self) -> Vec<Surface> {
         dispatch::lock(&self.shared.surfaces).listed()

@@ -4,8 +4,10 @@
 //! kernel keeps, and none for any other.** `catalog/commands.toml` declares
 //! `journal.verify`, `limits.prune`, `kernel.undo`, `kernel.redo`,
 //! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read`,
-//! `settings.mcp.set`, `agents.create`, `agents.list`, `agents.grant` and
-//! `agents.revoke`, and every command of the interface's state; the
+//! `settings.mcp.set`, `agents.create`, `agents.list`, `agents.grant`,
+//! `agents.revoke`, `confirmations.list`, `confirmations.read`,
+//! `surfaces.list`, `surfaces.read`, `surfaces.activate` and
+//! `kernel.history`, and every command of the interface's state; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -88,6 +90,13 @@
 //! (`family.a_member_drives_the_interface`); `crate::shell` says what each
 //! changes, why each is a read that no undo takes back, and where the state is
 //! kept between starts.
+//!
+//! **`surfaces.list`, `surfaces.read` and `surfaces.activate` are the
+//! surfaces plugins show** (`NOCTUA.md §11.6`), on `Feature::"interface"`;
+//! `crate::ui` says who is kept as having rendered each tree, what an
+//! activation runs and why one of a tree an agent rendered is refused.
+//! **`kernel.history` names the next undo** on the same feature, and
+//! `crate::history` says how.
 //!
 //! **`agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are a
 //! person's agents** (`NOCTUA.md §14.6`), `Write`, `Read`, `Grant` and `Revoke`
@@ -200,6 +209,15 @@ pub(crate) enum Builtin {
     /// `confirmations.read`: one call held for a person's confirmation
     /// (`crate::confirmations`).
     ConfirmationsRead,
+    /// `surfaces.list`: the surfaces open, and who rendered each (`crate::ui`).
+    SurfacesList,
+    /// `surfaces.read`: one surface, with the tree it shows (`crate::ui`).
+    SurfacesRead,
+    /// `surfaces.activate`: what a node of a surface names, run (`crate::ui`).
+    SurfacesActivate,
+    /// `kernel.history`: the step the person's next undo takes back
+    /// (`crate::history`).
+    History,
 }
 
 impl Builtin {
@@ -209,8 +227,8 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 15 + crate::shell::Verb::ALL.len()] = {
-        let mut all = [Self::Verify; 15 + crate::shell::Verb::ALL.len()];
+    const ALL: [Self; 19 + crate::shell::Verb::ALL.len()] = {
+        let mut all = [Self::Verify; 19 + crate::shell::Verb::ALL.len()];
         let mut at = 0;
         while at < Self::OWN.len() {
             all[at] = Self::OWN[at];
@@ -225,7 +243,7 @@ impl Builtin {
     };
 
     /// The kernel's own, which [`Builtin::ALL`] begins with.
-    const OWN: [Self; 15] = [
+    const OWN: [Self; 19] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -241,6 +259,10 @@ impl Builtin {
         Self::AgentsRevoke,
         Self::ConfirmationsList,
         Self::ConfirmationsRead,
+        Self::SurfacesList,
+        Self::SurfacesRead,
+        Self::SurfacesActivate,
+        Self::History,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -262,6 +284,10 @@ impl Builtin {
             Self::Shell(verb) => verb.name(),
             Self::ConfirmationsList => crate::confirmations::LIST,
             Self::ConfirmationsRead => crate::confirmations::READ,
+            Self::SurfacesList => crate::ui::LIST,
+            Self::SurfacesRead => crate::ui::READ,
+            Self::SurfacesActivate => crate::ui::ACTIVATE,
+            Self::History => crate::history::HISTORY,
         }
     }
 

@@ -1,13 +1,19 @@
 //! Undo and redo: a person's own history, stepped back and forward through
 //! the decision point (`NOCTUA.md §11.4`, `§11.5`).
 //!
-//! **Two built-in commands, and no history interface.** `kernel.undo` and
-//! `kernel.redo` are dispatched like any other command
+//! **Two built-in commands, and a read naming the next step.** `kernel.undo`
+//! and `kernel.redo` are dispatched like any other command
 //! (`catalog/commands.toml`): decided by Cedar as `Write` on the realm,
 //! journaled, and run inside a unit of their own the decision point opened —
 //! at the top of a call tree only, since nested in another command either is
 //! refused (`[NC-KERN-0017]`). Neither takes an argument: which step is the
-//! kernel's to find, and no identifier crosses the boundary.
+//! kernel's to find, and no identifier crosses the boundary. `kernel.history`
+//! names the step the asker's next undo takes back before it is undone — its
+//! label, when it was kept, whether undo stops at it and the agent whose call
+//! tree kept it, from the note a unit opened for an agent keeps ([`Note::Agent`])
+//! — a read on `Feature::"interface"` ([`next`]). An agent's steps have no
+//! bound of their own: they count among their person's newest
+//! `undo_history`, as the person's own do.
 //!
 //! **What undo takes back is what the kernel keeps, and no more.** A step is
 //! one top-level unit of work, kept in the local store with the before and
@@ -62,6 +68,14 @@
 //! the pin off, and refusing when one was swept meanwhile (`[NC-KERN-0019]`) —
 //! and is kept as one unit marking the step committed and the undo undone. A reversal the kernel made itself, because the journal did
 //! not take a unit's close, is nobody's undo, and redo never puts one back.
+//!
+//! **An undo or a redo that would switch MCP on waits for the person**, as
+//! MCP's switch on does (`crate::settings::switches_mcp_on`): the undo of a
+//! switch off and the redo of a switch on, read from the step each would put
+//! back before anything runs ([`would_switch_mcp_on`]), are held by the
+//! decision point for the person's confirmation in the desktop interface, or
+//! refused with `[NC-KERN-0032]` with none there to ask — never a barrier, so
+//! the steps before a switch off stay in reach once the person confirms it.
 //!
 //! **Compensations are registered, judged and kept by the unit**: a plugin
 //! names one with `compensate-with` inside the command whose unit it is — one
@@ -137,6 +151,10 @@ pub(crate) const UNDO: &str = "kernel.undo";
 /// The command that redoes the newest step the person who asks undid.
 pub(crate) const REDO: &str = "kernel.redo";
 
+/// The command that names the step the next undo of the person who asks
+/// takes back.
+pub(crate) const HISTORY: &str = "kernel.history";
+
 /// Whether `name` is undo or redo, which run only at the top of a call tree.
 pub(crate) fn is_history(name: &str) -> bool {
     name == UNDO || name == REDO
@@ -209,6 +227,12 @@ pub(crate) enum Note {
     },
     /// An undo dispatched this many compensations.
     CompensationsRan(u32),
+    /// The unit was kept by a call tree acting for the agent `agent`, its
+    /// identifier: a step of the person it acts for that their agent made.
+    Agent {
+        /// The agent's identifier.
+        agent: String,
+    },
 }
 
 /// The `note` word of each kind the kernel writes here.
@@ -221,6 +245,8 @@ const BLOB_UNPINNED: &str = "blob_unpinned";
 const BLOB_REPINNED: &str = "blob_repinned";
 /// See [`AUTHORIZED`].
 const COMPENSATIONS_RAN: &str = "compensations_ran";
+/// See [`AUTHORIZED`].
+const AGENT: &str = "agent";
 
 impl Note {
     /// The note as its unit's record keeps it.
@@ -272,6 +298,9 @@ impl Note {
                 ("compensations", counted(u64::from(*count))),
                 kind(COMPENSATIONS_RAN),
             ]),
+            Self::Agent { agent } => {
+                Value::object([("agent", Value::text(agent.clone())), kind(AGENT)])
+            }
         }
         .to_canonical()
     }
@@ -349,6 +378,7 @@ impl Note {
             COMPENSATIONS_RAN => whole(&mut fields, "compensations")
                 .and_then(|count| u32::try_from(count).ok())
                 .map(Self::CompensationsRan),
+            AGENT => text(&mut fields, "agent").map(|agent| Self::Agent { agent }),
             _ => blobs::created(written)?.map(|(hash, pinned_before)| {
                 fields.clear();
                 Self::BlobCreated {
@@ -385,16 +415,19 @@ pub(crate) fn left_by(command: &str) -> String {
 /// `agents.grant` and `agents.revoke`, whose change is the profile's
 /// database's (`crate::agents`), so the reverse of a grant is a revocation
 /// and never an undo — but for undo and redo, which are the history itself,
-/// and a setting's switch, whose one effect is its entry in its own unit
-/// (`crate::settings::writes_only_its_entry`): named by the command, never by
-/// its namespace, so the person's undo takes the switch back and reaches the
-/// steps before it.
+/// a setting's switch, whose one effect is its entry in its own unit
+/// (`crate::settings::writes_only_its_entry`), and the activation of a
+/// surface's node, which changes state only through the command it
+/// dispatches, decided and noted as itself (`crate::ui::dispatches_what_it_shows`):
+/// named by the command, never by its namespace, so the person's undo takes
+/// the switch back and reaches the steps before it.
 pub(crate) fn leaves_the_machine(command: &crate::registry::RegisteredCommand) -> bool {
     command.reversibility == Reversibility::Irreversible
         || (command.owner == crate::registry::Owner::Kernel
             && command.mutating
             && !is_history(&command.name)
-            && !crate::settings::writes_only_its_entry(&command.name))
+            && !crate::settings::writes_only_its_entry(&command.name)
+            && !crate::ui::dispatches_what_it_shows(&command.name))
 }
 
 /// Everything a unit's notes say, read whole.
@@ -412,9 +445,17 @@ struct Read {
     made: Vec<(String, bool)>,
     /// Whether an undo dispatched compensations.
     compensated: bool,
+    /// The agent whose call tree kept the unit, when one's did.
+    agent: Option<String>,
 }
 
 impl Read {
+    /// Whether an undo stops at the step these notes are of: something it did
+    /// left the machine, and nothing was registered to reverse it.
+    const fn is_a_barrier(&self) -> bool {
+        self.left > 0 && self.compensations.is_empty()
+    }
+
     /// What `notes` say.
     ///
     /// # Errors
@@ -443,6 +484,7 @@ impl Read {
                 // what the step made, whatever its undo took off.
                 Note::BlobUnpinned { .. } | Note::BlobRepinned { .. } => {}
                 Note::CompensationsRan(count) => read.compensated |= count > 0,
+                Note::Agent { agent } => read.agent = Some(agent),
             }
         }
         Ok(read)
@@ -813,6 +855,137 @@ async fn held_as_left<E: Environment>(shared: &Shared<E>, images: &[Image]) -> R
 /// How many characters of a key a refusal repeats.
 const KEY_QUOTED: usize = 64;
 
+/// Whether putting `images` back — each key's before image over its after
+/// image, as [`staged`] puts them — would switch MCP on: the undo of a switch
+/// off, or the redo of a switch on.
+fn switches_mcp_back_on(images: &[Image]) -> bool {
+    images.iter().any(|image| {
+        crate::settings::puts_mcp_on(
+            &image.plugin,
+            &image.key,
+            image.after.as_ref(),
+            image.before.as_ref(),
+        )
+    })
+}
+
+/// Whether the undo or the redo `name`, asked by `principal`, would switch
+/// MCP on: the undo of a switch off, the redo of a switch on — read from the
+/// step each would put back, found as [`undo`] and [`redo`] find it, before
+/// anything runs. Any other command never does.
+///
+/// **What the decision point holds for the person's confirmation**, as it
+/// holds MCP's set asking for on (`crate::settings::switches_mcp_on`), so no
+/// undo or redo asked from the CLI or by a process running as the person lets
+/// an agent in again with nobody's answer. A history the store cannot read
+/// here is answered as one that would not, so the undo or the redo meets that
+/// store itself and is refused with its code; one that reads it then is held
+/// to the same rule there ([`confirmed_where_it_switches_mcp_on`]).
+pub(crate) async fn would_switch_mcp_on<E: Environment>(
+    shared: &Shared<E>,
+    name: &str,
+    principal: &Principal,
+) -> bool {
+    let images = match name {
+        UNDO => {
+            let Ok(rows) = steps_of(shared, principal).await else {
+                return false;
+            };
+            let Some(step) = next_step(&rows) else {
+                return false;
+            };
+            match detail_of(shared, step.unit).await {
+                Ok(detail) => detail.images,
+                Err(_) => return false,
+            }
+        }
+        REDO => {
+            let Ok(rows) = units_of(shared, principal).await else {
+                return false;
+            };
+            match newest_undo(shared, &rows).await {
+                Ok(Some((undone, _))) => undone.images,
+                Ok(None) | Err(_) => return false,
+            }
+        }
+        _ => return false,
+    };
+    switches_mcp_back_on(&images)
+}
+
+/// Refuses to put `images` back unconfirmed when that would switch MCP on.
+///
+/// **Where an undo or a redo meets the step itself**, behind the decision
+/// point's hold ([`would_switch_mcp_on`]): a step the decision point could
+/// not read and the undo then did is still never put back so as to switch MCP
+/// on without the person's confirmation.
+///
+/// # Errors
+///
+/// `denied` with `[NC-KERN-0032]` when putting `images` back would switch MCP
+/// on and `held` holds no confirmation.
+fn confirmed_where_it_switches_mcp_on(images: &[Image], held: Held) -> Result<(), Failure> {
+    if switches_mcp_back_on(images) && !held.confirmed {
+        return Err(refused(
+            RefusalKind::Denied,
+            ErrorCode::KernelMcpUnconfirmed,
+            "putting the step back would switch MCP on, and no confirmation the kernel issued \
+             for it was redeemed, so nothing was undone or redone"
+                .to_owned(),
+            "unconfirmed",
+        ));
+    }
+    Ok(())
+}
+
+/// The step the next undo of a person whose newest steps are `rows` takes
+/// back: their newest still committed.
+fn next_step(rows: &[UnitRow]) -> Option<&UnitRow> {
+    rows.iter()
+        .find(|row| row.meta.kind == UnitKind::Step && row.state == UnitState::Committed)
+}
+
+/// `kernel.history`: the step the next undo of `principal` takes back, as
+/// [`undo`] finds it, before it is undone — `{"undo":…}`, `null` when there is
+/// none, or its `unit`, its `label`, when it was kept (`committed_at_ms`), the
+/// `agent` whose call tree kept it — an agent's step joins its person's
+/// history and is undone by their undo as their own is — or `null`, and
+/// whether undo stops at it as a `barrier`.
+///
+/// **No bound of their own for an agent's steps**: they are counted among the
+/// person's newest `undo_history`, as the person's are, and this is what a
+/// person is shown before an undo takes one back.
+///
+/// # Errors
+///
+/// What the store refused, and a note the kernel did not write.
+pub(crate) async fn next<E: Environment>(
+    shared: &Shared<E>,
+    principal: &Principal,
+) -> Result<String, Failure> {
+    let undo = match next_step(&steps_of(shared, principal).await?) {
+        None => Value::Null,
+        Some(step) => {
+            let detail = detail_of(shared, step.unit).await?;
+            let notes = read(&detail.notes)?;
+            Value::object([
+                (
+                    "agent",
+                    notes.agent.clone().map_or(Value::Null, Value::text),
+                ),
+                ("barrier", Value::Bool(notes.is_a_barrier())),
+                (
+                    "committed_at_ms",
+                    Value::Integer(i64::try_from(step.meta.committed_at_ms).unwrap_or(i64::MAX)),
+                ),
+                ("label", Value::text(step.meta.label.as_str())),
+                ("unit", Value::text(step.unit.to_crockford())),
+            ])
+        }
+    };
+    Ok(Value::object([("undo", undo)]).to_canonical())
+}
+
 /// Stages each key of `images` back to its before image in the tree's unit,
 /// held to its after image when the unit commits, and answers the unit and
 /// how many keys it put back.
@@ -912,10 +1085,7 @@ pub(crate) async fn undo<E: Environment>(
     held: Held,
 ) -> Result<String, Failure> {
     let rows = steps_of(shared, principal).await?;
-    let Some(step) = rows
-        .iter()
-        .find(|row| row.meta.kind == UnitKind::Step && row.state == UnitState::Committed)
-    else {
+    let Some(step) = next_step(&rows) else {
         return Err(refused(
             RefusalKind::NotFound,
             ErrorCode::KernelNothingToUndo,
@@ -925,7 +1095,7 @@ pub(crate) async fn undo<E: Environment>(
     };
     let detail = detail_of(shared, step.unit).await?;
     let notes = read(&detail.notes)?;
-    if notes.left > 0 && notes.compensations.is_empty() {
+    if notes.is_a_barrier() {
         return Err(refused(
             RefusalKind::Denied,
             ErrorCode::KernelUndoBarrier,
@@ -940,6 +1110,7 @@ pub(crate) async fn undo<E: Environment>(
     recorded(shared, &[step.unit]).await?;
     authorized_now(shared, tree, UNDO, &notes.authorized, held).await?;
     held_as_left(shared, &detail.images).await?;
+    confirmed_where_it_switches_mcp_on(&detail.images, held)?;
     let unpinned = unpinned(shared, step.unit, &notes.made).await?;
     let (unit, writes) = staged(tree, &detail.images)?;
     let reversing = Reversing {
@@ -1120,6 +1291,7 @@ pub(crate) async fn redo<E: Environment>(
     let notes = read(&step.notes)?;
     authorized_now(shared, tree, REDO, &notes.authorized, held).await?;
     held_as_left(shared, &undo.images).await?;
+    confirmed_where_it_switches_mcp_on(&undo.images, held)?;
     let repinned = repinned(shared, &notes.made).await?;
     let (unit, writes) = staged(tree, &undo.images)?;
     let reversing = Reversing {
@@ -1240,11 +1412,14 @@ async fn repinned<E: Environment>(
 mod tests {
     use nc_authz::EntityRef;
     use nc_canon::Value;
-    use nc_local::LocalError;
+    use nc_local::{Image, LocalError};
 
     use nc_schema::descriptor::Reversibility;
 
-    use super::{Moved, Note, Read, leaves_the_machine, left_by, pins_moved};
+    use super::{
+        Held, Moved, Note, Read, confirmed_where_it_switches_mcp_on, leaves_the_machine, left_by,
+        pins_moved, switches_mcp_back_on,
+    };
 
     /// A hash, of `fill` sixty-four times.
     fn hash(fill: char) -> String {
@@ -1278,6 +1453,9 @@ mod tests {
             },
             Note::BlobRepinned { hash: hash('c') },
             Note::CompensationsRan(2),
+            Note::Agent {
+                agent: "agent-1".to_owned(),
+            },
         ];
         for note in notes {
             let written = note.written();
@@ -1298,6 +1476,13 @@ mod tests {
             }
             .written(),
             r#"{"action":"Write","entity":{"id":"photo","type":"Content"},"note":"authorized"}"#
+        );
+        assert_eq!(
+            Note::Agent {
+                agent: "agent-1".to_owned()
+            }
+            .written(),
+            r#"{"agent":"agent-1","note":"agent"}"#
         );
         assert_eq!(
             Note::read(&left_by("limits.prune")),
@@ -1453,6 +1638,7 @@ mod tests {
             "settings.mcp.set",
             "settings.mcp.read",
             "agents.list",
+            "surfaces.activate",
         ] {
             assert!(!leaves_the_machine(&of(name)), "`{name}`");
         }
@@ -1471,13 +1657,15 @@ mod tests {
     }
 
     /// Of the kernel's own commands that change state, undo takes back a step
-    /// of undo, redo and MCP's switch alone.
+    /// of undo, redo and MCP's switch alone — and passes the activation of a
+    /// surface's node, which is no step of its own.
     ///
     /// **What `docs/commands.md` publishes, held from the kernel's side**: the
-    /// page answers "yes" for these three by name (`THE_HISTORY` and
-    /// `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs`) and "no"
-    /// for every other one, so one more here, or one fewer, is a page that
-    /// says less or more than undo does.
+    /// page answers "yes" for those three by name (`THE_HISTORY` and
+    /// `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs`), "as
+    /// what it runs" for the activation (`AS_WHAT_IT_RUNS`) and "no" for every
+    /// other one, so one more here, or one fewer, is a page that says less or
+    /// more than undo does.
     #[test]
     fn of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone() {
         let taken_back: Vec<String> = crate::registry::Registry::from_catalog()
@@ -1489,9 +1677,88 @@ mod tests {
             .collect();
         assert_eq!(
             taken_back,
-            ["kernel.redo", "kernel.undo", "settings.mcp.set"],
-            "the kernel's own changes undo takes back"
+            [
+                "kernel.redo",
+                "kernel.undo",
+                "settings.mcp.set",
+                "surfaces.activate"
+            ],
+            "the kernel's own changes undo takes back, or passes"
         );
+    }
+
+    /// Putting back the undo of a switch off, or the redo of a switch on,
+    /// would switch MCP on, and nothing else would: only an entry put back to
+    /// on over one that is not.
+    #[test]
+    fn only_putting_mcps_entry_back_to_on_over_one_not_on_switches_it_on() {
+        let entry = |value: &str| {
+            Some(nc_local::Entry {
+                value: value.to_owned(),
+                revision: nc_local::Revision {
+                    unit: nc_ids::Minter::new(
+                        nc_ids::MachineFlake::from_value(1).expect("a flake"),
+                        nc_ids::SystemClock,
+                    )
+                    .mint()
+                    .expect("a unit"),
+                    n: 0,
+                },
+            })
+        };
+        let image = |key: &str, before: Option<nc_local::Entry>, after| Image {
+            plugin: crate::settings::HOLDER.to_owned(),
+            key: key.to_owned(),
+            before,
+            after,
+        };
+        let (on, off) = (r#"{"on":true}"#, r#"{"on":false}"#);
+        for images in [
+            vec![image("settings.mcp", entry(on), entry(off))],
+            vec![image("settings.mcp", entry(on), None)],
+            vec![
+                image("other", None, entry(on)),
+                image("settings.mcp", entry(on), entry(off)),
+            ],
+        ] {
+            assert!(switches_mcp_back_on(&images), "{images:?}");
+        }
+        for images in [
+            vec![],
+            vec![image("settings.mcp", entry(off), entry(on))],
+            vec![image("settings.mcp", None, entry(on))],
+            vec![image("settings.mcp", entry(on), entry(on))],
+            vec![image("other", entry(on), entry(off))],
+            vec![Image {
+                plugin: "noctua:reference".to_owned(),
+                ..image("settings.mcp", entry(on), entry(off))
+            }],
+        ] {
+            assert!(!switches_mcp_back_on(&images), "{images:?}");
+            assert!(confirmed_where_it_switches_mcp_on(&images, Held::default()).is_ok());
+        }
+        // **And where the undo meets the step itself**: put back so as to
+        // switch MCP on only holding a confirmation.
+        let switching = [image("settings.mcp", entry(on), entry(off))];
+        let refused = confirmed_where_it_switches_mcp_on(&switching, Held::default())
+            .expect_err("unconfirmed");
+        assert_eq!(
+            (
+                refused.refusal().kind(),
+                refused.refusal().code(),
+                refused.word()
+            ),
+            (
+                crate::dispatch::RefusalKind::Denied,
+                nc_catalog::ErrorCode::KernelMcpUnconfirmed,
+                "unconfirmed"
+            )
+        );
+        let confirmed = Held {
+            confirmed: true,
+            quorum_met: false,
+        };
+        assert!(confirmed_where_it_switches_mcp_on(&switching, confirmed).is_ok());
     }
 
     #[test]

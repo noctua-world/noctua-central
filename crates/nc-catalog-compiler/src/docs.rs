@@ -271,9 +271,10 @@ const fn what_a_lockout_does(
 /// `write` command is published as one undo takes back, `limits.prune` with
 /// them, while the kernel makes a step that ran it one undo stops at: `the_history` — whether
 /// the command is one of [`THE_HISTORY`] — is what tells a step undo takes
-/// back from one it does not, and `taken_back_whole` — whether it is one of
+/// back from one it does not, `taken_back_whole` — whether it is one of
 /// [`TAKEN_BACK_WHOLE`] — tells a command whose one effect undo puts back from
-/// one undo stops at.
+/// one undo stops at, and `runs_another` — whether it is one of
+/// [`AS_WHAT_IT_RUNS`] — a command that is no step of its own from both.
 ///
 /// `const fn`, which is what the type wall asks of a function handing back a
 /// `&'static str`.
@@ -281,6 +282,7 @@ const fn what_undoing_costs(
     reversibility: crate::model::Reversibility,
     the_history: bool,
     taken_back_whole: bool,
+    runs_another: bool,
 ) -> &'static str {
     // **The answer, not the registry's word, and no more of it than is true.**
     // `kernel.undo` takes back what a unit kept in the store and the blobs it
@@ -305,7 +307,13 @@ const fn what_undoing_costs(
         }
         crate::model::Reversibility::Write if taken_back_whole => {
             "yes — its one effect is the value it writes, which `kernel.undo` puts back as it \
-             was and `kernel.redo` writes again (§11.5)"
+             was and `kernel.redo` writes again — each waiting for a person's confirmation \
+             when it would switch MCP on (§11.5)"
+        }
+        crate::model::Reversibility::Write if runs_another => {
+            "as what it runs — no step of its own: the command it dispatches is a step of its \
+             own when it changes state, which `kernel.undo` takes back as that command's \
+             (§11.5)"
         }
         crate::model::Reversibility::Write => {
             "no — a step that ran it is one undo stops at (§11.5)"
@@ -337,6 +345,16 @@ const THE_HISTORY: [&str; 2] = ["kernel.undo", "kernel.redo"];
 /// changes undo takes back to these and [`THE_HISTORY`], so the page and the
 /// kernel cannot part unseen.
 const TAKEN_BACK_WHOLE: [&str; 1] = ["settings.mcp.set"];
+
+/// The `write` commands of the kernel's own that change state only through
+/// the command they dispatch: no step of their own, the command's being its
+/// own step.
+///
+/// The kernel opens no unit for the activation of a surface's node and leaves
+/// it out of what leaves the machine (`crates/nc-kernel/src/ui.rs`,
+/// `dispatches_what_it_shows`), so the step is the command it runs. The test
+/// beside `leaves_the_machine` holds the kernel to this list as well.
+const AS_WHAT_IT_RUNS: [&str; 1] = ["surfaces.activate"];
 
 /// A byte count as a reader would write it, with the exact number beside it.
 ///
@@ -1175,7 +1193,8 @@ fn commands(catalog: &Catalog) -> String {
             what_undoing_costs(
                 entry.reversibility,
                 THE_HISTORY.contains(&entry.name.as_str()),
-                TAKEN_BACK_WHOLE.contains(&entry.name.as_str())
+                TAKEN_BACK_WHOLE.contains(&entry.name.as_str()),
+                AS_WHAT_IT_RUNS.contains(&entry.name.as_str())
             ),
             // **A row only when there is one.** No command declares a binding,
             // so `Keybindings | — |` on every row of this page would be a column
@@ -1808,7 +1827,12 @@ mod tests {
             Reversibility::Write,
             Reversibility::Irreversible,
         ] {
-            for (the_history, taken_back_whole) in [(false, false), (true, false), (false, true)] {
+            for (the_history, taken_back_whole, runs_another) in [
+                (false, false, false),
+                (true, false, false),
+                (false, true, false),
+                (false, false, true),
+            ] {
                 let meant = match reversibility {
                     Reversibility::Read => {
                         "nothing to undo — it makes no step, so undo passes over it (§11.5)"
@@ -1822,7 +1846,13 @@ mod tests {
                     }
                     Reversibility::Write if taken_back_whole => {
                         "yes — its one effect is the value it writes, which `kernel.undo` puts \
-                         back as it was and `kernel.redo` writes again (§11.5)"
+                         back as it was and `kernel.redo` writes again — each waiting for a \
+                         person's confirmation when it would switch MCP on (§11.5)"
+                    }
+                    Reversibility::Write if runs_another => {
+                        "as what it runs — no step of its own: the command it dispatches is a \
+                         step of its own when it changes state, which `kernel.undo` takes back \
+                         as that command's (§11.5)"
                     }
                     Reversibility::Write => "no — a step that ran it is one undo stops at (§11.5)",
                     Reversibility::Irreversible => {
@@ -1830,10 +1860,10 @@ mod tests {
                     }
                 };
                 assert_eq!(
-                    what_undoing_costs(reversibility, the_history, taken_back_whole),
+                    what_undoing_costs(reversibility, the_history, taken_back_whole, runs_another),
                     meant,
                     "`{reversibility:?}` is published as `{}`",
-                    what_undoing_costs(reversibility, the_history, taken_back_whole)
+                    what_undoing_costs(reversibility, the_history, taken_back_whole, runs_another)
                 );
             }
         }
@@ -1843,8 +1873,8 @@ mod tests {
         // runs on the realm itself can be published as one this repository can
         // undo.
         for published in [
-            what_undoing_costs(Reversibility::Irreversible, false, false),
-            what_undoing_costs(Reversibility::Write, false, false),
+            what_undoing_costs(Reversibility::Irreversible, false, false, false),
+            what_undoing_costs(Reversibility::Write, false, false, false),
         ] {
             assert!(
                 !published.contains("yes"),
@@ -1859,6 +1889,7 @@ mod tests {
         }
         assert_eq!(super::THE_HISTORY, ["kernel.undo", "kernel.redo"]);
         assert_eq!(super::TAKEN_BACK_WHOLE, ["settings.mcp.set"]);
+        assert_eq!(super::AS_WHAT_IT_RUNS, ["surfaces.activate"]);
     }
 
     #[test]

@@ -19768,7 +19768,7 @@ mod the_frozen_path_rule {
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/agent_sessions.rs", 65, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
-        ("daemon/desktop.rs", 25, 5),
+        ("daemon/desktop.rs", 27, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 25, 18),
         ("daemon/every_command_from_the_cli.rs", 45, 2),
@@ -19785,7 +19785,7 @@ mod the_frozen_path_rule {
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 140, 27),
         ("daemon/serves_its_kernel.rs", 28, 3),
-        ("daemon/testing.rs", 42, 8),
+        ("daemon/testing.rs", 43, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
@@ -19797,7 +19797,7 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 39, 15),
+        ("nc-catalog-compiler/docs.rs", 40, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
@@ -19887,13 +19887,13 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/confirmations.rs", 18, 2),
-        ("nc-kernel/dispatch.rs", 152, 32),
+        ("nc-kernel/confirmations.rs", 19, 2),
+        ("nc-kernel/dispatch.rs", 153, 32),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/find.rs", 35, 2),
-        ("nc-kernel/history.rs", 49, 7),
+        ("nc-kernel/history.rs", 58, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
         ("nc-kernel/host/commands.rs", 38, 15),
@@ -19915,16 +19915,16 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 10, 2),
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
-        ("nc-kernel/settings.rs", 25, 1),
+        ("nc-kernel/settings.rs", 27, 1),
         ("nc-kernel/shell.rs", 207, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 309, 87),
+        ("nc-kernel/the_decision_point.rs", 312, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 76, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
         ("nc-kernel/timers.rs", 18, 5),
-        ("nc-kernel/ui.rs", 43, 15),
-        ("nc-kernel/units.rs", 116, 18),
-        ("nc-kernel/units_and_history.rs", 159, 48),
+        ("nc-kernel/ui.rs", 91, 16),
+        ("nc-kernel/units.rs", 117, 18),
+        ("nc-kernel/units_and_history.rs", 166, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
@@ -19995,7 +19995,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 38, 10),
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 58, 20),
+        ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
         ("xtask/the_registry_reaches_the_code.rs", 43, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
@@ -25954,7 +25954,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23483;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23613;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25973,7 +25973,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6780;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6870;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25990,7 +25990,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2306;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2340;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26007,7 +26007,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [120, 20, 48, 49, 100];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [128, 26, 51, 52, 100];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26024,7 +26024,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30919;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31095;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26042,7 +26042,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 596;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 620;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26078,8 +26078,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **596 of 30,919 are accepted by the first-line
-    /// rule alone, and 337 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **620 of 31,095 are accepted by the first-line
+    /// rule alone, and 357 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26100,8 +26100,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **120 ascending sorts, 20 descending, 48
-    /// swaps, 49 rotations and 100 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **128 ascending sorts, 26 descending, 51
+    /// swaps, 52 rotations and 100 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26111,7 +26111,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2306 of
+    /// this tree offers, **2340 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38200,7 +38200,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3099] = [
+    static OPERATORS: [(&str, &str, &str); 3137] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43982,6 +43982,188 @@ Options:
             "a call waits for the person its tree acts for",
         ),
         (
+            "kernel_confirmations",
+            "declared",
+            "a held call is listed as its command is declared",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "a tree an agent rendered is never activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "only a button or a toggle is activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "a disabled node is never activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "an input the node does not bind is refused",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "an integer input is read as an integer",
+        ),
+        ("kernel_ui", "activation", "an input given twice is refused"),
+        (
+            "kernel_ui",
+            "at",
+            "an index is written without a leading zero",
+        ),
+        (
+            "kernel_ui",
+            "at",
+            "a pointer's escapes are read in their order",
+        ),
+        (
+            "kernel_ui",
+            "dispatches_what_it_shows",
+            "the activation alone dispatches what a surface shows",
+        ),
+        ("kernel_ui", "render", "a tree is kept with who rendered it"),
+        (
+            "kernel_ui",
+            "of",
+            "a tree an agent's session rendered names the agent",
+        ),
+        (
+            "kernel_ui",
+            "of",
+            "a tree is rendered for the person a session acts for",
+        ),
+        (
+            "kernel_host_ui",
+            "render",
+            "a tree is rendered as the call tree acts",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "MCP switched on waits for a person's confirmation",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "a switch on is journaled under its own sentinel",
+        ),
+        (
+            "kernel_dispatch",
+            "unconfirmed_code",
+            "a declined switch on is refused as declined",
+        ),
+        (
+            "kernel_dispatch",
+            "unconfirmed_code",
+            "a switch on nobody answered is refused as not confirmed in time",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "an undo or a redo that would switch MCP on waits for a person's confirmation",
+        ),
+        (
+            "kernel_dispatch",
+            "run",
+            "the activation opens no unit of its own",
+        ),
+        (
+            "kernel_dispatch",
+            "opened",
+            "a unit an agent's tree opens is noted as its",
+        ),
+        (
+            "kernel_host_commands",
+            "owned",
+            "a unit a callback begins for an agent is noted as its",
+        ),
+        (
+            "kernel_units",
+            "acted_for",
+            "a unit is noted as an agent's only when an agent acts",
+        ),
+        (
+            "kernel_units",
+            "notes_kept",
+            "the agent's note is kept with its unit",
+        ),
+        (
+            "kernel_history",
+            "leaves_the_machine",
+            "the activation leaves no note of having left the machine",
+        ),
+        (
+            "kernel_history",
+            "would_switch_mcp_on",
+            "an undo is read for whether it would switch MCP on",
+        ),
+        (
+            "kernel_history",
+            "would_switch_mcp_on",
+            "a redo is read for whether it would switch MCP on",
+        ),
+        (
+            "kernel_history",
+            "confirmed_where_it_switches_mcp_on",
+            "a step put back so as to switch MCP on needs a confirmation",
+        ),
+        (
+            "kernel_history",
+            "switches_mcp_back_on",
+            "what is put back is each key's before image over its after",
+        ),
+        (
+            "kernel_history",
+            "next",
+            "the history names the agent whose step it is",
+        ),
+        (
+            "kernel_history",
+            "next",
+            "the history says whether undo stops at the step",
+        ),
+        (
+            "kernel_history",
+            "read",
+            "an agent's note is read back as its agent",
+        ),
+        (
+            "kernel_settings",
+            "switches_mcp_on",
+            "only a switch asking for on waits",
+        ),
+        (
+            "kernel_settings",
+            "puts_mcp_on",
+            "putting back an entry already on switches nothing on",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "an unconfirmed switch on ends in the Noctua window's exit",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a switch on nobody answered in time ends in its own exit",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a declined switch on ends in its own exit",
+        ),
+        (
+            "pages",
+            "what_undoing_costs",
+            "a command that is no step of its own is published as what it runs",
+        ),
+        (
             "kernel_dispatch",
             "top",
             "a call held and decided again spends once",
@@ -46003,17 +46185,17 @@ Options:
         ),
         (
             "kernel_history",
-            "undo",
+            "next_step",
             "an undo reaches the newest step still committed",
         ),
         (
             "kernel_history",
-            "undo",
+            "is_a_barrier",
             "a step that left the machine with nothing to set it right is a barrier",
         ),
         (
             "kernel_history",
-            "undo",
+            "is_a_barrier",
             "a step that left the machine with a compensation is no barrier",
         ),
         (
