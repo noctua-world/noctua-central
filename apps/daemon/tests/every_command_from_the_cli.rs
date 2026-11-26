@@ -246,6 +246,16 @@ const ROWS: &[Row] = &[
     ran("info.expand", &[]),
     ran("info.collapse", &[]),
     ran("info.clear", &[]),
+    // **What waits for a confirmation**: nothing, with no desktop attached
+    // to ask, so the list is empty and a serial names no call held.
+    ran("confirmations.list", &[]),
+    ended(
+        "confirmations.read",
+        &["--serial", "1"],
+        Exit::NotFound,
+        ErrorCode::KernelNothingHeld,
+        Journaled::Failed("nothing-held"),
+    ),
     ran("reference.note.get", A_NOTE),
     ran("reference.probe", A_NOTE),
     ended(

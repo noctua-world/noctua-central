@@ -94,9 +94,23 @@ use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands: its own, and the
 /// interface's state's (`crate::shell`).
-pub const RESERVED: [&str; 15] = [
-    "agents", "drawer", "footer", "info", "journal", "kernel", "leader", "limits", "naming",
-    "page", "prompt", "settings", "shell", "sidebar", "window",
+pub const RESERVED: [&str; 16] = [
+    "agents",
+    "confirmations",
+    "drawer",
+    "footer",
+    "info",
+    "journal",
+    "kernel",
+    "leader",
+    "limits",
+    "naming",
+    "page",
+    "prompt",
+    "settings",
+    "shell",
+    "sidebar",
+    "window",
 ];
 
 /// The namespaces whose changes decide what may act for a person.

@@ -2585,6 +2585,10 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.log_line_bytes, declared.log_line_bytes);
     assert_eq!(generated.undo_history, declared.undo_history);
     assert_eq!(generated.confirmation_ttl_ms, declared.confirmation_ttl_ms);
+    assert_eq!(
+        generated.confirmations_pending_max,
+        declared.confirmations_pending_max
+    );
     assert_eq!(generated.agent_budget_max, declared.agent_budget_max);
     assert_eq!(
         generated.agent_grant_minutes_max,
@@ -2596,7 +2600,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        56,
+        57,
         "a kernel limit was added or lost"
     );
 }

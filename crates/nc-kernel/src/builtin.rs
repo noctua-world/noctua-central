@@ -194,6 +194,12 @@ pub(crate) enum Builtin {
     AgentsRevoke,
     /// A command of the interface's state (`crate::shell`).
     Shell(crate::shell::Verb),
+    /// `confirmations.list`: the calls held for a person's confirmation
+    /// (`crate::confirmations`).
+    ConfirmationsList,
+    /// `confirmations.read`: one call held for a person's confirmation
+    /// (`crate::confirmations`).
+    ConfirmationsRead,
 }
 
 impl Builtin {
@@ -203,8 +209,8 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 13 + crate::shell::Verb::ALL.len()] = {
-        let mut all = [Self::Verify; 13 + crate::shell::Verb::ALL.len()];
+    const ALL: [Self; 15 + crate::shell::Verb::ALL.len()] = {
+        let mut all = [Self::Verify; 15 + crate::shell::Verb::ALL.len()];
         let mut at = 0;
         while at < Self::OWN.len() {
             all[at] = Self::OWN[at];
@@ -219,7 +225,7 @@ impl Builtin {
     };
 
     /// The kernel's own, which [`Builtin::ALL`] begins with.
-    const OWN: [Self; 13] = [
+    const OWN: [Self; 15] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -233,6 +239,8 @@ impl Builtin {
         Self::AgentsList,
         Self::AgentsGrant,
         Self::AgentsRevoke,
+        Self::ConfirmationsList,
+        Self::ConfirmationsRead,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -252,6 +260,8 @@ impl Builtin {
             Self::AgentsGrant => crate::agents::GRANT,
             Self::AgentsRevoke => crate::agents::REVOKE,
             Self::Shell(verb) => verb.name(),
+            Self::ConfirmationsList => crate::confirmations::LIST,
+            Self::ConfirmationsRead => crate::confirmations::READ,
         }
     }
 

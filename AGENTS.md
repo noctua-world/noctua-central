@@ -504,7 +504,7 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number, as is a request an older daemon would read as malformed — with one exception, written in the crate's header where it is used: **a protocol no release carries may gain a message, or change what one of its own means, under its number until the Stage that builds it closes**, as 4 does while Stage 16 is built, and what that costs is a development daemon installed from an earlier commit of it, which passes the handshake and then closes the connection at the first message it does not read — or reads one as that earlier commit meant it, a note held rather than applied, a watch answered without the interface's state — until `cargo xtask dev --install` replaces both ends; a request is an arm of both matches over `Request` in `apps/daemon/src/server.rs` — the person's `answer`, and `a_sessions`, which refuses a session everything but its tools and its dispatches — and of the test over every request beside them, and of `unread_as` in `crates/nc-ipc/src/client.rs` when it is an answer; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon`, `check_daemon_ipc` and `check_daemon_interface` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, `sessions_max` below `ipc_connections_max`, so the person always finds a connection no MCP client holds, and what an interface asks beside the channel's own bounds (`check_daemon_interface`): `ipc_watch_wait_ms` below `ipc_silent_after_ms`, so a watcher that went away keeps its connection no longer than a silent client keeps one, `ipc_note_max_bytes` with the frame's envelope at most `ipc_frame_max_bytes`, and as many values of `ipc_display_value_max_bytes` as an announced environment names variables (`DISPLAY_VALUES`), every byte written as two, with the envelope at most a frame as well, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb is what the CLI does itself rather than a command it dispatches — help, process control, and choosing the development checkout `noctua-dev` reaches, each acting without dispatching, `mcp`, a verb that dispatches because it is a transport: it carries an MCP client's calls to the daemon as one agent's session, and a command is what a transport carries, so no registered command could be it; and `leader`, the other verb that dispatches, because what it carries is where it runs: it announces the graphical environment a compositor's binding runs it in, which no command's arguments could say for it, then dispatches `leader.tap` (`nc_ipc::leader::TAP`), the one command a press of the Leader is wherever it is heard — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A verb whose standard streams carry a protocol says every refusal of its line on standard error, `--json` or not (`renders_json` in `apps/cli/src/run.rs`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb is what the CLI does itself rather than a command it dispatches — help, process control, and choosing the development checkout `noctua-dev` reaches, each acting without dispatching, `mcp`, a verb that dispatches because it is a transport: it carries an MCP client's calls to the daemon as one agent's session, and a command is what a transport carries, so no registered command could be it; and `leader`, the other verb that dispatches, because what it carries is where it runs: it announces the graphical environment a compositor's binding runs it in, which no command's arguments could say for it, then dispatches `leader.tap` (`nc_ipc::leader::TAP`) — or, with `--announce`, nothing, as the unit the person's graphical session starts runs it on Linux (`nc_cli::install`) — the one command a press of the Leader is wherever it is heard — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A verb whose standard streams carry a protocol says every refusal of its line on standard error, `--json` or not (`renders_json` in `apps/cli/src/run.rs`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
 | an MCP method | `Engine::heard` in `apps/cli/src/mcp.rs`, and a unit test in that file answering it | a method is answered only when this server offers what it belongs to, and every other is `-32601`; a capability is never declared for a feature that sends the client a request — elicitation, sampling, roots, tasks — because what a client answers would be read as the person's; a call's fields are a closed set, every other refused with `-32602`, and no field is ever read as a confirmation; every answer is one line through the session's one writer; and a protocol revision joins `REVISIONS` only once a saved schema of it shows every answer to a request whose id was read valid in it, so a revision this server does not speak is answered in its newest and the client declines it — an error answering a line whose id could not be read carries no `id`, which `2025-11-25`'s schema reads and `2025-06-18`'s does not |
 | an MCP tool | nothing: a tool is a command (*a command*, above) | `noctua mcp` lists what its session's agent may dispatch now, as the daemon answers it, each entry projected by `nc_schema::entry::as_tool`, and a call is sent as the command its name reads back to, so a tool arrives with its command and an agent reaches it with its feature's agent permit and its person's grant (*an agent permit*); no list of tools is written anywhere, and `docs/mcp-tools.md` is the catalog's projection, not a session's |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
@@ -1199,9 +1199,10 @@ over the journal in memory and the local journal alike.
 
 **Not answered:**
 
-- a confirmation or an approval issued for real — only a test door issues one, so a
-  shipped kernel denies every command that cannot be undone and every one a quorum must
-  approve;
+- an approval issued for real — only a test door issues one, so a shipped kernel denies
+  every command a quorum must approve; a confirmation is issued for real only as the
+  person's answer to a call the kernel held (*A call that cannot be undone runs once the
+  person confirms it in the desktop the daemon started*);
 - a store that refuses the reversal of a unit whose close the journal did not take: the
   unit stays committed and readable, open in the journal until the next prune or kernel
   opening reverts it, the caller told and `kernel.revert_failed` logged, the units table
@@ -1328,7 +1329,9 @@ decides as itself, unmarked, which `core.an_agent_never_impersonates` refuses. *
 is confirmed**: a session holds no token and has nowhere to hold one, a tree acting for an
 agent or as an agent alone redeems and spends none it is handed, and the kernel never binds
 a token to an agent principal, whoever issued it; so an agent's command that cannot be
-undone is refused with `[NC-KERN-0006]`, and its delete by the core's two floors. A chain
+undone is refused with `[NC-KERN-0006]` — unless, held while the desktop the daemon started
+is attached, its person confirms it there, which binds the person's input to the call the
+kernel holds and hands the agent nothing — and its delete by the core's two floors. A chain
 past the policy's two links is refused by `core.chain_depth_is_bounded` and recorded whole;
 the type holds at most four, and nothing but a test door builds one past a single link.
 
@@ -1865,6 +1868,66 @@ install is on in that one alone.
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
 the person's undo of a switch-off, and what an agent's tree set going while it was on,
 which switching it off does not end.
+
+### A call that cannot be undone runs once the person confirms it in the desktop the daemon started, and nothing else confirms one
+
+**Guaranteed.** A command declared irreversible runs only with a confirmation the kernel
+issued for that principal, that command and those arguments (*A command runs only when it
+is decided*), and **the one a shipped kernel issues is the person's answer to a call it
+held** (`crates/nc-kernel/src/confirmations.rs`). The daemon dispatches through
+`Kernel::dispatch_held` while a connection is attached as the desktop interface it started
+(`apps/daemon/src/desktop.rs`), and through `Kernel::dispatch` otherwise, so with none
+attached such a call is refused at once with `[NC-KERN-0006]`, exit 4, as it always was.
+Held, the call — allowed by the decision point at the top of its tree, from the CLI or from
+an agent's session — is journaled nowhere and run nowhere yet; it waits, at most
+`confirmations_pending_max` at once (one past them refused with `[NC-KERN-0006]`), for at
+most `confirmation_ttl_ms`, holding no lock of the kernel's; it is listed by
+`confirmations.list` and `confirmations.read` — reads on `Feature::"interface"`, which no
+agent is granted — and its serial is in the daemon's watched state as `confirmations`. It
+is answered by `Kernel::settle` alone, which the daemon calls for a `confirm` or a
+`decline` on a connection attached as that desktop and on no other (`[NC-DMN-0018]`, logged
+as `ipc.refused`); no command answers it, and `confirm` is no command — the named exception
+to Stage 16's twelfth criterion. **A connection attaches by both halves**: a proof of the 32
+bytes the daemon handed the process it started down its standard input — never written to
+disk, sent or logged — keyed over the connection's own handshake nonces, so a proof is
+good on its connection alone; and the process the system names at the other end being that
+process, still running. One that fails either is refused `[NC-DMN-0017]`, logged, and
+closed. Confirmed, the kernel issues the person's confirmation of that very call — bound to
+the person the tree acts for, the command by its name and its holder and the arguments'
+canonical text, redeemed by that call alone and never presented by a caller — and decides
+the call again from the start; declined, it is refused with `[NC-KERN-0030]`, exit 15; with
+no answer in time, or once the daemon stops, `[NC-KERN-0029]`, exit 14; each journaled once
+under `kernel.irreversible_needs_confirmation`, and a session's budget spent once. **An
+agent's call is held the same way and the agent confirms nothing**: the confirmation is
+bound to its person and never to an agent, and its plugin's `context` still answers that no
+person confirmed a call in an agent's tree. Proven by the four held-call tests of
+`crates/nc-kernel/tests/the_decision_point.rs`, `a_held_calls_confirmation_is_bound_by_that_call_alone`
+in `crates/nc-kernel/src/dispatch.rs`, the two tests of `apps/daemon/src/desktop.rs` — the
+second over a daemon a child of the test binary serves, whose desktop is another child
+handed its secret, the CLI's held calls confirmed and declined there and a connection that
+did not attach, and one that attached with a proof of no secret, refused —
+`no_request_the_wire_reads_carries_a_confirmation` in `crates/nc-ipc/src/message.rs`, and
+`a_session_asks_for_its_tools_and_dispatches_and_is_refused_the_rest` in
+`apps/daemon/src/server.rs`.
+
+**Not answered:**
+
+- **a process running as the same user that tampers with the desktop interface**: it can
+  read the secret out of the desktop's memory or drive the desktop — attach a debugger to
+  it, inject a library, send it synthetic input (XTEST on X11, a compositor's virtual
+  keyboard on some Wayland sessions) — replace its executable or the units that start it
+  before the daemon starts it, or announce a display of its own. On a desktop operating
+  system that is not a boundary between two processes of one user (`NOCTUA.md §2.4`,
+  §11.1); what is held is that a process that only speaks the protocol — the CLI, an MCP
+  client, an agent, a plugin, a dispatched command — confirms nothing;
+- whether the desktop asked the person: that a `confirm` comes from a person's own input
+  in a confirmation the desktop drew is the desktop's to hold, and is not built yet;
+- a desktop a daemon started before it last started: it holds the old secret, so it can
+  watch and dispatch as the person and never attach, and retiring it is the desktop's;
+- a held call whose desktop went away waits its whole time, unless another desktop the
+  daemon starts attaches and answers it; and a desktop that ended is started again only
+  when the daemon serves, a person's connection announces a display, or the Leader is
+  pressed — never by a loop of starts.
 
 ### What the interface shows is the kernel's, changed by commands that are no step, and read back only as written
 
@@ -3488,9 +3551,12 @@ what is the CLI's own, the exit code a refusal ends a run with (`exit_of`).
   request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
   protocol reads — not one message, or past the bound — from a daemon the handshake proved
   (exit 8).
-- **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
-  every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
-  code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+- **It confirms nothing.** The CLI acts as the profile's person, so a command that cannot
+  be undone waits, while the desktop the daemon started is attached, for the person's
+  answer there — confirmed it runs, declined it ends in exit 15 (`NC-KERN-0030`), with no
+  answer in time in 14 (`NC-KERN-0029`) — and with none attached the kernel refuses it with
+  `NC-KERN-0006`, which ends the run in an exit code of its own (4): what it needs is a
+  person in the Noctua window (`NOCTUA.md §11.1`).
   `noctua mcp` acts as its session's agent and is refused the same, but that refusal ends
   no session: the call is answered as a tool error, or as an unknown tool when the
   session's last list did not hold it — as no list holds a command that cannot be undone
@@ -4865,6 +4931,14 @@ What no entry above owns, grouped by where it lives.
 **Narrowed on purpose.** Each is a contract narrowed, or a step deliberately not taken,
 rather than anything decided for the project, and each is a maintainer's to reopen:
 
+- **A process running as the same user that tampers with the desktop interface confirms
+  what it likes** (decided for Stage 16): reading its secret out of its memory, driving it
+  with synthetic input, replacing its executable or its units, or announcing a display of
+  its own. What is held is that nothing that only speaks the protocol confirms a call (*A
+  call that cannot be undone runs once the person confirms it in the desktop the daemon
+  started*). Not taken: sealing the desktop against its own user, which a desktop
+  operating system does not offer between two processes of one user (`NOCTUA.md §2.4`).
+
 - **Wayland's GlobalShortcuts portal is not built**: the Leader reaches a Wayland session
   by a key binding of the compositor's that runs `noctua leader`, and by nothing this tree
   registers (`NOCTUA.md §12.8`). Not taken: a client of D-Bus, which the portal is spoken
@@ -4923,11 +4997,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The kernel decides a person as themselves and an agent through its session, through
   test doors for the rest.** A caller is decided unmarked with an empty actor chain, and an
   agent only through the session `Kernel::session` opened, whose chain no caller writes; a
-  chain longer than one link comes only from `Session::through_for_tests`. A confirmation
-  and an approval come only from `confirmation_for_tests` and `approval_for_tests`, so a
-  shipped kernel denies every command that cannot be undone and every one a quorum must
-  approve until the interfaces that issue them exist (a confirmation, the desktop
-  interface's, Stage 16). A confirmation is bound to the whole principal, kind and
+  chain longer than one link comes only from `Session::through_for_tests`. An approval
+  comes only from `approval_for_tests`, so a shipped kernel denies every command a quorum
+  must approve until the approval system exists (Stage 23); a confirmation from
+  `confirmation_for_tests`, which keeps working beside the real one, or from the person's
+  answer to a call the kernel held (`Kernel::settle`), which the daemon gives the desktop it
+  started alone. A confirmation is bound to the whole principal, kind and
   identifier, and to its command by the plugin that held it, so one that took an unloaded
   plugin's namespace redeems none issued before. A person's history is read by identifier
   alone, so the directory is what keeps two principals of different kinds from sharing
@@ -5282,7 +5357,7 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A quorum's refusal reaches the CLI as a denial**: a command a pack's rule holds to a
   quorum is refused by the decision point like any other denial (`NC-POL-0003`), so it
   ends the run in exit 3; only `NC-KERN-0006` says the interface is what is needed, and
-  only it ends a run in exit 4. Only an approval the kernel issued meets a quorum, and
+  only it ends a run in exit 4 — a call that waited for the interface ends in 14 or 15. Only an approval the kernel issued meets a quorum, and
   nothing issues one until the approval system (Stage 23), so a quorum's denial is a denial
   until that system gives the CLI something it can read, and Stage 23 chooses its exit code
   then.
@@ -5505,8 +5580,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   caller is told one sentence and the code.
 - **No chain longer than one link exists outside the test door**: an agent another agent
   calls is a session of its own, of its person, one link deep.
-- **An agent's command that cannot be undone is refused, never waited on**: no interface
-  confirms one yet, and nothing an agent holds or sends confirms it.
+- **An agent's command that cannot be undone waits only while the desktop the daemon
+  started is attached**, and is refused at once otherwise; nothing an agent holds or sends
+  confirms it, and an agent's session is refused an attach, a confirm and a decline
+  (`NC-DMN-0015`).
 - **What is refused before it reaches the kernel's dispatch is never journaled, and only
   the daemon logs what it refuses**: a session asked before the kernel runs or once a stop
   began, past `sessions_max`, while MCP is off or its switch cannot be read, for an agent

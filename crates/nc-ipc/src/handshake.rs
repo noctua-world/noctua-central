@@ -22,7 +22,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::connection::{Connection, Side};
 use crate::message::{self, Welcome};
-use crate::{Client, IpcError, Served, Token, frame};
+use crate::{Client, Drawn, IpcError, Served, Token, frame};
 
 /// The domain a client's proof is made over.
 const CLIENT: &str = "nc-ipc/1 the client's proof";
@@ -85,7 +85,7 @@ where
             Err(_) => Err(IpcError::Slow),
         };
     match verdict {
-        Ok(()) => Ok(Served::from(Connection::start(stream, Side::Daemon))),
+        Ok(drawn) => Ok(Served::new(Connection::start(stream, Side::Daemon), drawn)),
         Err(error) => {
             goodbye(&mut stream, &error).await;
             Err(error)
@@ -93,8 +93,9 @@ where
     }
 }
 
-/// The daemon's half, until its welcome is sent.
-async fn welcomed<S>(stream: &mut S, token: &Token, welcome: &Welcome) -> Result<(), IpcError>
+/// The daemon's half, until its welcome is sent: what it drew with the
+/// client.
+async fn welcomed<S>(stream: &mut S, token: &Token, welcome: &Welcome) -> Result<Drawn, IpcError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -105,7 +106,8 @@ where
         return Err(IpcError::ClientUnproven);
     }
     let own = token.prove(DAEMON, &ours, &theirs);
-    frame::write(stream, &message::welcomed(&own, welcome)).await
+    frame::write(stream, &message::welcomed(&own, welcome)).await?;
+    Ok(Drawn::new(ours, theirs))
 }
 
 /// The client's half of the handshake over `stream`, which sends nothing past
@@ -128,8 +130,8 @@ where
         Err(_) => Err(IpcError::Slow),
     };
     match verdict {
-        Ok(welcome) => Ok((
-            Client::from(Connection::start(stream, Side::Client)),
+        Ok((welcome, drawn)) => Ok((
+            Client::new(Connection::start(stream, Side::Client), drawn),
             welcome,
         )),
         Err(error) => {
@@ -139,8 +141,9 @@ where
     }
 }
 
-/// The client's half, until the daemon's welcome is proven.
-async fn welcome_of<S>(stream: &mut S, token: &Token) -> Result<Welcome, IpcError>
+/// The client's half, until the daemon's welcome is proven: the welcome,
+/// and what it drew with the daemon.
+async fn welcome_of<S>(stream: &mut S, token: &Token) -> Result<(Welcome, Drawn), IpcError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -152,5 +155,5 @@ where
     if proof != token.prove(DAEMON, &theirs, &ours) {
         return Err(IpcError::DaemonUnproven);
     }
-    Ok(welcome)
+    Ok((welcome, Drawn::new(theirs, ours)))
 }

@@ -367,40 +367,85 @@ impl Drop for Detached {
     }
 }
 
+/// What a process started detached is handed beside its arguments: the bytes
+/// its standard input reads before it ends, and the variables set in its
+/// environment over the ones it inherits.
+///
+/// **Nothing, by default**: a standard input that is null, and this process's
+/// environment as it is — how a daemon is started.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Handed<'a> {
+    /// What the child's standard input holds, written whole and then closed,
+    /// so the child reads it to its end; none leaves the input null.
+    pub input: Option<&'a [u8]>,
+    /// Each variable set in the child's environment, by its name, over what
+    /// it inherits from this process.
+    pub environment: &'a [(&'a str, &'a str)],
+}
+
 /// Starts `executable` with `arguments`, detached from this process: its
-/// standard input and output null, its standard error `standard_error`, and
-/// none of this process's own handles.
+/// standard input what `handed` says — null, or a pipe holding its bytes —
+/// its standard output null, its standard error `standard_error`, its
+/// environment this process's with `handed`'s variables set over it, and none
+/// of this process's own handles.
 ///
 /// **Detached as each system detaches one**: on Unix the leader of a process
 /// group of its own (`process_group(0)`), so no signal a terminal sends this
 /// one's group reaches it; on Windows with no console and a group of its own
 /// (`DETACHED_PROCESS`, `CREATE_NEW_PROCESS_GROUP`, `CREATE_NO_WINDOW`).
 ///
+/// **The input is written whole before this answers, then closed**, so the
+/// child reads it to its end and never waits on a writer that went away; only
+/// the child's end of the pipe reaches it — `std` keeps this process's end
+/// from every child on every system. A child that could not be handed all of
+/// it is killed and waited for, and the write's refusal answered: a process
+/// that was not handed what it was started to read never runs on.
+///
 /// # Errors
 ///
 /// [`std::io::Error`] as the system answered it: this process's handles could
-/// not be kept from the child, or the child could not be started.
+/// not be kept from the child, the child could not be started, or its input
+/// could not be written whole.
 #[expect(
     clippy::disallowed_methods,
-    reason = "a daemon started as its spawner starts one: its standard handles null or a file \
-              its caller judged, never this process's"
+    reason = "a daemon or a desktop started as its spawner starts one: its standard handles \
+              null, a pipe it writes and closes, or a file its caller judged, never this \
+              process's"
 )]
 pub fn spawn_detached(
     executable: &Path,
     arguments: &[&str],
     standard_error: std::fs::File,
+    handed: Handed<'_>,
 ) -> std::io::Result<Detached> {
+    use std::io::Write as _;
     keep_standard_handles_from_children()?;
     let mut command = std::process::Command::new(executable);
     command
         .args(arguments)
-        .stdin(std::process::Stdio::null())
+        .envs(handed.environment.iter().copied())
+        .stdin(if handed.input.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
         .stdout(std::process::Stdio::null())
         .stderr(standard_error);
     imp::detached(&mut command);
-    Ok(Detached {
-        child: Some(command.spawn()?),
-    })
+    let mut child = command.spawn()?;
+    if let Some(input) = handed.input {
+        let written = child
+            .stdin
+            .take()
+            .ok_or_else(|| std::io::Error::other("the child's standard input was not a pipe"))
+            .and_then(|mut stdin| stdin.write_all(input));
+        if let Err(error) = written {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+    }
+    Ok(Detached { child: Some(child) })
 }
 
 /// The state a Linux `/proc/<pid>/stat` holds, `Z` for an end not yet heard.
@@ -1106,6 +1151,7 @@ mod tests {
                 DETACHED,
             ],
             error,
+            super::Handed::default(),
         )
         .expect("the child starts"));
         let deadline = std::time::Instant::now() + PATIENCE;
@@ -1140,5 +1186,101 @@ mod tests {
             "the detached child did not end once asked to"
         );
         drop(detached);
+    }
+
+    /// The word a child handed its input finds among its arguments.
+    const HANDED: &str = "nc-platform-handed-child";
+
+    /// The variable a child handed its environment reads.
+    const HANDED_VARIABLE: &str = "NC_PLATFORM_HANDED";
+
+    /// A child started detached reads what it was handed to its end, and the
+    /// variables set over its environment.
+    ///
+    /// **Its input is the bytes handed, whole, then the end**: a child handed
+    /// 32 bytes — every value a byte holds among them, a NUL and a newline
+    /// too — reads exactly those and then the end of its input, never waiting
+    /// on a writer; its variable is the value handed. Handed nothing, its
+    /// input is null, read to its end at once, and the variable is unset.
+    /// Each child says what it read on one line of its standard error, and
+    /// ends.
+    #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the handed child's one report, to the standard error its parent handed it as a \
+                  file"
+    )]
+    fn a_detached_child_reads_what_it_was_handed_to_its_end_and_its_variables() {
+        use std::io::{Read as _, Write as _};
+        if std::env::args().any(|argument| argument == HANDED) {
+            let mut input = Vec::new();
+            std::io::stdin()
+                .read_to_end(&mut input)
+                .expect("the input is read to its end");
+            let variable = std::env::var(HANDED_VARIABLE).unwrap_or_else(|_| "unset".to_owned());
+            let line = format!("handed\t{}\t{variable}\n", nc_hex(&input));
+            std::io::stderr()
+                .write_all(line.as_bytes())
+                .expect("the report is written");
+            return;
+        }
+        let mut input = vec![0_u8, b'\n', b'\r', 0xff];
+        input.extend((4_u8..32).map(|at| at.wrapping_mul(37)));
+        assert_eq!(input.len(), 32);
+        for (handed, expected) in [
+            (
+                super::Handed {
+                    input: Some(&input),
+                    environment: &[(HANDED_VARIABLE, "the-desktop")],
+                },
+                format!("handed\t{}\tthe-desktop", nc_hex(&input)),
+            ),
+            (super::Handed::default(), "handed\t\tunset".to_owned()),
+        ] {
+            let scratch = Scratch::new("handed");
+            let error_file = scratch.0.join("handed.err");
+            let error = crate::create_private(&error_file).expect("the child's standard error");
+            let detached = Ended(
+                super::spawn_detached(
+                    &std::env::current_exe().expect("this test binary"),
+                    &[
+                        "--exact",
+                        "process::tests::a_detached_child_reads_what_it_was_handed_to_its_end_and_its_variables",
+                        "--nocapture",
+                        "--test-threads=1",
+                        "--skip",
+                        HANDED,
+                    ],
+                    error,
+                    handed,
+                )
+                .expect("the child starts"),
+            );
+            let deadline = std::time::Instant::now() + PATIENCE;
+            let report = loop {
+                let written = std::fs::read_to_string(&error_file).unwrap_or_default();
+                if let Some(line) = reported("handed", &written) {
+                    break line.to_owned();
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "the handed child said nothing: {written}"
+                );
+                std::thread::sleep(Duration::from_millis(20));
+            };
+            let said = &report[report.find("handed\t").expect("the report")..];
+            assert_eq!(said, expected, "{report}");
+            drop(detached);
+        }
+    }
+
+    /// `bytes` as lower-case hexadecimal digits, two to a byte.
+    fn nc_hex(bytes: &[u8]) -> String {
+        use core::fmt::Write as _;
+        let mut hex = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            let _ = write!(hex, "{byte:02x}");
+        }
+        hex
     }
 }

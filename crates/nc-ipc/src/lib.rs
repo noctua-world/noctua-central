@@ -23,8 +23,8 @@
 //!   nothing a client did not already know and an impostor nothing at all.
 //!   The whole of it is bounded by `ipc_handshake_ms` at either end.
 //! - **Requests** ([`Request`], [`Answer`]): a dispatch, the registry, the
-//!   tools, a session, the status, a stop, a watch, a note, or a display, one
-//!   at a time — a request
+//!   tools, a session, the status, a stop, a watch, a note, a display, an
+//!   attach, a confirm or a decline, one at a time — a request
 //!   before the last one was answered is refused, and so is an answer nobody
 //!   asked for. A dispatch is decided as the connection's principal: the
 //!   profile's person, or the agent of the session the connection opened, which
@@ -60,6 +60,21 @@
 //!   other name, one of the first two at least, each value at most
 //!   `ipc_display_value_max_bytes`, not empty and free of control characters,
 //!   and the two paths absolute. The daemon holds the one announced last.
+//! - **An attach** ([`Request::AttachDesktop`], [`Answer::Attached`]) is how the
+//!   desktop interface a daemon started proves it is that one: the daemon
+//!   draws a [`Secret`] for each desktop it starts and hands it down that
+//!   process's standard input, and the desktop answers with its proof —
+//!   BLAKE3 keyed by the secret over a domain of its own and both nonces of
+//!   the connection's handshake ([`Drawn`]) — so the secret never crosses the
+//!   wire and a proof is good for the connection it was made on alone. What
+//!   else the daemon holds an attach to — the process at the other end — is
+//!   its own to say (`apps/daemon/src/desktop.rs`).
+//! - **A confirm and a decline** ([`Request::Confirm`], [`Request::Decline`],
+//!   [`Answer::Settled`]) answer a call the daemon's kernel holds for the
+//!   person's confirmation, by the serial the kernel gave it — **never a
+//!   command and never arguments**: what is answered is the call the kernel
+//!   holds, which a dispatch cannot name. The daemon answers them on an
+//!   attached connection alone.
 //! - **The heartbeat** ([`Client`], [`Served`]): each side pings after
 //!   `ipc_heartbeat_ms` of its own silence, while a dispatch runs as well as
 //!   between requests, and drops a peer silent for `ipc_silent_after_ms`, or
@@ -87,21 +102,20 @@
 //! gone then, and its kernel with it, so the line is decided where the
 //! interface still is.
 //!
-//! # What protocol 4 does not hold yet
+//! # What protocol 4 gained while Stage 16 is built
 //!
 //! **Protocol 4 is unreleased while Stage 16 is built, and three messages
-//! join it under the same number**: `attach`, by which the desktop the daemon
-//! started proves it is that one, and `confirm` and `decline`, by which that
-//! desktop alone settles a call held for the person's confirmation. No build
-//! of this protocol reads them yet, and none is stubbed: until they are
-//! written, each is refused as every message no request is — malformed — and
-//! a command declared irreversible is refused as it was under protocol 3.
+//! joined it under the same number**: `attach`, by which the desktop the
+//! daemon started proves it is that one, and `confirm` and `decline`, by
+//! which that desktop alone answers a call held for the person's
+//! confirmation.
 //!
 //! **Its own messages may change what they mean under it, too**: since 4
 //! reached `dev`, a note — once held by the daemon and decided nowhere — is
 //! applied by the kernel to the interface's state, decided as its commands
 //! are and refused as they are, and a watch is answered that state and what
-//! came of asking for the Leader, where it was answered the last note.
+//! came of asking for the Leader, where it was answered the last note; and a
+//! watch is answered the serials of the calls held for a confirmation.
 //!
 //! **This is the one exception to a new message, or a new meaning, being a
 //! new number**, and `AGENTS.md` writes it beside the rule (*an IPC
@@ -109,8 +123,8 @@
 //! the Stage that builds it closes. **What it costs** is a development
 //! install whose daemon was built from an earlier commit of protocol 4 than
 //! its client: the two pass the handshake, and then the daemon closes the
-//! connection at the first of the three it does not read, or reads a message
-//! as that earlier commit meant it — a note held rather than applied, a watch
+//! connection at the first message it does not read, or reads a message as
+//! that earlier commit meant it — a note held rather than applied, a watch
 //! answered without the interface's state. `cargo xtask dev --install`
 //! replaces both ends, and no released build is ever in that place — a
 //! release that carries 4 carries all of it.
@@ -130,7 +144,10 @@
 //!
 //! A process running as the same user, which can read the token from the
 //! runtime directory and speak for anybody — authorization is what resists it
-//! (`§14`); the channel's confidentiality from such a process, which is the
+//! (`§14`) — and which can tamper with the desktop interface itself, reading
+//! its secret or speaking for it, which no message here can tell from the
+//! desktop (`AGENTS.md`, What is deliberately not claimed); the channel's
+//! confidentiality from such a process, which is the
 //! endpoint's (`nc_platform::ipc`): nothing here is encrypted; and a peer that
 //! pings and reads nothing, which holds its connection until this side's
 //! writes fill the system's buffer for it — between requests, a ping each
@@ -241,6 +258,105 @@ impl Drop for Token {
         self.0 = [0; 32];
         // A write nothing reads again may be removed by the optimiser; this
         // asks it not to, which no compiler promises to honour.
+        core::hint::black_box(&self.0);
+    }
+}
+
+/// What one connection's handshake drew: the daemon's nonce and the
+/// client's, which no other connection holds both of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Drawn {
+    /// The daemon's nonce.
+    daemons: [u8; 32],
+    /// The client's nonce.
+    clients: [u8; 32],
+}
+
+impl Drawn {
+    /// What a handshake drew: the daemon's nonce, `daemons`, and the
+    /// client's, `clients`.
+    #[must_use]
+    pub const fn new(daemons: [u8; 32], clients: [u8; 32]) -> Self {
+        Self { daemons, clients }
+    }
+}
+
+/// The secret a daemon hands the desktop interface it starts, down that
+/// process's standard input: 32 bytes drawn for that one process, which
+/// neither end ever sends (`NOCTUA.md §11.1`).
+///
+/// **Its `Debug` prints nothing of it**, and it is overwritten when dropped,
+/// as far as safe Rust can say, as a [`Token`] is.
+pub struct Secret([u8; 32]);
+
+impl Secret {
+    /// The domain an attach's proof is made over: neither end's proof of the
+    /// token, so no proof of a handshake is an attach's, nor one the other
+    /// way.
+    const ATTACH: &'static str = "nc-ipc/1 the desktop's attach";
+
+    /// A secret drawn from the system's own generator.
+    ///
+    /// # Errors
+    ///
+    /// [`std::io::Error`] when the system's generator did not answer.
+    pub fn fresh() -> std::io::Result<Self> {
+        let mut bytes = [0_u8; 32];
+        nc_platform::random(&mut bytes)?;
+        Ok(Self(bytes))
+    }
+
+    /// The secret `bytes` are, as the desktop reads them off its standard
+    /// input.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// The secret's bytes, as the daemon writes them down the desktop's
+    /// standard input and nowhere else.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// The proof of this secret for the connection whose handshake drew
+    /// `drawn`: what an attach carries.
+    ///
+    /// **Over both nonces and a domain of its own**, so a proof made for one
+    /// connection is no proof on another, and none is a proof of the token.
+    #[must_use]
+    pub fn proof(&self, drawn: &Drawn) -> [u8; 32] {
+        *self.hashed(drawn).as_bytes()
+    }
+
+    /// Whether `proof` is this secret's for the connection whose handshake
+    /// drew `drawn`, compared in constant time (`blake3::Hash`'s equality).
+    #[must_use]
+    pub fn proves(&self, proof: &[u8; 32], drawn: &Drawn) -> bool {
+        blake3::Hash::from_bytes(*proof) == self.hashed(drawn)
+    }
+
+    /// The keyed hash a proof is.
+    fn hashed(&self, drawn: &Drawn) -> blake3::Hash {
+        let mut hasher = blake3::Hasher::new_keyed(&self.0);
+        hasher.update(Self::ATTACH.as_bytes());
+        hasher.update(&[0]);
+        hasher.update(&drawn.daemons);
+        hasher.update(&drawn.clients);
+        hasher.finalize()
+    }
+}
+
+impl core::fmt::Debug for Secret {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("Secret(..)")
+    }
+}
+
+impl Drop for Secret {
+    fn drop(&mut self) {
+        self.0 = [0; 32];
         core::hint::black_box(&self.0);
     }
 }
@@ -406,4 +522,31 @@ pub fn listen(
         instance,
         connections,
     )?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Drawn, Secret};
+
+    /// An attach's proof is its secret's, over both nonces of its
+    /// connection, and no other secret's or connection's.
+    ///
+    /// **Each part held alone**: a proof is proven by the secret it was made
+    /// of over the nonces it was made over, and not by another secret, nor
+    /// over another daemon's nonce or another client's — so a proof is good
+    /// on its connection alone, for the desktop that was handed its secret.
+    #[test]
+    fn an_attachs_proof_is_its_secrets_over_both_nonces_of_its_connection() {
+        let (one, two) = (Secret::from_bytes([1; 32]), Secret::from_bytes([2; 32]));
+        let drawn = Drawn::new([3; 32], [4; 32]);
+        let proof = one.proof(&drawn);
+        assert!(one.proves(&proof, &drawn));
+        assert_ne!(proof, two.proof(&drawn), "another secret's proof");
+        assert!(!two.proves(&proof, &drawn), "proven by another secret");
+        for other in [Drawn::new([5; 32], [4; 32]), Drawn::new([3; 32], [5; 32])] {
+            assert!(!one.proves(&proof, &other), "{other:?}");
+        }
+        assert_eq!(one.as_bytes(), &[1; 32]);
+        assert_eq!(format!("{one:?}"), "Secret(..)");
+    }
 }

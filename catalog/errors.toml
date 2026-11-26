@@ -896,6 +896,42 @@ message = "error.kernel.shell-full"
 severity = "warning"
 retryable = false
 
+[[error]]
+# A command declared irreversible, asked at the top of a call tree from the
+# CLI or by an agent's session while the desktop interface the daemon started
+# is attached, is held for the person's confirmation there
+# (`crates/nc-kernel/src/confirmations.rs`), up to `confirmation_ttl_ms`; when
+# the wait lapses — or the daemon stops — with nobody's answer, the call is
+# decided again and refused under the same sentinel as NC-KERN-0006,
+# `kernel.irreversible_needs_confirmation`. Not NC-KERN-0006, which says the
+# call was never put before a person.
+code = "NC-KERN-0029"
+description = "An irreversible command was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+message = "error.kernel.not-confirmed-in-time"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The same call held, and the person declined it in the desktop interface:
+# decided again and refused under `kernel.irreversible_needs_confirmation`.
+# Not NC-POL-0003, since the decision point allowed it and the person did not.
+code = "NC-KERN-0030"
+description = "An irreversible command was held for a person's confirmation in the Noctua window, and the person declined it"
+message = "error.kernel.declined"
+severity = "warning"
+retryable = false
+
+[[error]]
+# `confirmations.read` and the desktop's answer to a held call name it by the
+# serial the kernel gave it; one the kernel holds no call under — answered
+# already, lapsed, or never held — is refused, and nothing is settled. Not
+# NC-KERN-0027, whose description names the interface's state.
+code = "NC-KERN-0031"
+description = "No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held"
+message = "error.kernel.nothing-held"
+severity = "info"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer
@@ -1569,6 +1605,32 @@ description = "The daemon holds as many sessions as `sessions_max` allows, so it
 message = "error.daemon.too-many-sessions"
 severity = "warning"
 retryable = true
+
+# What the daemon's endpoint refuses about the desktop interface it started
+# (`apps/daemon/src/desktop.rs`): each is answered and logged as `ipc.refused`
+# by its code, and never journaled, since no command was dispatched.
+
+[[error]]
+# A connection attaches as the desktop the daemon started by proving the
+# secret the daemon handed that process down its standard input, keyed over
+# the connection's own handshake, from the process the daemon started; one
+# that does neither — or asks when the daemon started none, or asks again —
+# is refused and closed.
+code = "NC-DMN-0017"
+description = "A connection asked to attach as the desktop interface the daemon started, and its proof or its process was not that one's, so it was closed"
+message = "error.daemon.attach-refused"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A held call is answered — confirmed or declined — on a connection attached
+# as the desktop the daemon started, and on no other: the CLI, an agent's
+# session and any process that only speaks the protocol answer none.
+code = "NC-DMN-0018"
+description = "A held call was answered on a connection that is not attached as the desktop interface the daemon started, so nothing was answered"
+message = "error.daemon.not-attached"
+severity = "warning"
+retryable = false
 
 # --- The IPC channel (§11.1) ---
 #

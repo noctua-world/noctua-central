@@ -95,11 +95,14 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         token,
         socket,
         daemon_err,
+        desktop_err,
         cli,
         daemon,
+        desktop,
         pipe,
         mutex,
         systemd_unit,
+        announcer_unit,
         launchd_label,
         task,
         run_key,
@@ -114,7 +117,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         checkout_record,
         chosen_cli: _,
     } = layout.clone();
-    let paths = vec![
+    let mut paths = vec![
         ("install".to_owned(), install),
         ("data".to_owned(), data),
         ("config".to_owned(), config),
@@ -136,17 +139,19 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("token".to_owned(), token),
         ("socket".to_owned(), socket),
         ("daemon_err".to_owned(), daemon_err),
+        ("desktop_err".to_owned(), desktop_err),
     ];
-    let mut paths = paths;
     if let Some(record) = checkout_record {
         paths.push(("checkout_record".to_owned(), record));
     }
     let mut names = vec![
         ("cli".to_owned(), cli),
         ("daemon".to_owned(), daemon),
+        ("desktop".to_owned(), desktop),
         ("pipe".to_owned(), pipe),
         ("mutex".to_owned(), mutex),
         ("systemd_unit".to_owned(), systemd_unit),
+        ("announcer_unit".to_owned(), announcer_unit),
         ("launchd_label".to_owned(), launchd_label),
         ("task".to_owned(), task),
         ("run_key".to_owned(), run_key),
@@ -160,15 +165,10 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         names.push(("feed".to_owned(), feed));
         names.push(("signing_key".to_owned(), signing_key));
     }
-    if let Some(Stack {
-        project,
-        postgres,
-        logs,
-    }) = stack
-    {
-        names.push(("project".to_owned(), project));
-        names.push(("postgres".to_owned(), format!("port {postgres}")));
-        names.push(("logs".to_owned(), format!("port {logs}")));
+    if let Some(stack) = stack {
+        names.push(("project".to_owned(), stack.project));
+        names.push(("postgres".to_owned(), format!("port {}", stack.postgres)));
+        names.push(("logs".to_owned(), format!("port {}", stack.logs)));
     }
     (paths, names)
 }
@@ -180,7 +180,14 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
 /// and the checkout's rather than the user's, so two users working in one
 /// checkout share its compose project and its ports, as `AGENTS.md` says under
 /// "What is deliberately not claimed".
-const MACHINE_WIDE: [&str; 5] = ["pipe", "mutex", "systemd_unit", "launchd_label", "task"];
+const MACHINE_WIDE: [&str; 6] = [
+    "pipe",
+    "mutex",
+    "systemd_unit",
+    "announcer_unit",
+    "launchd_label",
+    "task",
+];
 
 /// One install's names, as one user, ready to compare.
 struct Derived {
@@ -355,6 +362,7 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ("token", state.join("run").join("token")),
         ("socket", state.join("run").join("s")),
         ("daemon_err", state.join("log").join("daemon.err")),
+        ("desktop_err", state.join("log").join("desktop.err")),
         ("checkout_record", state.join("bin").join("checkout.json")),
     ];
     assert_eq!(
@@ -365,9 +373,11 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
     let expected_names: Vec<(&str, String)> = vec![
         ("cli", leaf.to_owned()),
         ("daemon", format!("{leaf}-daemon")),
+        ("desktop", format!("{leaf}-desktop")),
         ("pipe", format!(r"\\.\pipe\{leaf}.1000")),
         ("mutex", format!(r"Local\{leaf}.1000")),
         ("systemd_unit", format!("{leaf}.1000.service")),
+        ("announcer_unit", format!("{leaf}.1000.announce.service")),
         ("launchd_label", format!("{application}.daemon.1000")),
         ("task", format!(r"\{leaf}.1000")),
         ("run_key", leaf.to_owned()),
@@ -444,7 +454,7 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
         };
         let (paths, _) = parts(&layout(&install, "1000"));
         let recorded = usize::from(matches!(channel, Channel::Development(_)));
-        assert_eq!(paths.len(), 21 + recorded);
+        assert_eq!(paths.len(), 22 + recorded);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),
@@ -1075,6 +1085,7 @@ fn a_namespace_is_short_lower_case_and_holds_a_digit() {
         "t",
         "staging",
         "daemon",
+        "desktop",
         // **A checkout's spelling**: `noctua-dev-<namespace>` would be its CLI.
         "0123abcd",
         "00000000",

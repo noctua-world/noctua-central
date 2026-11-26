@@ -97,6 +97,46 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false}
 ```
 
+## `confirmations.list`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | List what waits for a confirmation | Listar o que aguarda confirmação |
+| Line description | Show every call that cannot be undone and waits for a person to confirm it. | Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la. |
+| Paragraph | Lists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing. | Lista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada. |
+| Tags | confirmation, confirm, waiting, irreversible, pending, approve | confirmação, confirmar, aguardando, irreversível, pendente, aprovar |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `confirmations.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read what waits for a confirmation | Ler o que aguarda confirmação |
+| Line description | Show one call waiting for a confirmation, with the arguments it would run with. | Mostrar uma chamada que aguarda confirmação, com os argumentos com que rodaria. |
+| Paragraph | Shows the call Noctua holds under the number given until a person confirms it in the Noctua window: the command, the arguments it would run with, the person whose confirmation it waits for, the agent that asked for it when an agent did, and when the wait ends. A number nothing waits under any more is refused. It changes nothing. | Mostra a chamada que o Noctua segura sob o número dado até que uma pessoa a confirme na janela do Noctua: o comando, os argumentos com que rodaria, a pessoa cuja confirmação ela aguarda, o agente que a pediu, quando foi um agente, e quando a espera termina. Um número sob o qual nada mais aguarda é recusado. Não altera nada. |
+| Tags | confirmation, confirm, waiting, irreversible, arguments, details | confirmação, confirmar, aguardando, irreversível, argumentos, detalhes |
+
+```json
+{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false}
+```
+
 ## `drawer.back`
 
 | | |

@@ -104,6 +104,7 @@ pub mod blobs;
 mod built;
 mod builtin;
 pub mod capability;
+mod confirmations;
 mod dispatch;
 pub mod engine;
 pub mod entries;
@@ -126,6 +127,7 @@ mod ui;
 mod units;
 pub mod world;
 
+pub use confirmations::Settled;
 pub use dispatch::{Approval, Asker, Caller, Confirmation, Refusal, RefusalKind};
 pub use host::log::{LogLevel, LogLine, PluginLog};
 pub use pump::Pumped;
@@ -239,6 +241,11 @@ pub(crate) struct Shared<E: Environment> {
     pub(crate) bus: tokio::sync::Mutex<()>,
     /// Every confirmation and approval issued and not yet redeemed.
     pub(crate) issued: Mutex<dispatch::Issued>,
+    /// Every call held for a person's confirmation (`crate::confirmations`).
+    pub(crate) pending: Mutex<confirmations::Pending>,
+    /// The serials of the calls held, told each time one is held or let go,
+    /// so whoever watches them waits for no poll.
+    pub(crate) pending_moves: tokio::sync::watch::Sender<Vec<u64>>,
     /// The events published and waiting for the pump.
     pub(crate) events: Mutex<events::Queue>,
     /// Every timer armed.
@@ -360,6 +367,8 @@ impl<E: Environment> Kernel<E> {
                 realm,
                 bus: tokio::sync::Mutex::new(()),
                 issued: Mutex::new(dispatch::Issued::default()),
+                pending: Mutex::new(confirmations::Pending::default()),
+                pending_moves: tokio::sync::watch::Sender::new(Vec::new()),
                 events: Mutex::new(events::Queue::default()),
                 timers: Mutex::new(timers::Timers::default()),
                 surfaces: Mutex::new(ui::Surfaces::default()),
@@ -497,6 +506,61 @@ impl<E: Environment> Kernel<E> {
         args: &str,
     ) -> Result<String, Refusal> {
         dispatch::detached(&self.shared, asker.into(), name, args).await
+    }
+
+    /// Dispatches the command `name` with `args` for `asker`, as
+    /// [`Kernel::dispatch`] does — **but a command that cannot be undone, which
+    /// the decision point allowed and nothing confirmed, is held for the
+    /// person's confirmation** rather than refused (`NOCTUA.md §11.1`): put
+    /// before whoever watches [`Kernel::pending_moves`], answered by
+    /// [`Kernel::settle`], and decided again from the start, for at most
+    /// `confirmation_ttl_ms` or until `lapsed` ends the wait.
+    ///
+    /// **What a caller asks once the desktop interface that answers is
+    /// there**: held with nobody to answer, a call waits its whole time and
+    /// is refused as not confirmed in time, so a caller with no such
+    /// interface dispatches with [`Kernel::dispatch`] and is refused at once.
+    /// The module `confirmations` says the rest: an agent's call is held the
+    /// same way and the agent confirms nothing, each call is journaled once
+    /// and spends once, and at most `confirmations_pending_max` are held.
+    ///
+    /// # Errors
+    ///
+    /// What [`Kernel::dispatch`] refuses with, and for a call held:
+    /// `[NC-KERN-0006]` past `confirmations_pending_max`, `[NC-KERN-0030]`
+    /// declined, `[NC-KERN-0029]` not answered before the wait lapsed, and what
+    /// the decision point refuses when it decides the call again.
+    pub async fn dispatch_held<'a>(
+        &self,
+        asker: impl Into<Asker<'a>>,
+        name: &str,
+        args: &str,
+        lapsed: impl core::future::Future<Output = ()>,
+    ) -> Result<String, Refusal> {
+        confirmations::dispatched(&self.shared, asker.into(), name, args, lapsed).await
+    }
+
+    /// The person's answer, `settled`, to the call held for their
+    /// confirmation as `serial`.
+    ///
+    /// **The one way a held call is answered, and no command reaches it**
+    /// (`NOCTUA.md §12.1`): whoever holds the kernel calls it for the person's
+    /// own input — the daemon, for the desktop interface it started, proven
+    /// on its own connection — and the kernel then decides the call again.
+    ///
+    /// # Errors
+    ///
+    /// `not-found` with `[NC-KERN-0031]` when no call is held as `serial`.
+    pub fn settle(&self, serial: u64, settled: Settled) -> Result<(), Refusal> {
+        confirmations::settle(&self.shared, serial, settled)
+    }
+
+    /// The serials of the calls held for a person's confirmation now, told
+    /// each time one is held or let go: what an interface waits on to ask
+    /// the person, and reads by `confirmations.list`.
+    #[must_use]
+    pub fn pending_moves(&self) -> tokio::sync::watch::Receiver<Vec<u64>> {
+        self.shared.pending_moves.subscribe()
     }
 
     /// Opens the session of the agent `agent` names, for `person`: one agent

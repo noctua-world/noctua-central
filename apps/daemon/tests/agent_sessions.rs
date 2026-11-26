@@ -735,7 +735,12 @@ const fn carries(answer: &Answer) -> &'static str {
         Answer::Result(_) => "what a command answered",
         Answer::Refused(_) => "a code, a kind and a sentence",
         Answer::Registry(_) | Answer::Tools(_) => "commands' entries",
-        Answer::Session | Answer::Stopping | Answer::Noted | Answer::Displayed => "nothing",
+        Answer::Session
+        | Answer::Stopping
+        | Answer::Noted
+        | Answer::Displayed
+        | Answer::Attached
+        | Answer::Settled => "nothing",
         Answer::Status(_) => "what the daemon is",
         Answer::Changed { .. } => "a revision, and what the daemon holds of the interface",
     }
@@ -774,7 +779,9 @@ async fn no_request_or_argument_of_a_session_presents_or_obtains_a_confirmation(
             | Answer::Status(_)
             | Answer::Stopping
             | Answer::Noted
-            | Answer::Displayed => Vec::new(),
+            | Answer::Displayed
+            | Answer::Attached
+            | Answer::Settled => Vec::new(),
         };
         let fields: Vec<String> = held.iter().flat_map(fields_of).collect();
         assert!(
@@ -813,6 +820,8 @@ const FITTING: &[(&str, &str)] = &[
     ),
     ("agents.list", "{}"),
     ("agents.revoke", r#"{"agent":"0000000000000"}"#),
+    ("confirmations.list", "{}"),
+    ("confirmations.read", r#"{"serial":1}"#),
     ("drawer.back", "{}"),
     ("drawer.collapse", "{}"),
     ("drawer.expand", "{}"),

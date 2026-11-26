@@ -861,3 +861,29 @@ reversibility = "read"
 mutating = false
 args_schema = """
 {"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "confirmations.list"
+title = "command.confirmations.list.title"
+description = "command.confirmations.list.description"
+paragraph = "command.confirmations.list.paragraph"
+tags = "command.confirmations.list.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "confirmations.read"
+title = "command.confirmations.read.title"
+description = "command.confirmations.read.description"
+paragraph = "command.confirmations.read.paragraph"
+tags = "command.confirmations.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false}"""

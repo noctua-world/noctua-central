@@ -37,7 +37,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt as _};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::message::{self, Heard};
-use crate::{Answer, IpcError, Request, frame};
+use crate::{Answer, Drawn, IpcError, Request, frame};
 
 /// Which end of a connection this is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,18 +238,27 @@ pub struct Client {
     /// Whether a request was abandoned before its answer, which would be read
     /// as the next one's.
     abandoned: bool,
-}
-
-impl From<Connection> for Client {
-    fn from(connection: Connection) -> Self {
-        Self {
-            connection,
-            abandoned: false,
-        }
-    }
+    /// What its handshake drew.
+    drawn: Drawn,
 }
 
 impl Client {
+    /// The client's end of `connection`, whose handshake drew `drawn`.
+    pub(crate) const fn new(connection: Connection, drawn: Drawn) -> Self {
+        Self {
+            connection,
+            abandoned: false,
+            drawn,
+        }
+    }
+
+    /// What this connection's handshake drew, which an attach is proven over
+    /// ([`crate::Secret::proof`]).
+    #[must_use]
+    pub const fn drawn(&self) -> &Drawn {
+        &self.drawn
+    }
+
     /// Asks `request`, and answers what the daemon answered.
     ///
     /// **Not to be abandoned**: a call dropped before its answer leaves that
@@ -301,15 +310,23 @@ impl Client {
 pub struct Served {
     /// The connection.
     connection: Connection,
-}
-
-impl From<Connection> for Served {
-    fn from(connection: Connection) -> Self {
-        Self { connection }
-    }
+    /// What its handshake drew.
+    drawn: Drawn,
 }
 
 impl Served {
+    /// The daemon's end of `connection`, whose handshake drew `drawn`.
+    pub(crate) const fn new(connection: Connection, drawn: Drawn) -> Self {
+        Self { connection, drawn }
+    }
+
+    /// What this connection's handshake drew, which an attach is proven over
+    /// ([`crate::Secret::proves`]).
+    #[must_use]
+    pub const fn drawn(&self) -> &Drawn {
+        &self.drawn
+    }
+
     /// The next request, or nothing once the client has closed the
     /// connection.
     ///

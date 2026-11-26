@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
-//! noctua [--json] start | stop | restart | status | leader
+//! noctua [--json] start | stop | restart | status | leader [--announce]
 //! noctua [--json] checkouts [<checkout>]
 //! noctua mcp <agent>
 //! noctua help [<command.name> | <verb> | exit-codes | categories | external-identifiers | keybindings]
@@ -14,7 +14,7 @@
 //!    renders the answer as one canonical document, `--help` asks for help,
 //!    and the first other word is a verb — one word, [`VERBS`] — or a
 //!    command's registered name, which is always dotted, so the two never
-//!    meet. `leader` takes nothing after it, `checkouts` at most one word, a
+//!    meet. `leader` takes nothing after it but `--announce`, `checkouts` at most one word, a
 //!    checkout's digest, and `mcp` exactly one, the agent it acts as, read only
 //!    as the identifier
 //!    `agents.create` answered is written and never under `--json`, whose
@@ -79,6 +79,12 @@ pub const CHECKOUTS: &str = "checkouts";
 /// the CLI's, the second verb that dispatches: `leader.tap`, as a hotkey's
 /// press does.
 pub const LEADER: &str = "leader";
+
+/// What `leader` takes after it to announce the graphical environment and
+/// tap nothing: what the unit the person's graphical session starts runs on
+/// Linux (`nc_cli::install`), so the daemon learns where a window would be
+/// shown when the session comes up, and nothing is opened.
+pub const ANNOUNCE: &str = "--announce";
 
 /// A verb that controls the daemon's process (`NOCTUA.md §17.1`), which no
 /// registered command can be: a daemon that is down dispatches nothing.
@@ -154,9 +160,12 @@ pub enum Asked {
     /// An MCP client served on the run's standard streams, as a session of
     /// the agent named, until its input ends.
     Mcp(nc_ids::Snowflake),
-    /// The Leader tapped, the graphical environment the run is in announced
-    /// first.
-    Leader,
+    /// The graphical environment the run is in announced, then the Leader
+    /// tapped — unless `tap` is false, as `--announce` asks.
+    Leader {
+        /// Whether the Leader is tapped once the environment is announced.
+        tap: bool,
+    },
     /// A registered command, and the words after its name, which are read
     /// against its schema once the registry has handed it.
     Command {
@@ -289,11 +298,18 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
                 }
             },
             Some((word, after)) if word == MCP => Asked::Mcp(agent_of(json, after)?),
-            Some((word, after)) if word == LEADER => match after.first() {
-                None => Asked::Leader,
-                Some(extra) => {
+            Some((word, after)) if word == LEADER => match after {
+                [] => Asked::Leader { tap: true },
+                [announce] if announce == ANNOUNCE => Asked::Leader { tap: false },
+                [first, rest @ ..] => {
+                    // The first word that is not `--announce` once, as read.
+                    let extra = if first == ANNOUNCE {
+                        rest.first().unwrap_or(first)
+                    } else {
+                        first
+                    };
                     return Err(unread(format!(
-                        "`{LEADER}` takes nothing after it, and `{}` follows it",
+                        "`{LEADER}` takes nothing after it but `{ANNOUNCE}`, and `{}` follows it",
                         shown(extra)
                     )));
                 }
@@ -779,7 +795,10 @@ mod tests {
             assert!(
                 matches!(
                     line(&[verb]).asked,
-                    Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(None) | Asked::Leader
+                    Asked::Help(_)
+                        | Asked::Control(_)
+                        | Asked::Checkouts(None)
+                        | Asked::Leader { .. }
                 ),
                 "{verb}"
             );
@@ -918,21 +937,36 @@ mod tests {
         );
     }
 
-    /// `leader` is read alone, under `--json` too, and refused with a word
-    /// after it; help on it is the verbs'.
+    /// `leader` is read alone or with `--announce`, under `--json` too, and
+    /// refused with any other word after it, or a second; help on it is the
+    /// verbs'.
     #[test]
-    fn leader_is_read_alone() {
+    fn leader_is_read_alone_or_announcing() {
         assert_eq!(VERBS.last(), Some(&super::LEADER));
-        assert_eq!(line(&["leader"]).asked, Asked::Leader);
+        assert_eq!(line(&["leader"]).asked, Asked::Leader { tap: true });
         let json = line(&["--json", "leader"]);
-        assert!(json.json && json.asked == Asked::Leader);
-        let refusal = refused(&["leader", "\u{1b}x"]);
-        assert_eq!(refusal.code(), ErrorCode::CliCommandLineUnreadable);
-        assert!(
-            refusal.detail().contains("`leader` takes nothing after it")
-                && refusal.detail().contains("\\u{1b}x"),
-            "{refusal:?}"
+        assert!(json.json && json.asked == Asked::Leader { tap: true });
+        assert_eq!(
+            line(&["leader", super::ANNOUNCE]).asked,
+            Asked::Leader { tap: false }
         );
+        let announcing = line(&["--json", "leader", "--announce"]);
+        assert!(announcing.json && announcing.asked == Asked::Leader { tap: false });
+        for (words, extra) in [
+            (&["leader", "\u{1b}x"][..], "\\u{1b}x"),
+            (&["leader", "--announce", "--announce"], "--announce"),
+            (&["leader", "--Announce"], "--Announce"),
+        ] {
+            let refusal = refused(words);
+            assert_eq!(refusal.code(), ErrorCode::CliCommandLineUnreadable);
+            assert!(
+                refusal
+                    .detail()
+                    .contains("`leader` takes nothing after it but `--announce`")
+                    && refusal.detail().contains(extra),
+                "{refusal:?}"
+            );
+        }
         for asked in [&["help", "leader"][..], &["--help", "leader"]] {
             assert_eq!(line(asked).asked, Asked::Help(Topic::Verbs), "{asked:?}");
         }

@@ -34,7 +34,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | `status` | say how this channel's daemon is, or why it does not answer |
 | `mcp` | serve an MCP client on standard input and output as the agent named, once MCP is switched on in this channel: its tools are the commands that agent's session may dispatch, each decided as the agent and for its person, and standard output carries the protocol alone |
 | `checkouts` | list the development checkouts installed beside this one, and choose the one `noctua-dev` reaches and whose CLI's path is copied: with a terminal and no `--json`, in a picker filtered by typing; or by its digest |
-| `leader` | tap this channel's Leader, as a Wayland compositor's key binding runs it: the graphical environment this runs in is announced to the daemon where it names a display, then `leader.tap` is dispatched, showing the interface or opening the leader menu; a stopped daemon is left stopped |
+| `leader` | tap this channel's Leader, as a Wayland compositor's key binding runs it: the graphical environment this runs in is announced to the daemon where it names a display, then `leader.tap` is dispatched, showing the interface or opening the leader menu; a stopped daemon is left stopped. With `--announce`, the environment is announced and nothing is tapped, as the unit a graphical session starts does |
 
 ## Exit codes
 
@@ -44,7 +44,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | 1 | the CLI itself failed: it could not write its answer, or could not start what it reaches the daemon with |
 | 2 | the command line or the arguments were refused: the CLI could not read them, or the command's schema refused them |
 | 3 | the command was denied |
-| 4 | the command needs a person's confirmation in the Noctua window, which no command line can give |
+| 4 | the command needs a person's confirmation in the Noctua window, which no command line can give, and no Noctua window this Noctua started was there to ask |
 | 5 | what the command names is not there, the command itself included |
 | 6 | the command was written against something that changed |
 | 7 | something the command needs did not answer; try again |
@@ -54,6 +54,8 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | 11 | starting or stopping the daemon did not finish |
 | 12 | no install was found beside this executable, or its manifest was refused |
 | 13 | the picker was left without a choice, so nothing was changed |
+| 14 | the command waited for a person's confirmation in the Noctua window, and none came in time, so nothing was done |
+| 15 | the command waited for a person's confirmation in the Noctua window, and was declined there, so nothing was done |
 
 ## `agents.create`
 
@@ -223,6 +225,86 @@ Usage:
 Arguments:
   --agent <text, from 12 to 13 characters>  required
   --feature <text, from 1 to 64 characters>
+```
+
+## `confirmations.list`
+
+In `en`:
+
+```text
+confirmations.list — List what waits for a confirmation
+Show every call that cannot be undone and waits for a person to confirm it.
+
+Lists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.
+
+Categories: none
+Tags: confirmation, confirm, waiting, irreversible, pending, approve
+
+Usage:
+  noctua confirmations.list [arguments]
+  noctua confirmations.list -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+confirmations.list — Listar o que aguarda confirmação
+Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.
+
+Lista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.
+
+Categories: none
+Tags: confirmação, confirmar, aguardando, irreversível, pendente, aprovar
+
+Usage:
+  noctua confirmations.list [arguments]
+  noctua confirmations.list -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `confirmations.read`
+
+In `en`:
+
+```text
+confirmations.read — Read what waits for a confirmation
+Show one call waiting for a confirmation, with the arguments it would run with.
+
+Shows the call Noctua holds under the number given until a person confirms it in the Noctua window: the command, the arguments it would run with, the person whose confirmation it waits for, the agent that asked for it when an agent did, and when the wait ends. A number nothing waits under any more is refused. It changes nothing.
+
+Categories: none
+Tags: confirmation, confirm, waiting, irreversible, arguments, details
+
+Usage:
+  noctua confirmations.read [arguments]
+  noctua confirmations.read -- '<one JSON object>'
+
+Arguments:
+  --serial <whole number, at least 1>  required
+```
+
+In `pt-BR`:
+
+```text
+confirmations.read — Ler o que aguarda confirmação
+Mostrar uma chamada que aguarda confirmação, com os argumentos com que rodaria.
+
+Mostra a chamada que o Noctua segura sob o número dado até que uma pessoa a confirme na janela do Noctua: o comando, os argumentos com que rodaria, a pessoa cuja confirmação ela aguarda, o agente que a pediu, quando foi um agente, e quando a espera termina. Um número sob o qual nada mais aguarda é recusado. Não altera nada.
+
+Categories: none
+Tags: confirmação, confirmar, aguardando, irreversível, argumentos, detalhes
+
+Usage:
+  noctua confirmations.read [arguments]
+  noctua confirmations.read -- '<one JSON object>'
+
+Arguments:
+  --serial <whole number, at least 1>  required
 ```
 
 ## `drawer.back`

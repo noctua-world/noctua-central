@@ -342,6 +342,8 @@ pub struct KernelLimits {
     pub undo_history: u32,
     /// How long a confirmation a person gave stays good for.
     pub confirmation_ttl_ms: u64,
+    /// How many calls may wait for a person's confirmation at once.
+    pub confirmations_pending_max: u32,
     /// The most an agent's person may give it to spend in a session.
     pub agent_budget_max: u32,
     /// How long a grant to an agent may run at most.
@@ -482,6 +484,7 @@ impl KernelLimits {
             log_line_bytes,
             undo_history,
             confirmation_ttl_ms,
+            confirmations_pending_max,
             agent_budget_max,
             agent_grant_minutes_max,
             shell_windows_max,
@@ -766,6 +769,11 @@ impl KernelLimits {
                 confirmation_ttl_ms,
                 Unit::Milliseconds,
                 "How long a confirmation a person gave stays good for",
+            ),
+            narrow(
+                "confirmations_pending_max",
+                confirmations_pending_max,
+                "How many calls may wait for a person's confirmation at once",
             ),
             narrow(
                 "agent_budget_max",

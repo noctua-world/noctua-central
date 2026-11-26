@@ -480,6 +480,55 @@ impl Connection {
             other => Err(unread_as("a display", &other)),
         }
     }
+
+    /// Attaches this connection as the desktop interface the daemon started,
+    /// by its proof of `secret` — the one the daemon handed this process down
+    /// its standard input — made for this connection alone.
+    ///
+    /// **The secret never crosses the wire**: what is sent is its proof over
+    /// this connection's handshake ([`crate::Secret::proof`]), which no other
+    /// connection can use. The daemon also holds the connection to the
+    /// process it started, and closes one it refuses.
+    ///
+    /// # Errors
+    ///
+    /// [`Unasked::Asking`] as [`Connection::ask`], [`Unasked::Refused`] with
+    /// the daemon's refusal — `NC-DMN-0017` for a proof or a process that is
+    /// not the one it started — and [`Unasked::Unread`] for any other answer.
+    pub async fn attach(&mut self, secret: &crate::Secret) -> Result<(), Unasked> {
+        let proof = secret.proof(self.client.drawn());
+        match self.ask(&Request::AttachDesktop { proof }).await? {
+            Answer::Attached => Ok(()),
+            Answer::Refused(refusal) => Err(Unasked::Refused(refusal)),
+            other => Err(unread_as("an attach", &other)),
+        }
+    }
+
+    /// Answers the call the daemon's kernel holds as `pending` for the
+    /// person's confirmation: confirmed when `confirmed`, declined otherwise.
+    ///
+    /// **Only on a connection attached as the desktop the daemon started**,
+    /// and only from the person's own input in it: the daemon refuses it on
+    /// any other connection.
+    ///
+    /// # Errors
+    ///
+    /// [`Unasked::Asking`] as [`Connection::ask`], [`Unasked::Refused`] with
+    /// the daemon's refusal — `NC-DMN-0018` on a connection not attached,
+    /// `NC-KERN-0031` for a serial the kernel holds no call as — and
+    /// [`Unasked::Unread`] for any other answer.
+    pub async fn settle(&mut self, pending: u64, confirmed: bool) -> Result<(), Unasked> {
+        let request = if confirmed {
+            Request::Confirm { pending }
+        } else {
+            Request::Decline { pending }
+        };
+        match self.ask(&request).await? {
+            Answer::Settled => Ok(()),
+            Answer::Refused(refusal) => Err(Unasked::Refused(refusal)),
+            other => Err(unread_as("an answer to a held call", &other)),
+        }
+    }
 }
 
 /// An answer of another kind than the request that was asked.
@@ -495,6 +544,8 @@ fn unread_as(asked: &str, answer: &Answer) -> Unasked {
         Answer::Changed { .. } => "a watch's answer",
         Answer::Noted => "a note taken",
         Answer::Displayed => "a display taken",
+        Answer::Attached => "an attach taken",
+        Answer::Settled => "a held call answered",
     };
     Unasked::Unread(format!(
         "{asked} was asked, and the daemon answered with {kind}"

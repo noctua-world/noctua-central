@@ -63,6 +63,34 @@ In `pt-BR`:
 {"name":"agents_revoke","description":"Encerrar o que você deu a um agente seu: um recurso, ou todos.\n\nEncerra a permissão que um agente seu tem no recurso que você indicar, ou todas as que ele tem se você não indicar nenhum, a partir da próxima ação dele. O agente continua guardado, com o orçamento, para você lhe dar acesso de novo. Só você pode revogar, pedindo diretamente, nunca de dentro de outra ação, e desfazer para numa revogação.","inputSchema":{"type":"object","properties":{"agent":{"type":"string","minLength":12,"maxLength":13},"feature":{"type":"string","minLength":1,"maxLength":64}},"required":["agent"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
+## `confirmations.list`
+
+In `en`:
+
+```json
+{"name":"confirmations_list","description":"Show every call that cannot be undone and waits for a person to confirm it.\n\nLists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"confirmations_list","description":"Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.\n\nLista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `confirmations.read`
+
+In `en`:
+
+```json
+{"name":"confirmations_read","description":"Show one call waiting for a confirmation, with the arguments it would run with.\n\nShows the call Noctua holds under the number given until a person confirms it in the Noctua window: the command, the arguments it would run with, the person whose confirmation it waits for, the agent that asked for it when an agent did, and when the wait ends. A number nothing waits under any more is refused. It changes nothing.","inputSchema":{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"confirmations_read","description":"Mostrar uma chamada que aguarda confirmação, com os argumentos com que rodaria.\n\nMostra a chamada que o Noctua segura sob o número dado até que uma pessoa a confirme na janela do Noctua: o comando, os argumentos com que rodaria, a pessoa cuja confirmação ela aguarda, o agente que a pediu, quando foi um agente, e quando a espera termina. Um número sob o qual nada mais aguarda é recusado. Não altera nada.","inputSchema":{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `drawer.back`
 
 In `en`:

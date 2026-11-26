@@ -68,6 +68,7 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod desktop;
 pub mod device;
 pub mod environment;
 pub mod leader;
