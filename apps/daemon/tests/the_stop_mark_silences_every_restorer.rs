@@ -24,6 +24,12 @@
 //! ends well on the mark, and stays down — on Windows, whose restorer is a
 //! repetition every minute, started each minute and ending well each time.
 //!
+//! **And the interface's countdown, the second kind of restorer**, asked of
+//! `nc_ipc::alert` by the test standing in for the desktop interface, over
+//! the suites' own install with no manager asked: a daemon lost is restored at
+//! the deadline as a new instance, and a stopped one is said stopped, counted
+//! nothing down and left down by the restorer run anyway.
+//!
 //! **What it leaves**: a guard uninstalls the install — the daemon stopped
 //! through the CLI and its restorer unregistered, and unregistered directly
 //! when the uninstall did not get that far — however the test leaves. Every
@@ -127,12 +133,18 @@ fn root_of(namespace: &str) -> PathBuf {
 }
 
 /// The name a service manager knows a service by, without what the
-/// manager adds to one.
+/// manager adds to one — and, for the unit the graphical session starts, the
+/// name of the daemon's it is registered with, so the two share one lock.
 fn stem_of(name: &str) -> &str {
-    name.strip_suffix(".service")
-        .unwrap_or(name)
+    let stem = name.strip_suffix(".service").unwrap_or(name);
+    stem.strip_suffix(".announce")
+        .unwrap_or(stem)
         .trim_start_matches('\\')
 }
+
+/// The directory of links `enable` makes for the units the graphical
+/// session wants, in the unit directory a unit is kept in.
+const WANTED_BY_THE_SESSION: &str = "graphical-session.target.wants";
 
 /// Whether the owner of the scratch at `scratch` still holds its lock.
 fn owner_lives(scratch: &Path) -> bool {
@@ -207,6 +219,11 @@ struct Scratch {
     /// The directory of `default.target`'s links, when this test's enable is
     /// what makes it.
     wanted_made: Option<PathBuf>,
+    /// The name the manager knows the announcer by, where there is one.
+    announcer: Option<String>,
+    /// The directory of `graphical-session.target`'s links, when this test's
+    /// enable is what makes it.
+    session_wanted_made: Option<PathBuf>,
 }
 
 impl Drop for Scratch {
@@ -217,12 +234,19 @@ impl Drop for Scratch {
         // **Unregistered directly when the uninstall did not get that far**:
         // one whose daemon did not stop returns before it lets the restorer
         // go.
-        if !matches!(self.registrar.is_registered(&self.name), Ok(false)) {
-            let _ = self.registrar.unregister(&self.name, &self.kept_in);
+        for name in core::iter::once(&self.name).chain(self.announcer.as_ref()) {
+            if !matches!(self.registrar.is_registered(name), Ok(false)) {
+                let _ = self.registrar.unregister(name, &self.kept_in);
+            }
         }
-        let gone = matches!(self.registrar.is_registered(&self.name), Ok(false));
-        if let Some(wanted) = &self.wanted_made {
-            let _ = std::fs::remove_dir(wanted);
+        let gone = core::iter::once(&self.name)
+            .chain(self.announcer.as_ref())
+            .all(|name| matches!(self.registrar.is_registered(name), Ok(false)));
+        for made in [&self.wanted_made, &self.session_wanted_made]
+            .into_iter()
+            .flatten()
+        {
+            let _ = std::fs::remove_dir(made);
         }
         if let Some(units) = self.registrar.volatile_units() {
             take_the_units_away(&units);
@@ -272,6 +296,7 @@ impl Scratch {
         let registrar = Registrar::for_user(&user).expect("this system's service manager");
         let layout = nc_channel::layout(&install, &user.to_string());
         let name = nc_cli::install::restorer_name(&layout, MANAGER).to_owned();
+        let announcer = nc_cli::install::announcer_name(&layout, MANAGER).map(str::to_owned);
         let kept_in = nc_cli::install::kept_in(
             &install,
             &layout,
@@ -304,12 +329,19 @@ impl Scratch {
             name,
             kept_in,
             wanted_made: None,
+            announcer,
+            session_wanted_made: None,
         };
         scratch.sweep(&install, &user);
         scratch.wanted_made = scratch
             .registrar
             .volatile_units()
             .map(|units| units.join(WANTED))
+            .filter(|wanted| !wanted.is_dir());
+        scratch.session_wanted_made = scratch
+            .registrar
+            .volatile_units()
+            .map(|units| units.join(WANTED_BY_THE_SESSION))
             .filter(|wanted| !wanted.is_dir());
         if let Some(units) = scratch.registrar.volatile_units()
             && !units.is_dir()
@@ -365,12 +397,15 @@ impl Scratch {
                 .registrar
                 .volatile_units()
                 .unwrap_or_else(|| theirs.clone());
+            // **Taken away below once nothing of it is registered**: the
+            // restorer and the announcer share one lock, and the first let go
+            // must not take it from the second.
             match self.registrar.unregister(&name, &directory) {
-                Ok(()) => take_away(&theirs),
-                // **Left for the manager's next start**: stopped, its file
-                // and its links gone, and wanted by a unit the manager runs
-                // since something reloaded it, which no test does.
-                Err(nc_platform::service::Error::StillWanted(_)) => {}
+                // **Left for the manager's next start** when still wanted:
+                // stopped, its file and its links gone, and wanted by a unit
+                // the manager runs since something reloaded it, which no test
+                // does.
+                Ok(()) | Err(nc_platform::service::Error::StillWanted(_)) => {}
                 Err(error) => panic!("`{name}`, a leftover of this checkout, stays: {error}"),
             }
         }
@@ -699,6 +734,24 @@ fn the_stop_mark_silences_every_restorer() {
     } else {
         assert_eq!(registered.kept_in, scratch.found().layout.state);
     }
+    // **The graphical session's announcer, on systemd alone**: registered
+    // beside the restorer, and wanted by `graphical-session.target`.
+    if let Some(announcer) = &scratch.announcer {
+        assert!(
+            scratch.registrar.is_registered(announcer).expect("asked"),
+            "the announcer `{announcer}` is not registered"
+        );
+        let units = scratch
+            .registrar
+            .volatile_units()
+            .expect("systemd's runtime unit directory");
+        let wanted = units.join(WANTED_BY_THE_SESSION).join(announcer);
+        assert!(
+            wanted.symlink_metadata().is_ok(),
+            "the announcer is not wanted by the graphical session: no `{}`",
+            wanted.display()
+        );
+    }
 
     // **Killed, it is restored as a new instance.**
     let first = scratch.recorded_once(
@@ -828,6 +881,12 @@ fn the_stop_mark_silences_every_restorer() {
         "`{}` was uninstalled and its manager still holds it",
         scratch.name
     );
+    if let Some(announcer) = &scratch.announcer {
+        assert!(
+            !scratch.registrar.is_registered(announcer).expect("asked"),
+            "`{announcer}` was uninstalled and its manager still holds it"
+        );
+    }
     if let Some(units) = scratch.registrar.volatile_units() {
         assert!(
             units
@@ -838,4 +897,128 @@ fn the_stop_mark_silences_every_restorer() {
             "the unit's link to start at login outlived it"
         );
     }
+}
+
+/// The interface's countdown, the second kind of restorer (`NOCTUA.md
+/// §12.17`), with this test standing in for the desktop interface that runs it:
+/// it asks `nc_ipc::alert` what the line says, as the desktop will, and runs
+/// what the line answers.
+///
+/// **A daemon lost with no mark** is said not running and counted down, and at
+/// the deadline the restorer the line names — the install's own daemon,
+/// `--restored` — brings it back as a new instance. **The deadline is kept by
+/// the clock**, the line asked again until it ends the countdown, as the
+/// desktop asks it: no line restores the moment its daemon was lost, and on
+/// Windows what a killed process held is let go when the system gets to it. **A daemon stopped as
+/// `noctua stop` stops one**, the mark written before the daemon is asked, is
+/// said stopped and counts nothing down; and the restorer run anyway, as a
+/// line that read the mark a moment before the stop would, ends at once, well,
+/// and leaves it down. No service manager is asked: the install is the
+/// suites' own (`nc_daemon::testing::Installed`).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_interfaces_countdown_restores_a_daemon_lost_and_leaves_a_stopped_one_down() {
+    use nc_ipc::alert::{Absence, Offer, Run, Said};
+
+    let installed = nc_daemon::testing::Installed::new(Path::new(BINARY));
+    let (layout, user) = (&installed.layout, &installed.user);
+    let restorer = Run::restorer(layout);
+    // The daemon where an installer puts it, by the name the line runs it by.
+    if std::fs::hard_link(&installed.executable, &restorer.program).is_err() {
+        std::fs::copy(&installed.executable, &restorer.program).expect("the daemon is copied");
+    }
+    let now = || {
+        u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("a clock past the epoch")
+                .as_millis(),
+        )
+        .expect("a time in milliseconds")
+    };
+    let mut lost = installed.spawn();
+    let (_, first) = lost.connected().await;
+    drop(lost);
+
+    // **Lost, with no mark: counted down, and restored at the deadline.**
+    let mut absence = Absence::new();
+    let began = now();
+    let seen = absence.at(began, nc_ipc::alert::stopped(layout, user));
+    assert_eq!(
+        (seen.line.said, seen.line.offer, seen.restore),
+        (Said::NotRunning, Offer::RestoreNow, false)
+    );
+    let deadline = seen
+        .line
+        .deadline_ms
+        .expect("a lost daemon is counted down");
+    assert!(
+        !absence.at(deadline - 1, false).restore,
+        "restored before its deadline"
+    );
+    // Asked by the clock until the line says to restore, and run then.
+    let until = deadline.saturating_add(
+        u64::try_from(nc_daemon::testing::PATIENCE.as_millis()).expect("a patience in ms"),
+    );
+    loop {
+        let moment = now();
+        if absence
+            .at(moment, nc_ipc::alert::stopped(layout, user))
+            .restore
+        {
+            assert!(
+                moment >= deadline,
+                "restored at {moment}, before {deadline}"
+            );
+            break;
+        }
+        assert!(moment < until, "the countdown ended and restored nothing");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let mut back = installed.spawn_as(&restorer.program, restorer.arguments, &[]);
+    let (mut client, second) = back.connected().await;
+    assert_ne!(
+        second.instance, first.instance,
+        "the daemon the line restored is not a new start"
+    );
+
+    // **Stopped on purpose: said stopped, nothing counted down, and a
+    // restorer run anyway leaves it down.**
+    nc_cli::control::mark(layout, user).expect("the mark");
+    let asked = tokio::time::timeout(
+        nc_daemon::testing::PATIENCE,
+        client.ask(&nc_ipc::Request::Stop),
+    )
+    .await
+    .expect("answered in time")
+    .expect("answered");
+    assert_eq!(asked, nc_ipc::Answer::Stopping);
+    assert_eq!(back.ended().await, Some(0), "the daemon did not end well");
+    let mut absence = Absence::new();
+    let stopped = nc_ipc::alert::stopped(layout, user);
+    for moment in [
+        now(),
+        now() + 10 * nc_catalog::DAEMON.interface_restore_countdown_ms,
+    ] {
+        let seen = absence.at(moment, stopped);
+        assert_eq!(
+            (seen.line.said, seen.line.offer, seen.line.deadline_ms),
+            (Said::Stopped, Offer::Start, None)
+        );
+        assert!(!seen.restore, "a stopped daemon was counted down");
+    }
+    let mut stays = installed.spawn_as(&restorer.program, restorer.arguments, &[]);
+    assert_eq!(
+        stays.ended().await,
+        Some(0),
+        "the restorer on the mark did not end well"
+    );
+    assert!(
+        !layout.pid_file.exists(),
+        "the restorer on the mark started a daemon"
+    );
+    assert_eq!(
+        Run::offered(absence.at(now(), stopped).line.offer, layout),
+        Run::start(layout),
+        "the line's start is not the CLI's"
+    );
 }

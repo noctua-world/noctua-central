@@ -389,6 +389,20 @@ fn start_with(
         .expect("the daemon starts")
 }
 
+/// The last lines of the file at `path`, joined by ` | `, or what kept it
+/// from being read: what a daemon that ended before it answered wrote last.
+fn last_lines(path: &Path) -> String {
+    /// How many lines are shown.
+    const LINES: usize = 12;
+    match std::fs::read_to_string(path) {
+        Ok(text) => {
+            let lines: Vec<&str> = text.lines().collect();
+            lines[lines.len().saturating_sub(LINES)..].join(" | ")
+        }
+        Err(error) => format!("unread ({error})"),
+    }
+}
+
 /// A daemon a suite started, killed and waited for however the suite leaves.
 #[derive(Debug)]
 pub struct Running {
@@ -426,16 +440,21 @@ impl Running {
     ///
     /// # Panics
     ///
-    /// When it does not answer within [`PATIENCE`], or ends first.
+    /// When it does not answer within [`PATIENCE`], or ends first: saying
+    /// then the last lines it wrote to its standard error, where a refused
+    /// start says why.
     pub async fn connected(&mut self) -> (nc_ipc::Client, nc_ipc::Welcome) {
         let pid = self.child.id();
         let child = &mut self.child;
+        let written = self.installed.layout.daemon_err.clone();
         self.installed
             .connected(pid, &mut || {
                 let ended = child.try_wait().expect("the daemon is asked");
                 assert!(
                     ended.is_none(),
-                    "the daemon ended as {ended:?} before it answered"
+                    "the daemon ended as {ended:?} before it answered, its standard error \
+                     ending: {}",
+                    last_lines(&written)
                 );
             })
             .await
@@ -455,25 +474,44 @@ impl Running {
         }
     }
 
-    /// MCP switched `on` in the daemon's channel by its person, over a
-    /// connection of its own: `settings.mcp.set`, answered as it now stands.
+    /// MCP switched `on` in the daemon's channel: off by its person, over a
+    /// connection of its own — `settings.mcp.set`, answered as it now stands —
+    /// and on as a process running as the person can switch it with nobody to
+    /// confirm it, its entry kept in the profile's store outside every unit.
+    ///
+    /// **On waits for the person's confirmation in the Noctua window**, which
+    /// no suite here starts — `crate::desktop`'s own test is where a desktop
+    /// confirms it — so the person's own switch on is asked first and must be
+    /// refused with `NC-KERN-0032`: a daemon that let it through fails every
+    /// suite that switches MCP on. What a process of the same user can do to
+    /// the profile's database is not claimed against (`NOCTUA.md §11.1`).
     ///
     /// # Panics
     ///
-    /// When the daemon does not answer within [`PATIENCE`], or refuses the
-    /// switch.
+    /// When the daemon does not answer within [`PATIENCE`], refuses the
+    /// switch off, lets the person's switch on through unconfirmed, or the
+    /// profile's store does not keep the entry.
     pub async fn switch_mcp(&mut self, on: bool) {
-        let answered = self
-            .dispatched(
-                "settings.mcp.set",
-                nc_canon::Value::object([("on", nc_canon::Value::Bool(on))]),
-            )
-            .await;
-        assert_eq!(
-            answered,
-            nc_canon::Value::object([("on", nc_canon::Value::Bool(on))]),
-            "the switch was answered with what it was not asked"
-        );
+        let asked_for = nc_canon::Value::object([("on", nc_canon::Value::Bool(on))]);
+        if !on {
+            let answered = self.dispatched("settings.mcp.set", asked_for.clone()).await;
+            assert_eq!(
+                answered, asked_for,
+                "the switch was answered with what it was not asked"
+            );
+            return;
+        }
+        let (mut client, _) = self.connected().await;
+        let request = nc_ipc::Request::Dispatch {
+            command: "settings.mcp.set".to_owned(),
+            args: asked_for.clone(),
+        };
+        match asked(&mut client, request).await {
+            nc_ipc::Answer::Refused(refusal)
+                if refusal.code == nc_catalog::ErrorCode::KernelMcpUnconfirmed => {}
+            other => panic!("the person's switch on, unconfirmed, was answered with {other:?}"),
+        }
+        kept_mcp_on(&self.installed.layout, &self.installed.user).await;
     }
 
     /// An agent the daemon's person made with `label` and `budget`, over a
@@ -557,6 +595,32 @@ impl Running {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
+}
+
+/// MCP switched on in the profile `layout` names, as a process running as its
+/// person `user` can switch it with nobody to confirm it: the kernel's entry
+/// kept in the profile's store, outside every unit, beside a daemon that runs
+/// or before one does.
+///
+/// **What a suite does where the person's own switch on waits for the Noctua
+/// window**, which no suite but `crate::desktop`'s starts. What a process of
+/// the same user can do to the profile's database is not claimed against
+/// (`NOCTUA.md §11.1`), and this is that.
+///
+/// # Panics
+///
+/// When the profile's world does not read, its store does not open, or it
+/// refuses the entry — one a unit wrote already, a switch the person made.
+pub async fn kept_mcp_on(layout: &nc_channel::Layout, user: &nc_platform::User) {
+    let world = crate::profile::world(layout, user).expect("the profile's world reads");
+    let store = nc_local::LocalStore::open(&layout.data)
+        .await
+        .expect("the profile's store opens beside its daemon");
+    let kept = store
+        .keep(world.realm(), "settings.mcp", r#"{"on":true}"#)
+        .await;
+    store.close().await;
+    kept.expect("the entry is kept");
 }
 
 /// `request`, answered within [`PATIENCE`].

@@ -192,8 +192,8 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             crate::control::Done::Status(status) => Ok(render::answered(json, &status)),
         };
     }
-    if let Asked::Leader = asked {
-        return tapped(found, json, env).await;
+    if let Asked::Leader { tap } = asked {
+        return tapped(found, json, env, tap).await;
     }
     let cli = found.layout.cli.as_str();
     let mut connection = client::connect(found)
@@ -225,13 +225,14 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
         | Asked::Control(_)
         | Asked::Checkouts(_)
         | Asked::Mcp(_)
-        | Asked::Leader => Ok(render::shown(json, help::everything(cli, &registry))),
+        | Asked::Leader { .. } => Ok(render::shown(json, help::everything(cli, &registry))),
     }
 }
 
 /// `noctua leader`: the graphical environment `env` names announced to the
 /// daemon of `found`'s install where it names a display, then the Leader
-/// tapped (`nc_ipc::leader::TAP`), its answer rendered as the command's is.
+/// tapped (`nc_ipc::leader::TAP`) when `tap` says so, its answer rendered as
+/// the command's is.
 ///
 /// **In order, the first refusal the end**: the environment read — one the
 /// protocol would refuse is refused before anything is sent, with exit 2, and
@@ -239,9 +240,17 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
 /// announces nothing; the daemon reached, never started, so a person's stop
 /// stands and a stopped daemon ends the run in exit 9; the environment
 /// announced; and the tap dispatched as the person, a refusal of it ending
-/// the run as a command's does.
-async fn tapped(found: &Found, json: bool, env: &Env) -> Result<Outcome, Failure> {
+/// the run as a command's does. **`--announce` taps nothing**: it answers
+/// `{"announced":true}` once the environment is announced, and
+/// `{"announced":false}` with no daemon reached where it names no display.
+async fn tapped(found: &Found, json: bool, env: &Env, tap: bool) -> Result<Outcome, Failure> {
     let environment = announced(env)?;
+    if !tap && environment.is_none() {
+        return Ok(render::answered(
+            json,
+            &nc_canon::Value::object([("announced", nc_canon::Value::Bool(false))]),
+        ));
+    }
     let mut connection = client::connect(found)
         .await
         .map_err(|refused| unasked(&refused))?;
@@ -250,6 +259,12 @@ async fn tapped(found: &Found, json: bool, env: &Env) -> Result<Outcome, Failure
             .display(environment)
             .await
             .map_err(|refused| unasked(&refused))?;
+    }
+    if !tap {
+        return Ok(render::answered(
+            json,
+            &nc_canon::Value::object([("announced", nc_canon::Value::Bool(true))]),
+        ));
     }
     dispatched(
         &mut connection,
@@ -1085,6 +1100,68 @@ mod tests {
         );
         let outcome = super::run(&argv(&["leader"]), &nobody.found, &wayland);
         assert_eq!(outcome.exit, Exit::Unreachable, "{outcome:?}");
+    }
+
+    /// `leader --announce` announces the graphical environment it runs in
+    /// and taps nothing.
+    ///
+    /// **What the unit a graphical session starts runs**: an environment
+    /// naming a Wayland display is announced, and nothing is dispatched, the
+    /// answer `{"announced":true}`; one naming no display reaches no daemon
+    /// and answers `{"announced":false}`, ending well, so a session that
+    /// comes up with nothing to tell shows no failure.
+    #[test]
+    fn leader_announce_tells_the_environment_and_taps_nothing() {
+        let installed = Scratch::new("ldra");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: installed.welcome(),
+                connections: vec![vec![Answer::Displayed]],
+            },
+        );
+        let wayland = Env::of(|name| {
+            match name {
+                "WAYLAND_DISPLAY" => Some("wayland-1"),
+                "XDG_RUNTIME_DIR" => Some("/run/user/1000"),
+                _ => None,
+            }
+            .map(str::to_owned)
+        });
+        let announced = |was: bool| {
+            format!(
+                "{}\n",
+                Value::object([("ok", Value::object([("announced", Value::Bool(was))]))])
+                    .to_canonical()
+            )
+        };
+        let outcome = super::run(
+            &argv(&["--json", "leader", "--announce"]),
+            &installed.found,
+            &wayland,
+        );
+        assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+        assert_eq!(outcome.stdout, announced(true));
+        let outcome = super::run(
+            &argv(&["--json", "leader", "--announce"]),
+            &installed.found,
+            &english(),
+        );
+        assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+        assert_eq!(outcome.stdout, announced(false));
+        assert_eq!(
+            daemon.heard(),
+            [Request::Display(
+                nc_ipc::Graphical::new([
+                    ("WAYLAND_DISPLAY", "wayland-1"),
+                    ("XDG_RUNTIME_DIR", "/run/user/1000"),
+                ])
+                .expect("an environment")
+            )]
+        );
     }
 
     /// A refused line that names `mcp` is said on standard error, whatever

@@ -23,8 +23,15 @@ pub enum Exit {
     Invalid,
     /// The command was denied.
     Denied,
-    /// The command needs the Noctua window.
+    /// The command needs a person's confirmation in the Noctua window, and
+    /// was not held for one.
     NeedsTheInterface,
+    /// The command waited for a person's confirmation in the Noctua window,
+    /// and none came in time.
+    NotConfirmedInTime,
+    /// The command waited for a person's confirmation in the Noctua window,
+    /// and was declined there.
+    Declined,
     /// What the command names is not there.
     NotFound,
     /// The command was written against something that changed.
@@ -47,7 +54,7 @@ pub enum Exit {
 
 impl Exit {
     /// Every outcome, in the order of its code.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 16] = [
         Self::Success,
         Self::Failed,
         Self::Invalid,
@@ -62,6 +69,8 @@ impl Exit {
         Self::ProcessControl,
         Self::NoInstall,
         Self::Left,
+        Self::NotConfirmedInTime,
+        Self::Declined,
     ];
 
     /// The exit code a run that ends this way carries.
@@ -82,6 +91,8 @@ impl Exit {
             Self::ProcessControl => 11,
             Self::NoInstall => 12,
             Self::Left => 13,
+            Self::NotConfirmedInTime => 14,
+            Self::Declined => 15,
         }
     }
 
@@ -101,7 +112,18 @@ impl Exit {
             Self::Denied => "the command was denied",
             Self::NeedsTheInterface => {
                 "the command needs a person's confirmation in the Noctua window, which no \
-                 command line can give"
+                 command line can give, and it was not held for one: no Noctua window this \
+                 Noctua started was attached, too many calls were already waiting, or it was \
+                 found to need one where no call waits — inside another command, or as an undo \
+                 or a redo ran"
+            }
+            Self::NotConfirmedInTime => {
+                "the command waited for a person's confirmation in the Noctua window, and none \
+                 came in time, so nothing was done"
+            }
+            Self::Declined => {
+                "the command waited for a person's confirmation in the Noctua window, and was \
+                 declined there, so nothing was done"
             }
             Self::NotFound => "what the command names is not there, the command itself included",
             Self::Conflict => "the command was written against something that changed",
@@ -126,11 +148,23 @@ impl Exit {
     ///
     /// **By its kind, but for a confirmation**: `NC-KERN-0006` is a denial,
     /// and what fixes it is a person in the Noctua window, never another try
-    /// from a command line — so it has a code of its own.
+    /// from a command line — so it has a code of its own; and so do the two
+    /// ends of a call that waited for one there, `NC-KERN-0029` not
+    /// confirmed in time and `NC-KERN-0030` declined. MCP switched on waits
+    /// for one too, and ends the same three ways under codes of its own —
+    /// `NC-KERN-0032`, `NC-KERN-0033` and `NC-KERN-0034` — in the same exit
+    /// codes.
     #[must_use]
     pub const fn of_refusal(refusal: &Refusal) -> Self {
-        if matches!(refusal.code, ErrorCode::KernelUnconfirmed) {
-            return Self::NeedsTheInterface;
+        match refusal.code {
+            ErrorCode::KernelUnconfirmed | ErrorCode::KernelMcpUnconfirmed => {
+                return Self::NeedsTheInterface;
+            }
+            ErrorCode::KernelNotConfirmedInTime | ErrorCode::KernelMcpNotConfirmedInTime => {
+                return Self::NotConfirmedInTime;
+            }
+            ErrorCode::KernelDeclined | ErrorCode::KernelMcpDeclined => return Self::Declined,
+            _ => {}
         }
         match refusal.kind {
             RefusalKind::Denied => Self::Denied,
@@ -160,13 +194,13 @@ mod tests {
 
     use super::Exit;
 
-    /// Every outcome has a code of its own, the codes run from 0 to 13 with
+    /// Every outcome has a code of its own, the codes run from 0 to 15 with
     /// none skipped, and `ALL` holds each outcome once, in that order — the
     /// table the plan writes (`NOCTUA.md §20.2`).
     #[test]
     fn every_outcome_is_one_row_and_the_codes_are_the_tables() {
         let codes: Vec<u8> = Exit::ALL.iter().map(|exit| exit.code()).collect();
-        assert_eq!(codes, (0..=13).collect::<Vec<u8>>());
+        assert_eq!(codes, (0..=15).collect::<Vec<u8>>());
         for (at, exit) in Exit::ALL.iter().enumerate() {
             assert!(
                 !Exit::ALL[..at].contains(exit),
@@ -188,6 +222,8 @@ mod tests {
             (Exit::ProcessControl, 11),
             (Exit::NoInstall, 12),
             (Exit::Left, 13),
+            (Exit::NotConfirmedInTime, 14),
+            (Exit::Declined, 15),
         ] {
             assert_eq!(exit.code(), code, "{exit:?}");
         }
@@ -218,7 +254,8 @@ mod tests {
     }
 
     /// A refusal ends a run by its kind, and a confirmation the kernel asked
-    /// for ends it in the outcome of its own, whatever kind it came with.
+    /// for — none asked, none given in time, or declined — ends it in the
+    /// outcome of its own, whatever kind it came with.
     #[test]
     fn a_refusal_ends_a_run_by_its_kind_and_a_confirmation_by_its_code() {
         let refusal = |code, kind| Refusal {
@@ -239,11 +276,26 @@ mod tests {
                 exit,
                 "{kind:?}"
             );
-            assert_eq!(
-                Exit::of_refusal(&refusal(ErrorCode::KernelUnconfirmed, kind)),
-                Exit::NeedsTheInterface,
-                "{kind:?}"
-            );
+            for (code, exit) in [
+                (ErrorCode::KernelUnconfirmed, Exit::NeedsTheInterface),
+                (
+                    ErrorCode::KernelNotConfirmedInTime,
+                    Exit::NotConfirmedInTime,
+                ),
+                (ErrorCode::KernelDeclined, Exit::Declined),
+                (ErrorCode::KernelMcpUnconfirmed, Exit::NeedsTheInterface),
+                (
+                    ErrorCode::KernelMcpNotConfirmedInTime,
+                    Exit::NotConfirmedInTime,
+                ),
+                (ErrorCode::KernelMcpDeclined, Exit::Declined),
+            ] {
+                assert_eq!(
+                    Exit::of_refusal(&refusal(code, kind)),
+                    exit,
+                    "{code:?} {kind:?}"
+                );
+            }
         }
     }
 }

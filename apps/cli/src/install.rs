@@ -43,7 +43,14 @@
 //!    stopped an earlier daemon**: a person's stop, which an install keeps, and
 //!    the one an install or an uninstall that failed after its own stop left,
 //!    which it cannot tell from one — an uninstall that finishes removes the
-//!    mark its own stop wrote.
+//!    mark its own stop wrote. **On systemd the announcer is registered beside
+//!    it**, before the daemon is started: a unit the person's graphical
+//!    session starts, which runs the install's CLI as `leader --announce`
+//!    once each time the session comes up, so a daemon lingering started
+//!    before any session learns where the desktop interface is shown
+//!    (`NOCTUA.md §11.1`); one that cannot be registered or enabled takes the
+//!    restorer back with it, and an uninstall, or the install made again, lets
+//!    it go first.
 //!
 //! 8. **`noctua-dev`**, where the plan names the user's bin directory
 //!    (`cargo xtask dev --install` does): the checkout's record written beside
@@ -602,16 +609,11 @@ const fn started_once_registered(marked_before: bool) -> bool {
     !marked_before
 }
 
-/// Whether the profile of `layout` carries the `stopped` mark, the mark
-/// judged this user's alone first.
+/// Whether the profile of `layout` carries the `stopped` mark, read by the
+/// one reader every program of the install shares (`nc_channel::stopped`):
+/// the state directory and the mark judged this user's alone first.
 fn marked(layout: &Layout, user: &User) -> Result<bool, Unmade> {
-    match nc_platform::judge(&layout.stopped, Kind::File, user) {
-        Ok(()) => Ok(true),
-        Err(Judged::Failed(absent)) if absent.error().kind() == std::io::ErrorKind::NotFound => {
-            Ok(false)
-        }
-        Err(judged) => Err(not_taken(&judged)),
-    }
+    nc_channel::stopped::on_purpose(layout, user).map_err(|judged| not_taken(&judged))
 }
 
 /// What an install asks of the restorer it registers, in the order this
@@ -646,6 +648,10 @@ struct Restorer {
     name: String,
     /// Where the definition is kept.
     kept_in: PathBuf,
+    /// The name of the unit the person's graphical session starts to announce
+    /// it to the daemon, where the manager is systemd's — whose daemon runs
+    /// outside that session — and nothing elsewhere.
+    announcer: Option<String>,
 }
 
 impl Restorer {
@@ -670,9 +676,96 @@ impl Restorer {
         })?;
         Ok(Self {
             name: restorer_name(layout, manager).to_owned(),
+            announcer: announcer_name(layout, manager).map(str::to_owned),
             registrar,
             kept_in,
         })
+    }
+
+    /// The announcer — the unit the person's graphical session starts, which
+    /// runs the install's CLI as `leader --announce` — registered for `found`'s
+    /// install and enabled, where there is one; or, failing either, taken back
+    /// whole and the refusal answered.
+    ///
+    /// **So the daemon learns where a window is shown**: a daemon that
+    /// lingering starts at boot runs before any graphical session, and the
+    /// session's variables never reach a service already running; started
+    /// with the session, the announcer tells the daemon the session's
+    /// environment, and the daemon starts its desktop interface in it
+    /// (`NOCTUA.md §11.1`). Registering it runs it once, so an install made
+    /// inside a session announces that session at once.
+    fn announcing(&self, found: &Found) -> Result<(), Unmade> {
+        let Some(name) = &self.announcer else {
+            return Ok(());
+        };
+        let manager = self.registrar.manager();
+        let refused = |doing: &str, error: &nc_platform::service::Error| {
+            Unmade(format!(
+                "{manager} did not {doing} what announces the graphical session to the daemon \
+                 of {} as `{name}`: {error}",
+                found.layout.cli
+            ))
+        };
+        let cli = found.layout.install.join(format!(
+            "{}{}",
+            found.layout.cli,
+            nc_platform::EXECUTABLE_SUFFIX
+        ));
+        let service = Service::new(
+            name,
+            &format!(
+                "Announces the graphical session to Noctua's daemon of {}",
+                found.layout.cli
+            ),
+            &cli,
+            &[
+                crate::args::LEADER.to_owned(),
+                crate::args::ANNOUNCE.to_owned(),
+            ],
+            RESTORED_AFTER,
+            &found.user,
+        )
+        .map_err(|error| refused("take", &error))?
+        .with_the_graphical_session();
+        self.registrar
+            .register(&service, &self.kept_in)
+            .map_err(|error| refused("register", &error))?;
+        if let Err(error) = self.registrar.enable(name, &self.kept_in) {
+            drop(self.registrar.unregister(name, &self.kept_in));
+            return Err(refused("enable with the graphical session", &error));
+        }
+        Ok(())
+    }
+
+    /// The announcer an earlier install registered let go, where the
+    /// manager holds it.
+    fn announcer_let_go(&self) -> Result<(), Unmade> {
+        let Some(name) = &self.announcer else {
+            return Ok(());
+        };
+        let manager = self.registrar.manager();
+        let held = self.registrar.is_registered(name).map_err(|error| {
+            Unmade(format!(
+                "{manager} could not say whether it holds `{name}`: {error}"
+            ))
+        })?;
+        if held {
+            self.registrar
+                .unregister(name, &self.kept_in)
+                .map_err(|error| Unmade(format!("{manager} did not let `{name}` go: {error}")))?;
+        }
+        Ok(())
+    }
+}
+
+/// The name `manager` knows the announcer of `layout`'s install by — the
+/// unit the person's graphical session starts — where there is one: on
+/// systemd alone, whose daemon runs outside that session.
+#[must_use]
+pub fn announcer_name(layout: &Layout, manager: Manager) -> Option<&str> {
+    match manager {
+        Manager::Systemd => Some(&layout.announcer_unit),
+        Manager::Launchd | Manager::TaskScheduler => None,
     }
 }
 
@@ -691,6 +784,7 @@ impl Restoring for Restorer {
     /// The restorer unregistered, when its manager `held` it: what it was
     /// known by, or nothing when the manager held none.
     fn unregistered(&self, held: bool) -> Result<Option<String>, Unmade> {
+        self.announcer_let_go()?;
         if !held {
             return Ok(None);
         }
@@ -732,6 +826,11 @@ impl Restoring for Restorer {
             // A restorer that would not start at login is taken back whole.
             drop(self.registrar.unregister(&self.name, &self.kept_in));
             return Err(refused("enable at login", &error));
+        }
+        if let Err(unmade) = self.announcing(found) {
+            // And so is one whose session would never be announced to it.
+            drop(self.registrar.unregister(&self.name, &self.kept_in));
+            return Err(unmade);
         }
         let started = if started_once_registered(marked) {
             Some(controlled(found, crate::args::Control::Start)?)
@@ -1521,6 +1620,17 @@ mod tests {
                 manager.takes(super::restorer_name(&layout, manager)),
                 "{manager} takes no name the layout gives it"
             );
+        }
+        // **The announcer is systemd's alone**: its daemon runs outside the
+        // graphical session, and the other two managers start it inside.
+        assert_eq!(
+            super::announcer_name(&layout, Manager::Systemd),
+            Some(layout.announcer_unit.as_str())
+        );
+        assert!(Manager::Systemd.takes(&layout.announcer_unit));
+        assert_ne!(layout.announcer_unit, layout.systemd_unit);
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            assert_eq!(super::announcer_name(&layout, manager), None, "{manager}");
         }
     }
 

@@ -216,8 +216,9 @@ fields = [
   { name = "code", type = "error_code" },
   # Which of the decision point's refusals: `unknown_command`,
   # `malformed_name`, `malformed_arguments`, `denied`, `unconfirmed`,
-  # `read_only`, `top_level_only`, `too_deep`, `deadline`,
-  # `too_many_dispatches`, `reentrant`, `quarantined`, `journal_unavailable`.
+  # `mcp_on_unconfirmed`, `read_only`, `top_level_only`, `too_deep`,
+  # `deadline`, `too_many_dispatches`, `reentrant`, `quarantined`,
+  # `journal_unavailable`.
   # A state, never the command's name, which is text a plugin chose.
   { name = "reason", type = "enum" },
   # Whether the command refused changes state: a refused write is the one a

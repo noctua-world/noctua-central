@@ -2585,6 +2585,10 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.log_line_bytes, declared.log_line_bytes);
     assert_eq!(generated.undo_history, declared.undo_history);
     assert_eq!(generated.confirmation_ttl_ms, declared.confirmation_ttl_ms);
+    assert_eq!(
+        generated.confirmations_pending_max,
+        declared.confirmations_pending_max
+    );
     assert_eq!(generated.agent_budget_max, declared.agent_budget_max);
     assert_eq!(
         generated.agent_grant_minutes_max,
@@ -2596,7 +2600,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        56,
+        57,
         "a kernel limit was added or lost"
     );
 }
@@ -2622,6 +2626,10 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
         generated.ipc_display_value_max_bytes,
         declared.ipc_display_value_max_bytes
     );
+    assert_eq!(
+        generated.interface_restore_countdown_ms,
+        declared.interface_restore_countdown_ms
+    );
     assert_eq!(generated.pump_every_ms, declared.pump_every_ms);
     assert_eq!(generated.sweep_every_ms, declared.sweep_every_ms);
     assert_eq!(generated.stop_drain_ms, declared.stop_drain_ms);
@@ -2630,7 +2638,7 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.kill_within_ms, declared.kill_within_ms);
     assert_eq!(
         declared.each().len(),
-        16,
+        17,
         "a daemon limit was added or lost"
     );
 }

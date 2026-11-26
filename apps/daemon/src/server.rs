@@ -17,8 +17,9 @@
 //!    is the kernel's: this asks nothing on its own. A dispatch, the registry,
 //!    the tools, a session, a watch or a note asked before the kernel runs is
 //!    refused as not running yet (`NC-DMN-0009`), and one asked once a stop
-//!    began as stopping (`NC-DMN-0010`); the status, a stop and a display are
-//!    answered from the first moment. A dispatch is counted as running before the state is read, so a
+//!    began as stopping (`NC-DMN-0010`), as is an answer to a held call; the
+//!    status, a stop, a display and an attach are answered from the first
+//!    moment. A dispatch is counted as running before the state is read, so a
 //!    stop either refuses it or waits for it, a session's as the person's. A
 //!    connection that then breaks the protocol, falls silent, takes nothing or
 //!    is lost is closed and logged as `ipc.refused` with its code; one its
@@ -42,8 +43,10 @@
 //! came of the daemon's asking the system for the Leader where it is the
 //! process that asks (`crate::leader`), as one object — `display`, the
 //! environment's variables by name; `shell`, the object `shell.read` answers
-//! as `shell`; and `leader`, `{"held":true}` or the `refused` code and
-//! sentence — each only once there is one. The revision is this process's
+//! as `shell`; `leader`, `{"held":true}` or the `refused` code and
+//! sentence; and `confirmations`, the serials of the calls the kernel holds
+//! for the person's confirmation (`nc_kernel::Kernel::pending_moves`) — each
+//! only once there is one. The revision is this process's
 //! alone: a daemon that starts again begins at zero, holding no environment
 //! and no Leader's outcome of the last one's, and the interface's state is
 //! the kernel's, which keeps it between starts.
@@ -79,6 +82,27 @@
 //!
 //! A session is answered none of the three (below).
 //!
+//! # The desktop the daemon starts, and what it alone answers
+//!
+//! **The daemon starts its desktop interface** (`crate::desktop`) when its
+//! kernel begins to serve, when a person's connection announces a display,
+//! and before a press of the Leader is dispatched — wherever none it started
+//! runs and a window could be shown. **A person's connection attaches as that
+//! desktop** by an attach proving the secret the daemon handed the process it
+//! started, over the connection's own handshake, from that very process as the
+//! system names it at the other end; one that does not is refused with
+//! `NC-DMN-0017`, logged as `ipc.refused`, and closed, and one attached already
+//! is refused the same way. **While a connection is attached, a dispatch of a
+//! command that cannot be undone, or of MCP switched on, is held for the
+//! person's confirmation**
+//! (`nc_kernel::Kernel::dispatch_held`) — the person's and an agent's session's
+//! alike — its wait ending early once a stop begins; with none attached it is
+//! dispatched as ever, and refused at once. **Only an attached connection
+//! answers a held call**, by a confirm or a decline naming its serial, which
+//! the kernel settles (`nc_kernel::Kernel::settle`); on any other connection
+//! either is refused with `NC-DMN-0018`, logged as `ipc.refused`, and nothing
+//! is answered. A session is answered none of the three.
+//!
 //! # An agent's session (`§20.3`)
 //!
 //! **A connection is the person's until it opens a session, and that
@@ -98,9 +122,13 @@
 //! again, and off — however it came to be, the person's set, undo or redo —
 //! or unreadable ends the session with its connection once the refusal is
 //! written, whatever it asked; while MCP is on, the registry, the status, a
-//! stop, a second session, a watch, a note and a display are refused
-//! (`NC-DMN-0015`) and the session stands — so an agent learns nothing of
-//! what an interface shows, and tells the daemon nothing as one. Its tools are the kernel's probe of what its agent may
+//! stop, a second session, a watch, a note, a display, an attach, a confirm
+//! and a decline are refused (`NC-DMN-0015`) and the session stands — so an agent learns nothing of
+//! what an interface shows, and tells the daemon nothing as one. **A held
+//! call waits past the request it was read in**, so MCP is read again once
+//! the person confirms it, before the kernel decides it again: off, or
+//! unreadable, refuses it the same way, run nowhere and journaled nowhere,
+//! and ends the session. Its tools are the kernel's probe of what its agent may
 //! dispatch ([`nc_kernel::Kernel::dispatchable`]), which spends and journals
 //! nothing; its dispatches are the kernel's, decided for the agent and its
 //! person and journaled with both.
@@ -141,10 +169,10 @@ use nc_canon::Value;
 use nc_catalog::{ErrorCode, Locale};
 use nc_ids::Clock as _;
 use nc_ids::Snowflake;
-use nc_ipc::{Answer, Graphical, Note, Refusal, RefusalKind, Request, State, Welcome};
+use nc_ipc::{Answer, Drawn, Graphical, Note, Refusal, RefusalKind, Request, State, Welcome};
 use nc_kernel::logging::LogSink;
 use nc_kernel::registry::{Owner, RegisteredCommand};
-use nc_kernel::{Asker, Caller, Kernel};
+use nc_kernel::{Asker, Caller, Kernel, Settled};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::environment::{Daemon, Sink};
@@ -191,14 +219,24 @@ pub struct Server {
     sessions: AtomicUsize,
     /// What a client may watch, at the revision it is at.
     watched: tokio::sync::watch::Sender<Watched>,
+    /// The desktop interface the daemon starts, and the one it started.
+    desktop: crate::desktop::Desktop,
+    /// How many connections are attached as that desktop: each counted once
+    /// it proved it is, and until it closes.
+    attached: AtomicUsize,
     log: Sink,
 }
 
 impl Server {
-    /// A server for the daemon `named`, proving connections by `token` and
-    /// logging to `log`, in state `starting`.
+    /// A server for the daemon `named`, proving connections by `token`,
+    /// starting `desktop` and logging to `log`, in state `starting`.
     #[must_use]
-    pub fn new(named: Named, token: nc_ipc::Token, log: Sink) -> Self {
+    pub fn new(
+        named: Named,
+        token: nc_ipc::Token,
+        desktop: crate::desktop::Desktop,
+        log: Sink,
+    ) -> Self {
         Self {
             named,
             token,
@@ -213,6 +251,8 @@ impl Server {
             all_closed: tokio::sync::Notify::new(),
             sessions: AtomicUsize::new(0),
             watched: tokio::sync::watch::Sender::new(Watched::default()),
+            desktop,
+            attached: AtomicUsize::new(0),
             log,
         }
     }
@@ -258,6 +298,16 @@ impl Server {
         *self.plugins.lock().unwrap_or_else(PoisonError::into_inner) = plugins;
         let _ = self.kernel.set(kernel);
         self.reach(State::Running);
+        let _ = self.desktop_wanted();
+    }
+
+    /// A desktop interface, started where none the daemon started runs and
+    /// a window could be shown (`crate::desktop`): in the graphical
+    /// environment a person's connection announced last, over the daemon's
+    /// own.
+    pub fn desktop_wanted(&self) -> crate::desktop::Wanted {
+        self.desktop
+            .wanted(self.announced().as_ref(), &|name| std::env::var_os(name))
     }
 
     /// The central log the daemon's events go to.
@@ -280,7 +330,7 @@ impl Server {
         loop {
             let accepted = listener.accept().await;
             match accepted {
-                Ok(accepted) => self.serve_one(accepted.stream),
+                Ok(accepted) => self.serve_one(accepted.stream, Some(accepted.peer.pid)),
                 Err(refused) => {
                     let code = nc_ipc::IpcError::from(refused).code();
                     self.log.record(&nc_log::events::IpcRefused { code });
@@ -294,13 +344,13 @@ impl Server {
         }
     }
 
-    /// Serves `stream` on a task of its own, counted as open until it is
-    /// closed.
-    fn serve_one<S>(self: &Arc<Self>, stream: S)
+    /// Serves `stream`, whose other end is the process `peer` as the system
+    /// said it, on a task of its own, counted as open until it is closed.
+    fn serve_one<S>(self: &Arc<Self>, stream: S, peer: Option<u32>)
     where
         S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
-        self.serve_one_after(stream, || core::future::ready(()));
+        self.serve_one_after(stream, peer, || core::future::ready(()));
     }
 
     /// What [`Server::serve_one`] does, with `answering` awaited before each
@@ -312,6 +362,7 @@ impl Server {
     fn serve_one_after<S, Slow>(
         self: &Arc<Self>,
         stream: S,
+        peer: Option<u32>,
         answering: impl Fn() -> Slow + Send + 'static,
     ) where
         S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -319,7 +370,7 @@ impl Server {
     {
         self.connections.fetch_add(1, Ordering::SeqCst);
         let open = Open(Arc::clone(self));
-        tokio::spawn(Arc::clone(self).connection(stream, open, answering));
+        tokio::spawn(Arc::clone(self).connection(stream, open, peer, answering));
     }
 
     /// One connection: its handshake, then each request in turn until the
@@ -329,6 +380,7 @@ impl Server {
         self: Arc<Self>,
         stream: S,
         open: Open,
+        peer: Option<u32>,
         answering: impl Fn() -> Slow,
     ) where
         S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -355,6 +407,11 @@ impl Server {
         // unanswered and read as a daemon that does not answer.
         let mut owed = true;
         let mut bound = Bound::Person;
+        let mut desk = Desk {
+            peer,
+            drawn: Some(*served.drawn()),
+            attached: None,
+        };
         let ended = loop {
             // A request that already arrived is answered first; between two
             // requests, a stop asked for ends the connection.
@@ -373,7 +430,7 @@ impl Server {
                 Err(broken) => break Some(broken),
             };
             let answered = match &bound {
-                Bound::Person => self.answer(request).await,
+                Bound::Person => self.answer(request, &mut desk).await,
                 Bound::Session(opened) => self.answer_in_session(opened, request).await,
             };
             let slow = answering();
@@ -416,13 +473,15 @@ impl Server {
         // runtime once the run is over.
         served.close().await;
         // The session ends with its connection, and gives its place back
-        // before the connection's.
+        // before the connection's; and so does the attach.
         drop(bound);
+        drop(desk);
         drop(open);
     }
 
-    /// The answer to `request`, on a connection that is the person's.
-    async fn answer(self: &Arc<Self>, request: Request) -> Answered {
+    /// The answer to `request`, on a connection that is the person's, whose
+    /// attach as the desktop the daemon started `desk` holds.
+    async fn answer(self: &Arc<Self>, request: Request, desk: &mut Desk) -> Answered {
         let person = Caller::new(self.named.person.clone());
         let answer = match request {
             Request::Status => Answer::Status(self.status()),
@@ -455,7 +514,13 @@ impl Server {
                 };
             }
             Request::Dispatch { command, args } => {
-                self.admitted_dispatch(&person, &command, &args).await
+                // A press of the Leader opens the interface: a desktop is
+                // started again first where the one started last is gone.
+                if command == nc_ipc::leader::TAP {
+                    let _ = self.desktop_wanted();
+                }
+                self.admitted_dispatch(&person, &command, &args, as_ever)
+                    .await
             }
             Request::Watch { seen, wait_ms } => match self.kernel_if_running() {
                 Ok(kernel) => self.watch(&*kernel, seen, wait_ms).await,
@@ -464,10 +529,70 @@ impl Server {
             Request::Note(note) => self.noted(&person, &note).await,
             Request::Display(environment) => {
                 self.display(environment);
+                let _ = self.desktop_wanted();
                 Answer::Displayed
             }
+            Request::AttachDesktop { proof } => return self.desk_proven(desk, &proof),
+            Request::Confirm { pending } => self.settled(desk, pending, Settled::Confirmed),
+            Request::Decline { pending } => self.settled(desk, pending, Settled::Declined),
         };
         Answered::going_on(answer)
+    }
+
+    /// The answer to an attach proving `proof`, on the connection `desk`
+    /// holds: attached when the connection is the desktop the daemon started
+    /// — the process it started, proving the secret it handed that process
+    /// for this connection — and refused and closed otherwise, logged as
+    /// `ipc.refused` with `NC-DMN-0017`. **Once**: a connection attached
+    /// already is refused again the same way.
+    fn desk_proven(self: &Arc<Self>, desk: &mut Desk, proof: &[u8; 32]) -> Answered {
+        let proven = desk.attached.is_none()
+            && desk
+                .drawn
+                .as_ref()
+                .is_some_and(|drawn| self.desktop.attaches(desk.peer, proof, drawn));
+        if proven {
+            self.attached.fetch_add(1, Ordering::SeqCst);
+            desk.attached = Some(Attached(Arc::clone(self)));
+            return Answered::going_on(Answer::Attached);
+        }
+        let code = ErrorCode::DaemonAttachRefused;
+        self.log.record(&nc_log::events::IpcRefused { code });
+        Answered::ending(Refusal {
+            code,
+            kind: RefusalKind::Denied,
+            sentence: "the connection did not prove it is the desktop interface this daemon \
+                       started, by the process the daemon started and the secret it handed \
+                       that process, so it was closed"
+                .to_owned(),
+        })
+    }
+
+    /// The answer to the person's `settled` answer to the call the kernel
+    /// holds as `pending`, on the connection `desk` holds: the kernel's
+    /// where the connection is attached as the desktop the daemon started,
+    /// and refused with `NC-DMN-0018` — logged as `ipc.refused` — where it is
+    /// not, nothing answered.
+    fn settled(&self, desk: &Desk, pending: u64, settled: Settled) -> Answer {
+        if desk.attached.is_none() {
+            let code = ErrorCode::DaemonNotAttached;
+            self.log.record(&nc_log::events::IpcRefused { code });
+            return Answer::Refused(Refusal {
+                code,
+                kind: RefusalKind::Denied,
+                sentence: "a call held for the person's confirmation is answered by the desktop \
+                           interface this daemon started, attached on its own connection, and \
+                           this connection is not, so nothing was answered"
+                    .to_owned(),
+            });
+        }
+        match self.kernel_if_running() {
+            Ok(kernel) => match kernel.settle(pending, settled) {
+                Ok(()) => Answer::Settled,
+                Err(refusal) => Answer::Refused(refused_by_kernel(&refusal)),
+            },
+            Err(refusal) => Answer::Refused(refusal),
+        }
     }
 
     /// The answer to a watch that names `seen` and waits `wait_ms`, while the
@@ -485,12 +610,15 @@ impl Server {
     async fn watch(&self, shown: &impl Shown, seen: Option<u64>, wait_ms: u64) -> Answer {
         let mut watching = self.watched.subscribe();
         let mut moves = shown.moves();
+        let mut held = shown.held();
         let wait = Duration::from_millis(wait_ms.min(nc_catalog::DAEMON.ipc_watch_wait_ms));
         let until = tokio::time::Instant::now() + wait;
-        let mut told = true;
+        let (mut told, mut told_held) = (true, true);
         loop {
             moves.borrow_and_update();
             self.took_in(shown.now());
+            let serials = held.borrow_and_update().clone();
+            self.held(serials);
             let answer = tokio::select! {
                 biased;
                 another = watching.wait_for(|watched| Some(watched.revision) != seen) => {
@@ -503,6 +631,10 @@ impl Server {
                     // A kernel gone tells nothing more, and the watch waits
                     // on what else may change.
                     told = heard.is_ok();
+                    continue;
+                }
+                heard = held.changed(), if told_held => {
+                    told_held = heard.is_ok();
                     continue;
                 }
                 () = tokio::time::sleep_until(until) => None,
@@ -530,6 +662,20 @@ impl Server {
                 .is_none_or(|(taken, _)| *taken < revision);
             if another {
                 watched.shell = Some((revision, shell));
+                watched.moved();
+            }
+            another
+        });
+    }
+
+    /// Takes in the serials of the calls the kernel holds for the person's
+    /// confirmation now, `serials`, at a new revision — or changes nothing
+    /// where they are the ones taken in last.
+    fn held(&self, serials: Vec<u64>) {
+        self.watched.send_if_modified(|watched| {
+            let another = watched.held != serials;
+            if another {
+                watched.held = serials;
                 watched.moved();
             }
             another
@@ -603,8 +749,29 @@ impl Server {
         };
         Answered::going_on(match asked {
             InSession::Dispatch { command, args } => {
-                self.admitted_dispatch(&opened.session, &command, &args)
-                    .await
+                // **MCP read again once a held call is confirmed**, before
+                // the kernel decides it again: the request was read while
+                // MCP was on, and a call held waits past it.
+                let off = OnceLock::new();
+                let admits = || async {
+                    mcp_is_on(&kernel).await.map_err(|refusal| {
+                        let answered = nc_kernel::Refusal::new(
+                            nc_kernel::RefusalKind::Denied,
+                            refusal.code,
+                            refusal.sentence.clone(),
+                        );
+                        let _ = off.set(refusal);
+                        answered
+                    })
+                };
+                let answer = self
+                    .admitted_dispatch(&opened.session, &command, &args, admits)
+                    .await;
+                if let Some(refusal) = off.into_inner() {
+                    self.refused_session(&refusal);
+                    return Answered::ending(refusal);
+                }
+                answer
             }
             InSession::Tools { locale } => tools(&kernel, &opened.session, locale).await,
         })
@@ -683,15 +850,34 @@ impl Server {
 
     /// `command` with `args`, admitted as running until it is answered, and
     /// dispatched by the kernel for `asker`.
-    async fn admitted_dispatch<'a>(
+    ///
+    /// **A command that cannot be undone is held for the person's
+    /// confirmation while the desktop the daemon started is attached**
+    /// (`nc_kernel::Kernel::dispatch_held`), and its wait ends early when a
+    /// stop begins; with none attached it is refused at once
+    /// (`NC-KERN-0006`), since nobody could answer it. Held and confirmed, it
+    /// is decided again only once `admits` says the asker still may ask it —
+    /// a session, while MCP is on.
+    async fn admitted_dispatch<'a, Admitted>(
         &self,
         asker: impl Into<Asker<'a>>,
         command: &str,
         args: &Value,
-    ) -> Answer {
+        admits: impl FnOnce() -> Admitted,
+    ) -> Answer
+    where
+        Admitted: Future<Output = Result<(), nc_kernel::Refusal>>,
+    {
         match self.admitted() {
             Ok((kernel, admitted)) => {
-                let answer = dispatched(&kernel, asker, command, args).await;
+                let held = self.attached.load(Ordering::SeqCst) > 0;
+                let answer = dispatched(
+                    &kernel,
+                    asker,
+                    (command, args),
+                    held.then(|| (self.stopping(), admits)),
+                )
+                .await;
                 drop(admitted);
                 answer
             }
@@ -907,9 +1093,15 @@ impl Server {
     /// dispatch is, so a stop drains it or refuses it, and journaled as every
     /// dispatch is.
     pub async fn leader_pressed(&self) {
+        let _ = self.desktop_wanted();
         let person = Caller::new(self.named.person.clone());
         let _ = self
-            .admitted_dispatch(&person, nc_ipc::leader::TAP, &nc_ipc::leader::tap())
+            .admitted_dispatch(
+                &person,
+                nc_ipc::leader::TAP,
+                &nc_ipc::leader::tap(),
+                as_ever,
+            )
             .await;
     }
 }
@@ -950,6 +1142,9 @@ struct Watched {
     /// What came of the daemon's asking for the Leader, where it asks
     /// (`crate::leader`).
     leader: Option<Value>,
+    /// The serials of the calls the kernel holds for the person's
+    /// confirmation, as it told them last: none held, none.
+    held: Vec<u64>,
 }
 
 impl Watched {
@@ -987,6 +1182,17 @@ impl Watched {
         if let Some(leader) = &self.leader {
             fields.push(("leader", leader.clone()));
         }
+        if !self.held.is_empty() {
+            fields.push((
+                "confirmations",
+                Value::Array(
+                    self.held
+                        .iter()
+                        .map(|serial| Value::Integer(i64::try_from(*serial).unwrap_or(i64::MAX)))
+                        .collect(),
+                ),
+            ));
+        }
         Value::object(fields)
     }
 
@@ -1006,6 +1212,9 @@ trait Shown {
     fn moves(&self) -> tokio::sync::watch::Receiver<u64>;
     /// The state now, and the revision it is at.
     fn now(&self) -> (u64, Value);
+    /// The serials of the calls held for the person's confirmation, told
+    /// each time one is held or let go.
+    fn held(&self) -> tokio::sync::watch::Receiver<Vec<u64>>;
 }
 
 impl Shown for Kernel<Daemon> {
@@ -1015,6 +1224,10 @@ impl Shown for Kernel<Daemon> {
 
     fn now(&self) -> (u64, Value) {
         self.shell()
+    }
+
+    fn held(&self) -> tokio::sync::watch::Receiver<Vec<u64>> {
+        self.pending_moves()
     }
 }
 
@@ -1055,6 +1268,40 @@ impl Drop for Opened {
             .0
             .log
             .record(&nc_log::events::DaemonSessionEnded { agent: self.agent });
+    }
+}
+
+#[cfg(test)]
+impl Server {
+    /// The answer to `request`, on a person's connection that attached
+    /// nothing and whose other end and handshake nobody said.
+    async fn asked(self: &Arc<Self>, request: Request) -> Answered {
+        self.answer(request, &mut Desk::default()).await
+    }
+}
+
+/// What a person's connection holds of the desktop the daemon started: the
+/// process at its other end, what its handshake drew, and its attach once it
+/// proved it is that desktop.
+#[derive(Debug, Default)]
+struct Desk {
+    /// The process at the other end, as the system said it when the
+    /// connection was accepted.
+    peer: Option<u32>,
+    /// What the connection's handshake drew.
+    drawn: Option<Drawn>,
+    /// The attach, once the connection proved it.
+    attached: Option<Attached>,
+}
+
+/// A connection attached as the desktop the daemon started, counted until it
+/// is dropped.
+#[derive(Debug)]
+struct Attached(Arc<Server>);
+
+impl Drop for Attached {
+    fn drop(&mut self) {
+        self.0.attached.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -1122,9 +1369,10 @@ enum InSession {
 /// **A session asks for its tools and dispatches commands, and nothing
 /// else**: the registry lists what its agent may not dispatch, the status
 /// holds the person's identifier, a stop is the person's, a second
-/// session would rebind what is bound once, and a watch, a note and a display
-/// are the interface's — what the person's window shows and where it is
-/// shown. The session that asked stands.
+/// session would rebind what is bound once, and a watch, a note, a display, an
+/// attach and an answer to a held call are the interface's — what the
+/// person's window shows, where it is shown, and the person's own answer. The
+/// session that asked stands.
 fn a_sessions(request: Request) -> Result<InSession, Refusal> {
     let what = match request {
         Request::Dispatch { command, args } => return Ok(InSession::Dispatch { command, args }),
@@ -1136,6 +1384,8 @@ fn a_sessions(request: Request) -> Result<InSession, Refusal> {
         Request::Watch { .. } => "a watch",
         Request::Note(_) => "a note",
         Request::Display(_) => "a display",
+        Request::AttachDesktop { .. } => "a desktop's proof",
+        Request::Confirm { .. } | Request::Decline { .. } => "an answer to a held call",
     };
     Err(Refusal {
         code: ErrorCode::DaemonNotForASession,
@@ -1190,15 +1440,34 @@ async fn tools<'a>(kernel: &Kernel<Daemon>, asker: impl Into<Asker<'a>>, locale:
     )
 }
 
-/// `command` with `args`, dispatched by the kernel for `asker`: the person,
-/// or a session's agent.
-async fn dispatched<'a>(
+/// What a person's own call is, once its person confirmed it: still admitted.
+fn as_ever() -> core::future::Ready<Result<(), nc_kernel::Refusal>> {
+    core::future::ready(Ok(()))
+}
+
+/// `command` with `args`, dispatched by the kernel for `asker`.
+///
+/// The person, or a session's agent — held for the person's confirmation
+/// until the first future of `held` ends, where there is one, and once
+/// confirmed decided again while the second still admits it.
+async fn dispatched<'a, Admitted>(
     kernel: &Kernel<Daemon>,
     asker: impl Into<Asker<'a>>,
-    command: &str,
-    args: &Value,
-) -> Answer {
-    let answered = kernel.dispatch(asker, command, &args.to_canonical()).await;
+    (command, args): (&str, &Value),
+    held: Option<(impl Future<Output = ()>, impl FnOnce() -> Admitted)>,
+) -> Answer
+where
+    Admitted: Future<Output = Result<(), nc_kernel::Refusal>>,
+{
+    let canonical = args.to_canonical();
+    let answered = match held {
+        Some((lapsed, admits)) => {
+            kernel
+                .dispatch_held(asker, command, &canonical, lapsed, admits)
+                .await
+        }
+        None => kernel.dispatch(asker, command, &canonical).await,
+    };
     match answered {
         Ok(payload) => nc_canon::parse(&payload).map_or_else(
             |error| {
@@ -1371,7 +1640,7 @@ mod tests {
     /// A request for the registry, in English.
     const REGISTRY: Request = Request::Registry { locale: Locale::En };
 
-    use super::{Named, Server};
+    use super::{Named, Server, Settled};
 
     /// A world file as an installer writes one, read: the one every suite's
     /// install copies in.
@@ -1383,6 +1652,11 @@ mod tests {
     /// A server for a daemon of `channel` that never bound an endpoint, its
     /// lines sent to a store nothing answers at.
     fn a_server(channel: nc_channel::Channel) -> Server {
+        a_server_starting(channel, no_desktop())
+    }
+
+    /// What [`a_server`] makes, starting `desktop`.
+    fn a_server_starting(channel: nc_channel::Channel, desktop: crate::desktop::Desktop) -> Server {
         let world = a_world();
         let named = Named {
             pid: 4242,
@@ -1400,13 +1674,23 @@ mod tests {
         Server::new(
             named,
             nc_ipc::Token::fresh().expect("a token"),
+            desktop,
             Arc::new(std::sync::Mutex::new(log)),
+        )
+    }
+
+    /// A desktop whose executable is not there, so none is ever started.
+    fn no_desktop() -> crate::desktop::Desktop {
+        crate::desktop::Desktop::for_tests(
+            std::path::PathBuf::new(),
+            Vec::new(),
+            std::path::PathBuf::new(),
         )
     }
 
     /// The refusal `request` is answered with.
     async fn refused(server: &Arc<Server>, request: Request) -> Refusal {
-        match server.answer(request).await.answer {
+        match server.asked(request).await.answer {
             Answer::Refused(refusal) => refusal,
             other => panic!("answered {other:?}"),
         }
@@ -1427,14 +1711,17 @@ mod tests {
         moves: tokio::sync::watch::Sender<u64>,
         /// The state now, and its revision.
         now: std::sync::Mutex<(u64, Value)>,
+        /// The serials of the calls held, told as the kernel tells them.
+        held: tokio::sync::watch::Sender<Vec<u64>>,
     }
 
     impl Moving {
-        /// A state holding `draft`, at revision zero.
+        /// A state holding `draft`, at revision zero, with no call held.
         fn new(draft: &str) -> Self {
             Self {
                 moves: tokio::sync::watch::Sender::new(0),
                 now: std::sync::Mutex::new((0, shell(draft))),
+                held: tokio::sync::watch::Sender::new(Vec::new()),
             }
         }
 
@@ -1452,6 +1739,10 @@ mod tests {
 
         fn now(&self) -> (u64, Value) {
             self.now.lock().expect("nothing panics holding it").clone()
+        }
+
+        fn held(&self) -> tokio::sync::watch::Receiver<Vec<u64>> {
+            self.held.subscribe()
         }
     }
 
@@ -1498,7 +1789,7 @@ mod tests {
     /// the server's own token.
     async fn a_client_of(server: &Arc<Server>) -> nc_ipc::Client {
         let (daemon_end, client_end) = tokio::io::duplex(1 << 16);
-        server.serve_one(daemon_end);
+        server.serve_one(daemon_end, None);
         let token =
             nc_ipc::Token::from_text(&server.token.to_text()).expect("the token reads back");
         nc_ipc::connect(client_end, &token)
@@ -1522,15 +1813,72 @@ mod tests {
         installed: crate::testing::Installed,
     }
 
+    /// A permit the family pack does not ship: an agent switches MCP.
+    ///
+    /// Its switch on is a call held for its person's confirmation, as one
+    /// that cannot be undone is, and one no shipped pack lets an agent reach.
+    const AN_AGENT_SWITCHES_MCP: (&str, &str) = (
+        "policy/packs/family/agents_for_tests.cedar",
+        "@id(\"family.an_agent_switches_mcp_for_tests\")\n\
+         permit (principal is Agent, action == Action::\"Write\", resource == Feature::\"mcp\");\n",
+    );
+
+    /// The core and the family pack as they are on disk, with `extra` beside them.
+    ///
+    /// A decision point the tree does not ship, built through the same
+    /// compiler.
+    fn the_family_and(extra: &[(&str, &str)]) -> nc_authz::Pdp {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut texts: Vec<(String, String)> = Vec::new();
+        for directory in ["policy/core", "policy/packs/family"] {
+            let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(root.join(directory))
+                .expect("a policy directory")
+                .map(|entry| entry.expect("an entry").path())
+                .filter(|path| path.extension().is_some_and(|kind| kind == "cedar"))
+                .collect();
+            paths.sort();
+            for path in paths {
+                let name = path.file_name().expect("a file").to_string_lossy();
+                texts.push((
+                    format!("{directory}/{name}"),
+                    std::fs::read_to_string(&path).expect("a readable policy"),
+                ));
+            }
+        }
+        let mut files: Vec<(&str, &str)> = texts
+            .iter()
+            .map(|(path, text)| (path.as_str(), text.as_str()))
+            .collect();
+        files.extend_from_slice(extra);
+        nc_authz::Pdp::from_sources_for_tests(
+            include_str!("../../../policy/schema.cedarschema"),
+            &files,
+            "family",
+            include_str!("../../../policy/packs/family/pack.toml"),
+        )
+        .expect("the pack compiles with what the test adds")
+    }
+
     impl Serving {
         /// The kernel opened and served, MCP on and the agent granted naming.
         async fn new() -> Self {
+            Self::deciding_with(&[]).await
+        }
+
+        /// What [`Serving::new`] opens, its kernel deciding with the family
+        /// pack and `extra` beside it where there is any.
+        async fn deciding_with(extra: &[(&str, &str)]) -> Self {
             let installed =
                 crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
             let (layout, user) = (&installed.layout, &installed.user);
             let (store, _) = crate::environment::store(layout).await.expect("opened");
             let (world, pdp) =
                 crate::profile::world_and_pack(layout, user).expect("the world reads");
+            let pdp = if extra.is_empty() {
+                pdp
+            } else {
+                the_family_and(extra)
+            };
             let named = Named {
                 pid: 4242,
                 instance: [9; 16],
@@ -1562,6 +1910,7 @@ mod tests {
             let server = Arc::new(Server::new(
                 named,
                 nc_ipc::Token::fresh().expect("a token"),
+                no_desktop(),
                 log,
             ));
             server.serving(Arc::clone(&kernel), Vec::new());
@@ -1601,10 +1950,20 @@ mod tests {
             nc_canon::parse(&answered).expect("one value")
         }
 
-        /// MCP switched `on` by the profile's person.
+        /// MCP switched `on` by the profile's person — on with a
+        /// confirmation the kernel issued, as their answer in the Noctua
+        /// window would be.
         async fn switched(&self, on: bool) {
-            self.as_the_person("settings.mcp.set", &format!(r#"{{"on":{on}}}"#))
-                .await;
+            let args = format!(r#"{{"on":{on}}}"#);
+            let person = &self.server.named.person;
+            let caller = nc_kernel::Caller::new(person.clone()).confirmed(
+                self.kernel
+                    .confirmation_for_tests(person, "settings.mcp.set", &args),
+            );
+            self.kernel
+                .dispatch(&caller, "settings.mcp.set", &args)
+                .await
+                .unwrap_or_else(|refusal| panic!("the switch was refused: {refusal:?}"));
         }
 
         /// The entries of `command` the journal holds, each by whom it names
@@ -1660,9 +2019,11 @@ mod tests {
     ///
     /// **Over every request the wire reads**, through a match with no
     /// wildcard: a dispatch and the tools pass as they were asked, and the
-    /// registry, the status, a stop, a second session, a watch, a note and a
-    /// display are each refused with `NC-DMN-0015`, denied, saying the
-    /// session stands and naming what was asked.
+    /// registry, the status, a stop, a second session, a watch, a note, a
+    /// display, an attach and an answer to a held call are each refused with
+    /// `NC-DMN-0015`, denied, saying the session stands and naming what was
+    /// asked — so no agent attaches as the desktop, nor answers what waits for
+    /// its person.
     #[test]
     fn a_session_asks_for_its_tools_and_dispatches_and_is_refused_the_rest() {
         let dispatch = Request::Dispatch {
@@ -1684,6 +2045,9 @@ mod tests {
             },
             Request::Note(a_note("a")),
             Request::Display(a_display(":0")),
+            Request::AttachDesktop { proof: [1; 32] },
+            Request::Confirm { pending: 1 },
+            Request::Decline { pending: 1 },
         ] {
             let a_sessions_own = match &request {
                 Request::Dispatch { .. } | Request::Tools { .. } => None,
@@ -1694,6 +2058,10 @@ mod tests {
                 Request::Watch { .. } => Some("a watch"),
                 Request::Note(_) => Some("a note"),
                 Request::Display(_) => Some("a display"),
+                Request::AttachDesktop { .. } => Some("a desktop's proof"),
+                Request::Confirm { .. } | Request::Decline { .. } => {
+                    Some("an answer to a held call")
+                }
             };
             match (super::a_sessions(request.clone()), request) {
                 (
@@ -1739,7 +2107,7 @@ mod tests {
             State::Running,
         ] {
             server.reach(state);
-            let answered = server.answer(session.clone()).await;
+            let answered = server.asked(session.clone()).await;
             assert!(
                 answered.ends && answered.opened.is_none(),
                 "{state:?}: {answered:?}"
@@ -1751,7 +2119,7 @@ mod tests {
             );
         }
         server.stop();
-        let answered = server.answer(session).await;
+        let answered = server.asked(session).await;
         assert!(answered.ends && answered.opened.is_none(), "{answered:?}");
         assert!(
             matches!(&answered.answer, Answer::Refused(refusal)
@@ -1956,11 +2324,11 @@ mod tests {
                 "{code:?}: {answered:?}"
             );
         };
-        let stranger = server.answer(Request::Session { agent: minted() }).await;
+        let stranger = server.asked(Request::Session { agent: minted() }).await;
         refused(&stranger, ErrorCode::AiNoSuchAgent);
         serving.switched(false).await;
         let off = server
-            .answer(Request::Session {
+            .asked(Request::Session {
                 agent: serving.agent,
             })
             .await;
@@ -1968,7 +2336,7 @@ mod tests {
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
         serving.switched(true).await;
         let opened = server
-            .answer(Request::Session {
+            .asked(Request::Session {
                 agent: serving.agent,
             })
             .await;
@@ -1980,7 +2348,7 @@ mod tests {
         drop(opened);
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
         match server
-            .answer(Request::Tools { locale: Locale::En })
+            .asked(Request::Tools { locale: Locale::En })
             .await
             .answer
         {
@@ -2094,6 +2462,161 @@ mod tests {
         serving.closed().await;
     }
 
+    /// A session's call held while MCP went off is refused once confirmed, and ends it.
+    ///
+    /// **Over a kernel the daemon opens, deciding with a pack that lets an
+    /// agent switch MCP**, which no shipped pack does: MCP switched on is held
+    /// as a command that cannot be undone is, so the agent's
+    /// `settings.mcp.set` asking for on, with a desktop attached, waits for
+    /// its person. Its person switches MCP off meanwhile, then confirms the
+    /// call: the session is answered `NC-DMN-0014` and ends, as any request of
+    /// it once MCP is off is; MCP stays off; and no entry of the agent's
+    /// switch is journaled.
+    #[tokio::test]
+    async fn a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed() {
+        let serving = Serving::deciding_with(&[AN_AGENT_SWITCHES_MCP]).await;
+        let agent = serving.agent.to_crockford();
+        serving
+            .as_the_person(
+                "agents.grant",
+                &format!(r#"{{"agent":"{agent}","feature":"mcp","minutes":60,"reason":"a"}}"#),
+            )
+            .await;
+        let opened = serving
+            .server
+            .session(serving.agent)
+            .await
+            .expect("the session opens");
+        serving.server.attached.fetch_add(1, Ordering::SeqCst);
+        let mut moves = serving.kernel.pending_moves();
+        let asking = serving.server.answer_in_session(
+            &opened,
+            Request::Dispatch {
+                command: "settings.mcp.set".to_owned(),
+                args: Value::object([("on", Value::Bool(true))]),
+            },
+        );
+        let answering = async {
+            let serial = tokio::time::timeout(
+                crate::testing::PATIENCE,
+                moves.wait_for(|held| !held.is_empty()),
+            )
+            .await
+            .expect("the agent's call is held in time")
+            .expect("the kernel tells what it holds")[0];
+            serving.switched(false).await;
+            serving
+                .kernel
+                .settle(serial, Settled::Confirmed)
+                .expect("the held call is answered");
+        };
+        let (answered, ()) = tokio::join!(asking, answering);
+        assert!(
+            answered.ends,
+            "a session whose call was confirmed once MCP was off went on: {answered:?}"
+        );
+        assert!(
+            matches!(&answered.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonMcpOff),
+            "{answered:?}"
+        );
+        assert!(
+            !serving
+                .kernel
+                .settings()
+                .await
+                .expect("the switch reads")
+                .mcp,
+            "MCP stays off"
+        );
+        assert!(
+            serving
+                .decided("settings.mcp.set")
+                .await
+                .iter()
+                .all(|(principal, _)| *principal != agent),
+            "the agent's switch is journaled nowhere"
+        );
+        serving.server.attached.fetch_sub(1, Ordering::SeqCst);
+        drop(opened);
+        serving.closed().await;
+    }
+
+    /// A scratch directory of this module's tests, removed however the test
+    /// leaves.
+    struct Scratch(std::path::PathBuf);
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    impl Scratch {
+        /// A private directory of its own, under the temporary one.
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("nc-ldr-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            nc_platform::create_private_directory(&root).expect("a scratch");
+            Self(root)
+        }
+    }
+
+    /// A press of the Leader starts the desktop again where the one started
+    /// last is gone: the daemon's own press and a person's `leader.tap`
+    /// alike.
+    ///
+    /// **Before anything is dispatched**, so it holds of a daemon whose kernel
+    /// does not run yet and refuses the dispatch: with an environment naming a
+    /// display announced, the daemon's own press starts a desktop; once it
+    /// ended, a person's `leader.tap` starts another; once that ended, the
+    /// daemon's own press starts a third.
+    #[tokio::test]
+    async fn a_press_of_the_leader_starts_the_desktop_again_where_the_one_started_last_is_gone() {
+        let scratch = Scratch::new();
+        let ends = scratch.0.join("ends");
+        let desktop = crate::desktop::waiting_for(&ends, scratch.0.join("desktop.err"));
+        let server = Arc::new(a_server_starting(nc_channel::Channel::Staging, desktop));
+        server.display(a_display(":99"));
+        assert_eq!(server.desktop.running(), None, "nothing started yet");
+        let ended = || {
+            drop(nc_platform::create_private(&ends).expect("the end is told"));
+            let deadline = std::time::Instant::now() + crate::testing::PATIENCE;
+            while server.desktop.running().is_some() {
+                assert!(std::time::Instant::now() < deadline, "it never ended");
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            std::fs::remove_file(&ends).expect("the end is taken back");
+        };
+        server.leader_pressed().await;
+        assert!(
+            server.desktop.running().is_some(),
+            "the daemon's own press started no desktop"
+        );
+        ended();
+        let tap = Request::Dispatch {
+            command: nc_ipc::leader::TAP.to_owned(),
+            args: nc_ipc::leader::tap(),
+        };
+        let tapped = server.asked(tap).await;
+        assert!(
+            matches!(&tapped.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonNotRunning),
+            "{tapped:?}"
+        );
+        assert!(
+            server.desktop.running().is_some(),
+            "a person's `leader.tap` started no desktop again"
+        );
+        ended();
+        server.leader_pressed().await;
+        assert!(
+            server.desktop.running().is_some(),
+            "the daemon's own press started no desktop again"
+        );
+        ended();
+    }
+
     /// What `answer` is when it is a watch's: its revision and its state.
     fn changed(answer: Answer) -> (u64, Option<Value>) {
         match answer {
@@ -2131,7 +2654,7 @@ mod tests {
                 server.reach(state);
             }
             for request in [watch(), Request::Note(a_note("a"))] {
-                let answered = server.answer(request.clone()).await;
+                let answered = server.asked(request.clone()).await;
                 assert!(!answered.ends, "{state:?}: {answered:?}");
                 assert!(
                     matches!(&answered.answer, Answer::Refused(refusal)
@@ -2140,7 +2663,7 @@ mod tests {
                 );
             }
             let display = a_display(&format!(":{number}"));
-            let answered = server.answer(Request::Display(display.clone())).await;
+            let answered = server.asked(Request::Display(display.clone())).await;
             assert!(
                 !answered.ends && answered.answer == Answer::Displayed,
                 "{state:?}: {answered:?}"
@@ -2674,6 +3197,7 @@ mod tests {
                     since: 1_767_225_600_000,
                 },
                 nc_ipc::Token::fresh().expect("a token"),
+                no_desktop(),
                 Arc::new(std::sync::Mutex::new(nc_log::Log::to_standard_error(
                     crate::environment::origin(),
                 ))),
@@ -3197,11 +3721,11 @@ mod tests {
                 assert!(refusal.sentence.contains(state.word()), "{refusal:?}");
             }
             assert!(matches!(
-                server.answer(Request::Status).await.answer,
+                server.asked(Request::Status).await.answer,
                 Answer::Status(_)
             ));
         }
-        assert_eq!(server.answer(Request::Stop).await.answer, Answer::Stopping);
+        assert_eq!(server.asked(Request::Stop).await.answer, Answer::Stopping);
         assert_eq!(server.state(), State::Stopping);
         for request in [dispatch(), REGISTRY] {
             let refusal = refused(&server, request).await;
@@ -3408,7 +3932,7 @@ mod tests {
         let serving = runtime();
         let began = std::time::Instant::now();
         let abandoned = serving.block_on(async {
-            server.serve_one_after(daemon_end, || {
+            server.serve_one_after(daemon_end, None, || {
                 tokio::time::sleep(Duration::from_millis(200))
             });
             server.stopping().await;

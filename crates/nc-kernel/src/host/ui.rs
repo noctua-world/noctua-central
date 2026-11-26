@@ -14,12 +14,15 @@
 //! what a command did that the journal did not take, as no event is heard
 //! and no timer armed for one. Each change is judged against what is shown
 //! and what the tree holds already: a surface the tree opened is its plugin's
-//! and counts against its bound, and one it closed is not found.
+//! and counts against its bound, and one it closed is not found. **A tree
+//! rendered is held with who rendered it** (`crate::ui::Renderer`): the person
+//! the call tree acts for and, when an agent's session acts, the agent — read
+//! from the call tree, never from what the plugin says.
 //!
 //! What this answers (`NOCTUA.md §2.4`): a plugin drawing what the host does
-//! not render, or into another's surface. What it does not answer: the click,
-//! which a renderer dispatches through the decision point, and which no
-//! renderer in this build dispatches.
+//! not render, or into another's surface, and a tree an agent's call tree
+//! rendered kept as anybody else's. What it does not answer: the click, which
+//! is `surfaces.activate`'s (`crate::ui`).
 
 use nc_catalog::Capability;
 
@@ -28,7 +31,7 @@ use crate::Environment;
 use crate::bindings::KernelError;
 use crate::bindings::noctua::kernel::ui as world;
 use crate::dispatch::lock;
-use crate::ui::{Shown, SurfaceKind};
+use crate::ui::{Renderer, Shown, SurfaceKind};
 
 /// The world's kind of surface, as the kernel keeps it.
 const fn kind(kind: world::SurfaceKind) -> SurfaceKind {
@@ -90,10 +93,16 @@ impl<E: Environment> world::Host for HostState<E> {
         }
         let kept = crate::ui::validated(&tree, &|name| kernel.command(name))
             .map_err(|refusal| refused(&refusal))?;
-        frame.tree().later_mut().show(Shown::Rendered {
+        // **Who rendered it is the call tree's**: the person it acts for, and
+        // the agent whose session acts for them when one does — never what
+        // the plugin says.
+        let mut call_tree = frame.tree();
+        let by = Renderer::of(call_tree.acting());
+        call_tree.later_mut().show(Shown::Rendered {
             owner,
             id,
             tree: kept,
+            by,
         });
         Ok(())
     }

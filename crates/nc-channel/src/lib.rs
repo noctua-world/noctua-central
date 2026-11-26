@@ -39,8 +39,10 @@
 //! | the socket | `s` in the runtime directory, short because macOS bounds a socket's path |
 //! | the CLI, the Run-key value, the URL scheme | `L` |
 //! | the daemon's executable | `L-daemon` |
+//! | the desktop interface's executable | `L-desktop` |
 //! | the Windows pipe and mutex | `\\.\pipe\L.U` and `Local\L.U` |
 //! | the systemd unit, the scheduled task | `L.U.service` and `\L.U` |
+//! | the systemd unit the graphical session starts, which announces it | `L.U.announce.service` |
 //! | the application identity `A` | `io.github.noctua_world.` and `L` with `_` for `-` |
 //! | the launchd label | `A.daemon.U` |
 //! | the desktop entry, the tray, the credential store | `A.desktop`, `A.tray`, `A.credentials` |
@@ -64,7 +66,7 @@
 //! A leaf's parts are joined by `-`, and a [`Namespace`] holds none, so a
 //! relocated leaf has one part more than its channel's; it holds a digit, which
 //! no word of a leaf does, so `noctua-<namespace>` is never `noctua-staging` and
-//! `L-<namespace>` never `L-daemon`. The user is joined by `.`, which no leaf
+//! `L-<namespace>` never `L-daemon` or `L-desktop`. The user is joined by `.`, which no leaf
 //! holds, and written with ASCII letters, digits and `-` alone, every other
 //! character spelled out (`_` and its code point in hex, then `_`), so no user
 //! can be read as another's name or end one.
@@ -94,7 +96,8 @@
 //! It reads no environment, and writes nothing. Its ways to the disk are
 //! [`Checkout::of`], which canonicalizes the checkout's path, [`found`], which
 //! reads the manifest beside an executable, [`record`], which reads the
-//! daemon's PID record, [`keys`], which reads a person's keybinding
+//! daemon's PID record, [`stopped`], which reads whether a person stopped
+//! the daemon on purpose, [`keys`], which reads a person's keybinding
 //! configuration and the other channels' beside it, and [`checkouts`], which
 //! lists the development checkouts installed beside an install with what each
 //! records of itself, writing none of them; [`layout`] touches none.
@@ -110,6 +113,7 @@ pub mod checkouts;
 pub mod found;
 pub mod keys;
 pub mod record;
+pub mod stopped;
 
 use core::fmt::{self, Write as _};
 use std::collections::BTreeMap;
@@ -913,16 +917,25 @@ pub struct Layout {
     pub socket: PathBuf,
     /// A daemon started detached writes its standard error here, `<log>/daemon.err`.
     pub daemon_err: PathBuf,
+    /// The desktop interface its daemon starts writes its standard error
+    /// here, `<log>/desktop.err`.
+    pub desktop_err: PathBuf,
     /// The CLI's name on `PATH`, without a system's executable suffix.
     pub cli: String,
     /// The daemon's executable, without a system's executable suffix.
     pub daemon: String,
+    /// The desktop interface's executable, without a system's executable
+    /// suffix: installed beside the CLI and the daemon (`NOCTUA.md §12`).
+    pub desktop: String,
     /// The IPC named pipe on Windows.
     pub pipe: String,
     /// The Windows mutex.
     pub mutex: String,
     /// The systemd user unit.
     pub systemd_unit: String,
+    /// The systemd user unit the person's graphical session starts, which
+    /// announces that session's environment to the daemon (`NOCTUA.md §11.1`).
+    pub announcer_unit: String,
     /// The launchd agent's label.
     pub launchd_label: String,
     /// The scheduled task's path, in the root folder.
@@ -992,11 +1005,14 @@ pub fn layout(install: &Install, user: &str) -> Layout {
         token: runtime.join("token"),
         socket: runtime.join("s"),
         daemon_err: log.join("daemon.err"),
+        desktop_err: log.join("desktop.err"),
         cli: leaf.clone(),
         daemon: format!("{leaf}-daemon"),
+        desktop: format!("{leaf}-desktop"),
         pipe: format!(r"\\.\pipe\{leaf}.{user}"),
         mutex: format!(r"Local\{leaf}.{user}"),
         systemd_unit: format!("{leaf}.{user}.service"),
+        announcer_unit: format!("{leaf}.{user}.announce.service"),
         launchd_label: format!("{app_id}.daemon.{user}"),
         task: format!(r"\{leaf}.{user}"),
         run_key: leaf.clone(),

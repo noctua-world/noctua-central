@@ -896,6 +896,118 @@ message = "error.kernel.shell-full"
 severity = "warning"
 retryable = false
 
+[[error]]
+# A command declared irreversible, asked at the top of a call tree from the
+# CLI or by an agent's session while the desktop interface the daemon started
+# is attached, is held for the person's confirmation there
+# (`crates/nc-kernel/src/confirmations.rs`), up to `confirmation_ttl_ms`; when
+# the wait lapses — or the daemon stops — with nobody's answer, the call is
+# decided again and refused under the same sentinel as NC-KERN-0006,
+# `kernel.irreversible_needs_confirmation`. Not NC-KERN-0006, which says the
+# call was never put before a person.
+code = "NC-KERN-0029"
+description = "An irreversible command was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+message = "error.kernel.not-confirmed-in-time"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The same call held, and the person declined it in the desktop interface:
+# decided again and refused under `kernel.irreversible_needs_confirmation`.
+# Not NC-POL-0003, since the decision point allowed it and the person did not.
+code = "NC-KERN-0030"
+description = "An irreversible command was held for a person's confirmation in the Noctua window, and the person declined it"
+message = "error.kernel.declined"
+severity = "warning"
+retryable = false
+
+[[error]]
+# `confirmations.read` and the desktop's answer to a held call name it by the
+# serial the kernel gave it; one the kernel holds no call under — answered
+# already, lapsed, or never held — is refused, and nothing is settled. Not
+# NC-KERN-0027, whose description names the interface's state.
+code = "NC-KERN-0031"
+description = "No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held"
+message = "error.kernel.nothing-held"
+severity = "info"
+retryable = false
+
+[[error]]
+# MCP switched on lets an agent act for the person (`NOCTUA.md §20.3`), so
+# `settings.mcp.set` asking for on, and an undo or a redo that would put it
+# back on, wait for the person's confirmation in the desktop interface as a
+# command that cannot be undone does (`crates/nc-kernel/src/settings.rs`,
+# `crates/nc-kernel/src/history.rs`), recorded as
+# `kernel.mcp_on_needs_confirmation`; asking for off never does. Refused at
+# once, as here, when no desktop the daemon started is attached to ask. Not
+# NC-KERN-0006, whose description names an irreversible command, which none of
+# the three is: undo takes each back.
+code = "NC-KERN-0032"
+description = "A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window"
+message = "error.kernel.mcp-unconfirmed"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A call that would switch MCP on held for the person's confirmation, as
+# NC-KERN-0029 holds an irreversible command, and nobody answered before
+# `confirmation_ttl_ms` lapsed or the daemon stopped. Not NC-KERN-0029, whose
+# description names an irreversible command.
+code = "NC-KERN-0033"
+description = "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+message = "error.kernel.mcp-not-confirmed-in-time"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A call that would switch MCP on held for the person's confirmation, and the
+# person declined it in the desktop interface. Not NC-KERN-0030, whose
+# description names an irreversible command.
+code = "NC-KERN-0034"
+description = "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it"
+message = "error.kernel.mcp-declined"
+severity = "warning"
+retryable = false
+
+[[error]]
+# `surfaces.activate` runs what a surface's node names with the person's whole
+# authority, so a surface whose kept tree an agent's call tree rendered — its
+# command's, or a timer's or an event's callback it put off — is never
+# activated (`crates/nc-kernel/src/ui.rs`), whatever its node. Not
+# NC-POL-0003: the decision point allowed the activation, and it is the tree's
+# provenance that refuses it.
+code = "NC-KERN-0035"
+description = "A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person"
+message = "error.kernel.surface-by-an-agent"
+severity = "warning"
+retryable = false
+
+[[error]]
+# `surfaces.read` and `surfaces.activate` name a surface by its identifier and
+# a node by its pointer into the tree the surface shows: a surface closed
+# since, never opened or showing no tree yet, and a pointer that names nothing
+# in that tree, are refused. Not NC-PLUG-0019, whose description names a
+# plugin's own call, nor NC-KERN-0027, whose names the interface's state.
+code = "NC-KERN-0036"
+description = "A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold"
+message = "error.kernel.surface-unknown"
+severity = "warning"
+retryable = false
+
+[[error]]
+# What `surfaces.activate` runs is read from the node: a `button` or a
+# `toggle` that is not disabled, with the text typed into the inputs it binds.
+# A node of another kind, one disabled, an input it does not bind or named
+# twice, a text past the input's `max_length` in characters or past
+# `ui_text_bytes` in bytes, and an integer input given what is not one, are
+# refused before anything is dispatched. Not NC-VAL-0002: the arguments are well formed, and
+# it is the tree they name that refuses them.
+code = "NC-KERN-0037"
+description = "A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read"
+message = "error.kernel.not-activatable"
+severity = "warning"
+retryable = false
+
 # --- The plugin host (§11.3) ---
 #
 # What a plugin is told when the host refuses it, kills it or cannot answer
@@ -1569,6 +1681,32 @@ description = "The daemon holds as many sessions as `sessions_max` allows, so it
 message = "error.daemon.too-many-sessions"
 severity = "warning"
 retryable = true
+
+# What the daemon's endpoint refuses about the desktop interface it started
+# (`apps/daemon/src/desktop.rs`): each is answered and logged as `ipc.refused`
+# by its code, and never journaled, since no command was dispatched.
+
+[[error]]
+# A connection attaches as the desktop the daemon started by proving the
+# secret the daemon handed that process down its standard input, keyed over
+# the connection's own handshake, from the process the daemon started; one
+# that does neither — or asks when the daemon started none, or asks again —
+# is refused and closed.
+code = "NC-DMN-0017"
+description = "A connection asked to attach as the desktop interface the daemon started, and its proof or its process was not that one's, so it was closed"
+message = "error.daemon.attach-refused"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A held call is answered — confirmed or declined — on a connection attached
+# as the desktop the daemon started, and on no other: the CLI, an agent's
+# session and any process that only speaks the protocol answer none.
+code = "NC-DMN-0018"
+description = "A held call was answered on a connection that is not attached as the desktop interface the daemon started, so nothing was answered"
+message = "error.daemon.not-attached"
+severity = "warning"
+retryable = false
 
 # --- The IPC channel (§11.1) ---
 #

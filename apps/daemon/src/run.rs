@@ -88,7 +88,27 @@ pub struct Stopped {
 /// the central log, the endpoint, the local database, the mark, the blobs or
 /// the kernel.
 pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
-    serving(&nc_channel::found::beside(executable).map_err(Refused::Install)?)
+    let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
+    let desktop = crate::desktop::Desktop::of(&found.layout);
+    serving(&found, desktop)
+}
+
+/// What [`serve`] runs, its desktop interface `desktop` rather than the one
+/// the install names: **for tests**, which start a stand-in of their own
+/// where the install's desktop is not built.
+///
+/// # Errors
+///
+/// [`Refused`], as [`serve`] refuses.
+#[cfg(test)]
+pub(crate) fn serve_with(
+    executable: &Path,
+    desktop: crate::desktop::Desktop,
+) -> Result<Stopped, Refused> {
+    serving(
+        &nc_channel::found::beside(executable).map_err(Refused::Install)?,
+        desktop,
+    )
 }
 
 /// How a start a restorer asked for ended.
@@ -106,60 +126,38 @@ pub enum Restored {
 /// starts it, `--restored`: not at all while its profile carries the
 /// `stopped` mark, and not twice.
 ///
-/// **The mark is read before anything else of the profile**, so a person's
-/// explicit stop holds whichever restorer starts the daemon next — a service
-/// manager, a logon task, the interface's countdown — and no restorer has to
-/// know of it (`NOCTUA.md §17.5`). **A daemon already up is not a failure**:
-/// a restorer that starts one beside it leaves it as it is and ends well.
+/// **The mark is read before anything else of the profile**, by the one
+/// reader every program of the install shares (`nc_channel::stopped`), so a
+/// person's explicit stop holds whichever restorer starts the daemon next — a
+/// service manager, a logon task, the interface's countdown — and no restorer
+/// has to know of it (`NOCTUA.md §17.5`). **A daemon already up is not a
+/// failure**: a restorer that starts one beside it leaves it as it is and ends
+/// well.
 ///
 /// # Errors
 ///
 /// [`Refused`], as [`serve`] refuses, and [`Refused::NotPrivate`] for a state
 /// directory or a mark another account can reach — never one of them read as
-/// a stop asked for.
+/// a stop asked for — or [`Refused::Unavailable`] for one that could not be
+/// judged.
 pub fn restore(executable: &Path) -> Result<Restored, Refused> {
     let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
-    if stopped_on_purpose(&found.layout, &found.user)? {
+    if nc_channel::stopped::on_purpose(&found.layout, &found.user).map_err(Refused::judged)? {
         return Ok(Restored::StaysDown);
     }
-    match serving(&found) {
+    let desktop = crate::desktop::Desktop::of(&found.layout);
+    match serving(&found, desktop) {
         Ok(stopped) => Ok(Restored::Ran(stopped)),
         Err(Refused::Held { .. }) => Ok(Restored::AlreadyUp),
         Err(refused) => Err(refused),
     }
 }
 
-/// Whether the profile of `layout` carries the `stopped` mark: its state
-/// directory and the mark judged this user's alone, and no mark where either
-/// is not there yet.
-///
-/// # Errors
-///
-/// [`Refused::NotPrivate`] for a state directory or a mark another account
-/// can reach, and [`Refused::Unavailable`] when either could not be read.
-pub fn stopped_on_purpose(
-    layout: &nc_channel::Layout,
-    user: &nc_platform::User,
-) -> Result<bool, Refused> {
-    for (path, kind) in [
-        (&layout.state, nc_platform::Kind::Directory),
-        (&layout.stopped, nc_platform::Kind::File),
-    ] {
-        match nc_platform::judge(path, kind, user) {
-            Ok(()) => {}
-            Err(nc_platform::Judged::Failed(absent))
-                if absent.error().kind() == std::io::ErrorKind::NotFound =>
-            {
-                return Ok(false);
-            }
-            Err(judged) => return Err(Refused::judged(judged)),
-        }
-    }
-    Ok(true)
-}
-
 /// Runs the daemon of `found`'s install until it is asked to stop.
-fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
+fn serving(
+    found: &nc_channel::found::Found,
+    desktop: crate::desktop::Desktop,
+) -> Result<Stopped, Refused> {
     let began = std::time::Instant::now();
     let (layout, user) = (&found.layout, &found.user);
     profile::prepare(layout, user)?;
@@ -216,7 +214,7 @@ fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
         person: world.person().clone(),
         since: crate::server::now_ms(),
     };
-    let server = Arc::new(Server::new(named, token, Arc::clone(&log)));
+    let server = Arc::new(Server::new(named, token, desktop, Arc::clone(&log)));
     let started = Started {
         found,
         held: &held,
@@ -713,7 +711,6 @@ mod tests {
     /// stop, and signalled it.
     #[test]
     fn a_stopped_runs_record_is_removed_before_its_endpoint_is_let_go() {
-        use std::sync::Arc;
         let installed =
             crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
         let (layout, user) = (&installed.layout, &installed.user);
@@ -752,10 +749,11 @@ mod tests {
         };
         let log = nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
             .expect("a store on this machine");
-        let server = Arc::new(crate::server::Server::new(
+        let server = std::sync::Arc::new(crate::server::Server::new(
             named,
             token,
-            Arc::new(std::sync::Mutex::new(log)),
+            crate::desktop::Desktop::of(layout),
+            std::sync::Arc::new(std::sync::Mutex::new(log)),
         ));
         let endpoint = nc_platform::ipc::Endpoint::new(
             layout.runtime.clone(),
@@ -768,7 +766,7 @@ mod tests {
             .expect("a runtime")
             .block_on(async {
                 let listener = nc_ipc::listen(&endpoint, user, &held).expect("bound");
-                let accepting = tokio::spawn(Arc::clone(&server).accepting(listener));
+                let accepting = tokio::spawn(std::sync::Arc::clone(&server).accepting(listener));
                 let (stream, _) = nc_platform::ipc::connect(&endpoint, user)
                     .await
                     .expect("the endpoint answers");

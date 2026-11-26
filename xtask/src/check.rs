@@ -19741,8 +19741,8 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 243] = [
-        ("cli/args.rs", 52, 10),
+    const DOCUMENTED: [(&str, usize, usize); 247] = [
+        ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
         ("cli/chosen.rs", 26, 10),
@@ -19750,14 +19750,14 @@ mod the_frozen_path_rule {
         ("cli/control.rs", 73, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 42, 3),
-        ("cli/install.rs", 81, 18),
+        ("cli/install.rs", 84, 18),
         ("cli/launcher.rs", 14, 6),
         ("cli/lib.rs", 1, 14),
         ("cli/main.rs", 8, 5),
         ("cli/mcp.rs", 111, 15),
         ("cli/picker.rs", 33, 5),
         ("cli/render.rs", 27, 4),
-        ("cli/run.rs", 38, 5),
+        ("cli/run.rs", 39, 5),
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         (
@@ -19768,13 +19768,14 @@ mod the_frozen_path_rule {
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/agent_sessions.rs", 65, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
+        ("daemon/desktop.rs", 36, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 25, 18),
         ("daemon/every_command_from_the_cli.rs", 45, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/leader.rs", 8, 2),
-        ("daemon/lib.rs", 7, 15),
+        ("daemon/lib.rs", 7, 16),
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
@@ -19782,12 +19783,12 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 131, 22),
+        ("daemon/server.rs", 149, 30),
         ("daemon/serves_its_kernel.rs", 28, 3),
-        ("daemon/testing.rs", 42, 8),
+        ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("daemon/the_stop_mark_silences_every_restorer.rs", 35, 3),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
         ("nc-authz/agents.rs", 69, 47),
         ("nc-authz/directory.rs", 53, 20),
         ("nc-authz/embedded.rs", 12, 4),
@@ -19796,7 +19797,7 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 39, 15),
+        ("nc-catalog-compiler/docs.rs", 40, 15),
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
@@ -19834,8 +19835,9 @@ mod the_frozen_path_rule {
         ("nc-channel/checkouts.rs", 41, 11),
         ("nc-channel/found.rs", 18, 10),
         ("nc-channel/keys.rs", 40, 11),
-        ("nc-channel/lib.rs", 61, 16),
+        ("nc-channel/lib.rs", 61, 17),
         ("nc-channel/record.rs", 15, 10),
+        ("nc-channel/stopped.rs", 4, 6),
         ("nc-channel/the_names_are_disjoint.rs", 29, 0),
         ("nc-fuzzy/align.rs", 21, 13),
         ("nc-fuzzy/fold.rs", 8, 7),
@@ -19853,17 +19855,18 @@ mod the_frozen_path_rule {
         ("nc-ids/naming.rs", 57, 40),
         ("nc-ids/properties.rs", 13, 6),
         ("nc-ids/snowflake.rs", 71, 90),
-        ("nc-ipc/client.rs", 35, 7),
-        ("nc-ipc/connection.rs", 15, 9),
+        ("nc-ipc/alert.rs", 26, 12),
+        ("nc-ipc/client.rs", 37, 7),
+        ("nc-ipc/connection.rs", 19, 5),
         ("nc-ipc/endpoint.rs", 4, 5),
         ("nc-ipc/frame.rs", 5, 0),
         ("nc-ipc/frames.rs", 8, 6),
         ("nc-ipc/handshake.rs", 10, 0),
         ("nc-ipc/handshake.rs", 15, 15),
-        ("nc-ipc/heartbeat.rs", 21, 19),
+        ("nc-ipc/heartbeat.rs", 22, 19),
         ("nc-ipc/leader.rs", 13, 2),
-        ("nc-ipc/lib.rs", 9, 18),
-        ("nc-ipc/message.rs", 73, 8),
+        ("nc-ipc/lib.rs", 20, 26),
+        ("nc-ipc/message.rs", 74, 8),
         ("nc-ipc/testing.rs", 12, 6),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
@@ -19884,12 +19887,13 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 139, 31),
+        ("nc-kernel/confirmations.rs", 19, 2),
+        ("nc-kernel/dispatch.rs", 153, 32),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/find.rs", 35, 2),
-        ("nc-kernel/history.rs", 49, 7),
+        ("nc-kernel/history.rs", 59, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
         ("nc-kernel/host/commands.rs", 38, 15),
@@ -19901,7 +19905,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 66, 59),
+        ("nc-kernel/lib.rs", 69, 60),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19911,16 +19915,16 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 10, 2),
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
-        ("nc-kernel/settings.rs", 25, 1),
+        ("nc-kernel/settings.rs", 27, 1),
         ("nc-kernel/shell.rs", 207, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 303, 87),
+        ("nc-kernel/the_decision_point.rs", 316, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 76, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
         ("nc-kernel/timers.rs", 18, 5),
-        ("nc-kernel/ui.rs", 43, 15),
-        ("nc-kernel/units.rs", 116, 18),
-        ("nc-kernel/units_and_history.rs", 159, 48),
+        ("nc-kernel/ui.rs", 97, 16),
+        ("nc-kernel/units.rs", 117, 18),
+        ("nc-kernel/units_and_history.rs", 166, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
@@ -19942,8 +19946,8 @@ mod the_frozen_path_rule {
         ("nc-platform/leader.rs", 52, 8),
         ("nc-platform/lib.rs", 112, 26),
         ("nc-platform/macos.rs", 16, 10),
-        ("nc-platform/process.rs", 48, 15),
-        ("nc-platform/service.rs", 181, 21),
+        ("nc-platform/process.rs", 53, 15),
+        ("nc-platform/service.rs", 185, 21),
         ("nc-platform/testing.rs", 35, 4),
         ("nc-platform/unix.rs", 106, 4),
         ("nc-platform/windows.rs", 154, 15),
@@ -19991,7 +19995,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 38, 10),
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 58, 20),
+        ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
         ("xtask/the_registry_reaches_the_code.rs", 43, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
@@ -22779,8 +22783,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 916 scratches this tree
-    /// builds, 828 of the 916 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 926 scratches this tree
+    /// builds, 838 of the 926 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22846,7 +22850,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 68] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 72] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -22854,7 +22858,7 @@ mod the_frozen_path_rule {
         ("cli/install.rs", 18, 18),
         ("cli/launcher.rs", 4, 4),
         ("cli/mcp.rs", 3, 3),
-        ("cli/run.rs", 14, 14),
+        ("cli/run.rs", 15, 15),
         ("cli/the_launcher_passes_everything_through.rs", 4, 4),
         (
             "cli/the_mcp_server_writes_nothing_but_the_protocol.rs",
@@ -22862,6 +22866,7 @@ mod the_frozen_path_rule {
             5,
         ),
         ("daemon/channels_side_by_side.rs", 2, 2),
+        ("daemon/desktop.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 4, 4),
         ("daemon/main.rs", 5, 5),
@@ -22869,6 +22874,7 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 5, 5),
         ("daemon/plugins.rs", 9, 9),
         ("daemon/profile.rs", 8, 8),
+        ("daemon/server.rs", 2, 2),
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
@@ -22888,6 +22894,8 @@ mod the_frozen_path_rule {
         ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
         ("nc-channel/record.rs", 2, 2),
+        ("nc-channel/stopped.rs", 2, 2),
+        ("nc-ipc/alert.rs", 2, 2),
         ("nc-ipc/client.rs", 9, 9),
         ("nc-ipc/endpoint.rs", 2, 2),
         ("nc-ipc/testing.rs", 1, 1),
@@ -22902,7 +22910,7 @@ mod the_frozen_path_rule {
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/clipboard.rs", 2, 2),
         ("nc-platform/lib.rs", 32, 32),
-        ("nc-platform/process.rs", 2, 2),
+        ("nc-platform/process.rs", 3, 3),
         ("nc-platform/service.rs", 7, 7),
         ("nc-platform/x11.rs", 10, 10),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
@@ -25947,7 +25955,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23178;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23664;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25966,7 +25974,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6575;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6907;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25983,7 +25991,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2230;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2352;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26000,7 +26008,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [100, 19, 44, 45, 98];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [126, 26, 51, 52, 99];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26017,7 +26025,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30495;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31181;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26035,7 +26043,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 561;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 618;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26071,8 +26079,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **561 of 30,495 are accepted by the first-line
-    /// rule alone, and 306 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **618 of 31,181 are accepted by the first-line
+    /// rule alone, and 354 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26093,8 +26101,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **100 ascending sorts, 19 descending, 44
-    /// swaps, 45 rotations and 98 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **126 ascending sorts, 26 descending, 51
+    /// swaps, 52 rotations and 99 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26104,7 +26112,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2230 of
+    /// this tree offers, **2352 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37248,7 +37256,7 @@ Options:
     }
 
     /// The mutated sources whose tests live somewhere else, each said here.
-    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 14] = [
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
         "xtask/src/main.rs",
         "plugins/reference/src/lib.rs",
         "plugins/reference/src/adapter.rs",
@@ -37265,7 +37273,6 @@ Options:
         // The endpoint's decisions, held by the crate root's tests.
         "crates/nc-platform/src/ipc.rs",
         // The protocol, which its suites in `tests/` drive.
-        "crates/nc-ipc/src/lib.rs",
         "crates/nc-ipc/src/frame.rs",
         "crates/nc-ipc/src/handshake.rs",
         "crates/nc-ipc/src/connection.rs",
@@ -38154,7 +38161,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 257,
+            walked, 261,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38194,7 +38201,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3041] = [
+    static OPERATORS: [(&str, &str, &str); 3152] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43926,6 +43933,325 @@ Options:
             "the warning that expires an ignored advisory stays on",
         ),
         (
+            "kernel_confirmations",
+            "hold",
+            "no more calls are held than `confirmations_pending_max`",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a call nobody answers waits `confirmation_ttl_ms`",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a wait cut short is not confirmed in time",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a declined call is refused as declined",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a call nobody answered is refused as not confirmed in time",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a confirmed call is decided again holding the person's confirmation",
+        ),
+        (
+            "kernel_confirmations",
+            "settle",
+            "a call held is found and answered",
+        ),
+        (
+            "kernel_confirmations",
+            "settle",
+            "an answer nobody waits for answers nothing",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "an answer given as the wait ended decides the call",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a confirmed call is decided again only while its asker admits it",
+        ),
+        (
+            "kernel_confirmations",
+            "let_go",
+            "a call whose wait is over is let go",
+        ),
+        (
+            "kernel_confirmations",
+            "of",
+            "a call is listed with the agent that asked",
+        ),
+        (
+            "kernel_confirmations",
+            "of",
+            "a call waits for the person its tree acts for",
+        ),
+        (
+            "kernel_confirmations",
+            "declared",
+            "a held call is listed as its command is declared",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "a tree an agent rendered is never activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "only a button or a toggle is activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "a disabled node is never activated",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "an input the node does not bind is refused",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "an integer input is read as an integer",
+        ),
+        (
+            "kernel_ui",
+            "within_bounds",
+            "what is typed is held to a text's bytes",
+        ),
+        (
+            "kernel_ui",
+            "within_bounds",
+            "what is typed is held to its input's `max_length`",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "what is typed is held to its bounds",
+        ),
+        ("kernel_ui", "activation", "an input given twice is refused"),
+        (
+            "kernel_ui",
+            "at",
+            "an index is written without a leading zero",
+        ),
+        (
+            "kernel_ui",
+            "at",
+            "a pointer's escapes are read in their order",
+        ),
+        (
+            "kernel_ui",
+            "dispatches_what_it_shows",
+            "the activation alone dispatches what a surface shows",
+        ),
+        ("kernel_ui", "render", "a tree is kept with who rendered it"),
+        (
+            "kernel_ui",
+            "of",
+            "a tree an agent's session rendered names the agent",
+        ),
+        (
+            "kernel_ui",
+            "of",
+            "a tree is rendered for the person a session acts for",
+        ),
+        (
+            "kernel_host_ui",
+            "render",
+            "a tree is rendered as the call tree acts",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "MCP switched on waits for a person's confirmation",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "a switch on is journaled under its own sentinel",
+        ),
+        (
+            "kernel_dispatch",
+            "unconfirmed_code",
+            "a declined switch on is refused as declined",
+        ),
+        (
+            "kernel_dispatch",
+            "unconfirmed_code",
+            "a switch on nobody answered is refused as not confirmed in time",
+        ),
+        (
+            "kernel_dispatch",
+            "authorize",
+            "an undo or a redo that would switch MCP on waits for a person's confirmation",
+        ),
+        (
+            "kernel_dispatch",
+            "run",
+            "the activation opens no unit of its own",
+        ),
+        (
+            "kernel_dispatch",
+            "opened",
+            "a unit an agent's tree opens is noted as its",
+        ),
+        (
+            "kernel_host_commands",
+            "owned",
+            "a unit a callback begins for an agent is noted as its",
+        ),
+        (
+            "kernel_units",
+            "acted_for",
+            "a unit is noted as an agent's only when an agent acts",
+        ),
+        (
+            "kernel_units",
+            "notes_kept",
+            "the agent's note is kept with its unit",
+        ),
+        (
+            "kernel_history",
+            "leaves_the_machine",
+            "the activation leaves no note of having left the machine",
+        ),
+        (
+            "kernel_history",
+            "would_switch_mcp_on",
+            "an undo is read for whether it would switch MCP on",
+        ),
+        (
+            "kernel_history",
+            "would_switch_mcp_on",
+            "a redo is read for whether it would switch MCP on",
+        ),
+        (
+            "kernel_history",
+            "confirmed_where_it_switches_mcp_on",
+            "a step put back so as to switch MCP on needs a confirmation",
+        ),
+        (
+            "kernel_history",
+            "switches_mcp_back_on",
+            "what is put back is each key's before image over its after",
+        ),
+        (
+            "kernel_history",
+            "next",
+            "the history names the agent whose step it is",
+        ),
+        (
+            "kernel_history",
+            "next",
+            "the history says whether undo stops at the step",
+        ),
+        (
+            "kernel_history",
+            "read",
+            "an agent's note is read back as its agent",
+        ),
+        (
+            "kernel_settings",
+            "switches_mcp_on",
+            "only a switch asking for on waits",
+        ),
+        (
+            "kernel_settings",
+            "puts_mcp_on",
+            "putting back an entry already on switches nothing on",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "an unconfirmed switch on ends in the Noctua window's exit",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a switch on nobody answered in time ends in its own exit",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a declined switch on ends in its own exit",
+        ),
+        (
+            "pages",
+            "what_undoing_costs",
+            "a command that is no step of its own is published as what it runs",
+        ),
+        (
+            "kernel_dispatch",
+            "top",
+            "a call held and decided again spends once",
+        ),
+        (
+            "kernel_dispatch",
+            "holding",
+            "a call asked to be held is held, not refused",
+        ),
+        (
+            "kernel_dispatch",
+            "redeemed",
+            "a held call's confirmation is redeemed for that call",
+        ),
+        (
+            "kernel_dispatch",
+            "bound",
+            "a held call's confirmation is no token a caller presents",
+        ),
+        (
+            "kernel_dispatch",
+            "bound_held",
+            "a token a caller holds confirms no held call",
+        ),
+        (
+            "kernel_dispatch",
+            "bound_held",
+            "a held call's confirmation is its person's",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a call not confirmed in time ends a run in its own outcome",
+        ),
+        (
+            "cli_exit",
+            "of_refusal",
+            "a call declined ends a run in its own outcome",
+        ),
+        ("cli_args", "read", "leader with `--announce` taps nothing"),
+        ("cli_run", "tapped", "an announce dispatches no tap"),
+        (
+            "ipc_lib",
+            "hashed",
+            "an attach's proof is keyed by the desktop's secret",
+        ),
+        (
+            "ipc_lib",
+            "hashed",
+            "an attach's proof is over the connection's nonces",
+        ),
+        (
+            "ipc_message",
+            "from_value",
+            "a confirm is read as a confirm",
+        ),
+        (
             "kernel_dispatch",
             "spend",
             "a call tree nests no deeper than its depth",
@@ -44112,7 +44438,7 @@ Options:
         ),
         (
             "kernel_dispatch",
-            "detached",
+            "spawned",
             "a tree runs to its end whoever stops waiting",
         ),
         (
@@ -44665,14 +44991,12 @@ Options:
         (
             "kernel_dispatch",
             "shell_held",
-            "a unit begun once the journal refused an entry of its tree never reads what the tree \
-             holds itself",
+            "a unit begun once the journal refused an entry of its tree never reads what the tree holds itself",
         ),
         (
             "kernel_dispatch",
             "journaled",
-            "an entry the journal did not take lets go at once of the interface's state the tree \
-             holds itself",
+            "an entry the journal did not take lets go at once of the interface's state the tree holds itself",
         ),
         (
             "kernel_dispatch",
@@ -45892,17 +46216,17 @@ Options:
         ),
         (
             "kernel_history",
-            "undo",
+            "next_step",
             "an undo reaches the newest step still committed",
         ),
         (
             "kernel_history",
-            "undo",
+            "is_a_barrier",
             "a step that left the machine with nothing to set it right is a barrier",
         ),
         (
             "kernel_history",
-            "undo",
+            "is_a_barrier",
             "a step that left the machine with a compensation is no barrier",
         ),
         (
@@ -48937,6 +49261,46 @@ Options:
         ),
         (
             "platform_service",
+            "systemd_unit",
+            "a stop ends the daemon's own process alone",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "the graphical session wants its unit",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit of the graphical session starts after it",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit of the graphical session runs once",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit of the graphical session takes its program's failure as a success",
+        ),
+        (
+            "platform_service",
+            "definition",
+            "a service of the graphical session is systemd's alone",
+        ),
+        (
+            "platform_process",
+            "spawn_detached",
+            "a child handed its input reads it",
+        ),
+        (
+            "platform_process",
+            "spawn_detached",
+            "a child handed variables has them set",
+        ),
+        (
+            "platform_service",
             "xml_text",
             "an `&` in XML is its entity",
         ),
@@ -49212,6 +49576,83 @@ Options:
         ),
         ("daemon_schedule", "ended", "a run given up on is let go"),
         (
+            "daemon_desktop",
+            "environment_for",
+            "an environment announced is set whole",
+        ),
+        (
+            "daemon_desktop",
+            "environment_for",
+            "a daemon's own display is enough with none announced",
+        ),
+        (
+            "daemon_desktop",
+            "environment_for",
+            "a display named empty names none",
+        ),
+        (
+            "daemon_desktop",
+            "environment_for",
+            "macOS and Windows start a desktop as the daemon was started",
+        ),
+        (
+            "daemon_desktop",
+            "wanted",
+            "a desktop that runs is not started again",
+        ),
+        (
+            "daemon_desktop",
+            "wanted",
+            "a desktop not installed is not started",
+        ),
+        (
+            "daemon_desktop",
+            "attaches",
+            "a desktop attaches from its own process alone",
+        ),
+        (
+            "daemon_desktop",
+            "attaches",
+            "a desktop attaches by its own secret alone",
+        ),
+        (
+            "daemon_desktop",
+            "attaches",
+            "a desktop that ended attaches nothing",
+        ),
+        (
+            "daemon_server",
+            "admitted_dispatch",
+            "a call is held while the desktop is attached",
+        ),
+        (
+            "daemon_server",
+            "admitted_dispatch",
+            "a held call's wait ends once a stop begins",
+        ),
+        (
+            "daemon_server",
+            "desk_proven",
+            "an attach refused is logged by its code",
+        ),
+        ("daemon_server", "desk_proven", "a connection attaches once"),
+        (
+            "daemon_server",
+            "settled",
+            "an answer on a connection not attached is logged by its code",
+        ),
+        (
+            "daemon_server",
+            "desk_proven",
+            "a connection attaches only as the desktop the daemon started",
+        ),
+        (
+            "daemon_server",
+            "settled",
+            "a held call is answered on an attached connection alone",
+        ),
+        ("daemon_server", "watch", "a watch tells the calls held"),
+        (
             "daemon_server",
             "reach",
             "nothing moves a stopping daemon's state back",
@@ -49344,6 +49785,16 @@ Options:
         (
             "daemon_server",
             "answer_in_session",
+            "a session's held call is decided again only while MCP is on",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
+            "MCP off once a held call is confirmed ends the session",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
             "a session's dispatch is counted as running",
         ),
         (
@@ -49441,6 +49892,16 @@ Options:
             "daemon_server",
             "leader_pressed",
             "a press is the person's tap",
+        ),
+        (
+            "daemon_server",
+            "leader_pressed",
+            "the daemon's press starts the desktop again",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a person's press starts the desktop again",
         ),
         (
             "daemon_leader",
@@ -50733,12 +51194,62 @@ Options:
         (
             "daemon_run",
             "restore",
-            "a restored start beside a daemon up ends well",
+            "a restored start refuses a stop mark another account can reach",
         ),
         (
             "daemon_run",
-            "stopped_on_purpose",
+            "restore",
+            "a restored start beside a daemon up ends well",
+        ),
+        (
+            "channel_stopped",
+            "on_purpose",
             "a stop mark another account can reach is refused",
+        ),
+        (
+            "channel_stopped",
+            "on_purpose",
+            "a mark is read only in a state directory this user's alone",
+        ),
+        ("channel_stopped", "on_purpose", "no mark is no stop"),
+        ("ipc_alert", "at", "a stop counts nothing down"),
+        (
+            "ipc_alert",
+            "at",
+            "a mark read while counting cancels the countdown",
+        ),
+        (
+            "ipc_alert",
+            "at",
+            "nothing counts down again after a restore was asked",
+        ),
+        ("ipc_alert", "at", "the countdown ends at its deadline"),
+        ("ipc_alert", "at", "the countdown's restore is asked once"),
+        ("ipc_alert", "at", "the countdown is the catalog's"),
+        (
+            "ipc_alert",
+            "acted",
+            "a person who acted is not raced by the countdown",
+        ),
+        (
+            "ipc_alert",
+            "stopped",
+            "a mark that does not read is a stop",
+        ),
+        (
+            "ipc_alert",
+            "RESTORED",
+            "the countdown starts the daemon as every restorer does",
+        ),
+        (
+            "ipc_alert",
+            "restorer",
+            "the countdown restores the install's own daemon",
+        ),
+        (
+            "ipc_alert",
+            "offered",
+            "a person's act runs the CLI's start",
         ),
         ("daemon_main", "asked", "--restored is answered"),
         (
@@ -50875,6 +51386,11 @@ Options:
             "platform_service",
             "ended_well",
             "a task's last result is an end only once nothing runs",
+        ),
+        (
+            "platform_service",
+            "ended_well",
+            "launchd's last exit code is an end only once it is not running",
         ),
         (
             "platform_service",

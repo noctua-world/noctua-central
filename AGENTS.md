@@ -290,8 +290,8 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
 │   ├── nc-platform/                a path one user's alone, which process this is, a program the service manager restores, the user's bin directory and the clipboard's tool, per system (§2.7), and how the Leader reaches a process (§12.8) — THE TWO FILES OF `unsafe`
-│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, and a person's keybindings, read beside the other channels' (§12.8)
-│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session, the watch, a note and a display, and the client every program asks through (§11.1)
+│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1), the development checkouts installed beside one, the `stopped` mark's one reader (§17.5), and a person's keybindings, read beside the other channels' (§12.8)
+│   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat, an agent's session, the watch, a note and a display, the client every program asks through (§11.1), and the alert line an interface draws once it lost its daemon (§12.17)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2), and the directory it asks, which holds the agents a person makes (§14.6)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11), and the interface's own state (§12.1)
@@ -476,10 +476,10 @@ fails a gate a minute or two later.
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm` or `Feature`, which `realm` and `feature:<id>` alone do; a `feature:<id>` selector names a feature of the platform the realm's directory holds, for a command of the kernel's own that reads none of the realm's data — the kernel refuses the form in a plugin's declaration — and needs the feature and a permit naming it (*a feature of the platform*, below); the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both. Its entry is `title` (the display name), `description` (the line description) and `paragraph` — keys into both locale files — and `tags`, the key of a list under `[tags]` in each, with `categories` — names `catalog/categories.toml` holds, `unknown-category` otherwise — and `glyph` optional: `crates/nc-catalog-compiler/src/metadata.rs` hands every command's texts to `nc_schema::entry::judge`, which refuses a line past one terminal line, a paragraph that repeats it, a tag twice or holding a comma or a brace, a text a reader cannot see all of, and a glyph outside `nc_schema::entry::SYMBOLS_ONLY` or written any way but `U+` and upper-case hex, four digits at least and no leading zero past them (`U+F0E2`, never `U+0F0E2`); a text missing from a locale is `missing-key` naming the command and the text, and the four texts are rows of `docs/commands.md`, what help says of the command a block of `docs/cli.md` in each locale, and its tool, by `nc_schema::entry::as_tool`, a block of `docs/mcp-tools.md` |
 | a keybinding | `keybindings = [...]` on the command in `catalog/commands.toml` | written in the Leader's grammar alone — `Leader <key>`, `Leader+<key>` or `Leader+Chord+<key>`, the key named as `KeyboardEvent.code` names it, `Leader+Chord+KeyQ` — which `nc_schema::keys::Binding::parse` reads, the one grammar every reader of a binding is held to, every other spelling refused as `malformed-keybinding`; one key of one table runs one command (`duplicate-keybinding`), and the same key in another table is another binding. The catalog ships none until the layer that binds them arrives (`NOCTUA.md §15.2`); `docs/commands.md` publishes a command's list as a `Keybindings` row, which `xtask/tests/the_pages_reach_the_catalog.rs` holds, and `docs/keybindings.md` lists every binding by its table and key with the display names of the command it runs. A key joins the vocabulary as a variant of `nc_schema::keys::Key` and a row of `VOCABULARY` in the same place, and as an arm of `nc_platform::leader::physical` — which does not compile until it has one — with the kernel's code for it, macOS's virtual keycode and, for a key no layout moves, Windows' virtual key, each copied from that system's own header and written out again, in the header's order, in `every_key_has_the_code_each_systems_list_gives_it`, and as an arm of `nc_platform::leader::xkb_name` with the keysym name a US board's key types, as xorgproto's keysymdef.h writes it, which a Wayland compositor's binding names the key by, written out again in `every_key_has_the_xkb_name_keysymdef_gives_it`; and raises `nc_channel::keys::FORMAT`, because an older reader of a person's configuration refuses a file naming it and another channel's reader must know it cannot judge one; a person's own choice overrides the catalog's in their channel's configuration directory, `<config>/keybindings.json`, which `nc_channel::keys` reads beside the other channels' and `noctua help keybindings` shows, each refusal with its `NC-CHAN` code; and a system's shortcut as a row of `SYSTEM_SHORTCUTS` copied from the source it names, never from memory, written out in `the_system_shortcuts_are_the_rows_their_sources_write` |
 | a keyword the argument schema accepts | `OWNED_BY` in `crates/nc-schema/src/lib.rs`, and the subset table in that file's header | the one type it belongs to — a keyword written on another type is refused rather than read as a no-op — its reading in that type's compile and its refusal in the validator, and a row of `WHAT_EACH_KEYWORD_DOES` beside the tests: a schema using it, a value it refuses, and that refusal gone once the keyword is taken out. `every_keyword_in_the_subset_decides_something_or_is_an_annotation` refuses a keyword with no row, because a keyword the subset admits and nothing reads is one an author believes refuses what it does not. The catalog compiler and the kernel's `activate` both judge through this crate, so the keyword reaches every built-in and every plugin in the same build — and a plugin that uses it is refused by a kernel built before it, which is the closed subset working |
-| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes, and an agent's change is rehearsed by the directory, then journaled as allowed with what it makes by `changed_once_journaled`, and only then made — since nothing a journal refuses afterwards could put it back |
+| a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes, and an agent's change is rehearsed by the directory, then journaled as allowed with what it makes by `changed_once_journaled`, and only then made — since nothing a journal refuses afterwards could put it back. One that changes state only through the command it dispatches — `surfaces.activate` — is named in `dispatches_what_it_shows` in `crates/nc-kernel/src/ui.rs`, so it opens no unit and leaves no note of having left the machine, and in `AS_WHAT_IT_RUNS` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes back what it runs |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
 | an agent permit | `policy/packs/<profile>/features.cedar` — `principal is Agent`, one verb, `resource == Feature::"<id>"` — beside the person's permit on the same feature, with its cases in `policy/packs/<profile>/tests/features.toml` | it is half of what an agent is answered: the decision point asks the same request again as the agent's operator, so the person's permit on the feature is the other half, and an agent reaches the feature only once its person grants it that feature with `agents.grant` — a grant may name any feature of the realm, and one no agent permit names allows nothing. Its cases ask as an agent marked `via_agent`, one link from its person: its kind of principal is refused with a `Device` so marked (`the_principal_is_the_boundary`), since a person is let in by the person's permit and an unmarked agent is refused by the core; the other half is a case asked as the person so marked; and an outsider's agent pins Cedar's answer over the whole world, which moves the lists the *policy* row names. A feature whose commands change who may act for a person takes none: the person's permits on `agents` and `mcp` ask `principal is User`, and the `agents.*` that change and a setting's set run at the top of a call tree only (`only_at_the_top` in `crates/nc-kernel/src/registry.rs`), refused nested with `[NC-KERN-0025]` |
-| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it — and in `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes its step back, as `of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone` in `crates/nc-kernel/src/history.rs` holds the kernel to; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
+| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it — and in `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes its step back, as `of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone` in `crates/nc-kernel/src/history.rs` holds the kernel to; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A value that lets something act for the person — MCP's on — is named in `switches_mcp_on` and `puts_mcp_on` in `crates/nc-kernel/src/settings.rs`, so the decision point holds its set, and an undo or a redo that would put it back, for the person's confirmation in the Noctua window under codes of its own (`NOCTUA.md §12.15`); a value that does not, never waits. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's |
 | a part of the interface's state, or a command that changes it | `crates/nc-kernel/src/shell.rs` — a field of `State`, its writing in `to_value`, its strict reading in `from_value` and its rules in `holds` — and, for a command, a `Verb` with its arm in `Change::made`, `catalog/commands.toml` on `feature:interface` as a read, both locales | a field written and not read back strictly, or read and not held by `holds`, is a saved state trusted or set aside wrongly: `varied` in the module's tests gives the field a value the first run's state does not hold, which `what_is_kept_is_read_back_as_itself` names without `..` and reads back, and a rule it is held to is a row of `State::rules` of its own, asked inside no other, with an edit in `rule_breakers` that breaks it and no other rule — the test refuses a rule no edit breaks alone — and a shape that changes what a saved state means is a new `SHAPE`, which sets every older one aside. A command is a variant of `Verb` in its `ALL`, named as the catalog names it, with what it reads in `reads`, which `the_declared_commands_of_the_interface_are_the_ones_this_module_implements` holds to `Command::arguments` both ways; its namespace, if new, a row of `RESERVED` in `crates/nc-kernel/src/registry.rs` and of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled`; a row of `FITTING` in `crates/nc-kernel/tests/the_decision_point.rs` and of `ROWS` in `apps/daemon/tests/every_command_from_the_cli.rs`; and a bound in its schema held equal to its `[kernel]` limit in `every_bound_the_schemas_declare_is_the_catalogs`. Never `mutating`: a change of what a window shows is no step (`NOCTUA.md §12.1`). A command whose change moves at the rate a window draws may also be a fact a note says (`nc_kernel::Kernel::note`): a row of `FACTS` in the same module, the fact's name beside the command, whose arguments the fact is — held to that command's schema and decided as it is — and a row of `a_note_says_the_four_facts_of_the_interfaces_rate_and_nothing_else` |
 | a list filtered by typing | the list's items as `nc_fuzzy::Item`s, matched by one `nc_fuzzy::Matcher` | never a second matcher, and never the fields joined into one text: each field goes in with its `nc_fuzzy::Role` — a name, or a tag or a synonym, in every language at once — so a word reports the field it matched and a name outranks a tag; build the items once and match on every keystroke. A position is a `char` index into that field's own text, never a byte; the empty query lists every item in the order given; and a bound a command declares on its query is `nc_fuzzy::QUERY_CHARS_MAX`, held equal by a test beside the command |
 | a rule of the fuzzy core | the module of `crates/nc-fuzzy/src/` the rule belongs to, and `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` | a row of the corpus in the same edit: it is the case file `noctua-design`'s matcher replays, from a copy that repository vendors with a `SHA256SUMS` record of its own, so a rule changed without a row is one that implementation will not learn. Any byte of the corpus changed, a comment's too, fails `cargo xtask check` until `FUZZY_CORPUS_SHA256` in `xtask/src/check.rs` is its new SHA-256, written in the same edit, and the copy and its record are then refreshed in `noctua-design` from the file as committed: the line its `SHA256SUMS` holds is that value. A component of the score is a width derived in `const` from the bounds in `crates/nc-fuzzy/src/score.rs`, whose assertions keep the packed score below `2^53`; and a clause is an operator in `xtask/mutants.py`, which the crate's own tests kill |
@@ -496,7 +496,7 @@ fails a gate a minute or two later.
 | a call the kernel asks of the store | `StoreBackend` in `crates/nc-kernel/src/backend.rs` | the same method on `nc_local::LocalStore` first — the trait answers as that store does, and is its specification — then on `MemoryBackend` beside the trait, with the same refusals in the same sentences; `crates/nc-kernel/tests/both_stores_answer_alike.rs` runs each script through both and holds the two transcripts equal, and its property test drives both through every operation, in two realms and every kind of unit, so a call the second store answers otherwise fails there — a script or a sequence that never varies what a filter selects on cannot see that filter go |
 | a call the kernel asks of the journal store | `nc_journal::Store` in `crates/nc-journal/src/lib.rs` | a **required** method — one provided over `from(0)` would be the slow path, and the blind spot of a row that does not decode, inherited in silence — answered in the same change by all three stores: `InMemory` (`memory.rs`, the specification), `Postgres` (`postgres.rs`, one statement over the columns that bracket a unit, and nothing decoded but the unit each open one names) and `nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, every statement in that crate), and by every test store that implements the trait — `unit.rs`, `tampering.rs` and the kernel suites' wrappers. Its `# Errors` section names what each implementation builds (`every_errors_section_names_what_its_body_builds`, whose count of sections is written down), the shared scripts of `crates/nc-journal/tests/in_postgres.rs` ask it of the two stores in that crate, and `crates/nc-local/tests/the_local_journal.rs` holds the local journal's transcript to both, over written scripts and generated ones |
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
-| a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
+| a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names; and a kind a person activates — whose `command` and `args` `surfaces.activate` reads from the kept tree — is a row of `ACTIVE` there too, with a case in `what_a_node_does_not_run_and_what_names_no_node_are_refused` for a node of another kind holding a `command` |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
 | a restorer's shape | its generator in `crates/nc-platform/src/service.rs` — `systemd_unit`, `launchd_plist` or `task_xml` — and the table of restorers in that module's header | the generator's text is written out whole in the module's tests, and every character its format reads specially is escaped there or refused when the service is described; what each restorer does is measured, not assumed, so a change to one is measured again on its system's runner by the scratch services in `with_the_manager` in the same file — the test binary registered under this checkout's test prefix, killed, and read back through the manager's own counters — and `NOCTUA.md §17.3` says what each system's restorer is |
 | a way a system delivers the Leader, or a change to one | `crates/nc-platform/src/leader.rs` for what is decided — which delivery a session has, which key and modifiers, what a refusal means — and the system's half for the call alone: `x11.rs`, `windows.rs` or `macos.rs` | the halves decide nothing, so the Linux job tests and mutates every decision: a flag, a code or an error a system names is a function or a constant of `leader.rs` with its unit test and its operator in `xtask/mutants.py`. A registration takes a `Leader`, reports presses alone, and gives the chord back when dropped; a chord another program holds is `Refused::Taken`, on every system; and a registration that stops delivering while it is held tells its caller so through `on_lost`, which X11 alone has cause to call — a path that ends the reading thread without telling is a defect, whatever ended it. `unsafe` is written in `windows.rs` and `macos.rs` and nowhere else (invariant 17), each block under its `// SAFETY:` comment; `x11.rs` is safe Rust, every request it sends held to its bytes by a test, every length it reads held to a bound before it is read, and its connection driven end to end by the server written beside its tests, on every system, and on Linux by a real `Xvfb`, which `this_system_grants_the_chord_hears_it_and_gives_it_back` starts and never stands aside for. **No test of a half is written under a `cfg`**, which the gate reads as a test hidden: the session is generic over its connection so every system compiles and runs its tests, the one test that asks the system itself branches on `clipboard::SYSTEM` at run time, and a test that needs a socket that is a file asks `served::sockets` — the one module of helpers written per system, holding no test — which answers nothing where there is none, the test then holding that system to its own refusal. Every wait of a session is a field of `session::Pace`, so a test shortens one rather than sleeping through it, and a test of a registration that might never return asks on a thread of its own and fails by its wait, since `xtask/mutants.py` plants exactly that. Wayland has no registration: its delivery is the compositor's binding running `noctua leader`, and the GlobalShortcuts portal is not built (**What is deliberately not claimed**). Which process of an install asks for the Leader on each system is `nc_ipc::leader::listener_on`'s — the daemon on Windows (`apps/daemon/src/leader.rs`), the desktop interface on Linux and macOS — every press is `nc_ipc::leader::TAP` dispatched as the person, and every refusal is `nc_ipc::leader::refusal`'s code, told rather than dropped; a listener changed for a system is a row of that module's header table, of `the_daemon_listens_on_windows_and_the_desktop_elsewhere`, and of `NOCTUA.md §12.8`'s table. `NOCTUA.md §12.8` says what each system does, and changes in the same edit |
@@ -504,11 +504,11 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number, as is a request an older daemon would read as malformed — with one exception, written in the crate's header where it is used: **a protocol no release carries may gain a message, or change what one of its own means, under its number until the Stage that builds it closes**, as 4 does while Stage 16 is built, and what that costs is a development daemon installed from an earlier commit of it, which passes the handshake and then closes the connection at the first message it does not read — or reads one as that earlier commit meant it, a note held rather than applied, a watch answered without the interface's state — until `cargo xtask dev --install` replaces both ends; a request is an arm of both matches over `Request` in `apps/daemon/src/server.rs` — the person's `answer`, and `a_sessions`, which refuses a session everything but its tools and its dispatches — and of the test over every request beside them, and of `unread_as` in `crates/nc-ipc/src/client.rs` when it is an answer; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon`, `check_daemon_ipc` and `check_daemon_interface` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, `sessions_max` below `ipc_connections_max`, so the person always finds a connection no MCP client holds, and what an interface asks beside the channel's own bounds (`check_daemon_interface`): `ipc_watch_wait_ms` below `ipc_silent_after_ms`, so a watcher that went away keeps its connection no longer than a silent client keeps one, `ipc_note_max_bytes` with the frame's envelope at most `ipc_frame_max_bytes`, and as many values of `ipc_display_value_max_bytes` as an announced environment names variables (`DISPLAY_VALUES`), every byte written as two, with the envelope at most a frame as well, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`; and the CLI's process control beside the daemon's own (`check_daemon_control`): `start_within_ms` above `ipc_handshake_ms`, and `stop_within_ms` at least twice `stop_drain_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon, `crates/nc-ipc` and the CLI's process control read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
-| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb is what the CLI does itself rather than a command it dispatches — help, process control, and choosing the development checkout `noctua-dev` reaches, each acting without dispatching, `mcp`, a verb that dispatches because it is a transport: it carries an MCP client's calls to the daemon as one agent's session, and a command is what a transport carries, so no registered command could be it; and `leader`, the other verb that dispatches, because what it carries is where it runs: it announces the graphical environment a compositor's binding runs it in, which no command's arguments could say for it, then dispatches `leader.tap` (`nc_ipc::leader::TAP`), the one command a press of the Leader is wherever it is heard — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A verb whose standard streams carry a protocol says every refusal of its line on standard error, `--json` or not (`renders_json` in `apps/cli/src/run.rs`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb is what the CLI does itself rather than a command it dispatches — help, process control, and choosing the development checkout `noctua-dev` reaches, each acting without dispatching, `mcp`, a verb that dispatches because it is a transport: it carries an MCP client's calls to the daemon as one agent's session, and a command is what a transport carries, so no registered command could be it; and `leader`, the other verb that dispatches, because what it carries is where it runs: it announces the graphical environment a compositor's binding runs it in, which no command's arguments could say for it, then dispatches `leader.tap` (`nc_ipc::leader::TAP`) — or, with `--announce`, nothing, as the unit the person's graphical session starts runs it on Linux (`nc_cli::install`) — the one command a press of the Leader is wherever it is heard — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A verb whose standard streams carry a protocol says every refusal of its line on standard error, `--json` or not (`renders_json` in `apps/cli/src/run.rs`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table, which `docs/cli.md` publishes beside the verbs. A help topic is the same kind of word — `exit-codes`, `categories`, `external-identifiers`, `keybindings` — read in `topic` before a command's name is, and `the_registry_topics_are_undotted_and_never_a_registered_name` holds a registry's topic apart from every name |
 | an MCP method | `Engine::heard` in `apps/cli/src/mcp.rs`, and a unit test in that file answering it | a method is answered only when this server offers what it belongs to, and every other is `-32601`; a capability is never declared for a feature that sends the client a request — elicitation, sampling, roots, tasks — because what a client answers would be read as the person's; a call's fields are a closed set, every other refused with `-32602`, and no field is ever read as a confirmation; every answer is one line through the session's one writer; and a protocol revision joins `REVISIONS` only once a saved schema of it shows every answer to a request whose id was read valid in it, so a revision this server does not speak is answered in its newest and the client declines it — an error answering a line whose id could not be read carries no `id`, which `2025-11-25`'s schema reads and `2025-06-18`'s does not |
 | an MCP tool | nothing: a tool is a command (*a command*, above) | `noctua mcp` lists what its session's agent may dispatch now, as the daemon answers it, each entry projected by `nc_schema::entry::as_tool`, and a call is sent as the command its name reads back to, so a tool arrives with its command and an agent reaches it with its feature's agent permit and its person's grant (*an agent permit*); no list of tools is written anywhere, and `docs/mcp-tools.md` is the catalog's projection, not a session's |
 | a page about what the catalog cannot see | a field of `Surfaces` in `crates/nc-catalog-compiler/src/surfaces.rs`, built by `surfaces` in `xtask/src/build.rs` from the crate that holds it, and the page in `docs::all` in `crates/nc-catalog-compiler/src/docs.rs` | the compiler links neither `nc-cli` nor `nc-channel` — both read the crate it generates — so what it publishes of them crosses as a field typed through `nc_schema`, and never as a command: every command a page shows is the catalog being compiled, and a function a field hands it, as `Cli::described` is, reads only what it is handed (`the_pages_read_the_catalog_they_are_handed_and_not_the_one_xtask_links` holds the pages to the catalog on disk). A part left empty is refused (`surfaces-incomplete`) and named in `incomplete` beside the type. Every file a field is built from is a row of `EMITS`, `EMITS_UNDER` and `BY_HAND` in `xtask/src/determinism.rs`, and its needles are that gate's; the page's `Source:` line names them, so `each_page_names_the_registry_it_came_from` checks each exists; and `PAGES`, `PROSE` and `HEADINGS` in `xtask/tests/the_pages_reach_the_catalog.rs` hold its prose and tables, a test there holding each value to the crate it came from. `a_hand_edit_to_any_generated_page_is_drift` reaches the page with no edit, because it reads every page the compiler emits |
-| a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships |
+| a restorer — anything that starts a channel's daemon on its own | its registration, or its code, starting the daemon as `noctua-daemon --restored` | that one argument, and never the bare daemon: started so, the daemon ends at once, and well, while the `stopped` mark is there or another daemon of the channel runs (`nc_daemon::run::restore`), so no restorer reads the mark itself and no stop has to know of one (`NOCTUA.md §17.5`). The service manager's is the installer's — `nc_cli::install` registers it under the name `restorer_name` gives it and keeps its definition where `kept_in` says, a test's where no login reads it on systemd and launchd, while a test's task on Windows starts at each logon until it is unregistered — from the plan `development_plan` makes, which `cargo xtask dev --install` and the suite below both install, and a start through it is `nc_cli::control`'s; `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs` holds it to restoring a daemon killed, to registering it again and starting it through it when installed over a daemon that runs, to keeping a person's stop when installed over one, and to leaving it down after a stop and after a kill once the mark is written, through the manager's own counters, so a new kind of restorer is a leg of that suite before it ships. The interface's countdown is the second kind, decided in `nc_ipc::alert` — `Run::restorer`, the install's own daemon with `nc_ipc::alert::RESTORED`, which `the_daemon_and_initialize_are_answered_and_nothing_else_is` holds to the daemon's reader — and run by the desktop interface, which is not built yet: its leg in that suite, `the_interfaces_countdown_restores_a_daemon_lost_and_leaves_a_stopped_one_down`, asks the module as the desktop will, by the clock until its countdown ends, and runs what the line answers, over the suites' own install. A program that reads the mark to say something — the interface's alert line, an install — reads it through `nc_channel::stopped::on_purpose`, the one reader, and still restores only through `--restored`, so a mark written after it read one holds the daemon down all the same |
 
 Two things are true of all of them:
 
@@ -1199,9 +1199,10 @@ over the journal in memory and the local journal alike.
 
 **Not answered:**
 
-- a confirmation or an approval issued for real — only a test door issues one, so a
-  shipped kernel denies every command that cannot be undone and every one a quorum must
-  approve;
+- an approval issued for real — only a test door issues one, so a shipped kernel denies
+  every command a quorum must approve; a confirmation is issued for real only as the
+  person's answer to a call the kernel held (*A call that cannot be undone runs once the
+  person confirms it in the desktop the daemon started*);
 - a store that refuses the reversal of a unit whose close the journal did not take: the
   unit stays committed and readable, open in the journal until the next prune or kernel
   opening reverts it, the caller told and `kernel.revert_failed` logged, the units table
@@ -1328,7 +1329,9 @@ decides as itself, unmarked, which `core.an_agent_never_impersonates` refuses. *
 is confirmed**: a session holds no token and has nowhere to hold one, a tree acting for an
 agent or as an agent alone redeems and spends none it is handed, and the kernel never binds
 a token to an agent principal, whoever issued it; so an agent's command that cannot be
-undone is refused with `[NC-KERN-0006]`, and its delete by the core's two floors. A chain
+undone is refused with `[NC-KERN-0006]` — unless, held while the desktop the daemon started
+is attached, its person confirms it there, which binds the person's input to the call the
+kernel holds and hands the agent nothing — and its delete by the core's two floors. A chain
 past the policy's two links is refused by `core.chain_depth_is_bounded` and recorded whole;
 the type holds at most four, and nothing but a test door builds one past a single link.
 
@@ -1819,7 +1822,7 @@ holds; which commands a person may dispatch, a person's search listing every reg
 command; and an agent's command that takes its resource from an argument, which its search
 does not find though its dispatch is decided as any.
 
-### A setting is switched by a person's own call, and MCP is off until one switches it on
+### A setting is switched by a person's own call, and MCP is off until one switches it on, confirmed in the Noctua window
 
 **Guaranteed.** A setting of the channel (`NOCTUA.md §12.15`) is two commands of the
 kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
@@ -1843,28 +1846,136 @@ kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
   write, never read as on or as off (`Kernel::settings`). The daemon reads it before it
   opens an agent's session and before each request of an open one, and refuses both while
   it is off (`NC-DMN-0014`), so what it lets in is the entry below.
+- **Switched on only once the person confirms it in the desktop the daemon started**
+  (Stage 16). The set asking for on — whatever MCP is now — and an undo or a redo that would
+  put it back on — the undo of a switch off, the redo of a switch on, read from the step the
+  history finds before anything runs — are held for the person's confirmation as a command
+  that cannot be undone is (*A call that cannot be undone runs once the person confirms it*,
+  below): refused at once with `[NC-KERN-0032]`, exit 4, while no desktop is attached;
+  declined, `[NC-KERN-0034]`, exit 15; unanswered in time, `[NC-KERN-0033]`, exit 14; each
+  journaled once under `kernel.mcp_on_needs_confirmation`, and listed while held as the
+  `write` its command is declared as. Switching it off never waits. A history the
+  decision point cannot read is the undo's or the redo's own to meet: refused with the
+  store's code, or — read then — put back so as to switch MCP on only holding a
+  confirmation (`[NC-KERN-0032]` otherwise).
 - **A step like any other.** The set's one effect is that entry, staged in its unit, so it
   is no step that left the machine: the person's undo puts the value back and reaches the
-  steps before it, and their redo puts it again.
+  steps before it, and their redo puts it again — confirmed in the window when that switches
+  MCP on, so a switch off is never a barrier to the steps before it.
 
 **Enforced by** the tests beside the module in `crates/nc-kernel/src/settings.rs` — the
 declarations held to what it reads, the holder no plugin's identity, the default, and
 every entry holding anything but the two texts it writes refused — and `only_at_the_top`'s in
 `crates/nc-kernel/src/registry.rs`; `crates/nc-kernel/tests/the_decision_point.rs` over
-the real pack and world — every person answered, a frozen account and a device refused, a
-plugin's nested switch refused from a command that writes and from one that reads —
+the real pack and world — every person answered, the switch on refused unconfirmed and run
+confirmed, held, confirmed, declined and cut short through `Kernel::dispatch_held` while the
+switch off is never held, the undo of a switch off and the redo of a switch on refused
+unconfirmed and run confirmed, a frozen account and a device refused, a plugin's nested
+switch refused from a command that writes and from one that reads —
 `crates/nc-kernel/tests/units_and_history.rs`, which undoes and redoes the switch and an
 earlier step past it, the unit test of `crates/nc-kernel/src/history.rs` holding the
 kernel's own changes undo takes back to undo, redo and the switch, which `docs/commands.md`
 answers by name, `policy/packs/family/tests/features.toml` and
 `policy/packs/family/tests/accounts.toml`,
 `apps/daemon/tests/every_command_from_the_cli.rs`, through `nc_cli::run` against a real
-daemon, and `apps/daemon/tests/channels_side_by_side.rs`, where MCP switched on in one
-install is on in that one alone.
+daemon with no desktop, where the switch on ends in exit 4,
+`apps/daemon/tests/channels_side_by_side.rs`, where MCP switched on in one install is on in
+that one alone, and the desktop's own test in `apps/daemon/src/desktop.rs`, where the CLI's
+switch on waits for the desktop, runs once confirmed and ends in exit 15 once declined.
 
 **Not answered:** see "What is deliberately not claimed": a process running as the person,
-the person's undo of a switch-off, and what an agent's tree set going while it was on,
+which writes the profile's database — every suite but the desktop's switches MCP on that way
+(`nc_daemon::testing::kept_mcp_on`) — and what an agent's tree set going while it was on,
 which switching it off does not end.
+
+### A call that cannot be undone runs once the person confirms it in the desktop the daemon started, and nothing else confirms one
+
+**Guaranteed.** A command declared irreversible runs only with a confirmation the kernel
+issued for that principal, that command and those arguments (*A command runs only when it
+is decided*), and **the one a shipped kernel issues is the person's answer to a call it
+held** (`crates/nc-kernel/src/confirmations.rs`). The daemon dispatches through
+`Kernel::dispatch_held` while a connection is attached as the desktop interface it started
+(`apps/daemon/src/desktop.rs`), and through `Kernel::dispatch` otherwise, so with none
+attached such a call is refused at once with `[NC-KERN-0006]`, exit 4, as it always was.
+Held, the call — allowed by the decision point at the top of its tree, from the CLI or from
+an agent's session — is journaled nowhere and run nowhere yet; it waits, at most
+`confirmations_pending_max` at once (one past them refused with `[NC-KERN-0006]`), for at
+most `confirmation_ttl_ms`, holding no lock of the kernel's; it is listed by
+`confirmations.list` and `confirmations.read` — reads on `Feature::"interface"`, which no
+agent is granted — and its serial is in the daemon's watched state as `confirmations`. It
+is answered by `Kernel::settle` alone, which the daemon calls for a `confirm` or a
+`decline` on a connection attached as that desktop and on no other (`[NC-DMN-0018]`, logged
+as `ipc.refused`); no command answers it, and `confirm` is no command — the named exception
+to Stage 16's twelfth criterion. **A connection attaches by both halves, once**: a proof of
+the 32 bytes the daemon handed the process it started down its standard input — never
+written to disk, sent or logged — keyed over the connection's own handshake nonces, so a
+proof is good on its connection alone; and the process the system names at the other end,
+by its number as the connection was accepted, being that process, still running. One that
+fails either, or that attached already, is refused `[NC-DMN-0017]`, logged as
+`ipc.refused`, and closed. Confirmed, the call is asked of its asker first — the daemon
+reads MCP again for an agent's session, so MCP switched off while the call waited refuses
+it with `[NC-DMN-0014]`, ends the session, and journals nothing, as any request of the
+session once MCP is off — then the kernel issues the person's confirmation of that very
+call — bound to the person the tree acts for, the command by its name and its holder and
+the arguments' canonical text, redeemed by that call alone and never presented by a
+caller — and decides the call again from the start; declined, it is refused with
+`[NC-KERN-0030]`, exit 15; with no answer in time, or once the daemon stops — its wait
+ending as the stop begins — `[NC-KERN-0029]`, exit 14; each journaled once under
+`kernel.irreversible_needs_confirmation`, and a session's budget spent once. **An answer
+given as the wait ended is the one the call is decided by**: `settle` hands it over while
+the call is still held, under the lock that lets the call go, so either the call takes it
+or the answer is refused `[NC-KERN-0031]` — never a confirm answered while its call is
+refused as not confirmed in time — and an answer to a call whose asker stopped waiting is
+refused the same way. **MCP
+switched on is held the same way** — the set asking for on, and an undo or a redo that would
+put it back on — under codes and a sentinel of its own (*A setting is switched by a person's
+own call*, above). **An agent's call is held the same way and the agent confirms nothing**: the confirmation is
+bound to its person and never to an agent, and its plugin's `context` still answers that no
+person confirmed a call in an agent's tree. Proven by the held-call tests of
+`crates/nc-kernel/tests/the_decision_point.rs` — among them
+`a_confirmed_call_its_asker_no_longer_admits_runs_nowhere_and_is_journaled_nowhere` and
+`an_answer_given_as_the_wait_ends_decides_the_call_and_one_nobody_waits_for_answers_nothing`,
+the second over two dozen rounds each a coin the wait's select tosses —
+`a_held_calls_confirmation_is_bound_by_that_call_alone` in
+`crates/nc-kernel/src/dispatch.rs`, the tests of `apps/daemon/src/desktop.rs` —
+`a_desktop_the_daemon_started_attaches_and_answers_what_waits_and_nothing_else_does` over a
+daemon a child of the test binary serves, whose desktop is another child handed its secret:
+a second connection of it attaching and refused an attach asked again, the CLI's held
+calls confirmed and declined there, a desktop started again by a person's `leader.tap` once
+the first ended, a connection that did not attach and one that attached with a proof of no
+secret refused, a held call ended in 14 by the daemon's stop well before
+`confirmation_ttl_ms`, and each refused attach and answer logged as `ipc.refused` by its
+code; and `a_desktop_attaches_by_its_own_process_proving_its_own_secret`, each half held
+alone — `a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed` and
+`a_press_of_the_leader_starts_the_desktop_again_where_the_one_started_last_is_gone` in
+`apps/daemon/src/server.rs`, `no_request_the_wire_reads_carries_a_confirmation` in
+`crates/nc-ipc/src/message.rs`, and
+`a_session_asks_for_its_tools_and_dispatches_and_is_refused_the_rest` in
+`apps/daemon/src/server.rs`.
+
+**Not answered:**
+
+- **a process running as the same user that tampers with the desktop interface**: it can
+  read the secret out of the desktop's memory or drive the desktop — attach a debugger to
+  it, inject a library, send it synthetic input (XTEST on X11, a compositor's virtual
+  keyboard on some Wayland sessions) — replace its executable or the units that start it
+  before the daemon starts it, or announce a display of its own. On a desktop operating
+  system that is not a boundary between two processes of one user (`NOCTUA.md §2.4`,
+  §11.1); what is held is that a process that only speaks the protocol — the CLI, an MCP
+  client, an agent, a plugin, a dispatched command — confirms nothing;
+- whether the desktop asked the person: that a `confirm` comes from a person's own input
+  in a confirmation the desktop drew is the desktop's to hold, and is not built yet;
+- a desktop a daemon started before it last started: it holds the old secret, so it can
+  watch and dispatch as the person and never attach, and retiring it is the desktop's;
+- a process number handed out again: the process half compares the number the system
+  named at the connection's other end as it was accepted, never when that process
+  started, so a process that read the secret, connected, handed the connection to another
+  and ended leaves a connection that passes the process half once the daemon starts a
+  desktop under that number — reading the secret being already outside the promise, above;
+- a held call whose desktop went away waits its whole time, unless another desktop the
+  daemon starts attaches and answers it; and a desktop that ended is started again only
+  when the daemon serves, a person's connection announces a display, or the Leader is
+  pressed — never by a loop of starts.
 
 ### What the interface shows is the kernel's, changed by commands that are no step, and read back only as written
 
@@ -2063,16 +2174,41 @@ at most `payload_bytes` per surface
 at most `surfaces_per_plugin` surfaces, each under a title a person can read, and another
 plugin's surface is not found to it.
 
+**Who rendered each tree is kept with it** (Stage 16): the plugin is the surface's owner,
+and beside it the person the call tree acted for and, when an agent's session acted for
+them — its command, or a timer's or an event's callback it put off — the agent, read from
+the call tree and never from the plugin (`Renderer`). `surfaces.list` and `surfaces.read`
+answer it, reads on `Feature::"interface"`. **A click is `surfaces.activate`**: the surface by
+its identifier and the node by the JSON pointer a refusal of the tree names it by, a
+`button` or a `toggle` not disabled, its command and its `args` read from the kept tree and
+never from the caller, who gives only the text typed into each input the node binds, read
+as the input's `kind` says. **A surface whose kept tree an agent's call tree rendered is
+never activated** (`[NC-KERN-0035]`), whatever the node, since what it names would run
+with the person's whole authority, chosen by the agent; a surface or a node not there is
+`[NC-KERN-0036]`, and a node that runs nothing, one disabled or an input it does not bind
+or cannot read is `[NC-KERN-0037]`. Otherwise the command is dispatched nested in the
+activation's call tree, as the tree acts — decided, journaled, never confirmed, and
+refused there when it runs only at the top of a call tree, a setting's switch and the
+agents' changes among them — and the activation opens no unit of its own and leaves no
+note of having left the machine (`dispatches_what_it_shows`), so the step is the command's
+own, labelled by it, and one that only reads makes none.
+
 **Enforced by** `crates/nc-kernel/src/ui.rs`, a test per rule; its interface in
-`crates/nc-kernel/src/host/ui.rs`; `crates/nc-kernel/tests/the_rest_of_the_world.rs`; and
+`crates/nc-kernel/src/host/ui.rs`; `crates/nc-kernel/tests/the_rest_of_the_world.rs`, where
+an agent's tree is kept as the agent's and a person's click on it runs nothing until the
+person's own tree renders it again; `crates/nc-kernel/tests/units_and_history.rs`, where a
+click's write is a step of its own that the history names and undo takes back, and a click
+is neither a confirmation nor a call at the top; and
 `crates/nc-kernel/tests/the_decision_point.rs`, where a read the journal did not take and
 a unit it did not keep each show nothing they did.
 
-**Not answered:** the click, which a renderer dispatches through the decision point as the
-person who clicked and never as a confirmation — no renderer exists in this build (Stage
-16); whether this machine holds the blob an image names, which is the renderer's to ask
-when it draws, since a blob can arrive or be swept after the tree is kept; and what a tree
-says, which is its plugin's.
+**Not answered:** a renderer that dispatches a node's command by its name rather than
+through `surfaces.activate`, which any client can do as the person — the desktop interface
+is held to the activation by its own code, not by the kernel; a tree a person's call tree
+rendered from what an agent wrote before — a plugin rendering from its own store, which an
+agent's command may have written, renders as the person; whether this machine holds the
+blob an image names, which is the renderer's to ask when it draws, since a blob can arrive
+or be swept after the tree is kept; and what a tree says, which is its plugin's.
 
 ### A plugin's own log stays in its own ring
 
@@ -2775,6 +2911,15 @@ and a client asks through, over any stream: the endpoint's, or a test's.
   are written as one number. A daemon of 3 reads each of the three as malformed and closes,
   so `PROTOCOL` is 4 and a peer of 3 is refused at the handshake (`NC-IPC-0004`), each end
   reading the other's version before a request is sent.
+- **An attach, a confirm and a decline are requests like the others, and the desktop's
+  alone.** An attach holds a proof of exactly 32 bytes, which the client makes of the secret
+  its daemon handed it over this connection's own handshake nonces (`Secret::proof`), so a
+  proof made over another connection's proves nothing; a confirm and a decline name one
+  serial, a whole number not below zero, and nothing beside it. No field of any of the three
+  is read as a confirmation of a dispatch. Joining protocol 4 as Stage 16 built it, a daemon
+  of an earlier commit of it reads each as malformed and closes (*an IPC message*,
+  **Making a change**). Who may ask them is the daemon's (*A call that cannot be undone
+  runs once the person confirms it*).
 - **One client for every program that asks a daemon.** `nc_ipc::client` (whose header has
   the checks in order) is what the CLI connects through and the desktop interface will: the
   endpoint, the token judged before it is read, the handshake, the welcome held to the
@@ -2808,7 +2953,10 @@ and a display crossing in order and one written wrong refused by the daemon's en
 (`a_watch_a_note_and_a_display_cross_and_one_written_wrong_is_refused`), a watch's answer
 whose state is not an object refused by the client's, and a note and an environment naming
 every variable, each at its bound in the bytes JSON doubles, crossing in one frame
-(`a_note_and_an_environment_at_every_bound_cross_in_one_frame`)); `handshake.rs` again
+(`a_note_and_an_environment_at_every_bound_cross_in_one_frame`), and an attach, a confirm
+and a decline crossing through a real `serve` and `connect`, the attach the proof over this
+connection's own nonces, and each written wrong by hand refused by the daemon's reader
+(`an_attach_a_confirm_and_a_decline_cross_and_one_written_wrong_is_refused`)); `handshake.rs` again
 for the two versions (`a_client_and_a_daemon_of_protocol_3_are_refused_at_the_handshake`,
 the numbers written out, the client having sent nothing but its goodbye) — every wait in
 the three bounded, so an end that never comes fails the suite rather than spinning the
@@ -3180,10 +3328,11 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   `NC-POL-0006` when the directory does not answer). Every refusal closes the connection
   once it is written, so no client that was refused goes on as the person.
 - **A session asks for its tools and dispatches commands, and nothing else.** While MCP is
-  on, the registry, the status, a stop, a second session, a watch, a note and a display are
-  refused (`NC-DMN-0015`) and the session stands: an agent never stops the daemon, reads the
-  person's status, learns what the person's interface shows or tells the daemon anything as
-  one.
+  on, the registry, the status, a stop, a second session, a watch, a note, a display, an
+  attach as the desktop interface and a confirm or a decline of a held call are refused
+  (`NC-DMN-0015`) and the session stands: an agent never stops the daemon, reads the
+  person's status, learns what the person's interface shows, tells the daemon anything as
+  one, attaches as the person's desktop or answers what waits for its person.
   Its tools are the kernel's probe of what its agent may dispatch now
   (`Kernel::dispatchable`), which journals and spends nothing; its dispatches are the
   kernel's, decided for the agent and its person and journaled with both, each admitted as
@@ -3192,8 +3341,13 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   requests, before what it asks is read, so once it is off — by the person's set, undo or
   redo alike — or its switch cannot be read, the session's next request, whatever it asks,
   is refused (`NC-DMN-0014`, or the store's code) and the connection closed once the
-  refusal is written. A request made while the kernel does not run yet or is stopping is
-  refused as the person's is (`NC-DMN-0009`, `NC-DMN-0010`), the session standing.
+  refusal is written. **And once its held call is confirmed**: a session's call held for
+  its person's confirmation (*A call that cannot be undone runs once the person confirms
+  it*) waits past the request it was read in, so MCP is read again once the person
+  confirms it, before the kernel decides it again — off, or unreadable, refuses the call
+  the same way, run nowhere and journaled nowhere, and ends the session. A request made
+  while the kernel does not run yet or is stopping is refused as the person's is
+  (`NC-DMN-0009`, `NC-DMN-0010`), the session standing.
 - **What is refused here is logged, never journaled.** Each refusal of an opening, each
   request no session is answered and each ending for MCP off or its switch unreadable is
   logged as `daemon.session_refused` by its code — no command was dispatched — and a
@@ -3207,8 +3361,11 @@ the server serves, while a person's refused registry leaves theirs going; the sw
 off and unreadable; a session's dispatch counted as running until it answers; the bound
 and its places given back; over a kernel opened as the daemon opens one, a session refused
 for an agent no person made and while MCP is off, a connection bound to its agent until
-MCP is switched off, and a session's status refused with the session standing while MCP is
-on and ending it once MCP is off; and, over a daemon a child of the test binary serves, a
+MCP is switched off, a session's status refused with the session standing while MCP is
+on and ending it once MCP is off, and — deciding with a pack that lets an agent switch MCP,
+which no shipped pack does — a session's call held while its person switched MCP off,
+refused and ending the session once confirmed
+(`a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed`); and, over a daemon a child of the test binary serves, a
 session's opening, each refusal of it and its end logged in order, by its agent or its
 code — by `apps/daemon/tests/agent_sessions.rs` against a real daemon — off until switched
 on and ended once off again, every refusal with no command dispatched logged and nothing
@@ -3366,8 +3523,17 @@ be removed then. A task stores no credential: it runs with the user's own intera
 token, at least privilege. What each manager is told to restore is what its system's hosted
 runner measured (`NOCTUA.md §17.3`). **Started at login by where it is, never by a
 reload**: systemd is told with `enable --no-reload` — a link among the units
-`default.target` wants, read as the user's manager starts — and a unit in the runtime
+`default.target` wants, read as the user's manager starts, or, for a program the person's
+graphical session starts (`Wanted::WithTheGraphicalSession`, systemd's alone and refused
+by the other two managers before anything is written), among the units
+`graphical-session.target` wants, a `Type=oneshot` run ordered after that target and part
+of it, never restored, its failure taken as a success — and a unit in the runtime
 directory is linked there alone (`--runtime`); `unregister` takes the links away first.
+**A daemon's unit stops its own process alone** (`KillMode=process`): a stop, and a
+restart after a crash, end the program's process and leave what it started detached — the
+desktop interface a daemon starts — running, where systemd's default would end every
+process of the unit's group; the generator's text says so, and no scratch service
+measures it (below).
 launchd starts at login the agents in the folder `Manager::loaded_at_login` names, and
 Task Scheduler a task by its logon trigger. **One reload lets an enabled unit go, and only
 a real install's**: once the user's manager has read a unit's link, at a login or a boot,
@@ -3424,7 +3590,9 @@ and the sweep's judgement of a scratch whose owner lives, one dead, one never lo
 too new and another checkout's, a unit linked to start at login and unlinked without a
 reload, a unit still wanted once its file is gone read from systemd's own answer and
 reloaded away only where a login reads it, lingering asked for only where logind does not
-keep it and its refusal said in its words, and how each manager says an instance ended — by
+keep it and its refusal said in its words, and how each manager says an instance ended,
+launchd's last exit code an end only once its state is `not running` and never beside a
+start it has counted and not yet run — by
 the three scratch services in `with_the_manager`, run on
 Linux, macOS and Windows in CI: one killed and restored as a new instance, read through the
 manager's own counter and the instance's record of itself, having been handed its
@@ -3443,7 +3611,11 @@ register.
 **Not answered:** a process running as the same user, which can rewrite or remove any
 definition, register a program of its own under any name — the test prefix included — or
 stop the manager's restorer, and can race a registration between the name being asked and
-the definition being loaded; whoever the system lets past every access list; registering a
+the definition being loaded; whoever the system lets past every access list; that a
+process a daemon's unit started detached outlives the unit's stop under
+`KillMode=process`, which the generator writes and no scratch service of
+`with_the_manager` measures, nor a unit the graphical session starts, which no runner's
+manager reaches; registering a
 task, on Windows, as a user who is not an administrator, which no runner measures, the
 hosted one being elevated; a test's unit the user's manager came to want while it ran —
 its links read again by a reload or a re-execution something else asked for, as a NixOS
@@ -3488,9 +3660,15 @@ what is the CLI's own, the exit code a refusal ends a run with (`exit_of`).
   request's is refused (`NC-CLI-0005`, exit 8), and so is one that is not a frame the
   protocol reads — not one message, or past the bound — from a daemon the handshake proved
   (exit 8).
-- **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
-  every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
-  code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+- **It confirms nothing.** The CLI acts as the profile's person, so a command that cannot
+  be undone waits, while the desktop the daemon started is attached, for the person's
+  answer there — confirmed it runs, declined it ends in exit 15 (`NC-KERN-0030`), with no
+  answer in time in 14 (`NC-KERN-0029`) — and with none attached the kernel refuses it with
+  `NC-KERN-0006`, which ends the run in an exit code of its own (4): what it needs is a
+  person in the Noctua window (`NOCTUA.md §11.1`). **Nor does it switch MCP on**: the set
+  asking for on, and an undo or a redo that would put it back on, wait the same way under
+  codes of their own — `NC-KERN-0032` in 4, `NC-KERN-0033` in 14 and `NC-KERN-0034` in 15
+  (`NOCTUA.md §12.15`); switching it off never waits.
   `noctua mcp` acts as its session's agent and is refused the same, but that refusal ends
   no session: the call is answered as a tool error, or as an unknown tool when the
   session's last list did not hold it — as no list holds a command that cannot be undone
@@ -3647,6 +3825,20 @@ is installed.
   The environment — the base directories and
   `NC_INSTALL_NAMESPACE` — is read by the installer alone, so a relocated install is a
   test's, with no central log and no stack. `PATH` is not changed.
+- **The mark has one reader** (`nc_channel::stopped::on_purpose`): the daemon's restored
+  start, the installer and the interface's alert line read it the same way — the state
+  directory and the mark judged this user's alone, one another account can reach refused
+  and left as it was, and no mark where either is not there. **The interface's alert line
+  restores only as a restorer does** (`nc_ipc::alert`): a daemon lost with no mark is said
+  not running, offers restore now and counts down `[daemon] interface_restore_countdown_ms`
+  to one deadline, in milliseconds since the Unix epoch, from the moment the line first
+  says so, and at the deadline — once in an absence, never after a person acted on the
+  line — starts the install's own daemon `--restored`; with the mark it says the daemon is
+  stopped, offers start and counts nothing down, a mark read while counting cancelling
+  the countdown and a mark that does not read taken for a stop. Either offer runs the
+  install's own CLI, `start`, which removes the mark. What the line reads of the mark says
+  what it says; what keeps a stopped daemon down is the daemon's own restored start, so a
+  mark written after the interface last read it holds the daemon down all the same.
 - **The development daemon has a restorer, and every restorer honours the mark.**
   `cargo xtask dev --install` registers the copied daemon with the system's service
   manager (`nc_platform::service`) under the name the layout gives it there, its one
@@ -3677,7 +3869,15 @@ is installed.
   whether it holds the restorer, it stops nothing and removes nothing, since that manager
   may hold the restorer; it then stops the daemon and unregisters its restorer — its
   links and its definition with it, and the one reload a unit the user's manager has read
-  needs to go.
+  needs to go. **On systemd the announcer is registered beside the restorer**, before
+  the daemon is started: `nc_cli::install`'s unit the person's graphical session starts,
+  under the layout's `announcer_unit`, which runs the install's own CLI as
+  `leader --announce` once each time the session comes up — and once as it is enabled —
+  so a daemon lingering started before any session learns the session's environment and
+  starts its desktop interface in it (`NOCTUA.md §11.1`); one that cannot be registered or
+  enabled takes the restorer back with it, and an uninstall, or the install made again,
+  lets an earlier announcer go first. launchd and Task Scheduler start their programs
+  inside the person's session already, and register none.
   Lingering, which starts a user's manager at boot, is enabled only by
   `cargo xtask dev --install` for a real install, where logind lets this user — logind is
   never asked for a relocated one (`lingering_asked` in `xtask/src/dev.rs`) — and is
@@ -3685,7 +3885,10 @@ is installed.
   `users.users.<name>.linger`; no test asks for it.
 
 **Enforced by** `apps/daemon/tests/the_stop_mark_silences_every_restorer.rs`
-(acceptance 8) — this checkout's development install, relocated, registered with the
+(acceptance 8) — the interface's countdown, asked of `nc_ipc::alert` by the test standing
+in for the desktop, restoring a daemon killed at the deadline as a new instance and
+saying a stopped one stopped, counting nothing down and leaving it down when its restorer
+runs anyway; and this checkout's development install, relocated, registered with the
 system's own manager and started through it, then killed and restored as a new instance
 read through the manager's counters and the daemon's record, stopped and started by the
 manager as a restorer starts it and left down on the mark, installed again over the
@@ -3731,8 +3934,14 @@ does not answer asked to end first and killed only when it has not ended, and a 
 that stops before it starts and starts nothing after a stop refused — of
 `apps/cli/src/install.rs`, whose copies of this test binary run, whose uninstall leaves
 every file of an install whose daemon did not stop, and whose uninstall removes the mark
-its own stop wrote and keeps a person's, and of
-`crates/nc-channel/src/record.rs`, by the
+its own stop wrote and keeps a person's, of
+`crates/nc-channel/src/record.rs`, of `crates/nc-channel/src/stopped.rs` — no mark, a
+mark, and a mark or a state directory another account can reach refused and left as it
+was — and of `crates/nc-ipc/src/alert.rs` — a lost daemon counted down to one deadline
+and restored at it and not before, once, a stop counting nothing down and cancelling a
+countdown, one gone counting afresh, a person's act never raced by the countdown, a mark
+that does not read taken for a stop, and each act's program and argument, held to the
+daemon's and the CLI's readers by their own unit tests — by the
 `Verified` and `spawn_detached` tests of `crates/nc-platform/src/process.rs` — a child
 held to its record and refused for each part of one that is not its own, asked to end and
 killed through what held it, a record of another start gone and one of the process as it
@@ -3753,7 +3962,8 @@ account's process now holds, which is read as a daemon stopped without that proc
 read; a start that gave up, which leaves the daemon it started running; commands run at
 once, each failing closed and none signalling; with nothing verifying the daemon, the
 moment between its lock let go and its process's end, in which a start through a manager
-whose unit still runs it starts nothing (`NC-CLI-0007`); what a daemon a
+whose unit still runs it starts nothing (`NC-CLI-0007`); a daemon the interface's
+countdown restored, which runs outside its manager's unit; what a daemon a
 manager started writes to its standard error, which goes nowhere; an uninstall from an
 environment that does not reach the manager, which removes nothing; the mark an install
 or an uninstall that did not finish left after its own stop, which the next install reads
@@ -4841,6 +5051,14 @@ What no entry above owns, grouped by where it lives.
 **Narrowed on purpose.** Each is a contract narrowed, or a step deliberately not taken,
 rather than anything decided for the project, and each is a maintainer's to reopen:
 
+- **A process running as the same user that tampers with the desktop interface confirms
+  what it likes** (decided for Stage 16): reading its secret out of its memory, driving it
+  with synthetic input, replacing its executable or its units, or announcing a display of
+  its own. What is held is that nothing that only speaks the protocol confirms a call (*A
+  call that cannot be undone runs once the person confirms it in the desktop the daemon
+  started*). Not taken: sealing the desktop against its own user, which a desktop
+  operating system does not offer between two processes of one user (`NOCTUA.md §2.4`).
+
 - **Wayland's GlobalShortcuts portal is not built**: the Leader reaches a Wayland session
   by a key binding of the compositor's that runs `noctua leader`, and by nothing this tree
   registers (`NOCTUA.md §12.8`). Not taken: a client of D-Bus, which the portal is spoken
@@ -4899,11 +5117,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The kernel decides a person as themselves and an agent through its session, through
   test doors for the rest.** A caller is decided unmarked with an empty actor chain, and an
   agent only through the session `Kernel::session` opened, whose chain no caller writes; a
-  chain longer than one link comes only from `Session::through_for_tests`. A confirmation
-  and an approval come only from `confirmation_for_tests` and `approval_for_tests`, so a
-  shipped kernel denies every command that cannot be undone and every one a quorum must
-  approve until the interfaces that issue them exist (a confirmation, the desktop
-  interface's, Stage 16). A confirmation is bound to the whole principal, kind and
+  chain longer than one link comes only from `Session::through_for_tests`. An approval
+  comes only from `approval_for_tests`, so a shipped kernel denies every command a quorum
+  must approve until the approval system exists (Stage 23); a confirmation from
+  `confirmation_for_tests`, which keeps working beside the real one, or from the person's
+  answer to a call the kernel held (`Kernel::settle`), which the daemon gives the desktop it
+  started alone. A confirmation is bound to the whole principal, kind and
   identifier, and to its command by the plugin that held it, so one that took an unloaded
   plugin's namespace redeems none issued before. A person's history is read by identifier
   alone, so the directory is what keeps two principals of different kinds from sharing
@@ -5055,10 +5274,20 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **Only the development channel has a restorer, and only the service manager restores
   it**: `cargo xtask dev --install` registers one; production and staging have no
   installer yet (Stage 19), and the tray and the interface's countdown, which restore a
-  daemon too (`NOCTUA.md §17.5`), arrive with the interface (Stages 16 and 17). A daemon
-  that dies at each start is restored until its manager gives up: systemd after its start
-  limit, five starts in ten seconds; launchd never, once a second; Task Scheduler never,
-  once a minute.
+  daemon too (`NOCTUA.md §17.5`), arrive with the interface (Stages 16 and 17): the
+  countdown is decided in `nc_ipc::alert` and run by nothing until the desktop interface
+  is built. A daemon that dies at each start is restored until its manager gives up:
+  systemd after its start limit, five starts in ten seconds; launchd never, once a second;
+  Task Scheduler never, once a minute. The interface's countdown restores once in an
+  absence of its daemon and no more.
+- **A daemon the interface's countdown restored runs outside its service manager's
+  unit**: the desktop interface starts it as `noctua-daemon --restored` itself
+  (`nc_ipc::alert::Run::restorer`), so where `cargo xtask dev --install` registered a
+  restorer, the manager does not restore that daemon after a later crash — the
+  interface's next countdown does — until a stop and a start put it back under the
+  manager; a person's restore now, `noctua start`, goes through the manager. A clock moved
+  back while the line counts makes the countdown longer by as much, because the deadline
+  never moves.
 - **A daemon its manager started writes its standard error nowhere**: each manager is told
   to hand it none (`nc_platform::service`), so a start through the manager that fails says
   what the manager counts and not what the daemon wrote, and a refusal of a daemon a
@@ -5247,8 +5476,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   held. The rendering for a person escapes them; the document is for a program to parse.
 - **A quorum's refusal reaches the CLI as a denial**: a command a pack's rule holds to a
   quorum is refused by the decision point like any other denial (`NC-POL-0003`), so it
-  ends the run in exit 3; only `NC-KERN-0006` says the interface is what is needed, and
-  only it ends a run in exit 4. Only an approval the kernel issued meets a quorum, and
+  ends the run in exit 3; only `NC-KERN-0006` and MCP's switch on's `NC-KERN-0032` say the
+  interface is what is needed, and only they end a run in exit 4 — a call that waited for
+  the interface ends in 14 or 15. Only an approval the kernel issued meets a quorum, and
   nothing issues one until the approval system (Stage 23), so a quorum's denial is a denial
   until that system gives the CLI something it can read, and Stage 23 chooses its exit code
   then.
@@ -5407,8 +5637,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A process running as the person goes around every agent.** The intersection binds what
   is dispatched through an agent's session, and nothing else. Such a process — an MCP
   host's own tool that runs shell commands for its model among them — runs the CLI as the
-  person would, so it switches MCP on, makes, grants and ends the person's agents and undoes
-  their steps; it reads the token and opens a connection that names no agent, which is the
+  person would, so it switches MCP off, makes, grants and ends the person's agents and undoes
+  their steps — switching MCP on, and an undo that would, wait for the person in the Noctua
+  window, which such a process can reach only by tampering with the desktop (*A call that
+  cannot be undone runs once the person confirms it*); it reads the token and opens a connection that names no agent, which is the
   person; it runs `noctua mcp` as any of the person's agents; and it writes the profile's
   local database, where the switch is the kernel's entry and `{"on":true}` reads as on —
   only an entry holding anything but the two texts the set writes is refused at the next
@@ -5471,8 +5703,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   caller is told one sentence and the code.
 - **No chain longer than one link exists outside the test door**: an agent another agent
   calls is a session of its own, of its person, one link deep.
-- **An agent's command that cannot be undone is refused, never waited on**: no interface
-  confirms one yet, and nothing an agent holds or sends confirms it.
+- **An agent's command that cannot be undone waits only while the desktop the daemon
+  started is attached**, and is refused at once otherwise; nothing an agent holds or sends
+  confirms it, and an agent's session is refused an attach, a confirm and a decline
+  (`NC-DMN-0015`).
 - **What is refused before it reaches the kernel's dispatch is never journaled, and only
   the daemon logs what it refuses**: a session asked before the kernel runs or once a stop
   began, past `sessions_max`, while MCP is off or its switch cannot be read, for an agent
@@ -5489,10 +5723,16 @@ rather than anything decided for the project, and each is a maintainer's to reop
   past `undo_history`, end their way back to redo, and the person's next undo may take back
   their agent's newest step rather than their own — unreachable in the family pack, where
   an agent changes nothing.
-- **The person's undo of a switch-off that is their newest step switches MCP on again.**
-  The switch is a step like any other. Not taken: a switch-off made a barrier to undo,
-  which would put every step before it out of the person's reach for good; a history that
-  names a step before it is undone is the interface's (Stage 16).
+- **The person's undo of a switch-off that is their newest step waits for them in the
+  Noctua window**, as the switch on does (Stage 16): with no desktop attached it is refused,
+  and the steps before it stay out of reach until a desktop is there to confirm it. Not
+  taken: a switch-off made a barrier to undo, which would put every step before it out of
+  the person's reach for good. `kernel.history` names the step before it is undone, and says
+  whether an agent's call tree kept it.
+- **An agent's steps have no bound of their own** (Stage 16): they count among their
+  person's newest `undo_history`, as the person's own do, so an agent that writes often
+  pushes the person's own steps out of reach sooner — what the history shows of each step
+  is the answer, not a quota.
 - **Switching MCP off ends a session at its next request, not before.** The daemon reads
   the switch when a session opens and before each of its requests, whatever it asks, so an
   idle session keeps its connection and its place among `sessions_max` until its next

@@ -199,6 +199,10 @@ pub enum ErrorCode {
     DaemonNotForASession,
     /// NC-DMN-0016 — The daemon holds as many sessions as `sessions_max` allows, so it opened no other
     DaemonTooManySessions,
+    /// NC-DMN-0017 — A connection asked to attach as the desktop interface the daemon started, and its proof or its process was not that one's, so it was closed
+    DaemonAttachRefused,
+    /// NC-DMN-0018 — A held call was answered on a connection that is not attached as the desktop interface the daemon started, so nothing was answered
+    DaemonNotAttached,
     /// NC-IDS-0001 — The clock moved backwards, so minting would repeat an identifier it has issued
     IdsClockBackwards,
     /// NC-IDS-0002 — This millisecond's sequence was exhausted and minting waited
@@ -327,6 +331,24 @@ pub enum ErrorCode {
     KernelShellUnknown,
     /// NC-KERN-0028 — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with
     KernelShellFull,
+    /// NC-KERN-0029 — An irreversible command was held for a person's confirmation in the Noctua window, and none came before the wait lapsed
+    KernelNotConfirmedInTime,
+    /// NC-KERN-0030 — An irreversible command was held for a person's confirmation in the Noctua window, and the person declined it
+    KernelDeclined,
+    /// NC-KERN-0031 — No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held
+    KernelNothingHeld,
+    /// NC-KERN-0032 — A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window
+    KernelMcpUnconfirmed,
+    /// NC-KERN-0033 — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed
+    KernelMcpNotConfirmedInTime,
+    /// NC-KERN-0034 — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it
+    KernelMcpDeclined,
+    /// NC-KERN-0035 — A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person
+    KernelSurfaceByAnAgent,
+    /// NC-KERN-0036 — A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold
+    KernelSurfaceUnknown,
+    /// NC-KERN-0037 — A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read
+    KernelNotActivatable,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
     /// NC-LOG-0002 — Log events were dropped because the queue was full
@@ -485,6 +507,8 @@ impl ErrorCode {
         Self::DaemonMcpOff,
         Self::DaemonNotForASession,
         Self::DaemonTooManySessions,
+        Self::DaemonAttachRefused,
+        Self::DaemonNotAttached,
         Self::IdsClockBackwards,
         Self::IdsSequenceExhausted,
         Self::IdsFlakeExhausted,
@@ -549,6 +573,15 @@ impl ErrorCode {
         Self::KernelCompensationForAnAgent,
         Self::KernelShellUnknown,
         Self::KernelShellFull,
+        Self::KernelNotConfirmedInTime,
+        Self::KernelDeclined,
+        Self::KernelNothingHeld,
+        Self::KernelMcpUnconfirmed,
+        Self::KernelMcpNotConfirmedInTime,
+        Self::KernelMcpDeclined,
+        Self::KernelSurfaceByAnAgent,
+        Self::KernelSurfaceUnknown,
+        Self::KernelNotActivatable,
         Self::LogUnreachable,
         Self::LogDropped,
         Self::PluginCapabilityDenied,
@@ -667,6 +700,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => "NC-DMN-0014",
             Self::DaemonNotForASession => "NC-DMN-0015",
             Self::DaemonTooManySessions => "NC-DMN-0016",
+            Self::DaemonAttachRefused => "NC-DMN-0017",
+            Self::DaemonNotAttached => "NC-DMN-0018",
             Self::IdsClockBackwards => "NC-IDS-0001",
             Self::IdsSequenceExhausted => "NC-IDS-0002",
             Self::IdsFlakeExhausted => "NC-IDS-0003",
@@ -731,6 +766,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => "NC-KERN-0026",
             Self::KernelShellUnknown => "NC-KERN-0027",
             Self::KernelShellFull => "NC-KERN-0028",
+            Self::KernelNotConfirmedInTime => "NC-KERN-0029",
+            Self::KernelDeclined => "NC-KERN-0030",
+            Self::KernelNothingHeld => "NC-KERN-0031",
+            Self::KernelMcpUnconfirmed => "NC-KERN-0032",
+            Self::KernelMcpNotConfirmedInTime => "NC-KERN-0033",
+            Self::KernelMcpDeclined => "NC-KERN-0034",
+            Self::KernelSurfaceByAnAgent => "NC-KERN-0035",
+            Self::KernelSurfaceUnknown => "NC-KERN-0036",
+            Self::KernelNotActivatable => "NC-KERN-0037",
             Self::LogUnreachable => "NC-LOG-0001",
             Self::LogDropped => "NC-LOG-0002",
             Self::PluginCapabilityDenied => "NC-PLUG-0001",
@@ -850,6 +894,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => "DMN",
             Self::DaemonNotForASession => "DMN",
             Self::DaemonTooManySessions => "DMN",
+            Self::DaemonAttachRefused => "DMN",
+            Self::DaemonNotAttached => "DMN",
             Self::IdsClockBackwards => "IDS",
             Self::IdsSequenceExhausted => "IDS",
             Self::IdsFlakeExhausted => "IDS",
@@ -914,6 +960,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => "KERN",
             Self::KernelShellUnknown => "KERN",
             Self::KernelShellFull => "KERN",
+            Self::KernelNotConfirmedInTime => "KERN",
+            Self::KernelDeclined => "KERN",
+            Self::KernelNothingHeld => "KERN",
+            Self::KernelMcpUnconfirmed => "KERN",
+            Self::KernelMcpNotConfirmedInTime => "KERN",
+            Self::KernelMcpDeclined => "KERN",
+            Self::KernelSurfaceByAnAgent => "KERN",
+            Self::KernelSurfaceUnknown => "KERN",
+            Self::KernelNotActivatable => "KERN",
             Self::LogUnreachable => "LOG",
             Self::LogDropped => "LOG",
             Self::PluginCapabilityDenied => "PLUG",
@@ -1149,6 +1204,12 @@ impl ErrorCode {
             Self::DaemonTooManySessions => {
                 "The daemon holds as many sessions as `sessions_max` allows, so it opened no other"
             }
+            Self::DaemonAttachRefused => {
+                "A connection asked to attach as the desktop interface the daemon started, and its proof or its process was not that one's, so it was closed"
+            }
+            Self::DaemonNotAttached => {
+                "A held call was answered on a connection that is not attached as the desktop interface the daemon started, so nothing was answered"
+            }
             Self::IdsClockBackwards => {
                 "The clock moved backwards, so minting would repeat an identifier it has issued"
             }
@@ -1314,6 +1375,33 @@ impl ErrorCode {
             }
             Self::KernelShellFull => {
                 "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
+            }
+            Self::KernelNotConfirmedInTime => {
+                "An irreversible command was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+            }
+            Self::KernelDeclined => {
+                "An irreversible command was held for a person's confirmation in the Noctua window, and the person declined it"
+            }
+            Self::KernelNothingHeld => {
+                "No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held"
+            }
+            Self::KernelMcpUnconfirmed => {
+                "A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window"
+            }
+            Self::KernelMcpNotConfirmedInTime => {
+                "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+            }
+            Self::KernelMcpDeclined => {
+                "A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it"
+            }
+            Self::KernelSurfaceByAnAgent => {
+                "A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person"
+            }
+            Self::KernelSurfaceUnknown => {
+                "A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold"
+            }
+            Self::KernelNotActivatable => {
+                "A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read"
             }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",
@@ -1500,6 +1588,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => "error.daemon.mcp-off",
             Self::DaemonNotForASession => "error.daemon.not-for-a-session",
             Self::DaemonTooManySessions => "error.daemon.too-many-sessions",
+            Self::DaemonAttachRefused => "error.daemon.attach-refused",
+            Self::DaemonNotAttached => "error.daemon.not-attached",
             Self::IdsClockBackwards => "error.ids.clock-backwards",
             Self::IdsSequenceExhausted => "error.ids.sequence-exhausted",
             Self::IdsFlakeExhausted => "error.ids.flake-exhausted",
@@ -1564,6 +1654,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => "error.kernel.compensation-for-an-agent",
             Self::KernelShellUnknown => "error.kernel.shell-unknown",
             Self::KernelShellFull => "error.kernel.shell-full",
+            Self::KernelNotConfirmedInTime => "error.kernel.not-confirmed-in-time",
+            Self::KernelDeclined => "error.kernel.declined",
+            Self::KernelNothingHeld => "error.kernel.nothing-held",
+            Self::KernelMcpUnconfirmed => "error.kernel.mcp-unconfirmed",
+            Self::KernelMcpNotConfirmedInTime => "error.kernel.mcp-not-confirmed-in-time",
+            Self::KernelMcpDeclined => "error.kernel.mcp-declined",
+            Self::KernelSurfaceByAnAgent => "error.kernel.surface-by-an-agent",
+            Self::KernelSurfaceUnknown => "error.kernel.surface-unknown",
+            Self::KernelNotActivatable => "error.kernel.not-activatable",
             Self::LogUnreachable => "error.log.unreachable",
             Self::LogDropped => "error.log.dropped",
             Self::PluginCapabilityDenied => "error.plugin.capability-denied",
@@ -1683,6 +1782,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => Severity::Warning,
             Self::DaemonNotForASession => Severity::Warning,
             Self::DaemonTooManySessions => Severity::Warning,
+            Self::DaemonAttachRefused => Severity::Warning,
+            Self::DaemonNotAttached => Severity::Warning,
             Self::IdsClockBackwards => Severity::Error,
             Self::IdsSequenceExhausted => Severity::Info,
             Self::IdsFlakeExhausted => Severity::Critical,
@@ -1747,6 +1848,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => Severity::Warning,
             Self::KernelShellUnknown => Severity::Warning,
             Self::KernelShellFull => Severity::Warning,
+            Self::KernelNotConfirmedInTime => Severity::Warning,
+            Self::KernelDeclined => Severity::Warning,
+            Self::KernelNothingHeld => Severity::Info,
+            Self::KernelMcpUnconfirmed => Severity::Warning,
+            Self::KernelMcpNotConfirmedInTime => Severity::Warning,
+            Self::KernelMcpDeclined => Severity::Warning,
+            Self::KernelSurfaceByAnAgent => Severity::Warning,
+            Self::KernelSurfaceUnknown => Severity::Warning,
+            Self::KernelNotActivatable => Severity::Warning,
             Self::LogUnreachable => Severity::Warning,
             Self::LogDropped => Severity::Warning,
             Self::PluginCapabilityDenied => Severity::Warning,
@@ -1866,6 +1976,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => false,
             Self::DaemonNotForASession => false,
             Self::DaemonTooManySessions => true,
+            Self::DaemonAttachRefused => false,
+            Self::DaemonNotAttached => false,
             Self::IdsClockBackwards => true,
             Self::IdsSequenceExhausted => false,
             Self::IdsFlakeExhausted => false,
@@ -1930,6 +2042,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => false,
             Self::KernelShellUnknown => false,
             Self::KernelShellFull => false,
+            Self::KernelNotConfirmedInTime => false,
+            Self::KernelDeclined => false,
+            Self::KernelNothingHeld => false,
+            Self::KernelMcpUnconfirmed => false,
+            Self::KernelMcpNotConfirmedInTime => false,
+            Self::KernelMcpDeclined => false,
+            Self::KernelSurfaceByAnAgent => false,
+            Self::KernelSurfaceUnknown => false,
+            Self::KernelNotActivatable => false,
             Self::LogUnreachable => true,
             Self::LogDropped => false,
             Self::PluginCapabilityDenied => false,
@@ -2049,6 +2170,8 @@ impl ErrorCode {
             Self::DaemonMcpOff => &[],
             Self::DaemonNotForASession => &[],
             Self::DaemonTooManySessions => &[],
+            Self::DaemonAttachRefused => &[],
+            Self::DaemonNotAttached => &[],
             Self::IdsClockBackwards => &[],
             Self::IdsSequenceExhausted => &[],
             Self::IdsFlakeExhausted => &[],
@@ -2113,6 +2236,15 @@ impl ErrorCode {
             Self::KernelCompensationForAnAgent => &[],
             Self::KernelShellUnknown => &[],
             Self::KernelShellFull => &[],
+            Self::KernelNotConfirmedInTime => &[],
+            Self::KernelDeclined => &[],
+            Self::KernelNothingHeld => &[],
+            Self::KernelMcpUnconfirmed => &[],
+            Self::KernelMcpNotConfirmedInTime => &[],
+            Self::KernelMcpDeclined => &[],
+            Self::KernelSurfaceByAnAgent => &[],
+            Self::KernelSurfaceUnknown => &[],
+            Self::KernelNotActivatable => &[],
             Self::LogUnreachable => &[],
             Self::LogDropped => &[],
             Self::PluginCapabilityDenied => &[],

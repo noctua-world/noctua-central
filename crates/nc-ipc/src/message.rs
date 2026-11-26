@@ -622,6 +622,26 @@ pub enum Request {
     Note(Note),
     /// The graphical environment a window for the person would be shown in.
     Display(Graphical),
+    /// The connection is the desktop interface the daemon started: `proof`
+    /// is the secret it was handed, proven for this connection
+    /// ([`crate::Secret::proof`]).
+    AttachDesktop {
+        /// The proof, 32 bytes as 64 lower-case hexadecimal digits.
+        proof: [u8; 32],
+    },
+    /// The person confirmed the call the kernel holds as `pending`.
+    ///
+    /// **A serial, never a command or its arguments**: what is confirmed is
+    /// the call the kernel holds, which no request names otherwise.
+    Confirm {
+        /// The serial the kernel gave the held call.
+        pending: u64,
+    },
+    /// The person declined the call the kernel holds as `pending`.
+    Decline {
+        /// The serial the kernel gave the held call.
+        pending: u64,
+    },
 }
 
 /// The locale a request's `locale` field names, by its exact tag.
@@ -690,6 +710,12 @@ impl Request {
             Self::Display(environment) => {
                 message("display", vec![("environment", environment.as_object())])
             }
+            Self::AttachDesktop { proof } => message(
+                "attach",
+                vec![("proof", Value::text(nc_canon::to_hex(proof)))],
+            ),
+            Self::Confirm { pending } => message("confirm", vec![("pending", counted(*pending))]),
+            Self::Decline { pending } => message("decline", vec![("pending", counted(*pending))]),
         }
     }
 
@@ -718,6 +744,15 @@ impl Request {
             },
             "note" => Self::Note(Note::new(fields.value("detail")?)?),
             "display" => Self::Display(Graphical::of_object(fields.value("environment")?)?),
+            "attach" => Self::AttachDesktop {
+                proof: fields.bytes32("proof")?,
+            },
+            "confirm" => Self::Confirm {
+                pending: fields.count("pending")?,
+            },
+            "decline" => Self::Decline {
+                pending: fields.count("pending")?,
+            },
             other => {
                 return Err(malformed(format!(
                     "a `{other}` message where a request is read"
@@ -828,6 +863,11 @@ pub enum Answer {
     Noted,
     /// The environment announced is the one the daemon holds.
     Displayed,
+    /// The connection is attached as the desktop interface the daemon
+    /// started.
+    Attached,
+    /// The held call was answered as asked.
+    Settled,
 }
 
 impl Answer {
@@ -862,6 +902,8 @@ impl Answer {
             }
             Self::Noted => message("noted", Vec::new()),
             Self::Displayed => message("displayed", Vec::new()),
+            Self::Attached => message("attached", Vec::new()),
+            Self::Settled => message("settled", Vec::new()),
         }
     }
 
@@ -908,6 +950,8 @@ impl Answer {
             },
             "noted" => Self::Noted,
             "displayed" => Self::Displayed,
+            "attached" => Self::Attached,
+            "settled" => Self::Settled,
             other => {
                 return Err(malformed(format!(
                     "a `{other}` message where an answer is read"
@@ -1079,9 +1123,13 @@ mod tests {
     /// holding a `confirmation`, a `confirmed_by_human` or an `approval` is
     /// refused as malformed, whatever it holds, so no client presents one; and
     /// every request is one of these, none of which holds anything a
-    /// confirmation could be — a watch, a note and an announced environment
-    /// each refuse the same three fields beside their own, and a note's
-    /// detail is read by nothing that dispatches.
+    /// confirmation could be — a watch, a note, an announced environment, an
+    /// attach, a confirm and a decline each refuse the same three fields
+    /// beside their own, and a note's detail is read by nothing that
+    /// dispatches. **A confirm names a call the kernel holds, by its serial
+    /// alone**: it carries no command and no arguments, and refuses either
+    /// beside its serial, so no request makes the kernel run a command it was
+    /// not already holding for the person.
     #[test]
     fn no_request_the_wire_reads_carries_a_confirmation() {
         for request in [
@@ -1100,6 +1148,9 @@ mod tests {
             },
             Request::Note(a_note()),
             Request::Display(a_display()),
+            Request::AttachDesktop { proof: [7; 32] },
+            Request::Confirm { pending: 3 },
+            Request::Decline { pending: 3 },
         ] {
             // Exhaustive and with no wildcard: a request added here is read
             // for what it carries before it compiles.
@@ -1111,6 +1162,12 @@ mod tests {
                 Request::Watch { .. } => "a revision seen and a wait",
                 Request::Note(_) => "what an interface draws, which nothing dispatches",
                 Request::Display(_) => "four variables of a graphical session",
+                Request::AttachDesktop { .. } => {
+                    "a proof of the desktop's secret for this connection"
+                }
+                Request::Confirm { .. } | Request::Decline { .. } => {
+                    "the serial of a call the kernel holds, never a command"
+                }
             };
             let read = Request::from_value(request.to_value()).expect("read back");
             assert_eq!(read, request, "{carries}");
@@ -1135,6 +1192,9 @@ mod tests {
                 },
                 Request::Note(a_note()),
                 Request::Display(a_display()),
+                Request::AttachDesktop { proof: [7; 32] },
+                Request::Confirm { pending: 3 },
+                Request::Decline { pending: 3 },
             ] {
                 let mut written = request.to_value().into_object().expect("an object");
                 written.insert(field.to_owned(), Value::Bool(true));
@@ -1144,6 +1204,114 @@ mod tests {
                     &format!("{request:?} with `{field}`"),
                 );
             }
+        }
+    }
+
+    /// An attach carries one proof, and a confirm and a decline one serial,
+    /// each written one way and read back only so; their answers hold
+    /// nothing.
+    ///
+    /// **Strict**: a proof that is not 32 bytes as 64 lower-case hexadecimal
+    /// digits, a serial below zero or not a whole number, and a field beside
+    /// either — a `command` or `args` beside a serial among them — are
+    /// refused, as is an answer holding anything.
+    #[test]
+    fn an_attach_carries_one_proof_and_a_confirm_one_serial_each_read_back_strictly() {
+        let proof = [0xab_u8; 32];
+        for (request, written) in [
+            (
+                Request::AttachDesktop { proof },
+                format!(r#"{{"proof":"{}","type":"attach"}}"#, "ab".repeat(32)),
+            ),
+            (
+                Request::Confirm { pending: 41 },
+                r#"{"pending":41,"type":"confirm"}"#.to_owned(),
+            ),
+            (
+                Request::Decline { pending: 0 },
+                r#"{"pending":0,"type":"decline"}"#.to_owned(),
+            ),
+        ] {
+            assert_eq!(request.to_value().to_canonical(), written);
+            assert_eq!(
+                Request::from_value(request.to_value()).expect("read back"),
+                request
+            );
+        }
+        let attach = |fields: Vec<(&str, Value)>| Request::from_value(message("attach", fields));
+        for (fields, says) in [
+            (Vec::new(), "a `attach` message with no `proof`"),
+            (
+                vec![("proof", Value::text("AB".repeat(32)))],
+                "a `attach` message whose `proof` is not 32 bytes",
+            ),
+            (
+                vec![("proof", Value::text("ab".repeat(31)))],
+                "a `attach` message whose `proof` is not 32 bytes",
+            ),
+            (
+                vec![("proof", Value::Integer(1))],
+                "a `attach` message whose `proof` is not text",
+            ),
+            (
+                vec![
+                    ("proof", Value::text("ab".repeat(32))),
+                    ("pid", Value::Integer(1)),
+                ],
+                "a field the protocol does not read, `pid`",
+            ),
+        ] {
+            refused_saying(attach(fields.clone()), says, &format!("{fields:?}"));
+        }
+        for kind in ["confirm", "decline"] {
+            let settle = |fields: Vec<(&str, Value)>| Request::from_value(message(kind, fields));
+            for (fields, says) in [
+                (Vec::new(), format!("a `{kind}` message with no `pending`")),
+                (
+                    vec![("pending", Value::Integer(-1))],
+                    format!("a `{kind}` message whose `pending` is below zero"),
+                ),
+                (
+                    vec![("pending", Value::text("1"))],
+                    format!("a `{kind}` message whose `pending` is not a whole number"),
+                ),
+                (
+                    vec![
+                        ("pending", Value::Integer(1)),
+                        ("command", Value::text("reference.irreversible.do")),
+                    ],
+                    "a field the protocol does not read, `command`".to_owned(),
+                ),
+                (
+                    vec![
+                        ("pending", Value::Integer(1)),
+                        ("args", Value::object::<&str>([])),
+                    ],
+                    "a field the protocol does not read, `args`".to_owned(),
+                ),
+            ] {
+                refused_saying(settle(fields.clone()), &says, &format!("{kind} {fields:?}"));
+            }
+        }
+        for (answer, written) in [
+            (Answer::Attached, r#"{"type":"attached"}"#),
+            (Answer::Settled, r#"{"type":"settled"}"#),
+        ] {
+            assert_eq!(answer.to_value().to_canonical(), written);
+            assert_eq!(
+                Answer::from_value(answer.to_value()).expect("read back"),
+                answer
+            );
+            let kind = if answer == Answer::Attached {
+                "attached"
+            } else {
+                "settled"
+            };
+            refused_saying(
+                Answer::from_value(message(kind, vec![("pending", Value::Integer(1))])),
+                "a field the protocol does not read, `pending`",
+                kind,
+            );
         }
     }
 

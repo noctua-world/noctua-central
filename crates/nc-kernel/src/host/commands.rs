@@ -283,7 +283,9 @@ impl<E: Environment> HostState<E> {
                 })
         };
         let unit = crate::supervisor::in_time("commands#begin", self.left(), opening).await?;
-        frame.tree().begins(crate::units::Ambient::new(unit));
+        let mut tree = frame.tree();
+        let ambient = crate::units::Ambient::new(unit).acted_for(tree.acting());
+        tree.begins(ambient);
         Ok(())
     }
 

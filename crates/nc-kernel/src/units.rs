@@ -235,6 +235,9 @@ pub(crate) struct Ambient {
     /// What a person is shown for it in their history, when a plugin began a
     /// unit inside it with a label: the first such label, made safe to show.
     label: Option<String>,
+    /// The note that an agent's call tree keeps it, as its record keeps it,
+    /// when one does: what the history says of the step.
+    agent: Option<String>,
     /// Why it will not be kept, and the cause the log names, when it will not.
     doomed: Option<(Refusal, Cause)>,
     /// What it put off, released once it is kept.
@@ -483,10 +486,27 @@ impl Ambient {
             compensations: Vec::new(),
             reversing: None,
             label: None,
+            agent: None,
             doomed: None,
             later: Later::default(),
             waits: Waits::TOP,
         }
+    }
+
+    /// The same unit, kept by a call tree acting as `acting`: noted as its
+    /// agent's when an agent's session acts, so the person whose step it is
+    /// is told so before an undo takes it back (`crate::history::next`).
+    ///
+    /// **Noted when the unit opens**, among the notes a step keeps room for,
+    /// so it never finds the unit full.
+    pub(crate) fn acted_for(mut self, acting: &crate::session::Acting) -> Self {
+        self.agent = acting.via_agent().then(|| {
+            crate::history::Note::Agent {
+                agent: acting.principal().id().as_str().to_owned(),
+            }
+            .written()
+        });
+        self
     }
 
     /// The same unit, whose close waits on the journal as `waits` says: as
@@ -551,6 +571,7 @@ impl Ambient {
             .saturating_add(self.left.len())
             .saturating_add(self.authorized.len())
             .saturating_add(self.compensations.len())
+            .saturating_add(usize::from(self.agent.is_some()))
             .saturating_add(self.reversing.as_ref().map_or(0, Reversing::noted));
         u64::try_from(kept).unwrap_or(u64::MAX)
     }
@@ -741,12 +762,14 @@ impl Ambient {
     /// Every note its record keeps, in one order.
     ///
     /// The blobs, what left the machine, the actions allowed, the
-    /// compensations, and what a reversal did.
+    /// compensations, the agent whose call tree kept it, and what a reversal
+    /// did.
     fn notes_kept(&self) -> Vec<String> {
         let mut notes: Vec<String> = self.made.iter().map(blobs::note).collect();
         notes.extend(self.left.iter().cloned());
         notes.extend(self.authorized.iter().cloned());
         notes.extend(self.compensations.iter().cloned());
+        notes.extend(self.agent.iter().cloned());
         if let Some(reversing) = &self.reversing {
             notes.extend(reversing.recorded());
         }

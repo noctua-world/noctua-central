@@ -432,8 +432,10 @@ pub struct KernelLimits {
     pub log_line_bytes: u64,
     /// How many of a person's newest steps an undo looks through, and of their newest units a redo does.
     pub undo_history: u32,
-    /// How long a confirmation a person gave stays good for, in milliseconds.
+    /// How long a confirmation a person gave stays good for, and how long a call waits for one, in milliseconds.
     pub confirmation_ttl_ms: u64,
+    /// How many calls may wait for a person's confirmation at once.
+    pub confirmations_pending_max: u32,
     /// The most an agent's person may give it to spend in a session.
     pub agent_budget_max: u32,
     /// How long a grant to an agent may run at most, in minutes.
@@ -505,6 +507,7 @@ pub const KERNEL: KernelLimits = KernelLimits {
     log_line_bytes: 1_024,
     undo_history: 100,
     confirmation_ttl_ms: 60_000,
+    confirmations_pending_max: 8,
     agent_budget_max: 100_000,
     agent_grant_minutes_max: 43_200,
     shell_windows_max: 4,
@@ -545,6 +548,8 @@ pub struct DaemonLimits {
     pub ipc_note_max_bytes: u64,
     /// How long one value of an announced graphical environment may be, in bytes.
     pub ipc_display_value_max_bytes: u64,
+    /// How long the interface's alert line counts down before it restores the daemon, in milliseconds.
+    pub interface_restore_countdown_ms: u64,
     /// How often the daemon fires its timers, delivers its events and prunes, in milliseconds.
     pub pump_every_ms: u64,
     /// How often the daemon sweeps the blobs no committed unit holds, in milliseconds.
@@ -571,6 +576,7 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     ipc_watch_wait_ms: 8_000,
     ipc_note_max_bytes: 8_192,
     ipc_display_value_max_bytes: 4_096,
+    interface_restore_countdown_ms: 10_000,
     pump_every_ms: 1_000,
     sweep_every_ms: 600_000,
     stop_drain_ms: 30_000,

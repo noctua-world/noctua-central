@@ -245,10 +245,14 @@ args_schema = """
 # realm's data. The value is the kernel's
 # own entry in the channel's local store, `{"on":false}` until a person writes
 # it, and the set writes it in its unit: a step the person's undo takes back,
-# never one that left the machine, and never irreversible, since nothing could
-# confirm it before the interface (Stage 16). **The set runs only at the top of
-# a call tree** (`[NC-KERN-0025]`), so a plugin, a timer or an event run as the
-# person never switches it; the read is answered anywhere.
+# never one that left the machine, and never irreversible. **Switching it on
+# waits for the person's confirmation in the Noctua window**, as a command that
+# cannot be undone does — held while the desktop interface the daemon started is
+# attached, refused at once with `[NC-KERN-0032]` otherwise — and so does an
+# undo or a redo that would put it back on; switching it off never waits.
+# **The set runs only at the top of a call tree**
+# (`[NC-KERN-0025]`), so a plugin, a timer or an event run as the person never
+# switches it; the read is answered anywhere.
 [[command]]
 name = "settings.mcp.read"
 title = "command.settings.mcp.read.title"
@@ -856,6 +860,113 @@ description = "command.prompt.clear.description"
 paragraph = "command.prompt.clear.paragraph"
 tags = "command.prompt.clear.tags"
 action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "confirmations.list"
+title = "command.confirmations.list.title"
+description = "command.confirmations.list.description"
+paragraph = "command.confirmations.list.paragraph"
+tags = "command.confirmations.list.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "confirmations.read"
+title = "command.confirmations.read.title"
+description = "command.confirmations.read.description"
+paragraph = "command.confirmations.read.paragraph"
+tags = "command.confirmations.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false}"""
+
+# The surfaces plugins show (`NOCTUA.md §11.6`): what the kernel keeps of each
+# — its title, the plugin that holds it, the last tree it was given and who
+# rendered that tree, the person a call tree acted for and the agent whose
+# session acted for them when one did. `surfaces.list` and `surfaces.read` are
+# reads on `Feature::"interface"`, as the interface's own commands are.
+# `surfaces.activate` is what a click or a submit is: the node is named by the
+# JSON pointer a refusal of the tree names it by, and the command it runs and
+# its arguments are read from the tree the kernel kept, never from the caller,
+# who gives only the text typed into each input the node binds. A tree an
+# agent's call tree rendered is never activated (`[NC-KERN-0035]`). It is
+# `Write`, and changes state only through the command it dispatches — nested,
+# decided and journaled as itself, a step of its own when it changes state — so
+# it opens no unit and is no step of its own.
+#
+# The bounds: a surface's identifier at most 64 characters, a node's pointer at
+# most 512 — the pointer to the deepest node a tree may hold fits — an input's
+# name at most 64 characters, as a tree names an input, what is typed into one
+# at most `[kernel] ui_text_bytes` characters, and at most `ui_tree_nodes`
+# inputs; each held equal to its source by a test beside the commands. A
+# schema's `maxLength` counts characters, so the kernel holds what is typed to
+# `ui_text_bytes` in bytes as well, and to the input's own `max_length` in
+# characters, when the node is activated (`[NC-KERN-0037]`).
+[[command]]
+name = "surfaces.list"
+title = "command.surfaces.list.title"
+description = "command.surfaces.list.description"
+paragraph = "command.surfaces.list.paragraph"
+tags = "command.surfaces.list.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "surfaces.read"
+title = "command.surfaces.read.title"
+description = "command.surfaces.read.description"
+paragraph = "command.surfaces.read.paragraph"
+tags = "command.surfaces.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64}},"required":["surface"],"additionalProperties":false}"""
+
+[[command]]
+name = "surfaces.activate"
+title = "command.surfaces.activate.title"
+description = "command.surfaces.activate.description"
+paragraph = "command.surfaces.activate.paragraph"
+tags = "command.surfaces.activate.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false}"""
+
+# The history as a person is shown it before an undo (`NOCTUA.md §11.5`): the
+# step their next `kernel.undo` takes back — its label, when it was kept,
+# whether undo stops at it, and the agent whose call tree kept it when an agent
+# did, since an agent's steps join its person's history and have no bound of
+# their own. A read on `Feature::"interface"`: the person's own history, shown
+# by their interface, and nothing of the realm's.
+[[command]]
+name = "kernel.history"
+title = "command.kernel.history.title"
+description = "command.kernel.history.description"
+paragraph = "command.kernel.history.paragraph"
+tags = "command.kernel.history.tags"
+categories = ["noctua.history"]
+action = "Read"
 resource_selector = "feature:interface"
 reversibility = "read"
 mutating = false

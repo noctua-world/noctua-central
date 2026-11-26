@@ -703,6 +703,84 @@ async fn a_watch_a_note_and_a_display_cross_and_one_written_wrong_is_refused() {
     }
 }
 
+/// An attach, a confirm and a decline cross, each answered as asked, and one
+/// written by hand as the protocol does not read it is refused by the end that
+/// reads it.
+///
+/// **Through a real `serve` and `connect`**: the attach the client makes of a
+/// secret is the proof of it over this connection's own handshake — the same
+/// nonces at both ends, so the daemon's end checks it, and a proof made over
+/// another connection's does not; and a confirm and a decline name a serial.
+/// **By hand through the relay**: an attach whose proof is not 32 bytes, a
+/// confirm naming a command beside its serial, and a decline whose serial is
+/// below zero are each refused by the daemon's reader, the client left with a
+/// connection lost.
+#[tokio::test(start_paused = true)]
+async fn an_attach_a_confirm_and_a_decline_cross_and_one_written_wrong_is_refused() {
+    let (mut served, mut client) = directly().await;
+    assert_eq!(served.drawn(), client.drawn(), "both ends drew one pair");
+    let secret = nc_ipc::Secret::fresh().expect("a secret");
+    let proof = secret.proof(client.drawn());
+    assert!(secret.proves(&proof, served.drawn()));
+    let (_, other) = directly().await;
+    assert_ne!(
+        other.drawn(),
+        client.drawn(),
+        "each connection draws its own"
+    );
+    assert!(
+        !secret.proves(&secret.proof(other.drawn()), served.drawn()),
+        "a proof made over another connection is no proof on this one"
+    );
+    for (request, answer) in [
+        (Request::AttachDesktop { proof }, Answer::Attached),
+        (Request::Confirm { pending: 3 }, Answer::Settled),
+        (Request::Decline { pending: 4 }, Answer::Settled),
+    ] {
+        let (asked, ()) = within("a request of protocol 4", async {
+            tokio::join!(client.ask(&request), async {
+                assert_eq!(served.next().await.expect("read"), Some(request.clone()));
+                served.answer(&answer).await.expect("answered");
+            })
+        })
+        .await;
+        assert_eq!(asked.expect("answered"), answer);
+    }
+    for (text, says) in [
+        (
+            r#"{"proof":"00","type":"attach"}"#,
+            "a `attach` message whose `proof` is not 32 bytes",
+        ),
+        (
+            r#"{"command":"reference.irreversible.do","pending":1,"type":"confirm"}"#,
+            "a field the protocol does not read, `command`",
+        ),
+        (
+            r#"{"pending":-1,"type":"decline"}"#,
+            "a `decline` message whose `pending` is below zero",
+        ),
+    ] {
+        let (mut served, mut client, relay) = through_a_relay().await;
+        relay.to_daemon.set(Rule::WriteTheNextAs(text));
+        let (asked, ()) = within("a request written by hand", async {
+            tokio::join!(client.ask(&Request::Status), async move {
+                match served.next().await {
+                    Err(refused @ IpcError::Malformed(_)) => {
+                        assert!(refused.to_string().contains(says), "{text}: {refused}");
+                    }
+                    other => panic!("{text} was read as {other:?}"),
+                }
+                served.close().await;
+            })
+        })
+        .await;
+        assert!(
+            matches!(asked, Err(IpcError::Lost(_))),
+            "the client of a request refused as malformed was {asked:?}"
+        );
+    }
+}
+
 /// A watch's answer holding a state that is not an object is refused by the
 /// client's reader, written by hand through the relay.
 #[tokio::test(start_paused = true)]

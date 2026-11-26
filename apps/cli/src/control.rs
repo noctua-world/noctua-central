@@ -609,13 +609,18 @@ async fn start(found: &Found) -> Result<String, Failure> {
         nc_platform::EXECUTABLE_SUFFIX
     ));
     let error = standard_error(layout, &found.user)?;
-    let mut detached =
-        nc_platform::process::spawn_detached(&daemon, &[], error).map_err(|error| {
-            failed(
-                ErrorCode::CliDaemonDidNotStart,
-                format!("`{}` could not be started: {error}", daemon.display()),
-            )
-        })?;
+    let mut detached = nc_platform::process::spawn_detached(
+        &daemon,
+        &[],
+        error,
+        nc_platform::process::Handed::default(),
+    )
+    .map_err(|error| {
+        failed(
+            ErrorCode::CliDaemonDidNotStart,
+            format!("`{}` could not be started: {error}", daemon.display()),
+        )
+    })?;
     let deadline = tokio::time::Instant::now() + start_within();
     loop {
         if let Ok(connection) = client::connect(found).await {

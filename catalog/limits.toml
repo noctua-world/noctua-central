@@ -443,7 +443,17 @@ ui_text_bytes = 4_096
 log_ring_lines = 256
 log_line_bytes = 1_024
 undo_history = 100
+# How long a confirmation a person gave stays good for, and how long a call
+# held for one waits for the person's answer before it is refused as not
+# confirmed in time.
 confirmation_ttl_ms = 60_000
+# How many calls the kernel holds at once for a person's confirmation in the
+# desktop interface (`NOCTUA.md §11.1`): a call that cannot be undone, or one
+# that switches MCP on, asked from the CLI or by an agent's session while the
+# desktop the daemon started is attached, waits there up to
+# `confirmation_ttl_ms`; one asked past this bound is refused at once, as it
+# is with no desktop attached.
+confirmations_pending_max = 8
 # An agent a person makes (§14.6): the most a session of it may be given to
 # spend, and the longest a grant to it may run, in minutes — thirty days, so a
 # grant nobody ends ends on its own. Each is the maximum the schema of
@@ -554,6 +564,14 @@ ipc_note_max_bytes = 8_192
 # wraps a message in, are at most `ipc_frame_max_bytes`, which the compiler
 # holds it to.
 ipc_display_value_max_bytes = 4_096
+# How long the interface's alert line counts down, once it says the local
+# server is not running, before the interface restores the daemon it lost
+# (§12.17): it starts the daemon as every restorer does, `--restored`, so a
+# stop made meanwhile still holds it down. Once in an absence: the line counts
+# nothing down after that restore, after a person acted on it, or while the
+# profile carries the `stopped` mark, so a daemon that ends at each start is
+# not started again each countdown.
+interface_restore_countdown_ms = 10_000
 # How often the daemon pumps its kernel (§11.1): fires the timers due, delivers
 # the events queued and holds the local database's tables to their bounds,
 # between call trees. At most `[kernel] timer_min_interval_ms`, which the

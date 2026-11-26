@@ -44,9 +44,11 @@
 //! nothing is sent to what has not proven it holds the token, and the proven
 //! welcome must name the process the system shows and this install's channel.
 //! A terminal acted on by what the daemon says: every text from it is escaped.
-//! A command a person did not confirm: the CLI confirms nothing, so the kernel
-//! refuses every irreversible command it is asked (`NC-KERN-0006`), which ends
-//! the run in an exit code of its own. An MCP client reaching past its agent:
+//! A command a person did not confirm: the CLI confirms nothing, so an
+//! irreversible command it is asked waits for the person's answer in the
+//! desktop interface the daemon started, while one is attached, and is refused
+//! otherwise (`NC-KERN-0006`); each end — refused, declined (`NC-KERN-0030`),
+//! not confirmed in time (`NC-KERN-0029`) — has an exit code of its own. An MCP client reaching past its agent:
 //! `mcp` reads a closed set of each call's fields, never one as a
 //! confirmation, sends the daemon nothing but its session's requests, and
 //! writes on standard output the protocol's answers alone.

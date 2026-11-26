@@ -67,6 +67,10 @@ nc-daemon = { path = ".", features = ["test-support"] }
 # daemon's events back from.
 nc-platform = { workspace = true, features = ["test-support"] }
 nc-kernel = { workspace = true, features = ["test-support"] }
+# A decision point over the pack as it is on disk with a permit a test adds
+# (`Pdp::from_sources_for_tests`): an agent reaching a call held for its
+# person, which no shipped pack lets it reach.
+nc-authz = { workspace = true, features = ["test-support"] }
 # A stopped daemon's journal, read back where it kept it.
 nc-local = { workspace = true, features = ["test-support"] }
 # A connection a test serves in memory, its client taking one byte at a time

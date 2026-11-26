@@ -254,6 +254,22 @@ pub struct Service {
     restart_after: u64,
     /// The user it runs as, as this system names one.
     user: String,
+    /// What starts it.
+    wanted: Wanted,
+}
+
+/// What starts a service its manager registered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Wanted {
+    /// The user's manager, as it starts — at a login, or at boot for a user
+    /// it lingers for — and its restorer once it dies: a daemon.
+    Always,
+    /// The person's graphical session, once it is up, each time it is: a
+    /// program that runs once, to its end, inside the session's environment,
+    /// and is never restored. **systemd's alone** — its
+    /// `graphical-session.target` — and refused by the other two managers,
+    /// whose agents and tasks already start inside the person's session.
+    WithTheGraphicalSession,
 }
 
 impl Service {
@@ -358,7 +374,23 @@ impl Service {
             arguments: arguments.to_vec(),
             restart_after: restart_after.as_secs(),
             user,
+            wanted: Wanted::Always,
         })
+    }
+
+    /// The same service, started by the person's graphical session rather
+    /// than by the manager as it starts ([`Wanted::WithTheGraphicalSession`]):
+    /// it runs once each time the session is up, and is never restored.
+    #[must_use]
+    pub const fn with_the_graphical_session(mut self) -> Self {
+        self.wanted = Wanted::WithTheGraphicalSession;
+        self
+    }
+
+    /// What starts it.
+    #[must_use]
+    pub const fn wanted(&self) -> Wanted {
+        self.wanted
     }
 
     /// The name its manager knows it by.
@@ -390,28 +422,59 @@ fn shown(text: &str) -> String {
 /// non-zero exit; `Type=exec` makes a start that cannot execute the program a
 /// failed start rather than a unit reported running. Every word of
 /// `ExecStart` is quoted as one word, and the standard streams go nowhere, as
-/// they do under the other two managers.
+/// they do under the other two managers. **`KillMode=process`**: a stop, and
+/// a restart after a crash, end the program's own process alone, so what it
+/// started detached — the desktop interface a daemon starts — outlives it, as
+/// the interface outlives its daemon's absence (`NOCTUA.md §11.1`); under
+/// systemd's default every process of the unit's group would go with it.
+///
+/// **A service the graphical session starts is a run, not a daemon**
+/// ([`Wanted::WithTheGraphicalSession`]): `Type=oneshot`, ordered after
+/// `graphical-session.target` and part of it, so it starts once the session's
+/// environment is the manager's and goes with the session, and wanted by it;
+/// no restorer. Its program's failure is recorded and taken as a success (the
+/// `-` before its first word), so a session that comes up while the program
+/// has nothing to do — no daemon to tell — never shows a unit failed.
 #[must_use]
 pub fn systemd_unit(service: &Service) -> String {
     let words: Vec<String> = service.words().map(systemd_word).collect();
-    format!(
-        "[Unit]\n\
-         Description={}\n\
-         \n\
-         [Service]\n\
-         Type=exec\n\
-         ExecStart={}\n\
-         Restart=on-failure\n\
-         RestartSec={}\n\
-         StandardOutput=null\n\
-         StandardError=null\n\
-         \n\
-         [Install]\n\
-         WantedBy=default.target\n",
-        service.description.replace('%', "%%"),
-        words.join(" "),
-        service.restart_after,
-    )
+    let description = service.description.replace('%', "%%");
+    match service.wanted {
+        Wanted::Always => format!(
+            "[Unit]\n\
+             Description={description}\n\
+             \n\
+             [Service]\n\
+             Type=exec\n\
+             ExecStart={}\n\
+             Restart=on-failure\n\
+             RestartSec={}\n\
+             KillMode=process\n\
+             StandardOutput=null\n\
+             StandardError=null\n\
+             \n\
+             [Install]\n\
+             WantedBy=default.target\n",
+            words.join(" "),
+            service.restart_after,
+        ),
+        Wanted::WithTheGraphicalSession => format!(
+            "[Unit]\n\
+             Description={description}\n\
+             After=graphical-session.target\n\
+             PartOf=graphical-session.target\n\
+             \n\
+             [Service]\n\
+             Type=oneshot\n\
+             ExecStart=-{}\n\
+             StandardOutput=null\n\
+             StandardError=null\n\
+             \n\
+             [Install]\n\
+             WantedBy=graphical-session.target\n",
+            words.join(" "),
+        ),
+    }
 }
 
 /// One word of an `ExecStart` line, quoted so systemd reads it back as it is.
@@ -655,6 +718,14 @@ fn definition(manager: Manager, service: &Service) -> Result<(String, Vec<u8>), 
             manager.the_rule_for_a_name()
         )));
     }
+    if service.wanted == Wanted::WithTheGraphicalSession && manager != Manager::Systemd {
+        return Err(Error::Described(format!(
+            "`{}` is to start with the graphical session, which is systemd's target alone; \
+             {manager} already starts a program inside the person's session, so register it \
+             as one started always",
+            shown(&service.name)
+        )));
+    }
     let bytes = match manager {
         Manager::Systemd => {
             systemd_program(service)?;
@@ -774,11 +845,21 @@ impl Counters {
     /// not restored goes inactive, and its counters with it, so it says only
     /// that an instance ended otherwise, by the unit's `failed` state. A
     /// task's last result is an end only once no instance runs.
+    ///
+    /// **launchd's last exit code is an end only once its state is `not
+    /// running`**: a start is counted in `runs` before its program runs, and
+    /// until it does launchd writes another state beside the code of the
+    /// instance before, so a code read then would answer for an instance that
+    /// has not run yet.
     #[must_use]
     pub fn ended_well(&self) -> Option<bool> {
         match self {
             Self::Systemd { active_state, .. } => (active_state == "failed").then_some(false),
-            Self::Launchd { last_exit, .. } => last_exit.map(|code| code == 0),
+            Self::Launchd {
+                state, last_exit, ..
+            } => last_exit
+                .filter(|_| state == "not running")
+                .map(|code| code == 0),
             Self::TaskScheduler { last_result, .. } => {
                 (!self.running()).then_some(*last_result == 0)
             }
@@ -1927,10 +2008,10 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        Counters, Error, Found, Lingering, Manager, Registrar, Service, csv_fields, definition,
-        first_words, in_an_absolute_entry, launchd_labels, launchd_plist, not_held, systemd_unit,
-        systemd_word, task_names, task_xml, under, utf16_with_its_mark, wanted_once_gone,
-        windows_argument, words, xml_text,
+        Counters, Error, Found, Lingering, Manager, Registrar, Service, Wanted, csv_fields,
+        definition, first_words, in_an_absolute_entry, launchd_labels, launchd_plist, not_held,
+        systemd_unit, systemd_word, task_names, task_xml, under, utf16_with_its_mark,
+        wanted_once_gone, windows_argument, words, xml_text,
     };
 
     /// The user every definition below is written for, a SID, so that a task's
@@ -2132,16 +2213,20 @@ mod tests {
         }
     }
 
-    /// A unit restarts its program on failure, a second after it dies.
+    /// A unit restarts its program on failure, a second after it dies, and
+    /// ends its program's own process alone.
     ///
     /// It hands the program every word as one argument, and its description
-    /// keeps its `%` from systemd's specifiers.
+    /// keeps its `%` from systemd's specifiers; `KillMode=process` leaves what
+    /// the program started detached running when the unit stops.
     #[test]
     fn a_unit_restarts_on_failure_and_hands_each_word_as_one_argument() {
-        let unit = systemd_unit(&service(
+        let made = service(
             "noctua-dev-test.service",
             &["--restored", "a b", "100%", "$HOME"],
-        ));
+        );
+        assert_eq!(made.wanted(), Wanted::Always);
+        let unit = systemd_unit(&made);
         assert_eq!(
             unit,
             format!(
@@ -2153,6 +2238,7 @@ mod tests {
                  ExecStart={} \"--restored\" \"a b\" \"100%%\" \"$$HOME\"\n\
                  Restart=on-failure\n\
                  RestartSec=2\n\
+                 KillMode=process\n\
                  StandardOutput=null\n\
                  StandardError=null\n\
                  \n\
@@ -2161,6 +2247,69 @@ mod tests {
                 systemd_word(&written(&program()))
             )
         );
+    }
+
+    /// A unit the graphical session starts runs its program once, after the
+    /// session is up and as part of it, and is never restored.
+    ///
+    /// **Wanted by `graphical-session.target`, ordered after it and part of
+    /// it**, `Type=oneshot` with no restorer, and its program's failure taken
+    /// as a success; and the two other managers refuse it, naming it, before
+    /// anything is written.
+    #[test]
+    fn a_unit_the_graphical_session_starts_runs_once_inside_it_and_is_never_restored() {
+        let made = service(
+            "noctua-dev-test-announce.service",
+            &["leader", "--announce"],
+        )
+        .with_the_graphical_session();
+        assert_eq!(made.wanted(), Wanted::WithTheGraphicalSession);
+        assert_eq!(
+            systemd_unit(&made),
+            format!(
+                "[Unit]\n\
+                 Description=Noctua's daemon, 100%% & <ours>\n\
+                 After=graphical-session.target\n\
+                 PartOf=graphical-session.target\n\
+                 \n\
+                 [Service]\n\
+                 Type=oneshot\n\
+                 ExecStart=-{} \"leader\" \"--announce\"\n\
+                 StandardOutput=null\n\
+                 StandardError=null\n\
+                 \n\
+                 [Install]\n\
+                 WantedBy=graphical-session.target\n",
+                systemd_word(&written(&program()))
+            )
+        );
+        let in_a_unit = in_a_unit(&made, "noctua");
+        let (file, _) = definition(Manager::Systemd, &in_a_unit).expect("systemd takes it");
+        assert_eq!(file, "noctua-dev-test-announce.service");
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            let renamed = Service {
+                name: named(manager, "noctua-dev-test-announce"),
+                ..made.clone()
+            };
+            match definition(manager, &renamed) {
+                Err(Error::Described(said)) => assert!(
+                    said.contains("is to start with the graphical session, which is systemd's"),
+                    "{manager}: {said}"
+                ),
+                other => panic!("{manager} took a service of the graphical session: {other:?}"),
+            }
+            assert!(
+                definition(
+                    manager,
+                    &Service {
+                        wanted: Wanted::Always,
+                        ..renamed
+                    }
+                )
+                .is_ok(),
+                "{manager} refuses the same service started always"
+            );
+        }
     }
 
     /// Text in XML writes the five characters XML reads as entities, and
@@ -2672,9 +2821,17 @@ mod tests {
                      \tlast exit code = (never exited)\n}\n";
         let read = Counters::read(Manager::Launchd, never, "x").expect("read");
         assert_eq!(read.ended_well(), None, "{read:?}");
-        let failed = never.replace("(never exited)", "78");
-        let read = Counters::read(Manager::Launchd, &failed, "x").expect("read");
+        let failed = "gui/501/x = {\n\tstate = not running\n\truns = 1\n\
+                      \tlast exit code = 78\n}\n";
+        let read = Counters::read(Manager::Launchd, failed, "x").expect("read");
         assert_eq!(read.ended_well(), Some(false), "{read:?}");
+        // **A start under way is no end**: counted in `runs` before its
+        // program runs, beside the code of the instance before it.
+        let starting = "gui/501/x = {\n\tstate = spawn scheduled\n\truns = 2\n\
+                        \tlast exit code = 0\n}\n";
+        let read = Counters::read(Manager::Launchd, starting, "x").expect("read");
+        assert!(!read.running(), "{read:?}");
+        assert_eq!(read.ended_well(), None, "{read:?}");
         for unreadable in [
             "gui/501/x = {\n\tstate = running\n}\n",
             "gui/501/x = {\n\truns = 1\n}\n",
@@ -2834,7 +2991,8 @@ mod tests {
     ///
     /// For systemd that is only a unit that failed, since one that ended well is
     /// forgotten with its counters; a task's last result is an end only once
-    /// no instance runs.
+    /// no instance runs, and launchd's last exit code only once its state is
+    /// `not running`.
     #[test]
     fn how_the_last_instance_ended_is_its_managers_word_or_none() {
         let systemd = |active_state: &str| Counters::Systemd {
@@ -2856,15 +3014,26 @@ mod tests {
         for running in [super::TASK_RUNNING, super::REFUSED_WHILE_RUNNING] {
             assert_eq!(task(running).ended_well(), None, "{running}");
         }
-        let launchd = |last_exit| Counters::Launchd {
-            state: "not running".to_owned(),
+        let launchd = |state: &str, last_exit| Counters::Launchd {
+            state: state.to_owned(),
             pid: None,
             runs: 2,
             last_exit,
         };
-        assert_eq!(launchd(Some(0)).ended_well(), Some(true));
-        assert_eq!(launchd(Some(1)).ended_well(), Some(false));
-        assert_eq!(launchd(None).ended_well(), None);
+        assert_eq!(launchd("not running", Some(0)).ended_well(), Some(true));
+        assert_eq!(launchd("not running", Some(1)).ended_well(), Some(false));
+        assert_eq!(launchd("not running", None).ended_well(), None);
+        // A start counted and not yet running, or running, beside the code of
+        // the instance before it.
+        for starting in ["spawn scheduled", "running"] {
+            for before in [Some(0), Some(1)] {
+                assert_eq!(
+                    launchd(starting, before).ended_well(),
+                    None,
+                    "{starting} {before:?}"
+                );
+            }
+        }
     }
 
     /// What each manager reads at login is beside the user's configuration:

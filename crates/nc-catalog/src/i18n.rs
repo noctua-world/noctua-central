@@ -2125,6 +2125,48 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Revoke an agent's access", "Revogar o acesso de um agente"],
     ),
     (
+        "command.confirmations.list.description",
+        [
+            "Show every call waiting for a person to confirm it in the Noctua window.",
+            "Mostrar cada chamada que aguarda uma pessoa confirmá-la na janela do Noctua.",
+        ],
+    ),
+    (
+        "command.confirmations.list.paragraph",
+        [
+            "Lists every call Noctua holds until a person confirms it in the Noctua window — one that cannot be undone, or one that switches MCP on: its number, the command, whether it can be undone, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.",
+            "Lista cada chamada que o Noctua segura até que uma pessoa a confirme na janela do Noctua — uma que não pode ser desfeita, ou uma que liga o MCP: seu número, o comando, se pode ser desfeita, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.",
+        ],
+    ),
+    (
+        "command.confirmations.list.title",
+        [
+            "List what waits for a confirmation",
+            "Listar o que aguarda confirmação",
+        ],
+    ),
+    (
+        "command.confirmations.read.description",
+        [
+            "Show one call waiting for a confirmation, with the arguments it would run with.",
+            "Mostrar uma chamada que aguarda confirmação, com os argumentos com que rodaria.",
+        ],
+    ),
+    (
+        "command.confirmations.read.paragraph",
+        [
+            "Shows the call Noctua holds under the number given until a person confirms it in the Noctua window: the command, the arguments it would run with, the person whose confirmation it waits for, the agent that asked for it when an agent did, and when the wait ends. A number nothing waits under any more is refused. It changes nothing.",
+            "Mostra a chamada que o Noctua segura sob o número dado até que uma pessoa a confirme na janela do Noctua: o comando, os argumentos com que rodaria, a pessoa cuja confirmação ela aguarda, o agente que a pediu, quando foi um agente, e quando a espera termina. Um número sob o qual nada mais aguarda é recusado. Não altera nada.",
+        ],
+    ),
+    (
+        "command.confirmations.read.title",
+        [
+            "Read what waits for a confirmation",
+            "Ler o que aguarda confirmação",
+        ],
+    ),
+    (
         "command.drawer.back.description",
         [
             "Leave a sub-page of the drawer's page, or close that page if it has none.",
@@ -2363,6 +2405,24 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.kernel.find.title",
         ["Find a command", "Encontrar um comando"],
+    ),
+    (
+        "command.kernel.history.description",
+        [
+            "Name the step your next undo takes back, and whether an agent took it.",
+            "Dizer qual passo o seu próximo desfazer desfaz, e se um agente o deu.",
+        ],
+    ),
+    (
+        "command.kernel.history.paragraph",
+        [
+            "Shows the step your next undo would take back: its name, when it was taken, whether undo stops there, and the agent that took it when one of your agents did — an agent's steps are yours to undo, as your own are. It changes nothing.",
+            "Mostra o passo que o seu próximo desfazer desfaria: seu nome, quando foi dado, se o desfazer para ali e o agente que o deu, quando foi um dos seus agentes — os passos de um agente são seus para desfazer, como os seus. Não altera nada.",
+        ],
+    ),
+    (
+        "command.kernel.history.title",
+        ["Show the next undo", "Mostrar o próximo desfazer"],
     ),
     (
         "command.kernel.redo.description",
@@ -2698,8 +2758,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.mcp.set.paragraph",
         [
-            "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action. Undo puts it back as it was.",
-            "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer o deixa como estava.",
+            "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was; when that would switch it on, the undo waits for you to confirm it in the Noctua window too.",
+            "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.",
         ],
     ),
     (
@@ -2837,6 +2897,63 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.sidebar.show.title",
         ["Show the sidebar", "Mostrar a barra lateral"],
+    ),
+    (
+        "command.surfaces.activate.description",
+        [
+            "Run what a button or a toggle on a surface runs, as a click would.",
+            "Executar o que um botão ou chave de uma superfície executa, como um clique.",
+        ],
+    ),
+    (
+        "command.surfaces.activate.paragraph",
+        [
+            "Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo treats it as that command's own step.",
+            "Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o trata como um passo daquele comando.",
+        ],
+    ),
+    (
+        "command.surfaces.activate.title",
+        [
+            "Press something on a surface",
+            "Acionar algo em uma superfície",
+        ],
+    ),
+    (
+        "command.surfaces.list.description",
+        [
+            "Show the surfaces plugins have open, and who drew what each shows.",
+            "Mostrar as superfícies abertas pelos plugins e quem desenhou cada uma.",
+        ],
+    ),
+    (
+        "command.surfaces.list.paragraph",
+        [
+            "Lists every surface the plugins hold open: its name, where it is shown, its title, the plugin that holds it, and who drew what it shows now — the person the plugin acted for, and the agent that acted for them when one did. It does not show what each surface holds; read one surface for that. It changes nothing.",
+            "Lista cada superfície que os plugins mantêm abertas: seu nome, onde aparece, seu título, o plugin que a mantém e quem desenhou o que ela mostra agora — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Não mostra o conteúdo de cada superfície; leia uma superfície para isso. Não altera nada.",
+        ],
+    ),
+    (
+        "command.surfaces.list.title",
+        ["List the surfaces open", "Listar as superfícies abertas"],
+    ),
+    (
+        "command.surfaces.read.description",
+        [
+            "Show one surface a plugin has open, with what it shows and who drew it.",
+            "Mostrar uma superfície aberta, com o que ela mostra e quem o desenhou.",
+        ],
+    ),
+    (
+        "command.surfaces.read.paragraph",
+        [
+            "Shows the surface named: where it is shown, its title, the plugin that holds it, everything it shows now, and who drew that — the person the plugin acted for, and the agent that acted for them when one did. A surface no longer open is refused. It changes nothing.",
+            "Mostra a superfície indicada: onde aparece, seu título, o plugin que a mantém, tudo o que ela mostra agora e quem desenhou isso — a pessoa por quem o plugin agiu e o agente que agiu por ela, quando foi um agente. Uma superfície que não está mais aberta é recusada. Não altera nada.",
+        ],
+    ),
+    (
+        "command.surfaces.read.title",
+        ["Read a surface", "Ler uma superfície"],
     ),
     (
         "command.window.close.description",
@@ -3294,6 +3411,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.daemon.attach-refused",
+        [
+            "This connection did not prove it is the Noctua window this Noctua started, so it was closed.",
+            "Esta conexão não provou ser a janela do Noctua que este Noctua iniciou, então foi fechada.",
+        ],
+    ),
+    (
         "error.daemon.device-unreadable",
         [
             "This computer's identity in Noctua is damaged, so Noctua did not start. Someone needs to look at it.",
@@ -3347,6 +3471,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua does not know whose it is on this computer yet, so it did not start.",
             "O Noctua ainda não sabe de quem é neste computador, então não iniciou.",
+        ],
+    ),
+    (
+        "error.daemon.not-attached",
+        [
+            "Only the Noctua window this Noctua started answers a confirmation, so nothing was answered.",
+            "Só a janela do Noctua que este Noctua iniciou responde uma confirmação, então nada foi respondido.",
         ],
     ),
     (
@@ -3749,10 +3880,38 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.kernel.declined",
+        [
+            "That cannot be undone, and it was declined in the Noctua window. Nothing was done.",
+            "Isso não pode ser desfeito, e foi recusado na janela do Noctua. Nada foi feito.",
+        ],
+    ),
+    (
         "error.kernel.malformed-name",
         [
             "That is not a command name Noctua can read. Nothing was done.",
             "Esse não é um nome de comando que o Noctua consiga ler. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.kernel.mcp-declined",
+        [
+            "Switching MCP on lets agents act for you, and it was declined in the Noctua window. Nothing was done.",
+            "Ligar o MCP deixa agentes agirem por você, e isso foi recusado na janela do Noctua. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.kernel.mcp-not-confirmed-in-time",
+        [
+            "Switching MCP on lets agents act for you, and no one confirmed it in the Noctua window in time. Nothing was done.",
+            "Ligar o MCP deixa agentes agirem por você, e ninguém confirmou na janela do Noctua a tempo. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.kernel.mcp-unconfirmed",
+        [
+            "Switching MCP on lets agents act for you, so a person must first confirm it in the Noctua window. Nothing was done.",
+            "Ligar o MCP deixa agentes agirem por você, então uma pessoa precisa primeiro confirmar na janela do Noctua. Nada foi feito.",
         ],
     ),
     (
@@ -3763,10 +3922,31 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.kernel.not-activatable",
+        [
+            "That part of the surface does not run anything with what was given, so nothing was done.",
+            "Essa parte da superfície não executa nada com o que foi dado, então nada foi feito.",
+        ],
+    ),
+    (
         "error.kernel.not-built",
         [
             "Part of what was asked is not available in this version of Noctua. Nothing was changed.",
             "Parte do que foi pedido não está disponível nesta versão do Noctua. Nada foi alterado.",
+        ],
+    ),
+    (
+        "error.kernel.not-confirmed-in-time",
+        [
+            "That cannot be undone, and no one confirmed it in the Noctua window in time. Nothing was done.",
+            "Isso não pode ser desfeito, e ninguém confirmou na janela do Noctua a tempo. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.kernel.nothing-held",
+        [
+            "Nothing is waiting for a confirmation under that number: it was answered, it lapsed, or it never waited.",
+            "Nada está esperando uma confirmação sob esse número: já foi respondido, expirou ou nunca esperou.",
         ],
     ),
     (
@@ -3838,6 +4018,20 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "That step cannot be undone or redone yet, because Noctua's history does not show it as finished. Nothing was changed.",
             "Esse passo ainda não pode ser desfeito nem refeito, porque o histórico do Noctua não o mostra como concluído. Nada foi alterado.",
+        ],
+    ),
+    (
+        "error.kernel.surface-by-an-agent",
+        [
+            "That was drawn by an agent acting for you, so Noctua did not run it as you. Nothing was done.",
+            "Isso foi desenhado por um agente agindo por você, então o Noctua não o executou como você. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.kernel.surface-unknown",
+        [
+            "That is not shown on any surface open now, so nothing was done.",
+            "Isso não aparece em nenhuma superfície aberta agora, então nada foi feito.",
         ],
     ),
     (
@@ -4660,6 +4854,12 @@ pub const KEYS: &[&str] = &[
     "command.agents.revoke.description",
     "command.agents.revoke.paragraph",
     "command.agents.revoke.title",
+    "command.confirmations.list.description",
+    "command.confirmations.list.paragraph",
+    "command.confirmations.list.title",
+    "command.confirmations.read.description",
+    "command.confirmations.read.paragraph",
+    "command.confirmations.read.title",
     "command.drawer.back.description",
     "command.drawer.back.paragraph",
     "command.drawer.back.title",
@@ -4699,6 +4899,9 @@ pub const KEYS: &[&str] = &[
     "command.kernel.find.description",
     "command.kernel.find.paragraph",
     "command.kernel.find.title",
+    "command.kernel.history.description",
+    "command.kernel.history.paragraph",
+    "command.kernel.history.title",
     "command.kernel.redo.description",
     "command.kernel.redo.paragraph",
     "command.kernel.redo.title",
@@ -4777,6 +4980,15 @@ pub const KEYS: &[&str] = &[
     "command.sidebar.show.description",
     "command.sidebar.show.paragraph",
     "command.sidebar.show.title",
+    "command.surfaces.activate.description",
+    "command.surfaces.activate.paragraph",
+    "command.surfaces.activate.title",
+    "command.surfaces.list.description",
+    "command.surfaces.list.paragraph",
+    "command.surfaces.list.title",
+    "command.surfaces.read.description",
+    "command.surfaces.read.paragraph",
+    "command.surfaces.read.title",
     "command.window.close.description",
     "command.window.close.paragraph",
     "command.window.close.title",
@@ -4845,6 +5057,7 @@ pub const KEYS: &[&str] = &[
     "error.cli.terminal-unanswered",
     "error.cli.token-not-private",
     "error.cli.token-unreadable",
+    "error.daemon.attach-refused",
     "error.daemon.device-unreadable",
     "error.daemon.engine-refused",
     "error.daemon.instance-held",
@@ -4853,6 +5066,7 @@ pub const KEYS: &[&str] = &[
     "error.daemon.no-central-log",
     "error.daemon.no-device",
     "error.daemon.no-world",
+    "error.daemon.not-attached",
     "error.daemon.not-for-a-session",
     "error.daemon.not-running",
     "error.daemon.pid-record-unreadable",
@@ -4910,9 +5124,16 @@ pub const KEYS: &[&str] = &[
     "error.kernel.compensation-refused",
     "error.kernel.compensation-ungranted",
     "error.kernel.deadline",
+    "error.kernel.declined",
     "error.kernel.malformed-name",
+    "error.kernel.mcp-declined",
+    "error.kernel.mcp-not-confirmed-in-time",
+    "error.kernel.mcp-unconfirmed",
     "error.kernel.name-taken",
+    "error.kernel.not-activatable",
     "error.kernel.not-built",
+    "error.kernel.not-confirmed-in-time",
+    "error.kernel.nothing-held",
     "error.kernel.nothing-to-redo",
     "error.kernel.nothing-to-undo",
     "error.kernel.only-at-the-top",
@@ -4924,6 +5145,8 @@ pub const KEYS: &[&str] = &[
     "error.kernel.shell-full",
     "error.kernel.shell-unknown",
     "error.kernel.step-unrecorded",
+    "error.kernel.surface-by-an-agent",
+    "error.kernel.surface-unknown",
     "error.kernel.too-deep",
     "error.kernel.too-many-dispatches",
     "error.kernel.top-level-only",
@@ -5188,6 +5411,50 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.confirmations.list.tags",
+        [
+            &[
+                "confirmation",
+                "confirm",
+                "waiting",
+                "irreversible",
+                "mcp",
+                "pending",
+                "approve",
+            ],
+            &[
+                "confirmação",
+                "confirmar",
+                "aguardando",
+                "irreversível",
+                "mcp",
+                "pendente",
+                "aprovar",
+            ],
+        ],
+    ),
+    (
+        "command.confirmations.read.tags",
+        [
+            &[
+                "confirmation",
+                "confirm",
+                "waiting",
+                "irreversible",
+                "arguments",
+                "details",
+            ],
+            &[
+                "confirmação",
+                "confirmar",
+                "aguardando",
+                "irreversível",
+                "argumentos",
+                "detalhes",
+            ],
+        ],
+    ),
+    (
         "command.drawer.back.tags",
         [
             &["drawer", "back", "escape", "close", "interface"],
@@ -5314,6 +5581,13 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "filtrar",
                 "comandos disponíveis",
             ],
+        ],
+    ),
+    (
+        "command.kernel.history.tags",
+        [
+            &["history", "undo", "next step", "agent", "steps"],
+            &["histórico", "desfazer", "próximo passo", "agente", "passos"],
         ],
     ),
     (
@@ -5573,6 +5847,41 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         [
             &["sidebar", "show", "list", "interface"],
             &["barra lateral", "mostrar", "lista", "interface"],
+        ],
+    ),
+    (
+        "command.surfaces.activate.tags",
+        [
+            &["surface", "click", "press", "button", "submit", "interface"],
+            &[
+                "superfície",
+                "clicar",
+                "acionar",
+                "botão",
+                "enviar",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.surfaces.list.tags",
+        [
+            &["surface", "panel", "plugin", "view", "list", "interface"],
+            &[
+                "superfície",
+                "painel",
+                "plugin",
+                "visão",
+                "listar",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.surfaces.read.tags",
+        [
+            &["surface", "panel", "plugin", "view", "read", "contents"],
+            &["superfície", "painel", "plugin", "visão", "ler", "conteúdo"],
         ],
     ),
     (

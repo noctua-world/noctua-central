@@ -274,9 +274,11 @@ async fn tools_of(client: &mut nc_ipc::Client, locale: Locale) -> Vec<Value> {
 /// after. Switched on, a session opens and its agent's proposal is answered.
 /// Switched off on another connection, the session's next request is
 /// `NC-DMN-0014` and the one after finds its connection closed, and a new
-/// session is refused; the person's undo of the off switches it on again, and
-/// a new session opens. Each refusal is logged as `daemon.session_refused`
-/// with its code.
+/// session is refused; the person's undo of the off, which would switch it on,
+/// waits for their confirmation in the Noctua window as the switch on does —
+/// refused with `NC-KERN-0032`, no desktop being there to ask — and a session
+/// is still refused. Each refusal is logged as `daemon.session_refused` with
+/// its code.
 #[tokio::test(flavor = "multi_thread")]
 async fn mcp_is_off_until_the_person_switches_it_on_and_a_session_ends_once_it_is_off_again() {
     let installed = Installed::new(Path::new(BINARY));
@@ -311,32 +313,39 @@ async fn mcp_is_off_until_the_person_switches_it_on_and_a_session_ends_once_it_i
         &asked(&mut again, Request::Session { agent }).await,
         ErrorCode::DaemonMcpOff,
     );
-    assert!(matches!(
-        asked(&mut person, dispatch("kernel.undo", "{}")).await,
-        Answer::Result(_)
-    ));
-    let mut reopened = daemon.session(agent).await;
-    assert!(matches!(
-        asked(&mut reopened, propose()).await,
-        Answer::Result(_)
-    ));
-    let switches: Vec<Decided> = decided(&installed)
+    refused_with(
+        &asked(&mut person, dispatch("kernel.undo", "{}")).await,
+        ErrorCode::KernelMcpUnconfirmed,
+    );
+    let (mut still, _) = daemon.connected().await;
+    refused_with(
+        &asked(&mut still, Request::Session { agent }).await,
+        ErrorCode::DaemonMcpOff,
+    );
+    let switches: Vec<(Outcome, String)> = decided(&installed)
         .await
         .into_iter()
         .filter(|one| one.command.as_deref() == Some("settings.mcp.set"))
+        .map(|one| {
+            assert!(one.principal == PERSON && one.chain.is_empty(), "{one:?}");
+            (one.result, one.deciding)
+        })
         .collect();
-    assert_eq!(switches.len(), 2, "{switches:?}");
-    assert!(
-        switches.iter().all(|one| one.principal == PERSON
-            && one.chain.is_empty()
-            && one.result == Outcome::Allowed
-            && one.deciding == "family.a_member_switches_mcp"),
-        "{switches:?}"
+    assert_eq!(
+        switches,
+        [
+            (
+                Outcome::Denied,
+                "kernel.mcp_on_needs_confirmation".to_owned()
+            ),
+            (Outcome::Allowed, "family.a_member_switches_mcp".to_owned())
+        ],
+        "the person's switch on was refused unconfirmed, and the off ran"
     );
-    drop((early, session, again, reopened));
+    drop((early, session, again, still));
     stopped(&mut person, &mut daemon, &installed).await;
     let off = ErrorCode::DaemonMcpOff.code();
-    assert_eq!(session_refusals(&installed), [off, off, off]);
+    assert_eq!(session_refusals(&installed), [off, off, off, off]);
 }
 
 /// A request refused with no command dispatched is logged with its code,
@@ -347,7 +356,8 @@ async fn mcp_is_off_until_the_person_switches_it_on_and_a_session_ends_once_it_i
 /// person made, the registry asked on a session, and a session's request once
 /// MCP was switched off under it — each logged as `daemon.session_refused`
 /// with its code, in order, while the journal moves by the person's own two
-/// switches alone and names no agent. The one session that opened is logged
+/// switches alone — the switch on refused, unconfirmed, and the switch off —
+/// and names no agent. The one session that opened is logged
 /// once as opened and once as ended, naming its agent, and the stranger's is
 /// never logged as opened.
 #[tokio::test(flavor = "multi_thread")]
@@ -735,7 +745,12 @@ const fn carries(answer: &Answer) -> &'static str {
         Answer::Result(_) => "what a command answered",
         Answer::Refused(_) => "a code, a kind and a sentence",
         Answer::Registry(_) | Answer::Tools(_) => "commands' entries",
-        Answer::Session | Answer::Stopping | Answer::Noted | Answer::Displayed => "nothing",
+        Answer::Session
+        | Answer::Stopping
+        | Answer::Noted
+        | Answer::Displayed
+        | Answer::Attached
+        | Answer::Settled => "nothing",
         Answer::Status(_) => "what the daemon is",
         Answer::Changed { .. } => "a revision, and what the daemon holds of the interface",
     }
@@ -774,7 +789,9 @@ async fn no_request_or_argument_of_a_session_presents_or_obtains_a_confirmation(
             | Answer::Status(_)
             | Answer::Stopping
             | Answer::Noted
-            | Answer::Displayed => Vec::new(),
+            | Answer::Displayed
+            | Answer::Attached
+            | Answer::Settled => Vec::new(),
         };
         let fields: Vec<String> = held.iter().flat_map(fields_of).collect();
         assert!(
@@ -813,6 +830,8 @@ const FITTING: &[(&str, &str)] = &[
     ),
     ("agents.list", "{}"),
     ("agents.revoke", r#"{"agent":"0000000000000"}"#),
+    ("confirmations.list", "{}"),
+    ("confirmations.read", r#"{"serial":1}"#),
     ("drawer.back", "{}"),
     ("drawer.collapse", "{}"),
     ("drawer.expand", "{}"),
@@ -826,6 +845,7 @@ const FITTING: &[(&str, &str)] = &[
     ("info.say", r#"{"text":"a"}"#),
     ("journal.verify", r#"{"from":0}"#),
     ("kernel.find", r#"{"query":"a"}"#),
+    ("kernel.history", "{}"),
     ("kernel.redo", "{}"),
     ("kernel.undo", "{}"),
     ("leader.tap", "{}"),
@@ -852,6 +872,9 @@ const FITTING: &[(&str, &str)] = &[
     ("sidebar.cycle", "{}"),
     ("sidebar.hide", "{}"),
     ("sidebar.show", "{}"),
+    ("surfaces.activate", r#"{"node":"","surface":"surface-1"}"#),
+    ("surfaces.list", "{}"),
+    ("surfaces.read", r#"{"surface":"surface-1"}"#),
     ("window.close", "{}"),
     ("window.hide", "{}"),
     ("window.move", r#"{"x":0,"y":0}"#),
@@ -1066,8 +1089,10 @@ async fn a_restarted_daemon_keeps_the_setting_and_the_agent_and_ends_every_sessi
 ///
 /// **The bypass, shown so the claim written about it is honest**: with MCP on
 /// and the agent's session open beside it, a plain connection to the same
-/// endpoint switches MCP and verifies the journal as the person, acting for
-/// nobody — each of which the session is refused.
+/// endpoint switches MCP off and verifies the journal as the person, acting
+/// for nobody — each of which the session is refused. Switching it on is the
+/// one thing such a connection cannot do alone: that waits for the person in
+/// the Noctua window (`mcp_is_off_until_it_is_switched_on_for_an_mcp_client`).
 #[tokio::test(flavor = "multi_thread")]
 async fn a_connection_that_opens_no_session_is_the_person_as_section_eleven_one_says() {
     let installed = Installed::new(Path::new(BINARY));
@@ -1076,7 +1101,7 @@ async fn a_connection_that_opens_no_session_is_the_person_as_section_eleven_one_
     let (mut plain, _) = daemon.connected().await;
     for (command, args) in [
         ("journal.verify", r#"{"from":0}"#),
-        ("settings.mcp.set", r#"{"on":true}"#),
+        ("settings.mcp.set", r#"{"on":false}"#),
     ] {
         refused_with(
             &asked(&mut session, dispatch(command, args)).await,
@@ -1415,9 +1440,11 @@ fn error_of(answered: &Value) -> (Option<i64>, Option<String>) {
 ///
 /// **A fresh daemon refuses the client's session**: `initialize` is one
 /// `-32603` carrying `NC-DMN-0014` and exit 3, and the server ends in 3 with
-/// the refusal on standard error, having listed nothing. Switched on through
-/// the person's own CLI, the same client's session opens and lists the tools
-/// its agent was granted.
+/// the refusal on standard error, having listed nothing. **The person's own
+/// CLI does not switch it on**: that waits for the Noctua window, which no
+/// desktop answers here, so it ends in exit 4 with `NC-KERN-0032`. Switched on
+/// as a process of the person's can — its entry in the profile's store — the
+/// same client's session opens and lists the tools its agent was granted.
 #[tokio::test(flavor = "multi_thread")]
 async fn mcp_is_off_until_it_is_switched_on_for_an_mcp_client() {
     let installed = Installed::new(Path::new(BINARY));
@@ -1445,7 +1472,18 @@ async fn mcp_is_off_until_it_is_switched_on_for_an_mcp_client() {
         "{outcome:?}"
     );
     let switched = by_the_person(&installed, &["settings.mcp.set", "--on"]).await;
-    assert_eq!(switched.exit, nc_cli::exit::Exit::Success, "{switched:?}");
+    assert_eq!(
+        switched.exit,
+        nc_cli::exit::Exit::NeedsTheInterface,
+        "{switched:?}"
+    );
+    assert!(
+        switched
+            .stderr
+            .contains(ErrorCode::KernelMcpUnconfirmed.code()),
+        "{switched:?}"
+    );
+    daemon.switch_mcp(true).await;
     let mut client = McpClient::serve(&installed, agent, nc_cli::Env::of(|_| None));
     assert!(at(&client.initialize("{}"), "result").is_some());
     assert_eq!(

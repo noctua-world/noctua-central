@@ -231,13 +231,22 @@ fn held_apart(running: &Running) {
     }
 }
 
-/// MCP switched on in the first of `running`, by its person through its CLI.
+/// MCP switched on in the first of `running`.
 ///
 /// **A setting is its channel's** (`NOCTUA.md §12.15`): it is on in that
-/// install, and off in the other three.
+/// install, and off in the other three. Its person's CLI asks first, and is
+/// refused in the Noctua window's exit, since switching it on waits for the
+/// person there; it is then kept on in that profile's store, as a process
+/// running as the person can (`nc_daemon::testing::kept_mcp_on`).
 fn switched_in_the_first_alone(running: &Running) {
-    let switched = run(&running.0[0], &["settings.mcp.set", "--on"]);
-    assert_eq!(switched.exit, Exit::Success, "{switched:?}");
+    let first = &running.0[0];
+    let switched = run(first, &["settings.mcp.set", "--on"]);
+    assert_eq!(switched.exit, Exit::NeedsTheInterface, "{switched:?}");
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime")
+        .block_on(nc_daemon::testing::kept_mcp_on(&first.layout, &first.user));
     for (at, found) in running.0.iter().enumerate() {
         let expected = if at == 0 {
             r#"{"on":true}"#

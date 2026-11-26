@@ -22,7 +22,9 @@ nc-catalog.workspace = true
 # it** (`§16.4`): a second reader would accept what `nc-canon` refuses, and the
 # two ends of one connection would disagree about what was said.
 nc-canon.workspace = true
-# The channel the daemon's welcome names, spelled as the manifest spells it.
+# The channel the daemon's welcome names, spelled as the manifest spells it;
+# and the alert line's programs, named by the install's one naming function,
+# with the `stopped` mark read by its one reader (`src/alert.rs`).
 nc-channel.workspace = true
 # The agent a session request names: the Snowflake the profile's minter gave
 # it, read back only as `to_crockford` writes it, so one agent has one spelling

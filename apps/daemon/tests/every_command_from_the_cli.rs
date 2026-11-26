@@ -159,7 +159,8 @@ const A_NOTE_AND_TEXT: &[&str] = &["--note", NOTE, "--text", "written"];
 /// **A command that deletes is denied for want of a quorum**: only an approval
 /// the kernel issued meets one, and nothing issues one yet, so it is a denial
 /// (`NC-POL-0003`, exit 3) and never the Noctua window's exit 4, which belongs
-/// to `NC-KERN-0006` alone.
+/// to a call that waits for a person's confirmation — `NC-KERN-0006`, and
+/// MCP switched on's `NC-KERN-0032`.
 const ROWS: &[Row] = &[
     ran("journal.verify", &["--from", "0"]),
     ran("naming.propose", PROPOSED),
@@ -176,7 +177,17 @@ const ROWS: &[Row] = &[
     ran("kernel.undo", &[]),
     ran("kernel.redo", &[]),
     ran("settings.mcp.read", &[]),
-    ran("settings.mcp.set", &["--on"]),
+    // **Switched on, it waits for the Noctua window**, which no desktop here
+    // answers, so it is refused at once (switched off, it never waits: the
+    // kernel's suites and the desktop's own test run it).
+    ended(
+        "settings.mcp.set",
+        &["--on"],
+        Exit::NeedsTheInterface,
+        ErrorCode::KernelMcpUnconfirmed,
+        Journaled::Denied("kernel.mcp_on_needs_confirmation"),
+    ),
+    ran("kernel.history", &[]),
     ran("agents.create", &["--label", "assistant", "--budget", "10"]),
     ran("agents.list", &[]),
     // **No agent is held under the identifier named**: the schema takes it,
@@ -246,6 +257,16 @@ const ROWS: &[Row] = &[
     ran("info.expand", &[]),
     ran("info.collapse", &[]),
     ran("info.clear", &[]),
+    // **What waits for a confirmation**: nothing, with no desktop attached
+    // to ask, so the list is empty and a serial names no call held.
+    ran("confirmations.list", &[]),
+    ended(
+        "confirmations.read",
+        &["--serial", "1"],
+        Exit::NotFound,
+        ErrorCode::KernelNothingHeld,
+        Journaled::Failed("nothing-held"),
+    ),
     ran("reference.note.get", A_NOTE),
     ran("reference.probe", A_NOTE),
     ended(
@@ -328,6 +349,17 @@ const ROWS: &[Row] = &[
     ran(
         "reference.ui.show",
         &["--note", NOTE, "--title", "Shown", "--kind", "panel"],
+    ),
+    // **The surface just shown**, the first this daemon opened, which shows
+    // no tree: listed and read, and nothing on it to activate.
+    ran("surfaces.list", &[]),
+    ran("surfaces.read", &["--surface", "surface-1"]),
+    ended(
+        "surfaces.activate",
+        &["--surface", "surface-1", "--node", "/children/0"],
+        Exit::NotFound,
+        ErrorCode::KernelSurfaceUnknown,
+        Journaled::Failed("surface-unknown"),
     ),
     ran("reference.context.read", A_NOTE),
     ran(

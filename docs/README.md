@@ -97,7 +97,12 @@ configuration directory's `systemd` folder, a launch agent in your Library's
 and starts it, unless the profile carries the stop mark — which your `stop` writes, and
 so does an install or a `dev --uninstall` that failed after stopping the daemon; one that
 finishes takes away the mark its own stop wrote, and keeps yours — and then the daemon
-stays down until `noctua-dev start`. **Last, it points `noctua-dev`** — a link on
+stays down until `noctua-dev start`. On Linux it registers a second unit beside the
+daemon's, which your graphical session starts each time it comes up and which runs the
+install's CLI as `leader --announce`, so a daemon started before any session learns where to
+show the Noctua window; the daemon's own unit stops the daemon's process alone, so the
+window it started outlives a stop or a restart, and `dev --uninstall` takes the second
+unit away with the first. **Last, it points `noctua-dev`** — a link on
 Linux and macOS, a launcher on Windows — in your bin directory, .local/bin under your home,
 at this checkout's CLI, `noctua-dev-<checkout>`, and prints where it is; it never changes
 `PATH` or a file your shell reads at its start, so when that directory is not on your
@@ -134,6 +139,16 @@ noctua-dev agents.create --label "My MCP client" --budget 1000
 noctua-dev agents.grant --agent <agent> --feature naming --minutes 1440 --reason "Naming my files"
 ```
 
+- **Switching MCP on waits for you to confirm it in the Noctua window** (`NOCTUA.md
+  §12.15`): `settings.mcp.set --on` is held until you confirm or decline it in the window
+  the daemon started, and ends in 0 once confirmed, in 15 with `NC-KERN-0034` once
+  declined, and in 14 with `NC-KERN-0033` when nobody answered within
+  `confirmation_ttl_ms`. With no Noctua window attached it is refused at once, in 4 with
+  `NC-KERN-0032`. **Until this checkout builds the desktop interface**, still to
+  come in Stage 16, its install has no window to start, so MCP cannot be
+  switched on in it at all: no command line, script or agent switches it on, by design,
+  and there is no way around the window to offer. Switching it off, `--on=false`, never
+  waits.
 - `agents.create` answers the agent's identifier, the `<agent>` every later command
   names. Its budget is what each of its sessions may spend: one for each call it sends,
   each timer of its tree that fires and each event of its tree that is delivered.
@@ -156,8 +171,10 @@ CLI and whose arguments are `mcp` and the agent's identifier — what
   tool.
 - **Every call is decided as the agent and for you, and journaled with both**: the agent
   is allowed only what its own permit, your grant to it and your own rights all allow,
-  decided again at each call, and a command that cannot be undone is refused, never
-  waited on.
+  decided again at each call. A command that cannot be undone waits, while the Noctua
+  window the daemon started is attached, for you to confirm it there — the agent never
+  confirms anything, and MCP is read again once you do — and is refused at once while no
+  window is attached. The family pack lets an agent reach no such command.
 - **The tools speak the environment's language**, read once as `noctua mcp` starts: the
   first of `LC_ALL`, `LC_MESSAGES` and `LANG` that is set and not empty, Brazilian
   Portuguese when it starts `pt` and English otherwise, so set it where the host starts

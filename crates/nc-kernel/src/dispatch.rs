@@ -15,7 +15,9 @@
 //! person and the dispatch, whether a human confirmed it and whether a quorum
 //! approved it — is the kernel's alone. A command that cannot be undone is
 //! refused after Cedar allows it unless a confirmation the kernel issued is
-//! redeemed for it. **The plugin runs after all of that or not at all.**
+//! redeemed for it, and so is MCP switched on (`crate::settings`), recorded
+//! under a sentinel of its own. **The plugin runs after all of that or not at
+//! all.**
 //!
 //! **Who acts is a caller acting as itself, or an agent's session**
 //! (`crate::session`). A tree of an agent's is decided once for each link —
@@ -211,11 +213,17 @@ impl Asker<'_> {
                 acting: Acting::Itself(caller.principal.clone()),
                 confirmation: caller.confirmation.as_ref().map(|held| held.serial),
                 approval: caller.approval.as_ref().map(|held| held.serial),
+                unconfirmed: Unconfirmed::Refused(ErrorCode::KernelUnconfirmed),
+                held: None,
+                spent_before: None,
             },
             Self::Session(session) => Asking {
                 acting: Acting::Agent(session.clone()),
                 confirmation: None,
                 approval: None,
+                unconfirmed: Unconfirmed::Refused(ErrorCode::KernelUnconfirmed),
+                held: None,
+                spent_before: None,
             },
         }
     }
@@ -229,11 +237,34 @@ impl Asker<'_> {
 
 /// What the task a top-level dispatch runs on holds of its asker: who acts,
 /// and the serial of each token it presents — none for an agent's session.
-#[derive(Debug)]
+///
+/// **And what the kernel's own holding of the call says** (`crate::confirmations`):
+/// what a command that cannot be undone, allowed and not confirmed, comes to;
+/// the serial of the person's confirmation of the very call the kernel held,
+/// which no caller and no session presents; and what the session had spent when
+/// the call was first decided, so a call held and decided again spends once.
+#[derive(Debug, Clone)]
 pub(crate) struct Asking {
     acting: Acting,
     confirmation: Option<u64>,
     approval: Option<u64>,
+    unconfirmed: Unconfirmed,
+    held: Option<u64>,
+    spent_before: Option<u64>,
+}
+
+/// What a command that cannot be undone comes to when the decision point
+/// allowed it and no confirmation was redeemed for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unconfirmed {
+    /// Refused with this code, recorded as
+    /// `kernel.irreversible_needs_confirmation`: `[NC-KERN-0006]` for every
+    /// dispatch, and what came of a held call's wait once it is decided again.
+    Refused(ErrorCode),
+    /// Held for the person's confirmation: answered as held, journaled
+    /// nowhere and run nowhere, so the kernel can put it before the person and
+    /// decide it again from the start once they answer (`crate::confirmations`).
+    Held,
 }
 
 /// A human's confirmation of one dispatch, which only the kernel issues.
@@ -303,6 +334,10 @@ pub(crate) enum Token {
 #[derive(Debug)]
 struct Binding {
     token: Token,
+    /// Whether it is the person's confirmation of a call the kernel held,
+    /// redeemed by that call alone and never presented by anyone
+    /// (`crate::confirmations`).
+    held: bool,
     principal: Principal,
     name: String,
     /// The identity of the plugin that held the command when it was issued:
@@ -323,14 +358,14 @@ struct Binding {
 /// `confirmation_ttl_ms`, so what a kernel holds is what it issued within that
 /// time.
 ///
-/// **Issued by the doors alone in this build.** The interface a person
-/// confirms in and the flow that collects a quorum are later stages'; until
-/// they exist a shipped kernel issues nothing, so it redeems nothing, and
-/// a command that cannot be undone is denied to everyone — closed, not
-/// open.
+/// **A shipped kernel issues one thing: the person's confirmation of a call
+/// it held** (`crate::confirmations`), once the desktop interface the daemon
+/// started answered it — redeemed by that call alone, decided again from the
+/// start. Every other confirmation, and every approval, is issued by the test
+/// doors alone in this build: the flow that collects a quorum is a later
+/// stage's, so a shipped kernel meets no quorum.
 #[derive(Debug, Default)]
 pub(crate) struct Issued {
-    #[cfg(any(test, feature = "test-support"))]
     next: u64,
     outstanding: BTreeMap<u64, Binding>,
 }
@@ -344,6 +379,33 @@ impl Issued {
         &mut self,
         token: Token,
         principal: &Principal,
+        command: (&str, Option<&str>),
+        args: &str,
+        now_ms: u64,
+    ) -> u64 {
+        self.issued(token, false, principal, command, args, now_ms)
+    }
+
+    /// Issues the person's confirmation of the call the kernel held for
+    /// them: `person`, dispatching `command` with `args`, now — redeemed only
+    /// by that call decided again ([`Issued::bound_held`]), never presented
+    /// by a caller.
+    pub(crate) fn issue_held(
+        &mut self,
+        person: &Principal,
+        command: (&str, Option<&str>),
+        args: &str,
+        now_ms: u64,
+    ) -> u64 {
+        self.issued(Token::Confirmation, true, person, command, args, now_ms)
+    }
+
+    /// What [`Issued::issue`] and [`Issued::issue_held`] issue.
+    fn issued(
+        &mut self,
+        token: Token,
+        held: bool,
+        principal: &Principal,
         (name, holder): (&str, Option<&str>),
         args: &str,
         now_ms: u64,
@@ -355,6 +417,7 @@ impl Issued {
             self.next,
             Binding {
                 token,
+                held,
                 principal: principal.clone(),
                 name: name.to_owned(),
                 holder: holder.map(str::to_owned),
@@ -394,8 +457,43 @@ impl Issued {
             self.outstanding.remove(&serial);
             return false;
         }
-        binding.token == token
+        !binding.held
+            && binding.token == token
             && binding.principal == *principal
+            && binding.name == name
+            && binding.holder.as_deref() == holder
+            && binding.args == digest(args)
+    }
+
+    /// Whether `serial` is the person's confirmation of a call the kernel held
+    /// — issued by [`Issued::issue_held`] for `person`, this `command` by its
+    /// name and by the plugin holding it now, and these arguments — and not
+    /// yet expired.
+    ///
+    /// **Only what the kernel issued for a call it held**: a confirmation a
+    /// caller presents is never one, and none is bound to an agent — the
+    /// person is the one confirmed, whoever acts for them.
+    fn bound_held(
+        &mut self,
+        serial: u64,
+        person: &Principal,
+        (name, holder): (&str, Option<&str>),
+        args: &str,
+        now_ms: u64,
+    ) -> bool {
+        if person.kind() == PrincipalKind::Agent {
+            return false;
+        }
+        let Some(binding) = self.outstanding.get(&serial) else {
+            return false;
+        };
+        if expired(binding.at_ms, binding.issued, now_ms) {
+            self.outstanding.remove(&serial);
+            return false;
+        }
+        binding.held
+            && binding.token == Token::Confirmation
+            && binding.principal == *person
             && binding.name == name
             && binding.holder.as_deref() == holder
             && binding.args == digest(args)
@@ -440,8 +538,11 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    /// A refusal of `kind`, carrying `code`, said as `sentence`.
-    pub(crate) const fn new(kind: RefusalKind, code: ErrorCode, sentence: String) -> Self {
+    /// A refusal of `kind`, carrying `code`, said as `sentence`: the kernel's
+    /// own, or one the asker of a held call answers it with
+    /// ([`crate::Kernel::dispatch_held`]).
+    #[must_use]
+    pub const fn new(kind: RefusalKind, code: ErrorCode, sentence: String) -> Self {
         Self {
             kind,
             code,
@@ -538,6 +639,7 @@ enum Reason {
     MalformedArguments,
     Denied,
     Unconfirmed,
+    McpOnUnconfirmed,
     ReadOnly,
     TopLevelOnly,
     TooDeep,
@@ -558,6 +660,7 @@ impl Reason {
             Self::MalformedArguments => "kernel.malformed_arguments",
             Self::Denied => sentinel::NO_PERMIT_MATCHED,
             Self::Unconfirmed => "kernel.irreversible_needs_confirmation",
+            Self::McpOnUnconfirmed => "kernel.mcp_on_needs_confirmation",
             Self::ReadOnly => "kernel.read_only",
             Self::TopLevelOnly => "kernel.top_level_only",
             Self::TooDeep => "kernel.too_deep",
@@ -577,6 +680,7 @@ impl Reason {
             Self::MalformedArguments => nc_log::variant!("malformed_arguments"),
             Self::Denied => nc_log::variant!("denied"),
             Self::Unconfirmed => nc_log::variant!("unconfirmed"),
+            Self::McpOnUnconfirmed => nc_log::variant!("mcp_on_unconfirmed"),
             Self::ReadOnly => nc_log::variant!("read_only"),
             Self::TopLevelOnly => nc_log::variant!("top_level_only"),
             Self::TooDeep => nc_log::variant!("too_deep"),
@@ -619,6 +723,10 @@ pub(crate) struct CallTree {
     /// Whether the journal refused the entry of a dispatch of the tree, so
     /// that nothing it put off is released.
     entry_refused: bool,
+    /// The call at its top, once the decision point allowed it and it was to
+    /// be held for the person's confirmation rather than refused
+    /// ([`Unconfirmed::Held`]).
+    held: Option<Box<crate::confirmations::HeldCall>>,
 }
 
 impl CallTree {
@@ -636,6 +744,7 @@ impl CallTree {
             unit: None,
             put_off: Later::default(),
             entry_refused: false,
+            held: None,
         }
     }
 
@@ -1106,10 +1215,72 @@ pub(crate) async fn detached<E: Environment>(
     name: &str,
     args: &str,
 ) -> Result<String, Refusal> {
-    let (shared, asking) = (Arc::clone(shared), asker.asking());
+    answer_of(spawned(shared, asker.asking(), name, args).await, name)
+}
+
+/// What a top-level dispatch of `name` that holds no call answered.
+///
+/// # Errors
+///
+/// Its refusal; and `internal` with `[NC-KERN-0008]` for a call held where
+/// its asking did not say to hold it, which only the held path's first
+/// decision writes (`crate::confirmations`) — never answered as run.
+pub(crate) fn answer_of(came: Came, name: &str) -> Result<String, Refusal> {
+    match came {
+        Came::Answered(answered) => answered,
+        Came::Held(_) => Err(Refusal::new(
+            RefusalKind::Internal,
+            ErrorCode::KernelUnitAborted,
+            format!("`{name}` could not run: it was held where nothing holds a call"),
+        )),
+    }
+}
+
+/// What a top-level dispatch came to: its answer, or — where its asking said
+/// to hold it — the call held, allowed and not confirmed, journaled nowhere.
+pub(crate) enum Came {
+    /// What the dispatch answered, or its refusal, journaled as every
+    /// dispatch is.
+    Answered(Result<String, Refusal>),
+    /// The call the kernel is to hold for the person's confirmation.
+    Held(Box<crate::confirmations::HeldCall>),
+}
+
+/// `name` with `args` dispatched as `asking` acts, as the top of a call tree
+/// run on a task of its own, to its end whoever stops waiting for it.
+pub(crate) async fn spawned<E: Environment>(
+    shared: &Arc<Shared<E>>,
+    asking: Asking,
+    name: &str,
+    args: &str,
+) -> Came {
+    let shared = Arc::clone(shared);
     let (owned, given) = (name.to_owned(), args.to_owned());
     let tree = async move { top(&shared, &asking, &owned, &given).await };
-    joined(name, tokio::spawn(tree).await)
+    match tokio::spawn(tree).await {
+        Ok(came) => came,
+        Err(stopped) => Came::Answered(joined(name, Err(stopped))),
+    }
+}
+
+impl Asking {
+    /// The same asking, decided again once the kernel held its call: what a
+    /// command that cannot be undone comes to now, `unconfirmed`, the
+    /// person's confirmation of that very call when they gave it, `held`, and
+    /// what the session had spent when it was first decided, `spent`.
+    pub(crate) fn again(mut self, unconfirmed: Unconfirmed, held: Option<u64>, spent: u64) -> Self {
+        self.unconfirmed = unconfirmed;
+        self.held = held;
+        self.spent_before = Some(spent);
+        self
+    }
+
+    /// The same asking, its call to be held rather than refused when the
+    /// decision point allows it and nothing confirmed it.
+    pub(crate) fn holding(mut self) -> Self {
+        self.unconfirmed = Unconfirmed::Held;
+        self
+    }
 }
 
 /// What the task a top-level dispatch of `name` ran on answered.
@@ -1232,9 +1403,12 @@ pub(crate) async fn top<E: Environment>(
     asking: &Asking,
     name: &str,
     args: &str,
-) -> Result<String, Refusal> {
+) -> Came {
     let _one_tree_at_a_time = shared.bus.lock().await;
-    let spent = asking.acting.spend();
+    // **Spent once per call**: a call the kernel held is decided again on
+    // what its session had spent when it was first decided, and spends
+    // nothing more.
+    let spent = asking.spent_before.unwrap_or_else(|| asking.acting.spend());
     supervisor::started_again(shared).await;
     let tree = Arc::new(Mutex::new(CallTree::new(
         asking.acting.clone(),
@@ -1242,11 +1416,17 @@ pub(crate) async fn top<E: Environment>(
         shared.clock.now_ms(),
     )));
     let answered = decide(shared, &tree, Some(asking), name, args, None).await;
-    let put_off = lock(&tree).put_off_taken();
+    let (put_off, held) = {
+        let mut tree = lock(&tree);
+        (tree.put_off_taken(), tree.held.take())
+    };
     if let Some(later) = put_off {
         later.released(shared);
     }
-    answered
+    match held {
+        Some(held) => Came::Held(held),
+        None => Came::Answered(answered),
+    }
 }
 
 /// Dispatches `name` with `args` from inside `tree`, as it acts, asked for by
@@ -1279,9 +1459,31 @@ async fn decide<E: Environment>(
     let asked = asked(shared, tree, name, args, requester, waits).await?;
     let authorized = match authorize(shared, &asked, asking, began).await {
         Ok(authorized) => authorized,
-        Err(turned) => return Err(turned_away(shared, tree, *turned, waits).await),
+        Err(Unauthorized::Turned(turned)) => {
+            return Err(turned_away(shared, tree, *turned, waits).await);
+        }
+        Err(Unauthorized::Held(held)) => {
+            // **Journaled nowhere and run nowhere**: the tree answers that it
+            // holds the call, and the kernel decides it again from the start
+            // once the person answered (`crate::confirmations`).
+            lock(tree).held = Some(held);
+            return Err(Refusal::new(
+                RefusalKind::Denied,
+                ErrorCode::KernelUnconfirmed,
+                format!("`{name}` is held for a person's confirmation"),
+            ));
+        }
     };
     run(shared, tree, &asked, &authorized).await
+}
+
+/// Why an authorization allowed nothing to run: a refusal about to be
+/// journaled, or the call to hold for the person's confirmation.
+enum Unauthorized {
+    /// Refused, and journaled as the refusal says.
+    Turned(Box<Turned>),
+    /// Allowed by the decision point, not confirmed, and to be held.
+    Held(Box<crate::confirmations::HeldCall>),
 }
 
 /// A dispatch that passed every step before authorization: the command, its
@@ -1776,15 +1978,18 @@ pub(crate) async fn within<T>(
 ///
 /// The refusal, as one about to be journaled: what [`decision`] denied, and a
 /// command that cannot be undone, allowed and not confirmed, with the code
-/// `[NC-KERN-0006]` and the sentinel
-/// `kernel.irreversible_needs_confirmation` — which the journal records as
-/// what decided it.
+/// its asking names — `[NC-KERN-0006]`, or for a call the kernel held what
+/// came of its wait — and the sentinel
+/// `kernel.irreversible_needs_confirmation`, which the journal records as
+/// what decided it. **Or the call to hold**: such a command at the top of a
+/// tree whose asking says to hold it is answered as held, refused and
+/// journaled nowhere.
 async fn authorize<E: Environment>(
     shared: &Shared<E>,
     asked: &Asked,
     asking: Option<&Asking>,
     began: Instant,
-) -> Result<Authorized, Box<Turned>> {
+) -> Result<Authorized, Unauthorized> {
     let (deciding, decided, held) = decision(
         shared,
         began,
@@ -1795,30 +2000,105 @@ async fn authorize<E: Environment>(
     )
     .await
     .map_err(|denied| {
-        denial(
+        Unauthorized::Turned(denial(
             asked,
             denied.code,
             &denied.deciding,
             denied.why,
             denied.decided,
-        )
+        ))
     })?;
-    if asked.command.listed().reversibility == Reversibility::Irreversible && !held.confirmed {
+    let irreversible = asked.command.listed().reversibility == Reversibility::Irreversible;
+    // **MCP switched on waits for a person as what cannot be undone does**
+    // (`crate::settings::switches_mcp_on`): it lets an agent in, so nothing
+    // that only speaks the protocol switches it on — by its set, or by an
+    // undo or a redo that puts it back on (`history::would_switch_mcp_on`) —
+    // and off never waits.
+    let needs = irreversible
+        || crate::settings::switches_mcp_on(&asked.name, &asked.json)
+        || history::would_switch_mcp_on(shared, &asked.name, asked.acting.principal()).await;
+    if needs && !held.confirmed {
+        // An asking is the top of a tree's alone: a nested dispatch is asked
+        // with none, so only the call at the top is ever held.
+        let unconfirmed = asking.map_or(
+            Unconfirmed::Refused(ErrorCode::KernelUnconfirmed),
+            |asking| asking.unconfirmed,
+        );
+        let code = match unconfirmed {
+            Unconfirmed::Held => {
+                return Err(Unauthorized::Held(Box::new(
+                    crate::confirmations::HeldCall::of(
+                        asked.name.clone(),
+                        history::owner_of(shared, &asked.command),
+                        asked.canonical.clone(),
+                        &asked.acting,
+                        asked.spent,
+                    )
+                    .declared(asked.command.listed().reversibility),
+                )));
+            }
+            Unconfirmed::Refused(code) => unconfirmed_code(code, irreversible),
+        };
+        let reason = if irreversible {
+            Reason::Unconfirmed
+        } else {
+            Reason::McpOnUnconfirmed
+        };
         let mut turned = denial(
             asked,
-            ErrorCode::KernelUnconfirmed,
-            Reason::Unconfirmed.sentinel(),
-            "it cannot be undone, and no confirmation the kernel issued for it was redeemed",
+            code,
+            reason.sentinel(),
+            unconfirmed_why(code),
             Some(decided),
         );
-        turned.reason = Reason::Unconfirmed;
-        return Err(turned);
+        turned.reason = reason;
+        return Err(Unauthorized::Turned(turned));
     }
     Ok(Authorized {
         deciding,
         decided,
         held,
     })
+}
+
+/// The code a call that waits for a person's confirmation and has none is
+/// refused with, `code` being what came of it as a command that cannot be
+/// undone: that code for one, and MCP's switch's own of the same outcome for
+/// the switch on (`crate::settings::switches_mcp_on`), which can be undone.
+const fn unconfirmed_code(code: ErrorCode, irreversible: bool) -> ErrorCode {
+    if irreversible {
+        return code;
+    }
+    match code {
+        ErrorCode::KernelNotConfirmedInTime => ErrorCode::KernelMcpNotConfirmedInTime,
+        ErrorCode::KernelDeclined => ErrorCode::KernelMcpDeclined,
+        _ => ErrorCode::KernelMcpUnconfirmed,
+    }
+}
+
+/// What a caller is told of a call that waits for a person's confirmation and
+/// was not confirmed, by the code it is refused with.
+const fn unconfirmed_why(code: ErrorCode) -> &'static str {
+    match code {
+        ErrorCode::KernelNotConfirmedInTime => {
+            "it cannot be undone, and nobody confirmed it in the desktop interface before the \
+             wait lapsed"
+        }
+        ErrorCode::KernelDeclined => {
+            "it cannot be undone, and it was declined in the desktop interface"
+        }
+        ErrorCode::KernelMcpNotConfirmedInTime => {
+            "it switches MCP on, and nobody confirmed it in the desktop interface before the \
+             wait lapsed"
+        }
+        ErrorCode::KernelMcpDeclined => {
+            "it switches MCP on, and it was declined in the desktop interface"
+        }
+        ErrorCode::KernelMcpUnconfirmed => {
+            "it switches MCP on, and no confirmation the kernel issued for it was redeemed"
+        }
+        _ => "it cannot be undone, and no confirmation the kernel issued for it was redeemed",
+    }
 }
 
 /// A question the decision point denied.
@@ -2101,9 +2381,15 @@ fn redeemed<E: Environment>(
     asking: Option<&Asking>,
     asked: &Asked,
 ) -> (history::Held, Vec<u64>) {
-    let Some(asking) = asking.filter(|_| asked.depth == 0 && asked.acting.may_hold_tokens()) else {
+    let Some(asking) = asking.filter(|_| asked.depth == 0) else {
         return (history::Held::default(), Vec::new());
     };
+    if let Some(serial) = asking.held {
+        return held_redeemed(shared, serial, asked);
+    }
+    if !asked.acting.may_hold_tokens() {
+        return (history::Held::default(), Vec::new());
+    }
     let now_ms = shared.clock.now_ms();
     let principal = asked.acting.principal();
     let holder = history::owner_of(shared, &asked.command);
@@ -2134,6 +2420,34 @@ fn redeemed<E: Environment>(
         quorum_met,
     };
     (held, spent)
+}
+
+/// Whether `serial` is the person's confirmation of the very call the kernel
+/// held, decided again as `asked`, and the serial to spend when it is.
+///
+/// **The person the tree acts for, never a caller's token**: issued by the
+/// kernel to the person whose confirmation it asked — the principal acting as
+/// itself, or the person an agent's session acts for — for this command by its
+/// name and holder and these arguments, so an agent's held call is confirmed
+/// by its person's input and no token is ever bound to the agent.
+fn held_redeemed<E: Environment>(
+    shared: &Shared<E>,
+    serial: u64,
+    asked: &Asked,
+) -> (history::Held, Vec<u64>) {
+    let holder = history::owner_of(shared, &asked.command);
+    let confirmed = lock(&shared.issued).bound_held(
+        serial,
+        asked.acting.whose_history(),
+        (&asked.name, holder.as_deref()),
+        &asked.canonical,
+        shared.clock.now_ms(),
+    );
+    let held = history::Held {
+        confirmed,
+        quorum_met: false,
+    };
+    (held, if confirmed { vec![serial] } else { Vec::new() })
 }
 
 /// Why an authorized dispatch did not answer.
@@ -2252,8 +2566,14 @@ async fn run<E: Environment>(
     }
     // **A command that changes state where the tree holds no unit opens
     // one**: the top of a tree, and a dispatch from a timer's callback that
-    // began none, each of which is a step of its own.
-    let opens = asked.command.listed().mutating && lock(tree).unit().is_none();
+    // began none, each of which is a step of its own. **But the activation
+    // of a surface's node**, which changes state only through the command it
+    // dispatches: that command opens its own, labelled by it, and one that
+    // only reads opens none — no step of the activation's own is kept for an
+    // undo to spend a press on (`crate::ui`).
+    let opens = asked.command.listed().mutating
+        && lock(tree).unit().is_none()
+        && !crate::ui::dispatches_what_it_shows(&asked.name);
     let opened = if opens {
         Some(opened(shared, tree, asked).await?)
     } else {
@@ -2293,7 +2613,11 @@ async fn opened<E: Environment>(
         .await;
     match opened {
         Ok(unit) => {
-            lock(tree).unit = Some(Ambient::new(unit).waiting(asked.waits));
+            lock(tree).unit = Some(
+                Ambient::new(unit)
+                    .acted_for(&asked.acting)
+                    .waiting(asked.waits),
+            );
             Ok(unit)
         }
         Err(error) => {
@@ -2655,6 +2979,12 @@ async fn builtin<E: Environment>(
             crate::agents::listed(shared, asked.acting.principal(), began).await
         }
         Some(Builtin::Shell(verb)) => crate::shell::ran(shared, tree, verb, &asked.json),
+        Some(Builtin::ConfirmationsList) => Ok(crate::confirmations::listed(shared)),
+        Some(Builtin::ConfirmationsRead) => crate::confirmations::read(shared, &asked.json),
+        Some(Builtin::SurfacesList) => Ok(crate::ui::listed(shared)),
+        Some(Builtin::SurfacesRead) => crate::ui::read(shared, &asked.json),
+        Some(Builtin::SurfacesActivate) => crate::ui::activated(shared, tree, &asked.json).await,
+        Some(Builtin::History) => history::next(shared, asked.acting.principal()).await,
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,
@@ -2906,8 +3236,8 @@ mod tests {
     use nc_authz::{Principal, PrincipalKind};
 
     use super::{
-        Asked, Asking, Issued, Reason, RefusalKind, Token, Waits, answered, digest, expired, lock,
-        redeemed, resource_of,
+        Asked, Asking, Issued, Reason, RefusalKind, Token, Unconfirmed, Waits, answered, digest,
+        expired, lock, redeemed, resource_of,
     };
     use crate::session::{Acting, Session};
     use crate::{InMemory, Shared};
@@ -3133,6 +3463,56 @@ mod tests {
         }
     }
 
+    /// The person's confirmation of a call the kernel held is bound by that
+    /// call alone, and a token a caller holds by none.
+    ///
+    /// **Two kinds that never stand for each other**: a held call's
+    /// confirmation is never a confirmation a caller presents, whatever its
+    /// serial, and one a caller was issued confirms no held call; and a held
+    /// call's binds its person alone — never another person or an agent —
+    /// for its command, its holder and its arguments.
+    #[test]
+    fn a_held_calls_confirmation_is_bound_by_that_call_alone() {
+        let world = |kind, name| {
+            nc_authz::MemoryDirectory::from_world(
+                include_str!("../../../policy/world.json"),
+                &nc_authz::Pdp::embedded("family").expect("the family pack is carried"),
+            )
+            .expect("the world loads")
+            .principal(kind, name)
+            .expect("in the world")
+        };
+        let ana = world(nc_authz::PrincipalKind::User, "ana");
+        let bruno = world(nc_authz::PrincipalKind::User, "bruno");
+        let assistant = world(nc_authz::PrincipalKind::Agent, "ana-assistant");
+        let held = ("a.do", Some("noctua:a"));
+        let mut issued = Issued::default();
+        let serial = issued.issue_held(&ana, held, "{}", 1_000);
+        assert!(
+            !issued.bound(Token::Confirmation, serial, &ana, held, "{}", 1_001),
+            "a held call's confirmation is no token a caller presents"
+        );
+        for (person, command, args) in [
+            (&bruno, held, "{}"),
+            (&assistant, held, "{}"),
+            (&ana, ("a.other", Some("noctua:a")), "{}"),
+            (&ana, ("a.do", Some("noctua:b")), "{}"),
+            (&ana, held, r#"{"x":1}"#),
+        ] {
+            assert!(
+                !issued.bound_held(serial, person, command, args, 1_001),
+                "{person:?} {command:?} {args}"
+            );
+        }
+        assert!(issued.bound_held(serial, &ana, held, "{}", 1_001));
+        let presented = issued.issue(Token::Confirmation, &ana, held, "{}", 1_000);
+        assert!(
+            !issued.bound_held(presented, &ana, held, "{}", 1_001),
+            "a token a caller holds confirms no held call"
+        );
+        assert!(issued.bound(Token::Confirmation, presented, &ana, held, "{}", 1_001));
+    }
+
     /// A name proposed at the top of a tree acting as `acting`, and what that
     /// tree asks with.
     ///
@@ -3147,6 +3527,9 @@ mod tests {
             acting: acting.clone(),
             confirmation: Some(issued.issue(Token::Confirmation, to, (name, None), args, now_ms)),
             approval: Some(issued.issue(Token::Approval, to, (name, None), args, now_ms)),
+            unconfirmed: Unconfirmed::Refused(ErrorCode::KernelUnconfirmed),
+            held: None,
+            spent_before: None,
         };
         drop(issued);
         let asked = Asked {

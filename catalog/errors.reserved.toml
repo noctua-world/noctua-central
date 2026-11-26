@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "99c8f82146bc4209f6883f54f16b5c4a93a329fe3c27b1fdd5c2028c0ef43a41"
-count = 176
+checksum = "a1e73ef1a481ea809fc36523f166586b2e6427af2cbc967f84f793cd3b503f16"
+count = 187
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -94,6 +94,8 @@ count = 176
 "NC-DMN-0014" = "error.daemon.mcp-off — warning — retryable:false — params:[] — MCP is off in the daemon's channel, so no session was opened, or the open one that asked was ended"
 "NC-DMN-0015" = "error.daemon.not-for-a-session — warning — retryable:false — params:[] — A session asked for something other than its tools or a dispatch, which no session is answered"
 "NC-DMN-0016" = "error.daemon.too-many-sessions — warning — retryable:true — params:[] — The daemon holds as many sessions as `sessions_max` allows, so it opened no other"
+"NC-DMN-0017" = "error.daemon.attach-refused — warning — retryable:false — params:[] — A connection asked to attach as the desktop interface the daemon started, and its proof or its process was not that one's, so it was closed"
+"NC-DMN-0018" = "error.daemon.not-attached — warning — retryable:false — params:[] — A held call was answered on a connection that is not attached as the desktop interface the daemon started, so nothing was answered"
 "NC-IDS-0001" = "error.ids.clock-backwards — error — retryable:true — params:[] — The clock moved backwards, so minting would repeat an identifier it has issued"
 "NC-IDS-0002" = "error.ids.sequence-exhausted — info — retryable:false — params:[] — This millisecond's sequence was exhausted and minting waited"
 "NC-IDS-0003" = "error.ids.flake-exhausted — critical — retryable:false — params:[] — Every machine-flake candidate in the sequence was already taken"
@@ -158,6 +160,15 @@ count = 176
 "NC-KERN-0026" = "error.kernel.compensation-for-an-agent — warning — retryable:false — params:[] — A compensation was refused because the call tree registering it acts for an agent, and an undo would dispatch it as the person alone"
 "NC-KERN-0027" = "error.kernel.shell-unknown — warning — retryable:false — params:[] — A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
 "NC-KERN-0028" = "error.kernel.shell-full — warning — retryable:false — params:[] — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
+"NC-KERN-0029" = "error.kernel.not-confirmed-in-time — warning — retryable:false — params:[] — An irreversible command was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+"NC-KERN-0030" = "error.kernel.declined — warning — retryable:false — params:[] — An irreversible command was held for a person's confirmation in the Noctua window, and the person declined it"
+"NC-KERN-0031" = "error.kernel.nothing-held — info — retryable:false — params:[] — No call is held for a person's confirmation under the serial named: it was answered, it lapsed, or it was never held"
+"NC-KERN-0032" = "error.kernel.mcp-unconfirmed — warning — retryable:false — params:[] — A call that would switch MCP on — its set asking for on, or an undo or a redo putting it back on — came without a confirmation the kernel issued from a person's input in the Noctua window"
+"NC-KERN-0033" = "error.kernel.mcp-not-confirmed-in-time — warning — retryable:false — params:[] — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and none came before the wait lapsed"
+"NC-KERN-0034" = "error.kernel.mcp-declined — warning — retryable:false — params:[] — A call that would switch MCP on was held for a person's confirmation in the Noctua window, and the person declined it"
+"NC-KERN-0035" = "error.kernel.surface-by-an-agent — warning — retryable:false — params:[] — A node of a surface was activated whose tree an agent's call tree rendered, and nothing it names is run for the person"
+"NC-KERN-0036" = "error.kernel.surface-unknown — warning — retryable:false — params:[] — A command of the surfaces named a surface that is not open, that shows no tree yet, or a node its tree does not hold"
+"NC-KERN-0037" = "error.kernel.not-activatable — warning — retryable:false — params:[] — A node of a surface was activated that runs nothing, is disabled, or was given an input it does not bind or cannot read"
 "NC-LOG-0001" = "error.log.unreachable — warning — retryable:true — params:[] — The central log store did not accept a batch"
 "NC-LOG-0002" = "error.log.dropped — warning — retryable:false — params:[] — Log events were dropped because the queue was full"
 "NC-PLUG-0001" = "error.plugin.capability-denied — warning — retryable:false — params:[] — A plugin called a host function of a capability its manifest was not granted"

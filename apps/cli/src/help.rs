@@ -72,7 +72,8 @@ pub const fn what_it_does(verb: &str) -> &'static str {
             "tap this channel's Leader, as a Wayland compositor's key binding runs it: the \
              graphical environment this runs in is announced to the daemon where it names a \
              display, then `leader.tap` is dispatched, showing the interface or opening the \
-             leader menu; a stopped daemon is left stopped"
+             leader menu; a stopped daemon is left stopped. With `--announce`, the environment \
+             is announced and nothing is tapped, as the unit a graphical session starts does"
         }
         _ => "",
     }

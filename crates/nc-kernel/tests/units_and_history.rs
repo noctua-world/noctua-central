@@ -572,6 +572,18 @@ impl<J: History> Fixture<J> {
             .await
     }
 
+    /// Dispatches `command` with `args` as `ana`, holding her confirmation of
+    /// it as the kernel issues one: her answer in the Noctua window.
+    async fn confirmed_by_ana(&self, command: &str, args: &str) -> Result<String, Refusal> {
+        let ana = self
+            .world
+            .principal(PrincipalKind::User, "ana")
+            .expect("ana is a user of the world");
+        let confirmed = Caller::new(ana.clone())
+            .confirmed(self.kernel.confirmation_for_tests(&ana, command, args));
+        self.kernel.dispatch(&confirmed, command, args).await
+    }
+
     /// The units the store keeps that a command wrote, newest first: every one
     /// but the seeds.
     async fn kept(&self) -> Vec<String> {
@@ -2731,9 +2743,11 @@ async fn undo_and_redo_are_refused_from_inside_another_command() {
 ///
 /// **No step that left the machine**: the switch's one effect is the kernel's
 /// entry in its own unit, so its undo answers nothing beyond reach, and the
-/// person's next undo reaches the step before it. Nested in a command that
-/// only reads, the switch is refused for running below the top of the tree,
-/// which is asked before whether its frame may change anything.
+/// person's next undo reaches the step before it. The switch on and the redo
+/// that puts it back on run with her confirmation, as the Noctua window
+/// issues one. Nested in a command that only reads, the switch is refused for
+/// running below the top of the tree, which is asked before whether its frame
+/// may change anything.
 #[tokio::test]
 async fn a_setting_switched_is_a_step_the_persons_undo_takes_back_and_redo_puts_again() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -2752,7 +2766,7 @@ async fn a_setting_switched_is_a_step_the_persons_undo_takes_back_and_redo_puts_
     assert!(!mcp().await, "MCP is on before anybody switched it");
     assert_eq!(
         fixture
-            .as_ana("settings.mcp.set", r#"{"on":true}"#)
+            .confirmed_by_ana("settings.mcp.set", r#"{"on":true}"#)
             .await
             .expect("switched on"),
         r#"{"on":true}"#
@@ -2772,7 +2786,10 @@ async fn a_setting_switched_is_a_step_the_persons_undo_takes_back_and_redo_puts_
     );
     assert!(!mcp().await, "the undo left MCP on");
     assert_eq!(held(&fixture.store, "kernel", "settings.mcp").await, None);
-    fixture.redo().await.expect("the switch is redone");
+    fixture
+        .confirmed_by_ana("kernel.redo", "{}")
+        .await
+        .expect("the switch is redone");
     assert!(mcp().await, "the redo left MCP off");
     fixture.undo().await.expect("the switch is undone again");
     assert!(!mcp().await);
@@ -4807,6 +4824,203 @@ async fn an_agents_step_joins_its_operators_history_and_they_undo_it() {
     );
 }
 
+/// The kernel [`opened_deciding`] answers with a pack that lets ana's
+/// assistant write what she owns, the reference plugin granted `ui` beside
+/// what it is granted elsewhere.
+async fn the_assistant_writes_and_surfaces_show() -> Fixture<nc_journal::InMemory> {
+    opened_deciding(
+        Deciding {
+            pdp: family_and(&[AN_AGENT_WRITES]),
+            the_assistant: true,
+        },
+        in_memory().await,
+        nc_journal::InMemory::default(),
+        "",
+        false,
+        &format!("{GRANTED}, \"ui\""),
+    )
+    .await
+}
+
+/// A form ana shows in a surface: an input and a button writing her photo
+/// with what she types, a button doing what cannot be undone, and one
+/// switching MCP on — and the surface it is in.
+async fn a_form_ana_shows(fixture: &Fixture<nc_journal::InMemory>) -> String {
+    let tree = r#"{"node":"column","children":[{"node":"input","name":"text","label":"Text"},{"node":"button","label":"Save","command":"reference.note.put","args":{"note":"photo"},"bind":["text"]},{"node":"button","label":"Do","command":"reference.irreversible.do","args":{"note":"photo"}},{"node":"button","label":"MCP","command":"settings.mcp.set","args":{"on":true}}]}"#;
+    let shown = fixture
+        .as_ana(
+            "reference.ui.show",
+            &Value::object([("note", Value::text("photo")), ("tree", Value::text(tree))])
+                .to_canonical(),
+        )
+        .await
+        .expect("the surface is shown");
+    field(&shown, "surface")
+        .into_text()
+        .unwrap_or_else(|| panic!("a surface: {shown}"))
+}
+
+/// The arguments of a click on the node `node` of `surface`, `typed` given
+/// to the inputs it binds.
+fn click(surface: &str, node: &str, typed: &[(&str, &str)]) -> String {
+    Value::object([
+        (
+            "inputs",
+            Value::Array(
+                typed
+                    .iter()
+                    .map(|(name, value)| {
+                        Value::object([
+                            ("name", Value::text(*name)),
+                            ("value", Value::text(*value)),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        ("node", Value::text(node)),
+        ("surface", Value::text(surface)),
+    ])
+    .to_canonical()
+}
+
+/// What `kernel.history` answers of `row`, a step of the note's, kept by
+/// `by`'s call tree.
+fn next_undo(by: Value, row: &UnitRow) -> String {
+    Value::object([(
+        "undo",
+        Value::object([
+            ("agent", by),
+            ("barrier", Value::Bool(false)),
+            (
+                "committed_at_ms",
+                Value::Integer(i64::try_from(row.meta.committed_at_ms).expect("fits")),
+            ),
+            ("label", Value::text("reference.note.put")),
+            ("unit", Value::text(row.unit.to_crockford())),
+        ]),
+    )])
+    .to_canonical()
+}
+
+/// A person's click runs what the tree names nested, as theirs, and its step
+/// is the command's — which the history names before it is undone.
+///
+/// **Read from the tree, run through the decision point, kept as the
+/// command**: ana's click on the form's first button writes her photo with the
+/// text she typed. The activation is journaled in no unit, the write in a unit
+/// of its own that is her newest step, labelled by the command, and
+/// `kernel.history` names it as by no agent. Her assistant's write after it is
+/// named as the assistant's. Her two undos take both steps back, and the
+/// history then names none.
+#[tokio::test]
+async fn a_persons_click_runs_what_the_tree_names_nested_and_its_step_is_the_commands() {
+    let fixture = the_assistant_writes_and_surfaces_show().await;
+    let surface = a_form_ana_shows(&fixture).await;
+    let saved = fixture
+        .as_ana(
+            "surfaces.activate",
+            &click(&surface, "/children/1", &[("text", "hers")]),
+        )
+        .await
+        .expect("her click runs");
+    assert!(
+        saved.starts_with(r#"{"rev":"#),
+        "the write's own answer: {saved}"
+    );
+    assert_eq!(
+        held(&fixture.store, REFERENCE, "note/photo").await,
+        Some(kept_as("hers"))
+    );
+    let step = fixture.newest_step().await;
+    assert_eq!(step.meta.label, "reference.note.put");
+    let entries = fixture.entries().await;
+    let activated = entries_of(&entries, "surfaces.activate", Outcome::Allowed);
+    assert_eq!(activated.len(), 1, "{activated:#?}");
+    assert_eq!(
+        activated[0].record.work_unit, None,
+        "the activation is no step"
+    );
+    let written = entries_of(&entries, "reference.note.put", Outcome::Allowed);
+    assert_eq!(
+        written
+            .iter()
+            .map(|entry| (entry.record.principal.as_str(), entry.record.work_unit))
+            .collect::<Vec<_>>(),
+        [("ana", Some(step.unit))]
+    );
+    assert_eq!(
+        fixture.as_ana("kernel.history", "{}").await,
+        Ok(next_undo(Value::Null, &step))
+    );
+    let assistant = fixture.the_assistant().await;
+    fixture
+        .by(&assistant, "reference.note.put", &photo("the assistant's"))
+        .await
+        .expect("the assistant writes what ana owns");
+    let theirs = fixture.newest_step().await;
+    assert_eq!(
+        fixture.as_ana("kernel.history", "{}").await,
+        Ok(next_undo(Value::text("ana-assistant"), &theirs))
+    );
+    fixture
+        .undo()
+        .await
+        .expect("her assistant's step is undone");
+    fixture.undo().await.expect("her own step is undone");
+    assert_eq!(held(&fixture.store, REFERENCE, "note/photo").await, None);
+    assert_eq!(
+        fixture.as_ana("kernel.history", "{}").await,
+        Ok(r#"{"undo":null}"#.to_owned())
+    );
+}
+
+/// A click is never a confirmation, and never a person's own call at the
+/// top of a call tree.
+///
+/// **What runs nested runs as any nested dispatch**: ana's click on the
+/// form's button doing what cannot be undone is refused as nothing confirmed
+/// it (`[NC-KERN-0006]`), and her click on the one switching MCP on as it runs
+/// only at the top of a call tree (`[NC-KERN-0025]`) — MCP staying off and
+/// the photo unwritten.
+#[tokio::test]
+async fn a_click_is_never_a_confirmation_nor_a_persons_own_call_at_the_top() {
+    let fixture = the_assistant_writes_and_surfaces_show().await;
+    let surface = a_form_ana_shows(&fixture).await;
+    let unconfirmed = fixture
+        .as_ana("surfaces.activate", &click(&surface, "/children/2", &[]))
+        .await;
+    assert!(
+        is(
+            &unconfirmed,
+            RefusalKind::Denied,
+            ErrorCode::KernelUnconfirmed
+        ),
+        "{unconfirmed:?}"
+    );
+    let switched = fixture
+        .as_ana("surfaces.activate", &click(&surface, "/children/3", &[]))
+        .await;
+    assert!(
+        is(
+            &switched,
+            RefusalKind::Denied,
+            ErrorCode::KernelOnlyAtTheTop
+        ),
+        "{switched:?}"
+    );
+    assert!(
+        !fixture
+            .kernel
+            .settings()
+            .await
+            .expect("the settings read")
+            .mcp,
+        "a click switched MCP on"
+    );
+    assert_eq!(held(&fixture.store, REFERENCE, "done/photo").await, None);
+}
+
 /// A compensation registered in an agent's tree is refused, and their undo
 /// runs nothing it named.
 ///
@@ -4841,6 +5055,27 @@ async fn a_compensation_registered_in_an_agents_tree_is_refused_and_their_undo_r
         [ErrorCode::KernelCompensationForAnAgent.code()]
     );
     let step = fixture.newest_step().await;
+    // **Named before the undo is asked**, as her assistant's and as one undo
+    // stops at.
+    let next = field(
+        &fixture
+            .as_ana("kernel.history", "{}")
+            .await
+            .expect("the history reads"),
+        "undo",
+    );
+    assert_eq!(
+        next.into_object().map(|mut fields| (
+            fields.remove("agent"),
+            fields.remove("barrier"),
+            fields.remove("unit")
+        )),
+        Some((
+            Some(Value::text("ana-assistant")),
+            Some(Value::Bool(true)),
+            Some(Value::text(step.unit.to_crockford()))
+        ))
+    );
     let refused = fixture.undo().await;
     assert!(
         is(&refused, RefusalKind::Denied, ErrorCode::KernelUndoBarrier),

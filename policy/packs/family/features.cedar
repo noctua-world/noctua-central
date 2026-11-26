@@ -151,7 +151,11 @@ permit (
 // actions (`NOCTUA.md §12.1`): which windows show, which pages are open in
 // them and in the drawer, what the prompt holds and where each seat is — what
 // the person's own windows show, and nothing of the realm's data. `Read`
-// answers that state and `Write` changes it. **A person, and only a person:
+// answers that state and `Write` changes it. So are the reads of what waits
+// for the person's confirmation (`confirmations.`), of the surfaces plugins
+// show and who rendered each (`surfaces.`), and of the step their next undo
+// takes back (`kernel.history`); and a click on a surface, `surfaces.activate`,
+// is `Write` here, the command it runs decided again as itself. **A person, and only a person:
 // `principal is User` is this permit's own constraint.** An agent drives no
 // interface — no permit names `Agent` on this feature, so the agent's half of
 // every question about it is refused, and a person's grant of it to an agent
