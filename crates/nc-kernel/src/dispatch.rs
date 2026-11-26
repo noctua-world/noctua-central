@@ -538,8 +538,11 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    /// A refusal of `kind`, carrying `code`, said as `sentence`.
-    pub(crate) const fn new(kind: RefusalKind, code: ErrorCode, sentence: String) -> Self {
+    /// A refusal of `kind`, carrying `code`, said as `sentence`: the kernel's
+    /// own, or one the asker of a held call answers it with
+    /// ([`crate::Kernel::dispatch_held`]).
+    #[must_use]
+    pub const fn new(kind: RefusalKind, code: ErrorCode, sentence: String) -> Self {
         Self {
             kind,
             code,

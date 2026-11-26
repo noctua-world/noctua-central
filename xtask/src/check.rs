@@ -19768,7 +19768,7 @@ mod the_frozen_path_rule {
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
         ("daemon/agent_sessions.rs", 65, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
-        ("daemon/desktop.rs", 27, 5),
+        ("daemon/desktop.rs", 36, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 25, 18),
         ("daemon/every_command_from_the_cli.rs", 45, 2),
@@ -19783,7 +19783,7 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 140, 27),
+        ("daemon/server.rs", 149, 30),
         ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 43, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
@@ -19893,7 +19893,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
         ("nc-kernel/find.rs", 35, 2),
-        ("nc-kernel/history.rs", 58, 7),
+        ("nc-kernel/history.rs", 59, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
         ("nc-kernel/host/commands.rs", 38, 15),
@@ -19918,11 +19918,11 @@ mod the_frozen_path_rule {
         ("nc-kernel/settings.rs", 27, 1),
         ("nc-kernel/shell.rs", 207, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 312, 87),
+        ("nc-kernel/the_decision_point.rs", 316, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
         ("nc-kernel/timers.rs", 18, 5),
-        ("nc-kernel/ui.rs", 91, 16),
+        ("nc-kernel/ui.rs", 97, 16),
         ("nc-kernel/units.rs", 117, 18),
         ("nc-kernel/units_and_history.rs", 166, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
@@ -22783,8 +22783,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 924 scratches this tree
-    /// builds, 836 of the 924 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 926 scratches this tree
+    /// builds, 838 of the 926 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22850,7 +22850,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 71] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 72] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -22874,6 +22874,7 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 5, 5),
         ("daemon/plugins.rs", 9, 9),
         ("daemon/profile.rs", 8, 8),
+        ("daemon/server.rs", 2, 2),
         ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
@@ -25954,7 +25955,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23613;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23661;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25973,7 +25974,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6870;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6904;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25990,7 +25991,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2340;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2351;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26007,7 +26008,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [128, 26, 51, 52, 100];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [126, 26, 51, 52, 100];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26024,7 +26025,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31095;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31180;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26042,7 +26043,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 620;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 619;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26078,8 +26079,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **620 of 31,095 are accepted by the first-line
-    /// rule alone, and 357 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **619 of 31,180 are accepted by the first-line
+    /// rule alone, and 355 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26100,7 +26101,7 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **128 ascending sorts, 26 descending, 51
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **126 ascending sorts, 26 descending, 51
     /// swaps, 52 rotations and 100 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
@@ -26111,7 +26112,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2340 of
+    /// this tree offers, **2351 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38200,7 +38201,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3137] = [
+    static OPERATORS: [(&str, &str, &str); 3151] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43968,6 +43969,21 @@ Options:
         ),
         (
             "kernel_confirmations",
+            "settle",
+            "an answer nobody waits for answers nothing",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "an answer given as the wait ended decides the call",
+        ),
+        (
+            "kernel_confirmations",
+            "dispatched",
+            "a confirmed call is decided again only while its asker admits it",
+        ),
+        (
+            "kernel_confirmations",
             "let_go",
             "a call whose wait is over is let go",
         ),
@@ -44010,6 +44026,21 @@ Options:
             "kernel_ui",
             "activation",
             "an integer input is read as an integer",
+        ),
+        (
+            "kernel_ui",
+            "within_bounds",
+            "what is typed is held to a text's bytes",
+        ),
+        (
+            "kernel_ui",
+            "within_bounds",
+            "what is typed is held to its input's `max_length`",
+        ),
+        (
+            "kernel_ui",
+            "activation",
+            "what is typed is held to its bounds",
         ),
         ("kernel_ui", "activation", "an input given twice is refused"),
         (
@@ -49596,6 +49627,22 @@ Options:
         ),
         (
             "daemon_server",
+            "admitted_dispatch",
+            "a held call's wait ends once a stop begins",
+        ),
+        (
+            "daemon_server",
+            "desk_proven",
+            "an attach refused is logged by its code",
+        ),
+        ("daemon_server", "desk_proven", "a connection attaches once"),
+        (
+            "daemon_server",
+            "settled",
+            "an answer on a connection not attached is logged by its code",
+        ),
+        (
+            "daemon_server",
             "desk_proven",
             "a connection attaches only as the desktop the daemon started",
         ),
@@ -49738,6 +49785,16 @@ Options:
         (
             "daemon_server",
             "answer_in_session",
+            "a session's held call is decided again only while MCP is on",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
+            "MCP off once a held call is confirmed ends the session",
+        ),
+        (
+            "daemon_server",
+            "answer_in_session",
             "a session's dispatch is counted as running",
         ),
         (
@@ -49835,6 +49892,16 @@ Options:
             "daemon_server",
             "leader_pressed",
             "a press is the person's tap",
+        ),
+        (
+            "daemon_server",
+            "leader_pressed",
+            "the daemon's press starts the desktop again",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a person's press starts the desktop again",
         ),
         (
             "daemon_leader",

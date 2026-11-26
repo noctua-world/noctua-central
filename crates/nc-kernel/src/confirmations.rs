@@ -27,18 +27,31 @@
 //!    the person's answer, [`crate::Kernel::settle`], up to
 //!    `confirmation_ttl_ms`, holding none of the kernel's locks, so every other
 //!    call runs meanwhile.
-//! 3. **Decided again from the start**: confirmed, the kernel issues the
-//!    person's confirmation of that very call — bound to the person the tree
-//!    acts for, the command by its name and by the plugin holding it, and the
-//!    arguments' canonical text, redeemed by that call alone and never handed
-//!    to anyone — and dispatches it once more, so a grant ended, a plugin
-//!    unloaded or MCP switched off while it waited refuses it as it would any
-//!    call; declined, it is refused with `[NC-KERN-0030]`; and with no answer
-//!    before the wait lapses — or once whoever asked it stops waiting, the
-//!    daemon stopping — with `[NC-KERN-0029]`, both recorded as
-//!    `kernel.irreversible_needs_confirmation`. **Each call is journaled once,
-//!    and spends once**: a session's budget is spent when the call is first
-//!    decided, and its decision again is made on what it had spent then.
+//! 3. **Decided again from the start**: confirmed, the call is first asked of
+//!    whoever asked it — **does it still admit the call** — and then the
+//!    kernel issues the person's confirmation of that very call — bound to the
+//!    person the tree acts for, the command by its name and by the plugin
+//!    holding it, and the arguments' canonical text, redeemed by that call
+//!    alone and never handed to anyone — and dispatches it once more, so a
+//!    grant ended or a plugin unloaded while it waited refuses it as it would
+//!    any call; declined, it is refused with `[NC-KERN-0030]`; and with no
+//!    answer before the wait lapses — or once whoever asked it stops waiting,
+//!    the daemon stopping — with `[NC-KERN-0029]`, both recorded as
+//!    `kernel.irreversible_needs_confirmation`. **An answer the person gave as
+//!    the wait ended is the one the call is decided by**: the answer is handed
+//!    over while the call is still held, under the lock that lets it go, so
+//!    either the call finds it or [`crate::Kernel::settle`] finds no call and
+//!    answers `[NC-KERN-0031]` — never a settle answered while the call is
+//!    refused as not confirmed in time. **Each call decided again is journaled
+//!    once, and spends once**: a session's budget is spent when the call is
+//!    first decided, and its decision again is made on what it had spent then.
+//!
+//! **What still admits a confirmed call is its asker's to say**, since what
+//! lets it in is not the kernel's: the daemon reads MCP again for an agent's
+//! session, as it does before each of the session's requests, so MCP switched
+//! off while the call waited refuses it once the person confirms it. A call
+//! its asker no longer admits is answered with its asker's refusal, run
+//! nowhere and journaled nowhere, as a call that asker never sent would be.
 //!
 //! **An agent's call is held the same way, and the agent is never
 //! confirmed** (`NOCTUA.md §14.6`): what the person confirms is the call the
@@ -177,28 +190,35 @@ struct Waiting {
 
 /// `name` with `args` dispatched for `asker` as the top of a call tree,
 /// **a call that cannot be undone held for the person's confirmation**, as
-/// this module's header says, until `lapsed` ends its wait early.
+/// this module's header says, until `lapsed` ends its wait early — and,
+/// confirmed, decided again only once `admits` says its asker still admits
+/// it.
 ///
 /// # Errors
 ///
 /// What [`crate::Kernel::dispatch`] refuses with, and for a call held:
 /// `[NC-KERN-0006]` past `confirmations_pending_max`, `[NC-KERN-0030]`
-/// declined, `[NC-KERN-0029]` not answered in time, and what the decision
-/// point refuses when it decides the call again.
-pub(crate) async fn dispatched<E: Environment>(
+/// declined, `[NC-KERN-0029]` not answered in time, what `admits` refuses a
+/// confirmed call with, and what the decision point refuses when it decides
+/// the call again.
+pub(crate) async fn dispatched<E: Environment, Admitted>(
     shared: &Arc<Shared<E>>,
     asker: Asker<'_>,
     name: &str,
     args: &str,
     lapsed: impl Future<Output = ()>,
-) -> Result<String, Refusal> {
+    admits: impl FnOnce() -> Admitted,
+) -> Result<String, Refusal>
+where
+    Admitted: Future<Output = Result<(), Refusal>>,
+{
     let asking = asker.asking();
     let call = match dispatch::spawned(shared, asking.clone().holding(), name, args).await {
         Came::Answered(answered) => return answered,
         Came::Held(call) => call,
     };
     let spent = call.spent;
-    let Some((serial, answer)) = hold(shared, &call) else {
+    let Some((serial, mut answer)) = hold(shared, &call) else {
         let again = asking.again(
             Unconfirmed::Refused(ErrorCode::KernelUnconfirmed),
             None,
@@ -208,13 +228,20 @@ pub(crate) async fn dispatched<E: Environment>(
     };
     let wait = Duration::from_millis(KERNEL.confirmation_ttl_ms);
     let settled = tokio::select! {
-        settled = answer => settled.ok(),
+        settled = &mut answer => settled.ok(),
         () = tokio::time::sleep(wait) => None,
         () = lapsed => None,
     };
     let_go(shared, serial);
+    // **An answer given as the wait ended is the one it is decided by**:
+    // `settle` hands an answer over while the call is still held, under the
+    // lock `let_go` takes, so one handed over before the call was let go —
+    // ready as the wait's end was, or given after the wait was over — is here
+    // now, and once the call is let go none can be handed over any more.
+    let settled = settled.or_else(|| answer.try_recv().ok());
     let again = match settled {
         Some(Settled::Confirmed) => {
+            admits().await?;
             let issued = dispatch::lock(&shared.issued).issue_held(
                 &call.person,
                 (&call.name, call.holder.as_deref()),
@@ -287,32 +314,29 @@ fn told<E: Environment>(shared: &Shared<E>, pending: &Pending) {
 /// The person's answer, `settled`, to the call held as `serial`: it is let go
 /// at once, and decided again as the answer says.
 ///
+/// **Handed over while the call is still held**, under the lock that lets it
+/// go, so a wait that ended meanwhile still finds it (`dispatched`); and a call
+/// nobody waits for any more — its asker gone — takes no answer.
+///
 /// # Errors
 ///
 /// `not-found` with `[NC-KERN-0031]` when no call is held as `serial` —
-/// answered already, lapsed, or never held — and nothing is answered.
+/// answered already, lapsed, or never held — or none waits for the answer any
+/// more, and nothing is answered.
 pub(crate) fn settle<E: Environment>(
     shared: &Shared<E>,
     serial: u64,
     settled: Settled,
 ) -> Result<(), Refusal> {
-    let waiting = {
-        let mut pending = dispatch::lock(&shared.pending);
-        let waiting = pending.held.remove(&serial);
-        if waiting.is_some() {
-            told(shared, &pending);
-        }
-        waiting
+    let mut pending = dispatch::lock(&shared.pending);
+    let Some(waiting) = pending.held.remove(&serial) else {
+        return Err(nothing_held(serial));
     };
-    match waiting {
-        Some(waiting) => {
-            // A call whose asker stopped waiting a moment ago has nobody to
-            // hand the answer to, and is decided as lapsed.
-            let _ = waiting.answer.send(settled);
-            Ok(())
-        }
-        None => Err(nothing_held(serial)),
-    }
+    told(shared, &pending);
+    waiting
+        .answer
+        .send(settled)
+        .map_err(|_| nothing_held(serial))
 }
 
 /// The refusal of a serial no call is held as.
@@ -322,7 +346,7 @@ fn nothing_held(serial: u64) -> Refusal {
         ErrorCode::KernelNothingHeld,
         format!(
             "no call is held for a person's confirmation as {serial}: it was answered, it \
-             lapsed, or it was never held"
+             lapsed, nothing waits for it any more, or it was never held"
         ),
     )
 }

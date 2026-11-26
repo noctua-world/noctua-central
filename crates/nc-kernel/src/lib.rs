@@ -517,29 +517,42 @@ impl<E: Environment> Kernel<E> {
     /// [`Kernel::settle`], and decided again from the start, for at most
     /// `confirmation_ttl_ms` or until `lapsed` ends the wait.
     ///
+    /// **Confirmed, it is decided again only while its asker admits it**:
+    /// `admits` is asked once the person confirmed the call and before
+    /// anything else of it, and what it refuses is the answer — the call run
+    /// nowhere and journaled nowhere, as a call its asker never sent. What
+    /// lets a call in that the kernel does not hold is its asker's to read
+    /// again here: the daemon reads MCP for an agent's session.
+    ///
     /// **What a caller asks once the desktop interface that answers is
     /// there**: held with nobody to answer, a call waits its whole time and
     /// is refused as not confirmed in time, so a caller with no such
     /// interface dispatches with [`Kernel::dispatch`] and is refused at once.
     /// The module `confirmations` says the rest: an agent's call is held the
-    /// same way and the agent confirms nothing, each call is journaled once
-    /// and spends once, and at most `confirmations_pending_max` are held.
+    /// same way and the agent confirms nothing, each call decided again is
+    /// journaled once and spends once, and at most `confirmations_pending_max`
+    /// are held.
     ///
     /// # Errors
     ///
     /// What [`Kernel::dispatch`] refuses with, and for a call held:
     /// `[NC-KERN-0006]` past `confirmations_pending_max`, `[NC-KERN-0030]`
     /// declined, `[NC-KERN-0029]` not answered before the wait lapsed — MCP's
-    /// switch on `[NC-KERN-0032]`, `[NC-KERN-0034]` and `[NC-KERN-0033]` — and
-    /// what the decision point refuses when it decides the call again.
-    pub async fn dispatch_held<'a>(
+    /// switch on `[NC-KERN-0032]`, `[NC-KERN-0034]` and `[NC-KERN-0033]` —
+    /// what `admits` refuses a confirmed call with, and what the decision
+    /// point refuses when it decides the call again.
+    pub async fn dispatch_held<'a, Admitted>(
         &self,
         asker: impl Into<Asker<'a>>,
         name: &str,
         args: &str,
         lapsed: impl core::future::Future<Output = ()>,
-    ) -> Result<String, Refusal> {
-        confirmations::dispatched(&self.shared, asker.into(), name, args, lapsed).await
+        admits: impl FnOnce() -> Admitted,
+    ) -> Result<String, Refusal>
+    where
+        Admitted: core::future::Future<Output = Result<(), Refusal>>,
+    {
+        confirmations::dispatched(&self.shared, asker.into(), name, args, lapsed, admits).await
     }
 
     /// The person's answer, `settled`, to the call held for their

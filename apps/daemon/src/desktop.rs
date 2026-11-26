@@ -31,10 +31,14 @@
 //! it was made for alone; and the process at the other end, as the system says
 //! it, which must be the one the daemon started. A process that only speaks the
 //! protocol has neither; one the daemon did not start has no secret; and one
-//! that read the secret somewhere is not the process it was handed to. The
-//! secret alone was not enough, nor the process alone: the executable's path
-//! is the user's to replace, and a process of the user's can start the real
-//! binary as its own child.
+//! that read the secret somewhere is, while it runs, not the process it was
+//! handed to. The secret alone was not enough, nor the process alone: the
+//! executable's path is the user's to replace, and a process of the user's can
+//! start the real binary as its own child. **The process is compared by its
+//! number**, which the system named when the connection was accepted and hands
+//! out again once that process is gone: a connection its process handed to
+//! another before it ended goes on naming the number, and passes the process
+//! half once the daemon starts a desktop under it (below).
 //!
 //! # What this does not answer
 //!
@@ -48,6 +52,15 @@
 //! the desktop to keeps every process that only speaks the protocol — the CLI,
 //! an MCP client, an agent, a plugin, a dispatched command — from confirming
 //! anything.
+//!
+//! **A process number handed out again.** The process half compares the
+//! number the system named at the connection's other end, never when that
+//! process started: a process that read the secret, opened a connection, handed
+//! it to another process and ended, leaves a connection naming a number the
+//! system may give the next desktop the daemon starts, and that connection then
+//! proves both halves. Reading the secret is already among what is not
+//! answered above, so the process half adds nothing against a process that
+//! did, once its number is reused.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -199,6 +212,14 @@ impl Desktop {
         nc_platform::create_private(&self.standard_error)
     }
 
+    /// The process of the desktop started last, while it runs; none starts.
+    #[cfg(test)]
+    pub(crate) fn running(&self) -> Option<u32> {
+        let mut started = self.started.lock().unwrap_or_else(PoisonError::into_inner);
+        let running = started.as_mut()?;
+        matches!(running.process.ended(), Ok(None)).then(|| running.process.pid())
+    }
+
     /// Whether the connection whose other end is the process `peer`, and
     /// whose handshake drew `drawn`, is the desktop the daemon started, by
     /// `proof`: the process the daemon started last, still running, and a
@@ -249,6 +270,38 @@ pub fn environment_for(
     }
 }
 
+/// The word a child of this test binary started as a desktop that only
+/// waits finds among its arguments.
+#[cfg(test)]
+const WAITS: &str = "nc-daemon-desktop-waits";
+
+/// A desktop that is this test binary, waiting for the file `ends`.
+///
+/// Started, it reads its input and waits for `ends` — or the suites'
+/// patience — then ends, its standard error `standard_error`. **For this
+/// crate's tests**: a desktop a test can start and end at will, which
+/// attaches nothing.
+#[cfg(test)]
+pub(crate) fn waiting_for(ends: &std::path::Path, standard_error: PathBuf) -> Desktop {
+    Desktop::for_tests(
+        std::env::current_exe().expect("this test binary"),
+        [
+            "--exact",
+            "desktop::tests::a_desktop_attaches_by_its_own_process_proving_its_own_secret",
+            "--nocapture",
+            "--test-threads=1",
+            "--skip",
+            WAITS,
+            "--skip",
+        ]
+        .map(str::to_owned)
+        .into_iter()
+        .chain([ends.to_string_lossy().into_owned()])
+        .collect(),
+        standard_error,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
@@ -281,6 +334,10 @@ mod tests {
     /// How many held calls the stand-in answers before it ends.
     const ANSWERS: u32 = 4;
 
+    /// The file the first stand-in writes once it answered what it answers,
+    /// before it ends: a stand-in started while it is there is the second.
+    const ANSWERED: &str = "stand-in.answered";
+
     /// A plugin manifest granting the reference plugin what its commands use.
     const GRANTED: &str = "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = \
                            [\"context\", \"store\", \"blobs.read\", \"blobs.write\", \
@@ -295,9 +352,14 @@ mod tests {
     }
 
     /// The desktop the daemon starts: what it was handed down its standard
-    /// input read to its end, a connection to the daemon attached by it, and
-    /// each call held for a confirmation answered as it comes — the first and
-    /// the third confirmed, the second and the fourth declined — then the end.
+    /// input read to its end, and a connection to the daemon attached by it.
+    ///
+    /// **The first**: a second connection of its own attached, then refused
+    /// an attach asked again, and closed; then each call held for a
+    /// confirmation answered as it comes — the first and the third confirmed,
+    /// the second and the fourth declined — and the end, told by
+    /// [`ANSWERED`]. **The second**, started once that is told: attached, it
+    /// answers nothing, and watches until the daemon goes.
     fn stand_in() {
         use std::io::Read as _;
         let mut bytes = Vec::new();
@@ -309,6 +371,7 @@ mod tests {
         );
         let executable = std::env::var_os(SERVES).expect("the install served");
         let found = nc_channel::found::beside(Path::new(&executable)).expect("the install reads");
+        let second = found.layout.state.join(ANSWERED).exists();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -318,8 +381,37 @@ mod tests {
                 .await
                 .expect("the daemon is reached");
             connection.attach(&secret).await.expect("attached");
+            if !second {
+                let mut again = nc_ipc::client::connect(&found)
+                    .await
+                    .expect("the daemon is reached again");
+                again
+                    .attach(&secret)
+                    .await
+                    .expect("a second connection of the desktop attaches");
+                match again.attach(&secret).await {
+                    Err(nc_ipc::client::Unasked::Refused(refusal))
+                        if refusal.code == ErrorCode::DaemonAttachRefused => {}
+                    other => panic!("a connection attached already attached again: {other:?}"),
+                }
+                assert!(
+                    again.ask(&Request::Status).await.is_err(),
+                    "an attach refused closes its connection"
+                );
+            }
             nc_platform::create_private(&found.layout.state.join(ATTACHED))
                 .expect("the attach is told");
+            if second {
+                let mut seen = None;
+                let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+                while tokio::time::Instant::now() < deadline {
+                    match connection.watch(seen, Duration::from_secs(5)).await {
+                        Ok(changed) => seen = Some(changed.revision),
+                        Err(_) => break,
+                    }
+                }
+                return;
+            }
             let (mut seen, mut answered) = (None, 0);
             let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
             while answered < ANSWERS && tokio::time::Instant::now() < deadline {
@@ -343,21 +435,71 @@ mod tests {
                     answered += 1;
                 }
             }
+            nc_platform::create_private(&found.layout.state.join(ANSWERED))
+                .expect("the answers are told");
         });
     }
 
     /// Once the stand-in said it attached, within the suites' patience.
     fn attached_within(installed: &crate::testing::Installed) {
-        let attached = installed.layout.state.join(ATTACHED);
+        told_within(installed, ATTACHED, "the desktop never attached");
+    }
+
+    /// Once the file `told` is in the install's state directory, within the
+    /// suites' patience, failing as `otherwise` says.
+    fn told_within(installed: &crate::testing::Installed, told: &str, otherwise: &str) {
+        let told = installed.layout.state.join(told);
         let deadline = std::time::Instant::now() + crate::testing::PATIENCE;
-        while !attached.exists() {
+        while !told.exists() {
             assert!(
                 std::time::Instant::now() < deadline,
-                "the desktop never attached: {}",
+                "{otherwise}: {}",
                 std::fs::read_to_string(&installed.layout.desktop_err).unwrap_or_default()
             );
             std::thread::sleep(Duration::from_millis(20));
         }
+    }
+
+    /// Once the serials the daemon's watched state holds as held for the
+    /// person's confirmation, as `person` watches them, are not none.
+    async fn something_held(person: &mut nc_ipc::Client) {
+        let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+        let mut seen = None;
+        loop {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "no call was held in time"
+            );
+            let request = Request::Watch {
+                seen,
+                wait_ms: 1_000,
+            };
+            let Answer::Changed { revision, state } = asked(person, request).await else {
+                panic!("a watch was answered otherwise");
+            };
+            seen = Some(revision);
+            let held = state
+                .and_then(nc_canon::Value::into_object)
+                .and_then(|mut state| state.remove("confirmations"))
+                .and_then(nc_canon::Value::into_array)
+                .is_some_and(|held| !held.is_empty());
+            if held {
+                return;
+            }
+        }
+    }
+
+    /// How many times the daemon `installed` serves logged a connection
+    /// refused with `code`, on its standard error.
+    fn refused_and_logged(installed: &crate::testing::Installed, code: ErrorCode) -> usize {
+        installed
+            .standard_error()
+            .lines()
+            .filter(|line| {
+                line.contains("\"_msg\":\"ipc.refused\"")
+                    && line.contains(&format!("\"code\":\"{}\"", code.code()))
+            })
+            .count()
     }
 
     /// The answer `request` is given on `client`.
@@ -397,22 +539,100 @@ mod tests {
         assert!(mcp().contains(r#""on":false"#), "declined, MCP stays off");
     }
 
+    /// Once a desktop the daemon of `installed` started again attached, a
+    /// person's `leader.tap` asked of it over `person` until one did: each
+    /// press asks for a desktop, and the one before may not have ended yet
+    /// when one is asked.
+    async fn started_again_by_the_leader(
+        installed: &crate::testing::Installed,
+        person: &mut nc_ipc::Client,
+    ) {
+        let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+        while !installed.layout.state.join(ATTACHED).exists() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "no desktop attached once the Leader was pressed: {}",
+                std::fs::read_to_string(&installed.layout.desktop_err).unwrap_or_default()
+            );
+            let tap = Request::Dispatch {
+                command: nc_ipc::leader::TAP.to_owned(),
+                args: nc_ipc::leader::tap(),
+            };
+            let tapped = asked(person, tap).await;
+            assert!(matches!(tapped, Answer::Result(_)), "{tapped:?}");
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    /// A held call answered on `person`'s connection, which did not attach,
+    /// is refused with `NC-DMN-0018`; and an attach with a proof of no secret,
+    /// on a connection of its own to `daemon`, with `NC-DMN-0017`, and closed.
+    async fn refused_where_not_attached(
+        daemon: &mut crate::testing::Running,
+        person: &mut nc_ipc::Client,
+    ) {
+        match asked(person, Request::Confirm { pending: 1 }).await {
+            Answer::Refused(refusal) => {
+                assert_eq!(refusal.code, ErrorCode::DaemonNotAttached, "{refusal:?}");
+            }
+            other => panic!("a connection not attached answered a held call: {other:?}"),
+        }
+        let (mut impostor, _) = daemon.connected().await;
+        match asked(&mut impostor, Request::AttachDesktop { proof: [0; 32] }).await {
+            Answer::Refused(refusal) => {
+                assert_eq!(refusal.code, ErrorCode::DaemonAttachRefused, "{refusal:?}");
+            }
+            other => panic!("a proof of no secret attached: {other:?}"),
+        }
+        assert!(
+            impostor.ask(&Request::Status).await.is_err(),
+            "a refused attach closes its connection"
+        );
+    }
+
+    /// A run of the CLI ended by the daemon's stop while its call was held.
+    ///
+    /// `held` ended in 14 with `NC-KERN-0029`, the stop asked `after` ago,
+    /// well before `confirmation_ttl_ms`.
+    fn ended_by_the_stop(held: &nc_cli::Outcome, after: Duration) {
+        assert_eq!(held.code(), 14, "{held:?}");
+        assert!(
+            held.stderr
+                .contains(ErrorCode::KernelNotConfirmedInTime.code()),
+            "{}",
+            held.stderr
+        );
+        let ttl = Duration::from_millis(nc_catalog::KERNEL.confirmation_ttl_ms);
+        assert!(
+            after < ttl / 2,
+            "a stop ended the held call's wait only after {after:?}"
+        );
+    }
+
     /// A desktop the daemon started attaches, and answers what waits for the
     /// person; nothing else does.
     ///
     /// **Over a daemon a child of this test binary serves**, its desktop
     /// another child — this test binary again, handed its secret down its
     /// standard input. Once an environment naming a display is announced the
-    /// daemon starts it, and it attaches by that secret, from that process.
-    /// Then an irreversible command from the CLI waits for it and runs once it
-    /// confirms, ending in 0; the next it declines ends in 15 with
-    /// `NC-KERN-0030`. **MCP switched on from the CLI waits for it the same
-    /// way** (`NOCTUA.md §12.15`): confirmed, it ends in 0 and MCP reads on;
-    /// switched off, it is never held and ends in 0 at once; switched on
-    /// again and declined, it ends in 15 with `NC-KERN-0034` and MCP reads
-    /// off. A person's connection that did not attach answering a
-    /// held call is refused with `NC-DMN-0018`, and one attaching with a proof
-    /// of no secret is refused with `NC-DMN-0017` and closed.
+    /// daemon starts it, and it attaches by that secret, from that process —
+    /// a second connection of its own attaching too, and refused an attach
+    /// asked again with `NC-DMN-0017` and closed. Then an irreversible command
+    /// from the CLI waits for it and runs once it confirms, ending in 0; the
+    /// next it declines ends in 15 with `NC-KERN-0030`. **MCP switched on from
+    /// the CLI waits for it the same way** (`NOCTUA.md §12.15`): confirmed, it
+    /// ends in 0 and MCP reads on; switched off, it is never held and ends in
+    /// 0 at once; switched on again and declined, it ends in 15 with
+    /// `NC-KERN-0034` and MCP reads off. **The Leader starts it again**: once
+    /// that desktop ended, a person's `leader.tap` starts another, which
+    /// attaches. A person's connection that did not attach answering a held
+    /// call is refused with `NC-DMN-0018`, and one attaching with a proof of no
+    /// secret is refused with `NC-DMN-0017` and closed. **A stop ends a held
+    /// call's wait**: an irreversible command from the CLI held while the
+    /// desktop started again answers nothing ends in 14 with `NC-KERN-0029`
+    /// once the person stops the daemon, well before `confirmation_ttl_ms`.
+    /// The daemon logged each refused attach and each answer refused as
+    /// `ipc.refused` with its code: `NC-DMN-0017` twice, `NC-DMN-0018` once.
     #[test]
     fn a_desktop_the_daemon_started_attaches_and_answers_what_waits_and_nothing_else_does() {
         if std::env::args().any(|argument| argument == STANDS_IN) {
@@ -480,25 +700,22 @@ mod tests {
             declined.stderr
         );
         mcp_waits_for_the_desktop(&found, &english);
+        told_within(&installed, ANSWERED, "the desktop never answered");
+        std::fs::remove_file(installed.layout.state.join(ATTACHED)).expect("the attach is read");
         runtime.block_on(async {
-            match asked(&mut person, Request::Confirm { pending: 1 }).await {
-                Answer::Refused(refusal) => {
-                    assert_eq!(refusal.code, ErrorCode::DaemonNotAttached, "{refusal:?}");
-                }
-                other => panic!("a connection not attached answered a held call: {other:?}"),
-            }
-            let (mut impostor, _) = daemon.connected().await;
-            match asked(&mut impostor, Request::AttachDesktop { proof: [0; 32] }).await {
-                Answer::Refused(refusal) => {
-                    assert_eq!(refusal.code, ErrorCode::DaemonAttachRefused, "{refusal:?}");
-                }
-                other => panic!("a proof of no secret attached: {other:?}"),
-            }
-            assert!(
-                impostor.ask(&Request::Status).await.is_err(),
-                "a refused attach closes its connection"
-            );
+            started_again_by_the_leader(&installed, &mut person).await;
+            refused_where_not_attached(&mut daemon, &mut person).await;
+        });
+        let holding = {
+            let (found, english) = (found.clone(), english.clone());
+            std::thread::spawn(move || nc_cli::run(&line("photo"), &found, &english))
+        };
+        runtime.block_on(async {
+            something_held(&mut person).await;
+            let stopped = std::time::Instant::now();
             assert_eq!(asked(&mut person, Request::Stop).await, Answer::Stopping);
+            let held = holding.join().expect("the CLI ran");
+            ended_by_the_stop(&held, stopped.elapsed());
             assert_eq!(
                 daemon.ended().await,
                 Some(0),
@@ -506,6 +723,15 @@ mod tests {
                 installed.standard_error()
             );
         });
+        assert_eq!(
+            (
+                refused_and_logged(&installed, ErrorCode::DaemonAttachRefused),
+                refused_and_logged(&installed, ErrorCode::DaemonNotAttached),
+            ),
+            (2, 1),
+            "{}",
+            installed.standard_error()
+        );
     }
 
     /// A scratch directory of this test's, removed however the test leaves.
@@ -527,10 +753,6 @@ mod tests {
         }
     }
 
-    /// The word a child of this test binary started as a desktop that only
-    /// waits finds among its arguments.
-    const WAITS: &str = "nc-daemon-desktop-waits";
-
     /// A desktop that is not there is not started, and nothing of it is
     /// made; one started runs once,
     /// and attaches a connection only by its own process proving its own
@@ -545,7 +767,7 @@ mod tests {
     /// proof of another secret; and once it ended, nothing attaches.
     #[test]
     fn a_desktop_attaches_by_its_own_process_proving_its_own_secret() {
-        if std::env::args().any(|argument| argument == WAITS) {
+        if std::env::args().any(|argument| argument == super::WAITS) {
             use std::io::Read as _;
             let mut secret = Vec::new();
             let _ = std::io::stdin().read_to_end(&mut secret);
@@ -569,23 +791,7 @@ mod tests {
             !scratch.join("missing.err").exists(),
             "nothing of a desktop not installed is made, its standard error included"
         );
-        let desktop = super::Desktop::for_tests(
-            std::env::current_exe().expect("this test binary"),
-            [
-                "--exact",
-                "desktop::tests::a_desktop_attaches_by_its_own_process_proving_its_own_secret",
-                "--nocapture",
-                "--test-threads=1",
-                "--skip",
-                WAITS,
-                "--skip",
-            ]
-            .map(str::to_owned)
-            .into_iter()
-            .chain([scratch.join("ends").to_string_lossy().into_owned()])
-            .collect(),
-            scratch.join("desktop.err"),
-        );
+        let desktop = super::waiting_for(&scratch.join("ends"), scratch.join("desktop.err"));
         let super::Wanted::Started(pid) = desktop.wanted(None, &x) else {
             panic!("the desktop was not started");
         };

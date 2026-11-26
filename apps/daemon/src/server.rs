@@ -122,9 +122,13 @@
 //! again, and off — however it came to be, the person's set, undo or redo —
 //! or unreadable ends the session with its connection once the refusal is
 //! written, whatever it asked; while MCP is on, the registry, the status, a
-//! stop, a second session, a watch, a note and a display are refused
-//! (`NC-DMN-0015`) and the session stands — so an agent learns nothing of
-//! what an interface shows, and tells the daemon nothing as one. Its tools are the kernel's probe of what its agent may
+//! stop, a second session, a watch, a note, a display, an attach, a confirm
+//! and a decline are refused (`NC-DMN-0015`) and the session stands — so an agent learns nothing of
+//! what an interface shows, and tells the daemon nothing as one. **A held
+//! call waits past the request it was read in**, so MCP is read again once
+//! the person confirms it, before the kernel decides it again: off, or
+//! unreadable, refuses it the same way, run nowhere and journaled nowhere,
+//! and ends the session. Its tools are the kernel's probe of what its agent may
 //! dispatch ([`nc_kernel::Kernel::dispatchable`]), which spends and journals
 //! nothing; its dispatches are the kernel's, decided for the agent and its
 //! person and journaled with both.
@@ -515,7 +519,8 @@ impl Server {
                 if command == nc_ipc::leader::TAP {
                     let _ = self.desktop_wanted();
                 }
-                self.admitted_dispatch(&person, &command, &args).await
+                self.admitted_dispatch(&person, &command, &args, as_ever)
+                    .await
             }
             Request::Watch { seen, wait_ms } => match self.kernel_if_running() {
                 Ok(kernel) => self.watch(&*kernel, seen, wait_ms).await,
@@ -744,8 +749,29 @@ impl Server {
         };
         Answered::going_on(match asked {
             InSession::Dispatch { command, args } => {
-                self.admitted_dispatch(&opened.session, &command, &args)
-                    .await
+                // **MCP read again once a held call is confirmed**, before
+                // the kernel decides it again: the request was read while
+                // MCP was on, and a call held waits past it.
+                let off = OnceLock::new();
+                let admits = || async {
+                    mcp_is_on(&kernel).await.map_err(|refusal| {
+                        let answered = nc_kernel::Refusal::new(
+                            nc_kernel::RefusalKind::Denied,
+                            refusal.code,
+                            refusal.sentence.clone(),
+                        );
+                        let _ = off.set(refusal);
+                        answered
+                    })
+                };
+                let answer = self
+                    .admitted_dispatch(&opened.session, &command, &args, admits)
+                    .await;
+                if let Some(refusal) = off.into_inner() {
+                    self.refused_session(&refusal);
+                    return Answered::ending(refusal);
+                }
+                answer
             }
             InSession::Tools { locale } => tools(&kernel, &opened.session, locale).await,
         })
@@ -829,18 +855,29 @@ impl Server {
     /// confirmation while the desktop the daemon started is attached**
     /// (`nc_kernel::Kernel::dispatch_held`), and its wait ends early when a
     /// stop begins; with none attached it is refused at once
-    /// (`NC-KERN-0006`), since nobody could answer it.
-    async fn admitted_dispatch<'a>(
+    /// (`NC-KERN-0006`), since nobody could answer it. Held and confirmed, it
+    /// is decided again only once `admits` says the asker still may ask it —
+    /// a session, while MCP is on.
+    async fn admitted_dispatch<'a, Admitted>(
         &self,
         asker: impl Into<Asker<'a>>,
         command: &str,
         args: &Value,
-    ) -> Answer {
+        admits: impl FnOnce() -> Admitted,
+    ) -> Answer
+    where
+        Admitted: Future<Output = Result<(), nc_kernel::Refusal>>,
+    {
         match self.admitted() {
             Ok((kernel, admitted)) => {
                 let held = self.attached.load(Ordering::SeqCst) > 0;
-                let answer =
-                    dispatched(&kernel, asker, command, args, held.then(|| self.stopping())).await;
+                let answer = dispatched(
+                    &kernel,
+                    asker,
+                    (command, args),
+                    held.then(|| (self.stopping(), admits)),
+                )
+                .await;
                 drop(admitted);
                 answer
             }
@@ -1059,7 +1096,12 @@ impl Server {
         let _ = self.desktop_wanted();
         let person = Caller::new(self.named.person.clone());
         let _ = self
-            .admitted_dispatch(&person, nc_ipc::leader::TAP, &nc_ipc::leader::tap())
+            .admitted_dispatch(
+                &person,
+                nc_ipc::leader::TAP,
+                &nc_ipc::leader::tap(),
+                as_ever,
+            )
             .await;
     }
 }
@@ -1398,21 +1440,30 @@ async fn tools<'a>(kernel: &Kernel<Daemon>, asker: impl Into<Asker<'a>>, locale:
     )
 }
 
-/// `command` with `args`, dispatched by the kernel for `asker`: the person,
-/// or a session's agent — held for the person's confirmation until `held`
-/// ends, where there is one.
-async fn dispatched<'a>(
+/// What a person's own call is, once its person confirmed it: still admitted.
+fn as_ever() -> core::future::Ready<Result<(), nc_kernel::Refusal>> {
+    core::future::ready(Ok(()))
+}
+
+/// `command` with `args`, dispatched by the kernel for `asker`.
+///
+/// The person, or a session's agent — held for the person's confirmation
+/// until the first future of `held` ends, where there is one, and once
+/// confirmed decided again while the second still admits it.
+async fn dispatched<'a, Admitted>(
     kernel: &Kernel<Daemon>,
     asker: impl Into<Asker<'a>>,
-    command: &str,
-    args: &Value,
-    held: Option<impl Future<Output = ()>>,
-) -> Answer {
+    (command, args): (&str, &Value),
+    held: Option<(impl Future<Output = ()>, impl FnOnce() -> Admitted)>,
+) -> Answer
+where
+    Admitted: Future<Output = Result<(), nc_kernel::Refusal>>,
+{
     let canonical = args.to_canonical();
     let answered = match held {
-        Some(lapsed) => {
+        Some((lapsed, admits)) => {
             kernel
-                .dispatch_held(asker, command, &canonical, lapsed)
+                .dispatch_held(asker, command, &canonical, lapsed, admits)
                 .await
         }
         None => kernel.dispatch(asker, command, &canonical).await,
@@ -1589,7 +1640,7 @@ mod tests {
     /// A request for the registry, in English.
     const REGISTRY: Request = Request::Registry { locale: Locale::En };
 
-    use super::{Named, Server};
+    use super::{Named, Server, Settled};
 
     /// A world file as an installer writes one, read: the one every suite's
     /// install copies in.
@@ -1601,6 +1652,11 @@ mod tests {
     /// A server for a daemon of `channel` that never bound an endpoint, its
     /// lines sent to a store nothing answers at.
     fn a_server(channel: nc_channel::Channel) -> Server {
+        a_server_starting(channel, no_desktop())
+    }
+
+    /// What [`a_server`] makes, starting `desktop`.
+    fn a_server_starting(channel: nc_channel::Channel, desktop: crate::desktop::Desktop) -> Server {
         let world = a_world();
         let named = Named {
             pid: 4242,
@@ -1618,7 +1674,7 @@ mod tests {
         Server::new(
             named,
             nc_ipc::Token::fresh().expect("a token"),
-            no_desktop(),
+            desktop,
             Arc::new(std::sync::Mutex::new(log)),
         )
     }
@@ -1757,15 +1813,72 @@ mod tests {
         installed: crate::testing::Installed,
     }
 
+    /// A permit the family pack does not ship: an agent switches MCP.
+    ///
+    /// Its switch on is a call held for its person's confirmation, as one
+    /// that cannot be undone is, and one no shipped pack lets an agent reach.
+    const AN_AGENT_SWITCHES_MCP: (&str, &str) = (
+        "policy/packs/family/agents_for_tests.cedar",
+        "@id(\"family.an_agent_switches_mcp_for_tests\")\n\
+         permit (principal is Agent, action == Action::\"Write\", resource == Feature::\"mcp\");\n",
+    );
+
+    /// The core and the family pack as they are on disk, with `extra` beside them.
+    ///
+    /// A decision point the tree does not ship, built through the same
+    /// compiler.
+    fn the_family_and(extra: &[(&str, &str)]) -> nc_authz::Pdp {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut texts: Vec<(String, String)> = Vec::new();
+        for directory in ["policy/core", "policy/packs/family"] {
+            let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(root.join(directory))
+                .expect("a policy directory")
+                .map(|entry| entry.expect("an entry").path())
+                .filter(|path| path.extension().is_some_and(|kind| kind == "cedar"))
+                .collect();
+            paths.sort();
+            for path in paths {
+                let name = path.file_name().expect("a file").to_string_lossy();
+                texts.push((
+                    format!("{directory}/{name}"),
+                    std::fs::read_to_string(&path).expect("a readable policy"),
+                ));
+            }
+        }
+        let mut files: Vec<(&str, &str)> = texts
+            .iter()
+            .map(|(path, text)| (path.as_str(), text.as_str()))
+            .collect();
+        files.extend_from_slice(extra);
+        nc_authz::Pdp::from_sources_for_tests(
+            include_str!("../../../policy/schema.cedarschema"),
+            &files,
+            "family",
+            include_str!("../../../policy/packs/family/pack.toml"),
+        )
+        .expect("the pack compiles with what the test adds")
+    }
+
     impl Serving {
         /// The kernel opened and served, MCP on and the agent granted naming.
         async fn new() -> Self {
+            Self::deciding_with(&[]).await
+        }
+
+        /// What [`Serving::new`] opens, its kernel deciding with the family
+        /// pack and `extra` beside it where there is any.
+        async fn deciding_with(extra: &[(&str, &str)]) -> Self {
             let installed =
                 crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
             let (layout, user) = (&installed.layout, &installed.user);
             let (store, _) = crate::environment::store(layout).await.expect("opened");
             let (world, pdp) =
                 crate::profile::world_and_pack(layout, user).expect("the world reads");
+            let pdp = if extra.is_empty() {
+                pdp
+            } else {
+                the_family_and(extra)
+            };
             let named = Named {
                 pid: 4242,
                 instance: [9; 16],
@@ -2347,6 +2460,161 @@ mod tests {
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
         drop(client);
         serving.closed().await;
+    }
+
+    /// A session's call held while MCP went off is refused once confirmed, and ends it.
+    ///
+    /// **Over a kernel the daemon opens, deciding with a pack that lets an
+    /// agent switch MCP**, which no shipped pack does: MCP switched on is held
+    /// as a command that cannot be undone is, so the agent's
+    /// `settings.mcp.set` asking for on, with a desktop attached, waits for
+    /// its person. Its person switches MCP off meanwhile, then confirms the
+    /// call: the session is answered `NC-DMN-0014` and ends, as any request of
+    /// it once MCP is off is; MCP stays off; and no entry of the agent's
+    /// switch is journaled.
+    #[tokio::test]
+    async fn a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed() {
+        let serving = Serving::deciding_with(&[AN_AGENT_SWITCHES_MCP]).await;
+        let agent = serving.agent.to_crockford();
+        serving
+            .as_the_person(
+                "agents.grant",
+                &format!(r#"{{"agent":"{agent}","feature":"mcp","minutes":60,"reason":"a"}}"#),
+            )
+            .await;
+        let opened = serving
+            .server
+            .session(serving.agent)
+            .await
+            .expect("the session opens");
+        serving.server.attached.fetch_add(1, Ordering::SeqCst);
+        let mut moves = serving.kernel.pending_moves();
+        let asking = serving.server.answer_in_session(
+            &opened,
+            Request::Dispatch {
+                command: "settings.mcp.set".to_owned(),
+                args: Value::object([("on", Value::Bool(true))]),
+            },
+        );
+        let answering = async {
+            let serial = tokio::time::timeout(
+                crate::testing::PATIENCE,
+                moves.wait_for(|held| !held.is_empty()),
+            )
+            .await
+            .expect("the agent's call is held in time")
+            .expect("the kernel tells what it holds")[0];
+            serving.switched(false).await;
+            serving
+                .kernel
+                .settle(serial, Settled::Confirmed)
+                .expect("the held call is answered");
+        };
+        let (answered, ()) = tokio::join!(asking, answering);
+        assert!(
+            answered.ends,
+            "a session whose call was confirmed once MCP was off went on: {answered:?}"
+        );
+        assert!(
+            matches!(&answered.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonMcpOff),
+            "{answered:?}"
+        );
+        assert!(
+            !serving
+                .kernel
+                .settings()
+                .await
+                .expect("the switch reads")
+                .mcp,
+            "MCP stays off"
+        );
+        assert!(
+            serving
+                .decided("settings.mcp.set")
+                .await
+                .iter()
+                .all(|(principal, _)| *principal != agent),
+            "the agent's switch is journaled nowhere"
+        );
+        serving.server.attached.fetch_sub(1, Ordering::SeqCst);
+        drop(opened);
+        serving.closed().await;
+    }
+
+    /// A scratch directory of this module's tests, removed however the test
+    /// leaves.
+    struct Scratch(std::path::PathBuf);
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    impl Scratch {
+        /// A private directory of its own, under the temporary one.
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("nc-ldr-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            nc_platform::create_private_directory(&root).expect("a scratch");
+            Self(root)
+        }
+    }
+
+    /// A press of the Leader starts the desktop again where the one started
+    /// last is gone: the daemon's own press and a person's `leader.tap`
+    /// alike.
+    ///
+    /// **Before anything is dispatched**, so it holds of a daemon whose kernel
+    /// does not run yet and refuses the dispatch: with an environment naming a
+    /// display announced, the daemon's own press starts a desktop; once it
+    /// ended, a person's `leader.tap` starts another; once that ended, the
+    /// daemon's own press starts a third.
+    #[tokio::test]
+    async fn a_press_of_the_leader_starts_the_desktop_again_where_the_one_started_last_is_gone() {
+        let scratch = Scratch::new();
+        let ends = scratch.0.join("ends");
+        let desktop = crate::desktop::waiting_for(&ends, scratch.0.join("desktop.err"));
+        let server = Arc::new(a_server_starting(nc_channel::Channel::Staging, desktop));
+        server.display(a_display(":99"));
+        assert_eq!(server.desktop.running(), None, "nothing started yet");
+        let ended = || {
+            drop(nc_platform::create_private(&ends).expect("the end is told"));
+            let deadline = std::time::Instant::now() + crate::testing::PATIENCE;
+            while server.desktop.running().is_some() {
+                assert!(std::time::Instant::now() < deadline, "it never ended");
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            std::fs::remove_file(&ends).expect("the end is taken back");
+        };
+        server.leader_pressed().await;
+        assert!(
+            server.desktop.running().is_some(),
+            "the daemon's own press started no desktop"
+        );
+        ended();
+        let tap = Request::Dispatch {
+            command: nc_ipc::leader::TAP.to_owned(),
+            args: nc_ipc::leader::tap(),
+        };
+        let tapped = server.asked(tap).await;
+        assert!(
+            matches!(&tapped.answer, Answer::Refused(refusal)
+                if refusal.code == ErrorCode::DaemonNotRunning),
+            "{tapped:?}"
+        );
+        assert!(
+            server.desktop.running().is_some(),
+            "a person's `leader.tap` started no desktop again"
+        );
+        ended();
+        server.leader_pressed().await;
+        assert!(
+            server.desktop.running().is_some(),
+            "the daemon's own press started no desktop again"
+        );
+        ended();
     }
 
     /// What `answer` is when it is a watch's: its revision and its state.

@@ -3549,6 +3549,12 @@ async fn never() {
     core::future::pending::<()>().await;
 }
 
+/// What the asker of a held call says of it once its person confirmed it:
+/// still admitted, as the person's own call always is.
+fn admitted() -> core::future::Ready<Result<(), Refusal>> {
+    core::future::ready(Ok(()))
+}
+
 /// The first call held for a confirmation once `moves` tells one is — a
 /// failure, not a wait without end, when none is held within a minute.
 async fn first_held(moves: &mut tokio::sync::watch::Receiver<Vec<u64>>) -> u64 {
@@ -3580,7 +3586,9 @@ async fn a_call_held_for_a_confirmation_runs_only_once_the_person_confirms_it() 
     let done = "reference.irreversible.do";
     let mut moves = fixture.kernel.pending_moves();
     assert!(moves.borrow().is_empty(), "nothing is held at first");
-    let holding = fixture.kernel.dispatch_held(&caller, done, &args, never());
+    let holding = fixture
+        .kernel
+        .dispatch_held(&caller, done, &args, never(), admitted);
     let answering = async {
         let serial = first_held(&mut moves).await;
         assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
@@ -3680,7 +3688,9 @@ async fn a_call_held_and_declined_or_left_unanswered_is_refused_with_what_came_o
     let args = note("photo", None);
     let done = "reference.irreversible.do";
     let mut moves = fixture.kernel.pending_moves();
-    let holding = fixture.kernel.dispatch_held(&caller, done, &args, never());
+    let holding = fixture
+        .kernel
+        .dispatch_held(&caller, done, &args, never(), admitted);
     let declining = async {
         let serial = first_held(&mut moves).await;
         fixture
@@ -3697,7 +3707,7 @@ async fn a_call_held_and_declined_or_left_unanswered_is_refused_with_what_came_o
     let began = tokio::time::Instant::now();
     let lapsed = fixture
         .kernel
-        .dispatch_held(&caller, done, &args, core::future::ready(()))
+        .dispatch_held(&caller, done, &args, core::future::ready(()), admitted)
         .await;
     assert!(
         is(
@@ -3714,7 +3724,7 @@ async fn a_call_held_and_declined_or_left_unanswered_is_refused_with_what_came_o
     let began = tokio::time::Instant::now();
     let unanswered = fixture
         .kernel
-        .dispatch_held(&caller, done, &args, never())
+        .dispatch_held(&caller, done, &args, never(), admitted)
         .await;
     let waited = began.elapsed();
     tokio::time::resume();
@@ -3746,6 +3756,14 @@ async fn a_call_held_and_declined_or_left_unanswered_is_refused_with_what_came_o
     );
 }
 
+/// Each of MCP's switches `entries` holds, by its outcome and what decided it.
+fn switches_decided(entries: &[Entry]) -> Vec<(Outcome, Option<&str>)> {
+    entries_of(entries, MCP_SET)
+        .into_iter()
+        .map(|entry| (entry.record.result, deciding(entry)))
+        .collect()
+}
+
 /// MCP switched on waits for the person's confirmation as a call that cannot
 /// be undone does, and switched off never waits.
 ///
@@ -3771,7 +3789,9 @@ async fn mcp_switched_on_waits_for_the_persons_confirmation_and_switched_off_nev
             .mcp
     };
     let mut moves = fixture.kernel.pending_moves();
-    let holding = fixture.kernel.dispatch_held(&caller, MCP_SET, on, never());
+    let holding = fixture
+        .kernel
+        .dispatch_held(&caller, MCP_SET, on, never(), admitted);
     let answering = async {
         let serial = first_held(&mut moves).await;
         assert!(!mcp().await, "MCP is off while the switch waits");
@@ -3798,11 +3818,13 @@ async fn mcp_switched_on_waits_for_the_persons_confirmation_and_switched_off_nev
     assert!(mcp().await, "MCP is on once she confirmed it");
     let switched_off = fixture
         .kernel
-        .dispatch_held(&caller, MCP_SET, off, never())
+        .dispatch_held(&caller, MCP_SET, off, never(), admitted)
         .await;
     assert_eq!(switched_off.as_deref(), Ok(off), "off is never held");
     assert!(!mcp().await);
-    let holding = fixture.kernel.dispatch_held(&caller, MCP_SET, on, never());
+    let holding = fixture
+        .kernel
+        .dispatch_held(&caller, MCP_SET, on, never(), admitted);
     let declining = async {
         let serial = first_held(&mut moves).await;
         fixture
@@ -3817,7 +3839,7 @@ async fn mcp_switched_on_waits_for_the_persons_confirmation_and_switched_off_nev
     );
     let lapsed = fixture
         .kernel
-        .dispatch_held(&caller, MCP_SET, on, core::future::ready(()))
+        .dispatch_held(&caller, MCP_SET, on, core::future::ready(()), admitted)
         .await;
     assert!(
         is(
@@ -3840,10 +3862,7 @@ async fn mcp_switched_on_waits_for_the_persons_confirmation_and_switched_off_nev
     assert!(moves.borrow().is_empty(), "nothing is held any more");
     let entries = fixture.entries().await;
     none_malformed(&entries);
-    let decided: Vec<(Outcome, Option<&str>)> = entries_of(&entries, MCP_SET)
-        .into_iter()
-        .map(|entry| (entry.record.result, deciding(entry)))
-        .collect();
+    let decided = switches_decided(&entries);
     let refused = (Outcome::Denied, Some("kernel.mcp_on_needs_confirmation"));
     assert_eq!(
         decided,
@@ -3876,7 +3895,7 @@ async fn an_agents_call_held_for_a_confirmation_runs_once_its_person_confirms_it
     let mut moves = fixture.kernel.pending_moves();
     let holding = fixture
         .kernel
-        .dispatch_held(&assistant, done, &args, never());
+        .dispatch_held(&assistant, done, &args, never(), admitted);
     let answering = async {
         let serial = first_held(&mut moves).await;
         let listed = fixture
@@ -3923,6 +3942,173 @@ async fn an_agents_call_held_for_a_confirmation_runs_once_its_person_confirms_it
     assert_eq!(entry.record.result, Outcome::Allowed, "{entry:?}");
 }
 
+/// A call its asker no longer admits once its person confirmed it runs
+/// nowhere and is journaled nowhere, answered with its asker's refusal.
+///
+/// **What lets an agent's call in is its asker's to read again**: ana's
+/// assistant asks for `reference.irreversible.do`, held; while it waits its
+/// asker stops admitting it — as the daemon does once MCP is switched off —
+/// and ana confirms it: the answer is the asker's refusal, the plugin never
+/// ran, no entry of the command is journaled, and the session spent the one
+/// unit it spent when the call was first decided. A call declined is refused
+/// as declined without its asker being asked.
+#[tokio::test]
+async fn a_confirmed_call_its_asker_no_longer_admits_runs_nowhere_and_is_journaled_nowhere() {
+    let fixture = reference_an_agent_writes_in().await;
+    let assistant = fixture.the_assistant().await;
+    let args = note("photo", None);
+    let done = "reference.irreversible.do";
+    let spent = assistant.spent();
+    let mut moves = fixture.kernel.pending_moves();
+    let switched_off = || {
+        core::future::ready(Err(Refusal::new(
+            RefusalKind::Denied,
+            ErrorCode::DaemonMcpOff,
+            "MCP was switched off while the call waited".to_owned(),
+        )))
+    };
+    let holding = fixture
+        .kernel
+        .dispatch_held(&assistant, done, &args, never(), switched_off);
+    let confirming = async {
+        let serial = first_held(&mut moves).await;
+        fixture
+            .kernel
+            .settle(serial, nc_kernel::Settled::Confirmed)
+            .expect("answered");
+    };
+    let (held, ()) = tokio::join!(holding, confirming);
+    assert!(
+        is(&held, RefusalKind::Denied, ErrorCode::DaemonMcpOff),
+        "a call its asker no longer admits is answered with its asker's refusal: {held:?}"
+    );
+    assert_eq!(fixture.held("noctua:reference", "done/photo").await, None);
+    assert_eq!(
+        assistant.spent(),
+        spent + 1,
+        "spent once, when first decided"
+    );
+    let entries = fixture.entries().await;
+    none_malformed(&entries);
+    assert!(
+        entries_of(&entries, done).is_empty(),
+        "a call its asker no longer admits is journaled nowhere: {entries:?}"
+    );
+    let asked_of_a_declined_call = || -> core::future::Ready<Result<(), Refusal>> {
+        panic!("a declined call is never asked of its asker")
+    };
+    let holding =
+        fixture
+            .kernel
+            .dispatch_held(&assistant, done, &args, never(), asked_of_a_declined_call);
+    let declining = async {
+        let serial = first_held(&mut moves).await;
+        fixture
+            .kernel
+            .settle(serial, nc_kernel::Settled::Declined)
+            .expect("answered");
+    };
+    let (declined, ()) = tokio::join!(holding, declining);
+    assert!(
+        is(&declined, RefusalKind::Denied, ErrorCode::KernelDeclined),
+        "{declined:?}"
+    );
+}
+
+/// An answer the person gave as the wait ended is the one the call is
+/// decided by, and an answer to a call nobody waits for any more answers
+/// nothing.
+///
+/// **Both at once, many times over**: ana's call is held, answered — each
+/// round confirmed or declined in turn, `settle` saying it was answered — and
+/// its wait ended before the call is looked at again; it runs when
+/// confirmed and is refused as declined when declined, never as not
+/// confirmed in time. Then a call whose asker stopped waiting — its future
+/// dropped while it was held — is answered with `[NC-KERN-0031]`, and nothing
+/// is held any more.
+#[tokio::test]
+async fn an_answer_given_as_the_wait_ends_decides_the_call_and_one_nobody_waits_for_answers_nothing()
+ {
+    let fixture = reference_and_peer().await;
+    let caller = Caller::new(fixture.principal("ana"));
+    let done = "reference.irreversible.do";
+    let mut moves = fixture.kernel.pending_moves();
+    let args = note("photo", None);
+    for round in 0..24_u32 {
+        let (end, ended) = tokio::sync::oneshot::channel::<()>();
+        let lapsed = async move {
+            let _ = ended.await;
+        };
+        let mut holding = core::pin::pin!(
+            fixture
+                .kernel
+                .dispatch_held(&caller, done, &args, lapsed, admitted)
+        );
+        let serial = tokio::select! {
+            biased;
+            serial = first_held(&mut moves) => serial,
+            answered = &mut holding => panic!("answered before it was held: {answered:?}"),
+        };
+        let confirmed = round % 2 == 0;
+        let settled = if confirmed {
+            nc_kernel::Settled::Confirmed
+        } else {
+            nc_kernel::Settled::Declined
+        };
+        fixture
+            .kernel
+            .settle(serial, settled)
+            .expect("the held call is answered");
+        end.send(()).expect("the wait is still there to end");
+        let decided = holding.await;
+        if confirmed {
+            decided.unwrap_or_else(|refusal| {
+                panic!("round {round}: answered as confirmed, it was refused: {refusal:?}")
+            });
+        } else {
+            assert!(
+                is(&decided, RefusalKind::Denied, ErrorCode::KernelDeclined),
+                "round {round}: answered as declined: {decided:?}"
+            );
+        }
+    }
+    let entries = fixture.entries().await;
+    let ran = entries_of(&entries, done)
+        .iter()
+        .filter(|entry| entry.record.result == Outcome::Allowed)
+        .count();
+    assert_eq!(ran, 12, "each round confirmed ran once");
+    let serial = {
+        let mut holding =
+            core::pin::pin!(
+                fixture
+                    .kernel
+                    .dispatch_held(&caller, done, &args, never(), admitted)
+            );
+        tokio::select! {
+            biased;
+            serial = first_held(&mut moves) => serial,
+            answered = &mut holding => panic!("answered before it was held: {answered:?}"),
+        }
+    };
+    let answered = fixture.kernel.settle(serial, nc_kernel::Settled::Confirmed);
+    assert!(
+        is(
+            &answered,
+            RefusalKind::NotFound,
+            ErrorCode::KernelNothingHeld
+        ),
+        "a call nobody waits for any more answers nothing: {answered:?}"
+    );
+    assert!(moves.borrow().is_empty(), "nothing is held any more");
+    let entries = fixture.entries().await;
+    assert_eq!(
+        entries_of(&entries, done).len(),
+        24,
+        "a call nobody waits for any more is decided nowhere once answered"
+    );
+}
+
 /// No more calls are held than `confirmations_pending_max`, and one past it
 /// is refused at once, as with nobody to confirm it.
 ///
@@ -3946,7 +4132,11 @@ async fn no_more_calls_are_held_than_the_bound_and_no_command_answers_one() {
             let _ = ended.wait_for(|ended| *ended).await;
         }
     };
-    let hold = || fixture.kernel.dispatch_held(&caller, done, &args, lapsed());
+    let hold = || {
+        fixture
+            .kernel
+            .dispatch_held(&caller, done, &args, lapsed(), admitted)
+    };
     let mut moves = fixture.kernel.pending_moves();
     let checking = async {
         let serials = tokio::time::timeout(
@@ -3959,7 +4149,7 @@ async fn no_more_calls_are_held_than_the_bound_and_no_command_answers_one() {
         .clone();
         let past = fixture
             .kernel
-            .dispatch_held(&caller, done, &args, never())
+            .dispatch_held(&caller, done, &args, never(), admitted)
             .await;
         assert!(
             is(&past, RefusalKind::Denied, ErrorCode::KernelUnconfirmed),

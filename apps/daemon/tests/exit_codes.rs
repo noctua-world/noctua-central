@@ -9,9 +9,19 @@
 //! a namespace of its own (`nc_daemon::testing::Installed`), with the
 //! reference plugin installed and granted what its commands reach for but the
 //! network; and 11, process control's, against the same install with no
-//! daemon running, and with one that ends before it answers. One outcome of
-//! the table is not run here, because no daemon brings it about: 1, the CLI
-//! unable to write what it answered, which `noctua`'s own unit tests hold. It
+//! daemon running, and with one that ends before it answers. **Four outcomes
+//! of the table are not run here.** 1, the CLI unable to write what it
+//! answered, and 13, a picker left without a choice, which no daemon brings
+//! about: `noctua`'s own unit tests hold them, the second
+//! `at_a_terminal_the_picker_leaves_in_its_own_code_or_chooses_the_checkout_selected`
+//! in `apps/cli/src/checkouts.rs`. And 14 and 15, a call held for a person's
+//! confirmation not confirmed in time and declined, which need the desktop
+//! interface a daemon starts attached: the daemon's
+//! `a_desktop_the_daemon_started_attaches_and_answers_what_waits_and_nothing_else_does`
+//! in `apps/daemon/src/desktop.rs` runs the CLI against a daemon a child of
+//! its test binary serves, its desktop another child, and ends a run in 15
+//! with `NC-KERN-0030` and `NC-KERN-0034`, and one in 14 with
+//! `NC-KERN-0029` once the daemon stops while the call waits. This suite
 //! spawns a process, so no mutation command runs it.
 
 use std::ffi::OsString;
