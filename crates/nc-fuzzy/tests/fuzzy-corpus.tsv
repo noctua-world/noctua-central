@@ -4,7 +4,9 @@
 # Rust core, and noctua-design's matcher replays the same rows from the copy it
 # vendors. A row is a claim about the rule, so a change to the rule changes a row
 # in the same edit, and a row nobody can explain is a defect in the rule or in
-# the row.
+# the row. FUZZY_CORPUS_SHA256 in xtask/src/check.rs pins this file by its
+# SHA-256, so any edit to it, a comment's too, changes that pin in the same edit,
+# and noctua-design's copy is refreshed from it.
 #
 # Tab-separated, one row per line; a line opening with # is a comment, and a
 # blank line is nothing.

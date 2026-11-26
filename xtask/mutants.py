@@ -329,6 +329,9 @@ SOURCES = {
     "history": os.path.join(ROOT, "xtask/src/history.rs"),
     "ui": os.path.join(ROOT, "xtask/src/ui.rs"),
     "docs": os.path.join(ROOT, "xtask/src/docs.rs"),
+    # **SHA-256**, which the fuzzy core's corpus is pinned by: the standard's
+    # vectors and each side of its padding boundaries decide every clause.
+    "sha256": os.path.join(ROOT, "xtask/src/sha256.rs"),
     "registry": os.path.join(ROOT, "xtask/tests/the_registry_reaches_the_code.rs"),
     # **Files where a sweep by hand has found defects.** The struct reader's
     # raw-literal branch, a command's resource selector, a pack-bounded table's
@@ -1337,6 +1340,28 @@ WEAKENINGS = [
     ("docs", "already_there", "a page that differs is written",
      "    std::fs::read_to_string(path).is_ok_and(|on_disk| on_disk == contents)",
      "    std::fs::read_to_string(path).is_ok()"),
+    # -- sha256: the digest the fuzzy core's corpus is pinned by -------------
+    ("sha256", "padded", "the padding opens with a one bit",
+     "    padded.push(0x80);",
+     "    padded.push(0x01);"),
+    ("sha256", "padded", "the padding stops eight bytes short of a block's end",
+     "    while padded.len() % 64 != 56 {",
+     "    while padded.len() % 64 != 55 {"),
+    ("sha256", "padded", "the message's length is counted in bits",
+     "        .wrapping_mul(8);",
+     "        .wrapping_mul(1);"),
+    ("sha256", "hex", "a block's words are read big-endian",
+     "            *word = u32::from_be_bytes(*bytes);",
+     "            *word = u32::from_le_bytes(*bytes);"),
+    ("sha256", "hex", "the schedule's first sum turns its word by seven",
+     "            let s0 = early.rotate_right(7) ^ early.rotate_right(18) ^ (early >> 3);",
+     "            let s0 = early.rotate_right(8) ^ early.rotate_right(18) ^ (early >> 3);"),
+    ("sha256", "hex", "a block's result is added to the state rather than put in its place",
+     "            *slot = slot.wrapping_add(value);",
+     "            *slot = value;"),
+    ("sha256", "hex", "each word of the digest is written as eight digits",
+     "        let _ = write!(out, \"{word:08x}\");",
+     "        let _ = write!(out, \"{word:x}\");"),
     # -- registry: the only place a generated limit meets its file -----------
     ("registry", "every_limit_carries_its_own_numbers", "every declared table is compared",
      "    for (name, entry) in &catalog.limits.tables {",
@@ -5171,6 +5196,9 @@ WEAKENINGS = [
     ("check", "the_local_migrations_are_the_ones_pinned", "a local migration edited after a build carried it fails the step",
      "        if now != *pin {",
      "        if false {"),
+    ("check", "as_pinned", "a fuzzy corpus whose bytes are not the ones pinned fails the step",
+     "    if actual == pin {",
+     "    if true {"),
     ("check", "unset_what_proptest_reads", "a variable proptest reads never reaches the gate's cargo",
      "        if name.as_encoded_bytes().starts_with(b\"PROPTEST_\") {",
      "        if false {"),
@@ -10699,6 +10727,7 @@ SUITES = {
     "history": ["corpus::", "limits::", "history::"],
     "ui": ["corpus::", "limits::", "ui::"],
     "docs": ["corpus::", "limits::", "docs::"],
+    "sha256": ["corpus::", "limits::", "sha256::"],
     # The plugin build's own module, which is where its rules are decided.
     "plugins": ["corpus::", "limits::", "plugins::"],
     # The local database's gates, decided by their own module: the schema

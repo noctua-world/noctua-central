@@ -679,6 +679,9 @@ fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
             failures.push("the design system is not declared".to_owned());
         }
     }
+    // **And the one file the design system copies from this tree**, which its
+    // own gate holds to a record of its own and never compares with this one.
+    the_fuzzy_corpus_is_the_one_pinned(root, failures);
 
     // The stack is one file, and `.gitignore` says so.
     let (extra, looked) = gates::a_second_compose_file(root);
@@ -3909,7 +3912,7 @@ fn the_excused_lines_are_counted(
 /// off for nothing, and it tells a reader the line was thought about.
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
-    ("allow-reference:", 73),
+    ("allow-reference:", 74),
     ("allow-logging:", 85),
     ("allow-nondeterminism:", 24),
     ("allow-count:", 12),
@@ -4037,7 +4040,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 79] = [
     ("xtask/src/check.rs", "allow-count:", 1),
     ("xtask/src/check.rs", "allow-logging:", 6),
     ("xtask/src/check.rs", "allow-nondeterminism:", 3),
-    ("xtask/src/check.rs", "allow-reference:", 9),
+    ("xtask/src/check.rs", "allow-reference:", 10),
     ("xtask/src/check.rs", "nc:bounded:", 6),
     ("xtask/src/check.rs", "nc:narrows:", 2),
     ("xtask/src/corpus.rs", "allow-logging:", 1),
@@ -4138,7 +4141,7 @@ const EXCUSED_IN: [(&str, usize); 52] = [
     ("xtask/canaries/README.md", 1),
     ("xtask/mutants.py", 2),
     ("xtask/src/build.rs", 7),
-    ("xtask/src/check.rs", 27),
+    ("xtask/src/check.rs", 28),
     ("xtask/src/corpus.rs", 5),
     ("xtask/src/counts.rs", 11),
     ("xtask/src/determinism.rs", 3),
@@ -4527,6 +4530,68 @@ fn the_formatter_config_stops_here(root: &Path, failures: &mut Vec<String>) {
              it; `edition` is the only setting it needs",
         );
         failures.push("rustfmt.toml is missing".to_owned());
+    }
+}
+
+/// The fuzzy core's corpus: the rule `nc-fuzzy` is held to, written as rows.
+const FUZZY_CORPUS: &str = "crates/nc-fuzzy/tests/fuzzy-corpus.tsv";
+
+/// The SHA-256 of [`FUZZY_CORPUS`], as `sha256sum` writes it.
+///
+/// **`noctua-design` keeps a copy of the corpus**, vendored at
+/// `assets/vendor/nc-fuzzy/fuzzy-corpus.tsv` with its own recorded checksum in <!-- allow-reference: names `assets/vendor/nc-fuzzy/fuzzy-corpus.tsv`, a path in noctua-design and not in this repository -->
+/// the `SHA256SUMS` beside it, and replays every row against its matcher. Its
+/// gate holds that copy to that record and never reads this repository, so a
+/// row changed here is one its matcher has not learned. **When this changes,
+/// that copy and its record must be refreshed**, in `noctua-design`, from the
+/// file as committed here: the line its `SHA256SUMS` holds is this value.
+///
+/// The pin is what makes a change seen: any byte of the corpus changed, a
+/// comment's included, fails `cargo xtask check` until this is written again
+/// in the same edit.
+const FUZZY_CORPUS_SHA256: &str =
+    "9887e4dbd57031b4e3cbc02fffb3f2fc071f71e32bb53427848dfd78478c8061";
+
+/// Reports whether the fuzzy core's corpus is the one [`FUZZY_CORPUS_SHA256`] pins.
+fn the_fuzzy_corpus_is_the_one_pinned(root: &Path, failures: &mut Vec<String>) {
+    let corpus = std::fs::read(root.join(FUZZY_CORPUS)).ok();
+    match as_pinned(corpus.as_deref(), FUZZY_CORPUS_SHA256) {
+        Ok(()) => ui::ok(&format!(
+            "{FUZZY_CORPUS} is the corpus pinned, {}…",
+            &FUZZY_CORPUS_SHA256[..12]
+        )),
+        Err(problem) => {
+            ui::failure(&problem);
+            ui::detail(
+                "a row changed is a rule noctua-design's matcher has not learned: write \
+                 the new checksum into the pin in the same edit, and refresh the copy \
+                 noctua-design vendors under assets/vendor/nc-fuzzy/ and its SHA256SUMS \
+                 from the file as committed",
+            );
+            failures.push("the fuzzy corpus is not the one pinned".to_owned());
+        }
+    }
+}
+
+/// Whether `corpus` is the file `pin` names, by its SHA-256 as `sha256sum` writes it.
+///
+/// `corpus` is the file's bytes, `None` when it could not be read, so the rule
+/// is tested without a directory.
+///
+/// # Errors
+///
+/// A sentence naming what differs: a corpus that could not be read, or the
+/// checksum it has beside the one pinned.
+fn as_pinned(corpus: Option<&[u8]>, pin: &str) -> Result<(), String> {
+    let corpus = corpus.ok_or_else(|| format!("{FUZZY_CORPUS} could not be read"))?;
+    let actual = crate::sha256::hex(corpus);
+    if actual == pin {
+        Ok(())
+    } else {
+        Err(format!(
+            "{FUZZY_CORPUS} hashes to {actual}, and `FUZZY_CORPUS_SHA256` in \
+             xtask/src/check.rs pins {pin}"
+        ))
     }
 }
 
@@ -8036,7 +8101,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1077] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1081] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8497,6 +8562,10 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1077] = [
     "a local migration's pin was compared with nothing",
     "the local migrations could not be read as a set",
     "{compared} of the {} local migration(s) `LOCAL_MIGRATIONS_ON_DISK` pins were read from `{}/` by `sqlx`, so the rest were compared with nothing",
+    "{FUZZY_CORPUS} hashes to {actual}, and `FUZZY_CORPUS_SHA256` in xtask/src/check.rs pins {pin}",
+    "{FUZZY_CORPUS} could not be read",
+    "the fuzzy corpus is not the one pinned",
+    "a row changed is a rule noctua-design's matcher has not learned: write the new checksum into the pin in the same edit, and refresh the copy noctua-design vendors under assets/vendor/nc-fuzzy/ and its SHA256SUMS from the file as committed",
     "no CREATE TABLE was read, so nothing checked that a table declares its bound",
     "no Cargo.toml was found anywhere in the tree, so the manifest gates inspected nothing and would have passed by not looking",
     "no cargo command was read from the workflow, so nothing checked that CI runs the gate",
@@ -11320,7 +11389,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 799] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 800] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -12140,6 +12209,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 799] = [
     "a Wayland compositor delivers the Leader, {chord}, by a key binding of its own, and nothing edits its configuration for you: bind {chord} to run {command} there",
     "this shell names no graphical session, so how the Leader, {chord}, reaches Noctua is not known here; in a Wayland session, bind {chord} to run {command} in the compositor's configuration",
     "{} {{ spawn \"{program}\" \"leader\"; }}",
+    // What `check` says of the fuzzy core's corpus when it is the one pinned.
+    "{FUZZY_CORPUS} is the corpus pinned, {}…",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -13759,6 +13830,44 @@ mod tests {
 
     fn root() -> &'static Path {
         Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
+    }
+
+    /// The fuzzy core's corpus is the one pinned, and one byte of it changed
+    /// anywhere is not.
+    ///
+    /// The digest is `sha256sum`'s, so the pin is the line `noctua-design`'s
+    /// `SHA256SUMS` writes for its copy: the hash of the file on disk, a few
+    /// kilobytes over many blocks, is held to a value that tool computed.
+    #[test]
+    fn the_fuzzy_corpus_is_held_to_its_pin_to_the_byte() {
+        use super::{FUZZY_CORPUS, FUZZY_CORPUS_SHA256, as_pinned};
+        let corpus = std::fs::read(root().join(FUZZY_CORPUS)).expect("the corpus is readable");
+        assert_eq!(as_pinned(Some(&corpus), FUZZY_CORPUS_SHA256), Ok(()));
+        // One bit of one byte, at the first, one in the middle and the last.
+        for at in [0, corpus.len() / 2, corpus.len() - 1] {
+            let mut edited = corpus.clone();
+            edited[at] ^= 1;
+            let refused = as_pinned(Some(&edited), FUZZY_CORPUS_SHA256)
+                .expect_err("a byte changed is not the corpus pinned");
+            assert_eq!(
+                refused,
+                format!(
+                    "{FUZZY_CORPUS} hashes to {}, and `FUZZY_CORPUS_SHA256` in \
+                     xtask/src/check.rs pins {FUZZY_CORPUS_SHA256}",
+                    crate::sha256::hex(&edited)
+                ),
+                "byte {at}"
+            );
+        }
+        // And one byte more, or one fewer.
+        let mut longer = corpus.clone();
+        longer.push(b'\n');
+        assert!(as_pinned(Some(&longer), FUZZY_CORPUS_SHA256).is_err());
+        assert!(as_pinned(Some(&corpus[..corpus.len() - 1]), FUZZY_CORPUS_SHA256).is_err());
+        assert_eq!(
+            as_pinned(None, FUZZY_CORPUS_SHA256),
+            Err(format!("{FUZZY_CORPUS} could not be read"))
+        );
     }
 
     /// The fetch counts what it downloads: a registry's packages, not the
@@ -19632,7 +19741,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 242] = [
+    const DOCUMENTED: [(&str, usize, usize); 243] = [
         ("cli/args.rs", 52, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19861,7 +19970,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 134, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
-        ("xtask/check.rs", 688, 57),
+        ("xtask/check.rs", 693, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19873,13 +19982,14 @@ mod the_frozen_path_rule {
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
-        ("xtask/main.rs", 3, 25),
+        ("xtask/main.rs", 3, 26),
         ("xtask/members.rs", 44, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
+        ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 58, 20),
         ("xtask/the_registry_reaches_the_code.rs", 43, 22),
@@ -25837,7 +25947,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23085;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23117;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25856,7 +25966,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6555;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6562;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25873,7 +25983,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2222;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2224;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25907,7 +26017,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30328;
+    const THE_REARRANGEMENTS_JUDGED: usize = 30364;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25961,7 +26071,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **557 of 30,328 are accepted by the first-line
+    /// rules the gates apply: **557 of 30,364 are accepted by the first-line
     /// rule alone, and 302 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25994,7 +26104,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2222 of
+    /// this tree offers, **2224 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28545,7 +28655,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 799;
+    const THE_REST_IT_SAYS: usize = 800;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28693,7 +28803,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 512] = [
+    static WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 515] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29336,6 +29446,12 @@ mod the_frozen_path_rule {
             "every generated file is formatted by rustfmt, so a configuration file anywhere above this tree silently changes the generated bytes — measured at six of fifteen files, with both determinism gates still green. Restore it; `edition` is the only setting it needs",
         ),
         ("else", "rustfmt.toml is missing"),
+        ("—", "{FUZZY_CORPUS} is the corpus pinned, {}…"),
+        (
+            "Err(problem) =>",
+            "a row changed is a rule noctua-design's matcher has not learned: write the new checksum into the pin in the same edit, and refresh the copy noctua-design vendors under assets/vendor/nc-fuzzy/ and its SHA256SUMS from the file as committed",
+        ),
+        ("Err(problem) =>", "the fuzzy corpus is not the one pinned"),
         (
             "if let Err(problem) = exactly(declared, written, \"declared setting\")",
             "the .env.example walk did not judge every setting",
@@ -30273,7 +30389,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 119] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 120] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -30390,6 +30506,7 @@ mod the_frozen_path_rule {
             "if let Err(problem) = inspected_all(judged, manifests.len(), COLOURS)",
             "&problem",
         ),
+        ("Err(problem) =>", "&problem"),
         (
             "if let Err(problem) = exactly(declared, written, \"declared setting\")",
             "&problem",
@@ -30564,7 +30681,7 @@ mod the_frozen_path_rule {
             "not_applicable",
         ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
-        const THE_SOURCES: usize = 23;
+        const THE_SOURCES: usize = 24;
 
         let here = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut imported: Vec<String> = Vec::new();
@@ -38037,7 +38154,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 256,
+            walked, 257,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38077,7 +38194,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3014] = [
+    static OPERATORS: [(&str, &str, &str); 3022] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38812,6 +38929,33 @@ Options:
         ("ui", "warn", "a skip is declared at the start of its line"),
         ("ui", "warn", "and the colon is what declares it"),
         ("docs", "already_there", "a page that differs is written"),
+        ("sha256", "padded", "the padding opens with a one bit"),
+        (
+            "sha256",
+            "padded",
+            "the padding stops eight bytes short of a block's end",
+        ),
+        (
+            "sha256",
+            "padded",
+            "the message's length is counted in bits",
+        ),
+        ("sha256", "hex", "a block's words are read big-endian"),
+        (
+            "sha256",
+            "hex",
+            "the schedule's first sum turns its word by seven",
+        ),
+        (
+            "sha256",
+            "hex",
+            "a block's result is added to the state rather than put in its place",
+        ),
+        (
+            "sha256",
+            "hex",
+            "each word of the digest is written as eight digits",
+        ),
         (
             "registry",
             "every_limit_carries_its_own_numbers",
@@ -43685,6 +43829,11 @@ Options:
             "check",
             "the_local_migrations_are_the_ones_pinned",
             "a local migration edited after a build carried it fails the step",
+        ),
+        (
+            "check",
+            "as_pinned",
+            "a fuzzy corpus whose bytes are not the ones pinned fails the step",
         ),
         (
             "check",

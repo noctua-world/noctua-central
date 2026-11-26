@@ -557,7 +557,8 @@ and
 the two stores that need a database — `nc-journal`'s `postgres.rs` and
 `nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the history step's
 `history.rs`, the console's `ui.rs`, the
-documentation step's `docs.rs`, one integration test,
+documentation step's `docs.rs`, the `sha256.rs` the fuzzy core's corpus is
+pinned by, one integration test,
 `the_registry_reaches_the_code.rs`, which is the only place a generated limit is
 held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
 `memory.rs` and `unit.rs`, the compiler's `load.rs`, `emit.rs` and its own

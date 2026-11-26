@@ -38,9 +38,10 @@
 //!
 //! `crates/nc-fuzzy/tests/fuzzy-corpus.tsv` is the rule written as rows — every
 //! fold, split, match and ranking it decides — and this crate's suite replays
-//! each row. `noctua-design`'s matcher is brought to the same rows when the
-//! interface arrives (`NOCTUA-PLAN.md`, Stage 16), so the two cannot drift
-//! apart while each passes its own tests.
+//! each row. `noctua-design`'s matcher replays the same rows from a copy that
+//! repository vendors, refreshed by hand; `cargo xtask check` pins the file by
+//! its SHA-256, so a row cannot change here unseen, and the pin is the line
+//! the copy's own record must hold once it is refreshed.
 //!
 //! # The security answer `NOCTUA.md §2.4` asks for
 //!
