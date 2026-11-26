@@ -24,13 +24,13 @@
 //! **A refusal is told, never dropped** ([`refusal`]): each kind of
 //! `nc_platform::leader::Refused` is a code of the catalog's, so the process
 //! that was refused hands it on rather than running on in silence — the
-//! daemon in its status and its log, and the desktop interface, once it is
-//! built, on its info line in the person's language.
+//! daemon in its status and its log, and the desktop interface on its info
+//! line, in the person's language.
 //!
-//! **Which process asks is decided here for every system, and only the
-//! daemon asks yet**: the desktop interface, the listener on Linux and macOS,
-//! is not built, so on those systems a press reaches the kernel only through
-//! `noctua leader` until it is.
+//! **Which process asks is decided here for every system**: the daemon on
+//! Windows, and on Linux and macOS the desktop interface, on its event loop's
+//! thread, for as long as it runs — so where no desktop runs, a press reaches
+//! the kernel only through `noctua leader`.
 //!
 //! # What this does not answer
 //!

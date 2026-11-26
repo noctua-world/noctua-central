@@ -19863,7 +19863,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 263] = [
+    const DOCUMENTED: [(&str, usize, usize); 266] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -19912,11 +19912,14 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
         ("desktop/assets.rs", 19, 3),
-        ("desktop/client.rs", 12, 1),
+        ("desktop/client.rs", 13, 1),
+        ("desktop/commands.rs", 35, 6),
+        ("desktop/drawer.rs", 24, 3),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 77, 4),
-        ("desktop/host.rs", 54, 10),
-        ("desktop/lib.rs", 0, 8),
+        ("desktop/footer.rs", 78, 4),
+        ("desktop/host.rs", 92, 11),
+        ("desktop/keys.rs", 29, 3),
+        ("desktop/lib.rs", 0, 11),
         ("desktop/main.rs", 22, 6),
         ("desktop/mirror.rs", 84, 19),
         ("desktop/page.rs", 16, 1),
@@ -20052,7 +20055,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 27, 1),
-        ("nc-kernel/shell.rs", 207, 35),
+        ("nc-kernel/shell.rs", 209, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 316, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -22921,8 +22924,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 931 scratches this tree
-    /// builds, 843 of the 931 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 932 scratches this tree
+    /// builds, 844 of the 932 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23020,7 +23023,7 @@ mod the_frozen_path_rule {
         ("desktop/following_the_daemon.rs", 3, 3),
         ("desktop/main.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 273, 273),
+        ("nc-catalog-compiler/the_gates_fire.rs", 274, 274),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -26095,7 +26098,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24330;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24555;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26114,7 +26117,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7373;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7545;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26131,7 +26134,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2522;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2582;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26148,7 +26151,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [166, 32, 57, 58, 102];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [189, 32, 60, 62, 105];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26165,7 +26168,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31785;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32013;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26183,7 +26186,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 684;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 718;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26219,8 +26222,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **684 of 31,785 are accepted by the first-line
-    /// rule alone, and 415 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **718 of 32,013 are accepted by the first-line
+    /// rule alone, and 448 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26241,8 +26244,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **166 ascending sorts, 32 descending, 57
-    /// swaps, 58 rotations and 102 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **189 ascending sorts, 32 descending, 60
+    /// swaps, 62 rotations and 105 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26252,7 +26255,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2522 of
+    /// this tree offers, **2582 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38569,7 +38572,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 277,
+            walked, 280,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38609,7 +38612,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3227] = [
+    static OPERATORS: [(&str, &str, &str); 3258] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -53165,6 +53168,137 @@ Options:
             "this process shows the state's first window",
         ),
         ("desktop_host", "command", "a close is `window.close`"),
+        ("desktop_page", "SCRIPT", "the Leader going down is said"),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "a key pressed with the Leader held is said by its code",
+        ),
+        ("desktop_page", "SCRIPT", "a menu's key is said by its code"),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the keys are heard first, in the capture phase",
+        ),
+        (
+            "desktop_keys",
+            "pressed",
+            "a press without the keyboard is a tap at once",
+        ),
+        (
+            "desktop_keys",
+            "up",
+            "a hold with nothing else pressed is a tap",
+        ),
+        (
+            "desktop_keys",
+            "key",
+            "a key pressed with the Leader held makes the hold no tap",
+        ),
+        (
+            "desktop_keys",
+            "key",
+            "a key runs only while the Leader is held",
+        ),
+        (
+            "desktop_keys",
+            "held",
+            "the chord modifier held is the other table",
+        ),
+        ("desktop_keys", "menu", "the menu is the menu's table alone"),
+        ("desktop_keys", "blurred", "losing the keyboard ends a hold"),
+        (
+            "desktop_commands",
+            "found",
+            "a word colours only the name the row shows",
+        ),
+        (
+            "desktop_commands",
+            "clusters",
+            "a combining mark is drawn with its character",
+        ),
+        (
+            "desktop_commands",
+            "slot",
+            "a run of characters is written as a range",
+        ),
+        (
+            "desktop_commands",
+            "arguments",
+            "a command of one parameter takes the whole draft",
+        ),
+        (
+            "desktop_commands",
+            "arguments",
+            "a whole number is read as one",
+        ),
+        (
+            "desktop_commands",
+            "offered",
+            "a parameter given is not offered again",
+        ),
+        (
+            "desktop_commands",
+            "parameters_of",
+            "the required parameters come first",
+        ),
+        (
+            "desktop_drawer",
+            "view",
+            "the leader menu lists the bindings in force",
+        ),
+        (
+            "desktop_drawer",
+            "view",
+            "the command list's best is the keyboard's",
+        ),
+        ("desktop_drawer", "view", "an empty drawer is not there"),
+        (
+            "desktop_drawer",
+            "controls",
+            "the prompt names the command list",
+        ),
+        (
+            "desktop_drawer",
+            "TheDrawer",
+            "the leader menu fills the drawer in columns",
+        ),
+        (
+            "desktop_host",
+            "entry_asks",
+            "an entry that opens no page closes the menu first",
+        ),
+        (
+            "desktop_host",
+            "chosen_asks",
+            "a command with parameters keeps the prompt on it",
+        ),
+        (
+            "desktop_host",
+            "picked",
+            "only a value offered completes the draft",
+        ),
+        (
+            "desktop_host",
+            "sent_asks",
+            "the prompt is cleared once the command ran",
+        ),
+        (
+            "desktop_host",
+            "asks",
+            "a test's install asks the system for nothing",
+        ),
+        ("desktop_host", "escaped", "Esc clears a prompt that asks"),
+        (
+            "desktop_host",
+            "said",
+            "a held key is one of the vocabulary",
+        ),
+        (
+            "desktop_host",
+            "refused_said",
+            "a refusal is said in the window's locale",
+        ),
         (
             "desktop_client",
             "watched",

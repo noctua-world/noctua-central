@@ -230,6 +230,9 @@ pub struct View {
     pub info: Info,
     /// `prompt.set`'s display name, the prompt's.
     pub prompt: String,
+    /// The list the prompt filters, which it names in `aria-controls`: the
+    /// command list's, while the drawer shows it.
+    pub controls: Option<String>,
 }
 
 /// What the window knows of itself: its locale and its channel.
@@ -314,6 +317,7 @@ pub fn view(shell: Option<&Shell>, context: Context) -> View {
             collapse: title_of(Action::CollapseInfo.command(), locale),
         },
         prompt: title_of("prompt.set", locale),
+        controls: None,
     }
 }
 
@@ -345,6 +349,7 @@ pub fn TheFooter(view: View) -> Element {
         drawer,
         info,
         prompt,
+        controls,
     } = view;
     rsx! {
         Footer { label: NAME, visibility: FooterVisibility::Always, shown,
@@ -383,7 +388,7 @@ pub fn TheFooter(view: View) -> Element {
             }
             InfoLine { info }
             FooterLine { kind: FooterLineKind::Prompt,
-                Prompt { name: PROMPT, label: prompt }
+                Prompt { name: PROMPT, label: prompt, controls }
             }
             FooterCorner { side: FooterCornerSide::End }
         }
@@ -572,6 +577,10 @@ pub struct Drawing {
     drawn: String,
     /// The footer's markup the state shows.
     wanted: String,
+    /// The drawer's markup the page holds.
+    drawer_drawn: String,
+    /// The drawer's markup the state shows.
+    drawer_wanted: String,
     /// A draft to write into the page once it has loaded.
     waiting: Option<String>,
     /// What the page's prompt holds.
@@ -582,10 +591,13 @@ impl Drawing {
     /// The page as its document is built: its footer `markup`.
     #[must_use]
     pub fn new(markup: String) -> Self {
+        let drawer = crate::drawer::markup(&crate::drawer::View::hidden());
         Self {
             loaded: false,
             drawn: markup.clone(),
             wanted: markup,
+            drawer_drawn: drawer.clone(),
+            drawer_wanted: drawer,
             waiting: None,
             typed: Typed::default(),
         }
@@ -600,6 +612,10 @@ impl Drawing {
         if self.wanted != self.drawn {
             self.drawn.clone_from(&self.wanted);
             scripts.push(draw(&self.drawn));
+        }
+        if self.drawer_wanted != self.drawer_drawn {
+            self.drawer_drawn.clone_from(&self.drawer_wanted);
+            scripts.push(draw(&self.drawer_drawn));
         }
         if let Some(waiting) = self.waiting.take() {
             scripts.push(draft(&waiting));
@@ -622,6 +638,22 @@ impl Drawing {
             self.waiting = Some(written);
         }
         self.brought()
+    }
+
+    /// The state shows the drawer `markup`: the scripts that bring the page
+    /// to it.
+    pub fn drawer(&mut self, markup: String) -> Vec<String> {
+        self.drawer_wanted = markup;
+        self.brought()
+    }
+
+    /// The window wrote `text` into the prompt — a parameter or a value
+    /// completed: the draft this window says, as if typed, and the scripts
+    /// that write it into the page.
+    pub fn written(&mut self, text: &str) -> (String, Vec<String>) {
+        let (said, _) = self.typed.typed(text);
+        self.waiting = Some(said.clone());
+        (said, self.brought())
     }
 
     /// The person typed `text` into the page's prompt: the draft this window
@@ -1286,14 +1318,10 @@ mod tests {
         Later(&'static str),
     }
 
-    /// The command list, which the prompt's first character and its send
-    /// act on, and which arrives with the keys and the leader menu.
-    const WITH_THE_COMMAND_LIST: &str = "with the command list and the keys, later in Stage 16";
-
-    /// Every bullet of `NOCTUA.md` §12.3 and §12.5–§12.7, by its section and
-    /// the first 32 characters of its text with its emphasis taken out, and
-    /// how each is held.
-    const BULLETS: [(&str, &str, Held); 29] = [
+    /// Every bullet of `NOCTUA.md` §12.3, §12.5–§12.7 and §12.9, by its
+    /// section and the first 32 characters of its text with its emphasis taken
+    /// out, and how each is held.
+    const BULLETS: [(&str, &str, Held); 36] = [
         (
             "12.3",
             "Backgrounds. The modeline and th",
@@ -1441,32 +1469,95 @@ mod tests {
         (
             "12.7",
             "What typing does depends on the ",
-            Held::Later(WITH_THE_COMMAND_LIST),
+            Held::By(crate::drawer::tests::the_command_list_holds_what_the_query_finds_with_its_hits),
         ),
         (
             "12.7",
             "`;` or `:` in an empty prompt li",
-            Held::Later(WITH_THE_COMMAND_LIST),
+            Held::Partly(
+                crate::drawer::tests::the_command_list_holds_what_the_query_finds_with_its_hits,
+                "the list opened in the drawer is the kernel's `prompt.set`, held in \
+                 `crates/nc-kernel/src/shell.rs`",
+            ),
         ),
         (
             "12.7",
             "`/` as the first character is re",
-            Held::Later(WITH_THE_COMMAND_LIST),
+            Held::Partly(
+                crate::drawer::tests::the_w_list_holds_the_windows_actions_and_nothing_else_is_listed,
+                "nothing claims it: the kernel's `prompt.set` opens no list for it, and the \
+                 drawer lists nothing the state does not open",
+            ),
         ),
         (
             "12.7",
             "Any other text filters the focus",
-            Held::Later(WITH_THE_COMMAND_LIST),
+            Held::Later("a focused page that is a list, with the pages"),
         ),
         (
             "12.7",
             "Send (the control, or Enter) act",
-            Held::Later(WITH_THE_COMMAND_LIST),
+            Held::Partly(
+                crate::host::tests::the_prompts_list_chooses_completes_and_runs,
+                "the send control, and the info line's sentence for a prompt nothing handles, \
+                 with the interface's texts",
+            ),
         ),
         (
             "12.7",
             "The Leader focuses it (§12.8).",
-            Held::Later("the window putting a seat's keyboard where the state says, with the keys"),
+            Held::Later(
+                "the kernel's `leader.tap` puts the keyboard there; the window putting it where \
+                 the state says is `host::Running::redraw`'s, exercised in a real window by no \
+                 test yet — with the seats",
+            ),
+        ),
+        (
+            "12.9",
+            "It fills the drawer's width in c",
+            Held::By(crate::drawer::tests::the_leader_menu_is_its_keys_and_names_in_columns),
+        ),
+        (
+            "12.9",
+            "Pressing an entry's key closes t",
+            Held::Partly(
+                crate::host::tests::an_entry_closes_the_menu_first_unless_it_opens_a_page,
+                "the direction control in the drawer's controls rail, with the drawer; the flip \
+                 is the kernel's `leader.tap`",
+            ),
+        ),
+        (
+            "12.9",
+            "Every entry acts or opens its ta",
+            Held::Partly(
+                crate::keys::tests::the_menu_is_the_menu_tables_bindings_in_force,
+                "the workspaces' Tab and digits and `w`'s page and group actions, with the \
+                 workspaces (Stage 17)",
+            ),
+        ),
+        (
+            "12.9",
+            "It lists every command — the cat",
+            Held::By(crate::commands::tests::the_registrys_listings_make_one_command_of_each_locales_texts),
+        ),
+        (
+            "12.9",
+            "Each row shows the command's dis",
+            Held::By(crate::drawer::tests::the_command_list_holds_what_the_query_finds_with_its_hits),
+        ),
+        (
+            "12.9",
+            "What follows the `;` filters it ",
+            Held::Partly(
+                crate::host::tests::the_prompts_list_chooses_completes_and_runs,
+                "the arrows' walk is the design system's `option-list.js`; the send control \
+                 arrives with the interface's texts",
+            ),
+        ),
+        (
+            "12.9",
+            "Parameters are optional where th",
+            Held::By(crate::host::tests::a_command_chosen_runs_or_asks_for_its_parameters),
         ),
     ];
 
@@ -1481,7 +1572,7 @@ mod tests {
                 section = heading
                     .split(' ')
                     .next()
-                    .filter(|number| ["12.3", "12.5", "12.6", "12.7"].contains(number));
+                    .filter(|number| ["12.3", "12.5", "12.6", "12.7", "12.9"].contains(number));
                 continue;
             }
             if text.starts_with("## ") {
@@ -1555,8 +1646,8 @@ mod tests {
             .collect();
         assert_eq!(
             found, rows,
-            "a bullet of §12.3 or §12.5–§12.7 changed: each is a row of `BULLETS`, held by a \
-             test, or said to be the design system's or still to come"
+            "a bullet of §12.3, §12.5–§12.7 or §12.9 changed: each is a row of `BULLETS`, held \
+             by a test, or said to be the design system's or still to come"
         );
     }
 
@@ -1712,6 +1803,7 @@ mod tests {
                     collapse: title_of("info.collapse", Locale::PtBR),
                 },
                 prompt: title_of("prompt.set", Locale::PtBR),
+                controls: None,
             }
         );
     }

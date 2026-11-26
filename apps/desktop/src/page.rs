@@ -54,6 +54,7 @@
 
 use dioxus::prelude::*;
 
+use crate::drawer::TheDrawer;
 use crate::footer::{TheFooter, View};
 use crate::theme::Theme;
 
@@ -74,8 +75,20 @@ pub const ACTION: &str = "action";
 pub const DRAFT: &str = "draft";
 
 /// The document's own script: what the page says ([`LOADED`], [`SCALE`],
-/// [`ACTION`] and [`DRAFT`]), and `window.noctua`'s two calls, `draw` and
-/// `draft`, which bring the page to the state.
+/// [`ACTION`] and [`DRAFT`], and the keys, the lists and the focus), and
+/// `window.noctua`'s calls, `draw`, `draft`, `keys`, `held` and `focus`,
+/// which bring the page to the state and tell it the keys in force.
+///
+/// **The keys are heard before anything else hears them**, on the window in
+/// its capture phase: the Leader's chord going down, which is said and kept
+/// from the page; while its modifiers stay down, every other key, said with
+/// whether the chord modifier is held and kept from the page; once one of them
+/// is let go, the Leader going up; a key of the menu's table pressed alone on
+/// the leader menu; and Esc on the drawer or on a prompt that filters a list.
+/// Which modifiers are down is read off every key event, so a hold the window
+/// is told of after its modifiers were let go ends at once. Everything else is
+/// the page's: typing, the arrows and Enter of `option-list.js`, and the send
+/// of `prompt.js`, which the script says with the option the keyboard is on.
 pub const SCRIPT: &str = r"(() => {
   const say = (message) => window.ipc.postMessage(message);
   const scale = () => say('scale ' + Math.round(window.devicePixelRatio * 1000));
@@ -89,8 +102,69 @@ pub const SCRIPT: &str = r"(() => {
     const area = event.target;
     if (area instanceof HTMLTextAreaElement && area.matches('.nd-prompt-input')) say('draft ' + area.value);
   });
-  const footer = document.querySelector('footer');
-  let drawn = footer.cloneNode(true);
+  const activeOf = (named) => {
+    const list = named ? document.getElementById(named) : null;
+    const option = list ? list.querySelector('[data-nd-active=true]') : null;
+    return option ? option.getAttribute('data-nd-value') : null;
+  };
+  document.addEventListener('nd-prompt-send', (event) => {
+    const area = event.target instanceof Element ? event.target.querySelector('.nd-prompt-input') : null;
+    const active = activeOf(area ? area.getAttribute('aria-controls') : null);
+    say(active === null ? 'send' : 'send ' + active);
+  });
+  document.addEventListener('nd-option-choose', (event) => {
+    if (event.detail.value !== null) say('choose ' + event.detail.name + ' ' + event.detail.value);
+  });
+  document.addEventListener('nd-option-active', (event) => {
+    if (event.detail.value !== null) say('active ' + event.detail.name + ' ' + event.detail.value);
+  });
+  document.addEventListener('focusin', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target && target.matches('.nd-prompt-input')) say('focus prompt');
+    else if (target && target.closest('#noctua-drawer')) say('focus drawer');
+  });
+  let keys = null;
+  let held = false;
+  let downs = [false, false, false, false];
+  const flags = (event) => [event.ctrlKey, event.altKey, event.shiftKey, event.metaKey];
+  const modifier = (code) => ['Control', 'Alt', 'Shift', 'Meta', 'OS'].some((name) => code.startsWith(name));
+  const holds = () => keys.mods.every((on, at) => !on || downs[at]);
+  const release = () => { if (held) { held = false; say('leader up'); } };
+  window.addEventListener('keydown', (event) => {
+    downs = flags(event);
+    if (!keys || event.isComposing || event.keyCode === 229 || modifier(event.code)) return;
+    if (event.code === keys.code && holds()) {
+      event.preventDefault();
+      if (!held && !event.repeat && downs.every((on, at) => on === keys.mods[at])) { held = true; say('leader down'); }
+      return;
+    }
+    if (held && holds()) {
+      event.preventDefault();
+      event.stopPropagation();
+      say('key held ' + event.code + ' ' + (downs[keys.chord] ? '1' : '0'));
+      return;
+    }
+    release();
+    const target = event.target instanceof Element ? event.target : null;
+    const plain = !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+    if (!plain || !target) return;
+    if (event.code === 'Escape' && (target.closest('#noctua-drawer') || target.hasAttribute('aria-controls'))) {
+      event.preventDefault();
+      say('escape');
+    } else if (keys.menu.includes(event.code) && target.closest('[data-nd-option-list=leader]')) {
+      event.preventDefault();
+      event.stopPropagation();
+      say('key menu ' + event.code);
+    }
+  }, true);
+  window.addEventListener('keyup', (event) => {
+    downs = flags(event);
+    if (held && !holds()) release();
+  }, true);
+  window.addEventListener('blur', () => { downs = [false, false, false, false]; held = false; });
+  const drawn = new Map();
+  const regions = () => [document.querySelector('footer'), document.getElementById('noctua-drawer')];
+  for (const region of regions()) if (region) drawn.set(region.id || region.localName, region.cloneNode(true));
   const alike = (one, other) => one.nodeType === other.nodeType && one.nodeName === other.nodeName;
   const bring = (live, was, next) => {
     for (const { name, value } of Array.from(next.attributes)) {
@@ -126,24 +200,44 @@ pub const SCRIPT: &str = r"(() => {
       template.innerHTML = markup;
       const next = template.content.firstElementChild;
       if (!next) return;
-      bring(footer, drawn, next);
-      drawn = next;
-      if (window.noctua.enhance) window.noctua.enhance(footer);
+      const key = next.id || next.localName;
+      const region = next.id ? document.getElementById(next.id) : document.querySelector(next.localName);
+      if (!region || !drawn.has(key)) return;
+      if (window.noctua.release) window.noctua.release(region);
+      bring(region, drawn.get(key), next);
+      drawn.set(key, next);
+      if (window.noctua.enhance) window.noctua.enhance(region);
     },
     draft(text) {
-      const area = footer.querySelector('.nd-prompt-input');
+      const area = document.querySelector('footer .nd-prompt-input');
       if (!area || area.value === text || area.closest('[data-nd-composing]')) return;
       area.value = text;
+    },
+    keys(told) { keys = told; },
+    held() {
+      if (!keys) return;
+      if (holds()) held = true;
+      else say('leader up');
+    },
+    focus(where) {
+      const element = where === 'prompt'
+        ? document.querySelector('footer .nd-prompt-input')
+        : document.querySelector('#noctua-drawer [role=listbox][tabindex]');
+      if (element && document.activeElement !== element) element.focus();
     },
   };
 })();";
 
-/// The module that hands the prompt to the design system's script, which
-/// draws its block cursor, and hands `window.noctua` the same call for a
-/// prompt a draw put in the page.
+/// The module that hands the prompt and the drawer's lists to the design
+/// system's scripts — the prompt's block cursor, and a list's walk — and hands
+/// `window.noctua` the same calls for a part a draw put in the page, and the
+/// call that takes a list's behaviour back before a draw changes it.
 pub const ENHANCES: &str = r#"import { enhancePrompts } from "./dist/prompt.js";
 enhancePrompts();
-window.noctua.enhance = enhancePrompts;"#;
+import { enhanceOptionLists, releaseOptionLists } from "./dist/option-list.js";
+enhanceOptionLists();
+window.noctua.enhance = (root) => { enhancePrompts(root); enhanceOptionLists(root); };
+window.noctua.release = releaseOptionLists;"#;
 
 /// The document, in `locale` and `theme`, its footer `footer`, as the
 /// webview is handed it.
@@ -186,6 +280,7 @@ fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
             main { id: "noctua", class: "flex h-full w-full flex-col",
                 div { id: "noctua-workspace", class: "flex-1" }
                 TheFooter { view: footer }
+                TheDrawer { view: crate::drawer::View::hidden() }
             }
             script { dangerous_inner_html: SCRIPT }
             script { r#type: "module", dangerous_inner_html: ENHANCES }
@@ -305,7 +400,11 @@ mod tests {
                 .skip(1)
                 .filter_map(|rest| rest.split_once('"').map(|(address, _)| address))
                 .collect();
-            assert_eq!(imported, ["./dist/prompt.js"], "{written}");
+            assert_eq!(
+                imported,
+                ["./dist/prompt.js", "./dist/option-list.js"],
+                "{written}"
+            );
             let addresses: Vec<&str> = ["href", "src", "action", "srcset"]
                 .iter()
                 .flat_map(|name| values(&written, name))
@@ -340,8 +439,8 @@ mod tests {
 
     /// The first run shows the footer alone: the body holds the workspace
     /// area, empty, then the footer — the first run's, as
-    /// [`crate::footer::markup`] writes it — and nothing else but the
-    /// scripts.
+    /// [`crate::footer::markup`] writes it — then the drawer's region,
+    /// empty, and nothing else but the scripts.
     #[test]
     fn the_first_run_shows_the_footer_alone() {
         for locale in Locale::ALL {
@@ -356,7 +455,8 @@ mod tests {
                 body,
                 format!(
                     "<main id=\"noctua\" class=\"flex h-full w-full flex-col\">\
-                     <div id=\"noctua-workspace\" class=\"flex-1\"></div>{}</main>",
+                     <div id=\"noctua-workspace\" class=\"flex-1\"></div>{}\
+                     <div id=\"noctua-drawer\"></div></main>",
                     markup(&first)
                 )
             );
@@ -376,6 +476,18 @@ mod tests {
             format!("say('{ACTION} ' + control.getAttribute('data-nd-action'))"),
             format!("say('{DRAFT} ' + area.value)"),
             "const say = (message) => window.ipc.postMessage(message);".to_owned(),
+            "held = true; say('leader down');".to_owned(),
+            "const release = () => { if (held) { held = false; say('leader up'); } };".to_owned(),
+            "say('key held ' + event.code + ' ' + (downs[keys.chord] ? '1' : '0'));".to_owned(),
+            "say('key menu ' + event.code);".to_owned(),
+            "say('escape');".to_owned(),
+            "say('choose ' + event.detail.name + ' ' + event.detail.value);".to_owned(),
+            "say('active ' + event.detail.name + ' ' + event.detail.value);".to_owned(),
+            "say(active === null ? 'send' : 'send ' + active);".to_owned(),
+            "say('focus prompt');".to_owned(),
+            "say('focus drawer');".to_owned(),
+            "window.addEventListener('keydown', (event) => {".to_owned(),
+            "  }, true);\n  window.addEventListener('keyup'".to_owned(),
         ] {
             assert!(SCRIPT.contains(&said), "{said} is not in {SCRIPT}");
         }
@@ -384,6 +496,21 @@ mod tests {
                 "import { enhancePrompts } from \"./dist/prompt.js\";\nenhancePrompts();"
             ),
             "{ENHANCES}"
+        );
+        for handed in [
+            "enhanceOptionLists();",
+            "enhancePrompts(root); enhanceOptionLists(root);",
+            "window.noctua.release = releaseOptionLists;",
+        ] {
+            assert!(ENHANCES.contains(handed), "{handed} is not in {ENHANCES}");
+        }
+        assert!(
+            noctua_design_dist::FILES
+                .iter()
+                .any(|(name, contents)| *name == "option-list.js"
+                    && contents.contains("export function enhanceOptionLists(")
+                    && contents.contains("export function releaseOptionLists(")),
+            "the design system ships the list script the module imports"
         );
         assert!(
             noctua_design_dist::FILES

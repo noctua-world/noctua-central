@@ -37,6 +37,15 @@
 //! the asking connection, one in flight at a time, and taken back when the
 //! daemon refuses it.
 //!
+//! **The keys are run here** ([`crate::keys`]): the Leader is asked of the
+//! system on this thread where the desktop is its listener — never for a
+//! test's install — and a refusal, or a registration lost, is said on the
+//! info line by `info.say` in the window's locale, each time a daemon is
+//! reached, never dropped ([`refused_said`], [`bound_said`]). A press, a key
+//! held with the Leader, an entry of the leader menu and a row of a list each
+//! run the command it names, dispatched as the person, and a refusal of one
+//! is said on the info line too.
+//!
 //! **The event loop is the main thread's**, as macOS requires and GTK
 //! expects, and the two connections to the daemon run on two threads of
 //! their own ([`crate::client`]), handing what they hear to the loop through
@@ -72,9 +81,13 @@ use tao::platform::run_return::EventLoopExtRunReturn as _;
 use tao::window::{Window, WindowBuilder};
 
 use crate::client::{Asker, Flow, Heard};
+use crate::commands::Commands;
+use crate::drawer::List;
 use crate::footer::{Action, Context, Drawing};
-use crate::mirror::{Fact, Mirror, Shell};
+use crate::keys::{Act, Keymap, key_of};
+use crate::mirror::{Fact, Mirror, Region, Shell};
 use crate::theme::Theme;
+use nc_schema::keys::Key;
 
 /// The window's title, which a window list shows though the window draws no
 /// title bar.
@@ -108,6 +121,46 @@ pub enum Said {
     /// probe's exercise of the footer found (`EXERCISE`) — said by a
     /// probe's exercise alone.
     Exercised([bool; 3]),
+    /// `leader down`: the page saw the Leader's chord go down.
+    LeaderDown,
+    /// `leader up`: one of the Leader's modifiers was let go while it was
+    /// held, or the page was told of a hold whose modifiers were.
+    LeaderUp,
+    /// `key held <code> <chord>`: a key went down with the Leader's
+    /// modifiers held, and the chord modifier as well where `1`.
+    Held(Key, bool),
+    /// `key menu <code>`: a key of the menu's table went down alone on the
+    /// leader menu.
+    InMenu(Key),
+    /// `choose <list> <value>`: an option of a list was chosen — Enter, Space
+    /// or a press.
+    Choose(List, String),
+    /// `send`, or `send <value>` with the option the keyboard is on in the
+    /// list the prompt filters: the prompt was sent.
+    Send(Option<String>),
+    /// `active <list> <value>`: the keyboard moved to an option of a list.
+    Active(List, String),
+    /// `focus <region>`: the keyboard went to the prompt or to the drawer.
+    Focus(Region),
+    /// `escape`: Esc on the drawer, or on a prompt that filters a list.
+    Escape,
+}
+
+/// The most bytes the value of an option the page says may hold: a
+/// registered command's name, or a parameter's or a value's word.
+const VALUE_BYTES_MAX: usize = 256;
+
+/// `rest`, the value of an option, where it is one: a text of at most
+/// [`VALUE_BYTES_MAX`] bytes holding no control character.
+fn value(rest: &str) -> Option<String> {
+    (!rest.is_empty() && rest.len() <= VALUE_BYTES_MAX && !rest.chars().any(char::is_control))
+        .then(|| rest.to_owned())
+}
+
+/// The list `rest` names first, and the option's value after one space.
+fn option(rest: &str) -> Option<(List, String)> {
+    let (list, rest) = rest.split_once(' ')?;
+    Some((List::of(list)?, value(rest)?))
 }
 
 /// A number written in ASCII digits alone, of at most ten.
@@ -148,6 +201,15 @@ pub fn said(message: &str) -> Option<Said> {
     {
         return Some(Said::Draft(text.to_owned()));
     }
+    if let Some(rest) = message.strip_prefix("choose ") {
+        return option(rest).map(|(list, value)| Said::Choose(list, value));
+    }
+    if let Some(rest) = message.strip_prefix("active ") {
+        return option(rest).map(|(list, value)| Said::Active(list, value));
+    }
+    if let Some(rest) = message.strip_prefix("send ") {
+        return value(rest).map(|value| Said::Send(Some(value)));
+    }
     let words: Vec<&str> = message.split(' ').collect();
     match words.as_slice() {
         [action, command] if *action == crate::page::ACTION => {
@@ -163,6 +225,14 @@ pub fn said(message: &str) -> Option<Said> {
         ["exercised", enhanced, kept, written] => {
             Some(Said::Exercised([bit(enhanced)?, bit(kept)?, bit(written)?]))
         }
+        ["send"] => Some(Said::Send(None)),
+        ["escape"] => Some(Said::Escape),
+        ["leader", "down"] => Some(Said::LeaderDown),
+        ["leader", "up"] => Some(Said::LeaderUp),
+        ["key", "held", code, chord] => Some(Said::Held(key_of(code)?, bit(chord)?)),
+        ["key", "menu", code] => key_of(code).map(Said::InMenu),
+        ["focus", "prompt"] => Some(Said::Focus(Region::Prompt)),
+        ["focus", "drawer"] => Some(Said::Focus(Region::Drawer)),
         _ => None,
     }
 }
@@ -181,6 +251,13 @@ pub enum Arrived {
     Heard(Heard),
     /// The daemon answered the note in flight: taken, or refused.
     Told(bool),
+    /// The system's registration heard the Leader go down.
+    Pressed,
+    /// Asking the system for the Leader was refused, or the registration
+    /// held stopped delivering, as the info line says it.
+    Unheard(String),
+    /// The registry, asked in each locale: the commands the list shows.
+    Registry(Commands),
 }
 
 /// Why no window was opened.
@@ -672,6 +749,15 @@ impl Watched {
                 });
                 return self.seen.least.is_some();
             }
+            Said::LeaderDown
+            | Said::LeaderUp
+            | Said::Held(..)
+            | Said::InMenu(_)
+            | Said::Choose(..)
+            | Said::Send(_)
+            | Said::Active(..)
+            | Said::Focus(_)
+            | Said::Escape => {}
         }
         false
     }
@@ -768,23 +854,40 @@ pub enum Ask {
     Close(u64),
     /// The command a control of the footer runs.
     Run(Action),
+    /// A command a key or a list runs, with its arguments: a refusal is said
+    /// on the info line in `locale`, and once it ran, the prompt is cleared
+    /// where `clear`.
+    Dispatch {
+        /// The command.
+        command: String,
+        /// Its arguments.
+        arguments: nc_canon::Value,
+        /// Whether the prompt is cleared once it ran.
+        clear: bool,
+        /// The locale a refusal is said in.
+        locale: nc_catalog::Locale,
+    },
     /// A note of what this window said at the rate it draws.
     Note(nc_ipc::Note),
+    /// The registry, in each locale: the commands the list shows.
+    Registry,
 }
 
 impl Ask {
-    /// The command it dispatches; nothing for a note, which dispatches
-    /// nothing.
+    /// The command it dispatches; nothing for a note or the registry, which
+    /// dispatch nothing.
     #[must_use]
-    pub const fn command(&self) -> Option<&'static str> {
+    pub fn command(&self) -> Option<&str> {
         match self {
             Self::Close(_) => Some("window.close"),
             Self::Run(action) => Some(action.command()),
-            Self::Note(_) => None,
+            Self::Dispatch { command, .. } => Some(command),
+            Self::Note(_) | Self::Registry => None,
         }
     }
 
-    /// The arguments it dispatches its command with; nothing for a note.
+    /// The arguments it dispatches its command with; nothing for a note or
+    /// the registry.
     #[must_use]
     pub fn arguments(&self) -> Option<nc_canon::Value> {
         match self {
@@ -793,9 +896,39 @@ impl Ask {
                 nc_canon::Value::Integer(i64::try_from(*window).unwrap_or(i64::MAX)),
             )])),
             Self::Run(action) => Some(action.arguments()),
-            Self::Note(_) => None,
+            Self::Dispatch { arguments, .. } => Some(arguments.clone()),
+            Self::Note(_) | Self::Registry => None,
         }
     }
+
+    /// `command` run with no argument, its refusal said in `locale`.
+    #[must_use]
+    pub fn bare(command: &str, locale: nc_catalog::Locale) -> Self {
+        Self::Dispatch {
+            command: command.to_owned(),
+            arguments: nc_canon::Value::object(Vec::<(&str, nc_canon::Value)>::new()),
+            clear: false,
+            locale,
+        }
+    }
+}
+
+/// What the info line says of `refusal`, in `locale`: its code, and its
+/// message in that locale — the catalog's sentence, which is what a person
+/// reads (`NOCTUA.md §15.1`).
+#[must_use]
+pub fn refused_said(refusal: &nc_ipc::Refusal, locale: nc_catalog::Locale) -> String {
+    let code = refusal.code;
+    format!(
+        "[{}] {}",
+        code.code(),
+        nc_catalog::message(code.message_key(), locale).unwrap_or(refusal.sentence.as_str())
+    )
+}
+
+/// `info.say` with `text`, as the window runs it.
+fn say_on_the_info_line(text: &str) -> nc_canon::Value {
+    nc_canon::Value::object([("text", nc_canon::Value::text(text))])
 }
 
 /// A runtime of one thread, for one connection.
@@ -837,14 +970,48 @@ fn asking(
         .spawn(move || {
             let mut asker = Asker::new(found);
             while let Ok(ask) = asks.recv() {
-                if let (Some(command), Some(args)) = (ask.command(), ask.arguments()) {
-                    // What the daemon answers reaches the window through the
-                    // state it then holds.
-                    let _ = runtime.block_on(asker.dispatch(command, args));
-                } else if let Ask::Note(note) = ask {
-                    let taken = runtime.block_on(asker.note(note)).is_ok();
-                    // A loop that has ended has no use for the answer.
-                    let _ = proxy.send_event(Arrived::Told(taken));
+                match ask {
+                    Ask::Note(note) => {
+                        let taken = runtime.block_on(asker.note(note)).is_ok();
+                        // A loop that has ended has no use for the answer.
+                        let _ = proxy.send_event(Arrived::Told(taken));
+                    }
+                    Ask::Registry => {
+                        let listings: Option<Vec<_>> = nc_catalog::Locale::ALL
+                            .iter()
+                            .map(|locale| runtime.block_on(asker.registry(*locale)).ok())
+                            .collect();
+                        if let Some(listings) = listings {
+                            let _ = proxy
+                                .send_event(Arrived::Registry(Commands::from_registry(&listings)));
+                        }
+                    }
+                    Ask::Dispatch {
+                        command,
+                        arguments,
+                        clear,
+                        locale,
+                    } => match runtime.block_on(asker.dispatch(&command, arguments)) {
+                        Ok(Ok(_)) if clear => {
+                            let _ = runtime.block_on(asker.dispatch(
+                                "prompt.clear",
+                                nc_canon::Value::object(Vec::<(&str, nc_canon::Value)>::new()),
+                            ));
+                        }
+                        Ok(Err(refusal)) => {
+                            let said = refused_said(&refusal, locale);
+                            let _ = runtime
+                                .block_on(asker.dispatch("info.say", say_on_the_info_line(&said)));
+                        }
+                        _ => {}
+                    },
+                    other => {
+                        if let (Some(command), Some(args)) = (other.command(), other.arguments()) {
+                            // What the daemon answers reaches the window
+                            // through the state it then holds.
+                            let _ = runtime.block_on(asker.dispatch(command, args));
+                        }
+                    }
                 }
             }
         })?;
@@ -862,9 +1029,587 @@ fn tell(mirror: &mut Mirror, asks: &std::sync::mpsc::Sender<Ask>) {
     }
 }
 
+/// Whether the desktop of an install asks the system for the Leader, where
+/// `listener` is the process that does on this system: the desktop, and never
+/// for an install a test `relocated`, which asks the system for nothing
+/// (§12.8).
+#[must_use]
+pub const fn asks(relocated: bool, listener: nc_ipc::leader::Listener) -> bool {
+    matches!(listener, nc_ipc::leader::Listener::Desktop) && !relocated
+}
+
+/// What the info line says where a compositor's binding delivers the Leader:
+/// the code a session that registers no global key is told by, its message
+/// in `locale`, and the binding to make — the Leader, as a Linux keyboard
+/// labels it, running `cli leader`.
+#[must_use]
+pub fn bound_said(
+    leader: nc_schema::keys::Leader,
+    cli: &std::path::Path,
+    locale: nc_catalog::Locale,
+) -> String {
+    format!(
+        "{} {}: {} leader",
+        refused_said(
+            &nc_ipc::leader::refusal(&nc_platform::leader::Refused::ByBinding),
+            locale
+        ),
+        leader.written_for(nc_schema::keys::Keyboard::Linux),
+        cli.display()
+    )
+}
+
+/// Asks this system for the Leader of `keymap`, for the install `found`,
+/// where its desktop is the listener: what is held for as long as the window
+/// runs, and what the info line is to say where nothing is — the refusal,
+/// or the binding a compositor delivers it by. A press, and a registration
+/// lost, reach the loop through `proxy`.
+fn listened(
+    found: &Found,
+    keymap: &Keymap,
+    proxy: &EventLoopProxy<Arrived>,
+    locale: nc_catalog::Locale,
+) -> (Option<nc_platform::leader::Held>, Option<String>) {
+    if !asks(
+        found.install.namespace.is_some(),
+        nc_ipc::leader::listener(),
+    ) {
+        return (None, None);
+    }
+    let variable = |name: &str| std::env::var_os(name);
+    let leader = keymap.part().leader;
+    let (pressed, lost) = (proxy.clone(), proxy.clone());
+    let listening = nc_ipc::leader::listen(nc_platform::leader::delivery(&variable), || {
+        nc_platform::leader::register(
+            leader,
+            &variable,
+            move || {
+                // A loop that has ended has no use for a press.
+                let _ = pressed.send_event(Arrived::Pressed);
+            },
+            move |why| {
+                let said = refused_said(&nc_ipc::leader::refusal(&why), locale);
+                let _ = lost.send_event(Arrived::Unheard(said));
+            },
+        )
+    });
+    match listening {
+        Ok(nc_ipc::leader::Listening::Held(held)) => (Some(held), None),
+        Ok(nc_ipc::leader::Listening::ByBinding) => (
+            None,
+            Some(bound_said(
+                leader,
+                &found.layout.install.join(&found.layout.cli),
+                locale,
+            )),
+        ),
+        Err(refusal) => (None, Some(refused_said(&refusal, locale))),
+    }
+}
+
+/// The commands that open a page, which close the leader menu themselves
+/// (§12.9): every other entry the window closes the menu for before it runs,
+/// so a page's flip is never spent by the window.
+pub const OPENS_A_PAGE: [&str; 6] = [
+    "page.open",
+    "page.settings",
+    "page.help",
+    "page.dev",
+    "page.shortcuts",
+    "page.actions",
+];
+
+/// What the window asks to run the leader menu's entry `command`, the menu
+/// open as `menu` where it is: the menu closed first — unless the command
+/// opens a page, which closes it and spends the menu's flip — then the
+/// command, with no argument.
+#[must_use]
+pub fn entry_asks(command: &str, menu: Option<u64>, locale: nc_catalog::Locale) -> Vec<Ask> {
+    let mut asks = Vec::new();
+    if !OPENS_A_PAGE.contains(&command)
+        && let Some(menu) = menu
+    {
+        asks.push(Ask::Dispatch {
+            command: "page.close".to_owned(),
+            arguments: nc_canon::Value::object([
+                (
+                    "page",
+                    nc_canon::Value::Integer(i64::try_from(menu).unwrap_or(i64::MAX)),
+                ),
+                ("in", nc_canon::Value::text("drawer")),
+            ]),
+            clear: false,
+            locale,
+        });
+    }
+    asks.push(Ask::bare(command, locale));
+    asks
+}
+
+/// What the window asks once `command` is chosen from a list, the prompt
+/// asking for something where `asking`: the command run at once where it
+/// takes no parameter — the prompt cleared once it ran, where it asked — and
+/// otherwise the prompt kept on it, asking for its parameters; and whether
+/// the prompt is then emptied and given the keyboard.
+#[must_use]
+pub fn chosen_asks(
+    command: &crate::commands::Command,
+    asking: bool,
+    locale: nc_catalog::Locale,
+) -> (Ask, bool) {
+    if command.parameters.is_empty() {
+        return (
+            Ask::Dispatch {
+                command: command.name.clone(),
+                arguments: nc_canon::Value::object(Vec::<(&str, nc_canon::Value)>::new()),
+                clear: asking,
+                locale,
+            },
+            false,
+        );
+    }
+    (
+        Ask::Dispatch {
+            command: "prompt.ask".to_owned(),
+            arguments: nc_canon::Value::object([(
+                "command",
+                nc_canon::Value::text(command.name.as_str()),
+            )]),
+            clear: false,
+            locale,
+        },
+        true,
+    )
+}
+
+/// What choosing `value` from the prompt's list comes to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Picked {
+    /// A command of the command list, chosen.
+    Command(String),
+    /// The prompt's draft completed with a parameter or a value offered.
+    Draft(String),
+}
+
+/// What choosing `value` from the prompt's list comes to, the prompt asking
+/// for `asking` and holding `draft`: a command the list holds, while it asks
+/// for the command list; the draft completed by an offer the list makes, while
+/// it asks for a command's parameters; nothing for any other value.
+#[must_use]
+pub fn picked(
+    asking: Option<&crate::mirror::Asking>,
+    draft: &str,
+    value: &str,
+    commands: &Commands,
+) -> Option<Picked> {
+    match asking? {
+        crate::mirror::Asking::Commands => commands
+            .named(value)
+            .map(|command| Picked::Command(command.name.clone())),
+        crate::mirror::Asking::Parameters { command, .. } => {
+            let command = commands.named(command)?;
+            crate::commands::offered(draft, command)
+                .into_iter()
+                .find(|offer| offer.value() == value)
+                .map(|offer| Picked::Draft(crate::commands::completed(draft, &offer)))
+        }
+    }
+}
+
+/// What the window asks once the prompt is sent with no option chosen,
+/// asking for `asking` and holding `draft`: the command it asks the
+/// parameters of, run with what the draft gives it and the prompt cleared
+/// once it ran; nothing while it asks for anything else.
+#[must_use]
+pub fn sent_asks(
+    asking: Option<&crate::mirror::Asking>,
+    draft: &str,
+    commands: &Commands,
+    locale: nc_catalog::Locale,
+) -> Option<Ask> {
+    let Some(crate::mirror::Asking::Parameters { command, .. }) = asking else {
+        return None;
+    };
+    let command = commands.named(command)?;
+    Some(Ask::Dispatch {
+        command: command.name.clone(),
+        arguments: crate::commands::arguments(draft, command),
+        clear: true,
+        locale,
+    })
+}
+
+/// What Esc runs: `prompt.clear` while the prompt asks for something, which
+/// closes its list, and otherwise `drawer.back`, which closes what is focused
+/// in the drawer or goes back one sub-page there (§12.8, §12.11).
+#[must_use]
+pub const fn escaped(asking: bool) -> &'static str {
+    if asking {
+        "prompt.clear"
+    } else {
+        "drawer.back"
+    }
+}
+
+/// Whether `value`, an option the page says the keyboard moved to, is a
+/// target a seat's selection may name: one to 64 ASCII letters, digits or
+/// `-_.:/`, as `shell.hover` takes one.
+#[must_use]
+pub fn is_target(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:/".contains(&byte))
+}
+
+/// What the event loop keeps beside the window: the state mirrored, the keys
+/// in force, the commands the list shows, the Leader as heard, and where the
+/// keyboard was last put.
+struct Running {
+    /// What the window knows of itself.
+    context: Context,
+    /// The interface's state, as this window holds it.
+    mirror: Mirror,
+    /// Whether the window is shown.
+    showing: Showing,
+    /// The keys in force.
+    keymap: Keymap,
+    /// The commands the list shows.
+    commands: Commands,
+    /// The Leader, as the window hears it.
+    leader: crate::keys::Leader,
+    /// Whether the window has the keyboard.
+    focused: bool,
+    /// Where the window last put seat 1's keyboard.
+    placed: Option<Region>,
+    /// What the info line is to say of the Leader, where it is not heard.
+    unheard: Option<String>,
+    /// The asking thread.
+    asks: std::sync::mpsc::Sender<Ask>,
+}
+
+impl Running {
+    /// Sends `ask` to the asking thread, which outlives the loop.
+    fn ask(&self, ask: Ask) {
+        let _ = self.asks.send(ask);
+    }
+
+    /// `command` with `arguments`, run as the person; once it ran, the prompt
+    /// is cleared where `clear`.
+    fn run(&self, command: &str, arguments: nc_canon::Value, clear: bool) {
+        self.ask(Ask::Dispatch {
+            command: command.to_owned(),
+            arguments,
+            clear,
+            locale: self.context.locale,
+        });
+    }
+
+    /// Takes `fact`, which this window says, and tells the daemon.
+    fn said(&mut self, fact: Fact) {
+        self.mirror.said(fact);
+        tell(&mut self.mirror, &self.asks);
+    }
+
+    /// The window `mirror` shows: its identifier.
+    fn window(&self) -> Option<u64> {
+        self.mirror
+            .shell()
+            .and_then(this_window)
+            .map(|window| window.id)
+    }
+
+    /// The leader menu's page, while it is open in focus in the drawer.
+    fn menu(&self) -> Option<u64> {
+        let shell = self.mirror.shell()?;
+        let id = shell.drawer.focused.filter(|_| !shell.drawer.collapsed)?;
+        (shell.pages.get(&id)?.kind == crate::mirror::Kind::Leader).then_some(id)
+    }
+
+    /// The footer and the drawer drawn from the state and what this window
+    /// said, and seat 1's keyboard put where the state says.
+    fn redraw(&mut self, opened: &mut Opened) {
+        let draft = self.mirror.draft().unwrap_or_default().to_owned();
+        let selected = self
+            .mirror
+            .hovered(1, crate::mirror::By::Keyboard)
+            .map(str::to_owned);
+        let shell = self.mirror.shell();
+        let drawer = crate::drawer::view(
+            shell,
+            &draft,
+            selected.as_deref(),
+            (&self.keymap, &self.commands),
+            self.context.locale,
+        );
+        let mut scripts = opened.drawing.drawer(crate::drawer::markup(&drawer));
+        if let Some(shell) = shell {
+            let mut footer = crate::footer::view(Some(shell), self.context);
+            footer.controls = drawer.controls();
+            scripts.extend(
+                opened
+                    .drawing
+                    .shows(crate::footer::markup(&footer), &shell.draft),
+            );
+        }
+        opened.send(scripts);
+        let region = self
+            .window()
+            .and_then(|window| self.mirror.focus(1).filter(|focus| focus.window == window))
+            .map(|focus| focus.region);
+        if region != self.placed {
+            self.placed = region;
+            if let Some(word) = match region {
+                Some(Region::Prompt) => Some("prompt"),
+                Some(Region::Drawer) => Some("drawer"),
+                _ => None,
+            } {
+                opened.send(vec![format!("window.noctua.focus('{word}');")]);
+            }
+        }
+    }
+
+    /// Runs what a press came to.
+    fn act(&self, act: Option<Act>) {
+        match act {
+            Some(Act::Tap) => self.run(nc_ipc::leader::TAP, nc_ipc::leader::tap(), false),
+            Some(Act::Run(command)) => self.ask(Ask::bare(&command, self.context.locale)),
+            None => {}
+        }
+    }
+
+    /// Runs the leader menu's entry `command` ([`entry_asks`]).
+    fn entry(&self, command: &str) {
+        for ask in entry_asks(command, self.menu(), self.context.locale) {
+            self.ask(ask);
+        }
+    }
+
+    /// The prompt holds `text`, which this window wrote into it.
+    fn written(&mut self, opened: &mut Opened, text: &str) {
+        let (said, scripts) = opened.drawing.written(text);
+        opened.send(scripts);
+        self.said(Fact::Draft(said));
+        self.redraw(opened);
+    }
+
+    /// The command `name` chosen from a list: run at once where it takes no
+    /// parameter, and otherwise the prompt kept on it, asking for them.
+    fn chose(&mut self, opened: &mut Opened, name: &str) {
+        let Some(command) = self.commands.named(name) else {
+            return;
+        };
+        let asking = self
+            .mirror
+            .shell()
+            .is_some_and(|shell| shell.asking.is_some());
+        let (ask, parameters) = chosen_asks(command, asking, self.context.locale);
+        self.ask(ask);
+        if !parameters {
+            return;
+        }
+        self.written(opened, "");
+        if let Some(window) = self.window() {
+            self.said(Fact::Focus {
+                seat: 1,
+                on: crate::mirror::Focus {
+                    window,
+                    region: Region::Prompt,
+                },
+            });
+        }
+        opened.send(vec!["window.noctua.focus('prompt');".to_owned()]);
+        self.placed = Some(Region::Prompt);
+    }
+
+    /// The prompt's list chose `value`: a command of the command list, or a
+    /// parameter or a value offered for the command the prompt asks about.
+    fn picked(&mut self, opened: &mut Opened, value: &str) {
+        let asking = self.mirror.shell().and_then(|shell| shell.asking.clone());
+        let draft = self.mirror.draft().unwrap_or_default().to_owned();
+        match picked(asking.as_ref(), &draft, value, &self.commands) {
+            Some(Picked::Command(name)) => self.chose(opened, &name),
+            Some(Picked::Draft(completed)) => self.written(opened, &completed),
+            None => {}
+        }
+    }
+
+    /// The prompt was sent with no option chosen: the command it asks the
+    /// parameters of run with what the prompt holds, and the prompt cleared
+    /// once it ran.
+    fn sent(&self) {
+        let asking = self.mirror.shell().and_then(|shell| shell.asking.as_ref());
+        let draft = self.mirror.draft().unwrap_or_default();
+        if let Some(ask) = sent_asks(asking, draft, &self.commands, self.context.locale) {
+            self.ask(ask);
+        }
+    }
+
+    /// Takes what the page said of the keys, the lists and the focus.
+    fn heard(&mut self, opened: &mut Opened, said: Said) {
+        match said {
+            Said::LeaderDown => self.leader.down(),
+            Said::LeaderUp => {
+                let act = self.leader.up();
+                self.act(act);
+            }
+            Said::Held(key, with_chord) => {
+                let act = self.leader.key(key, with_chord, &self.keymap);
+                self.act(act);
+            }
+            Said::InMenu(key) => {
+                if self.menu().is_some()
+                    && let Some(Act::Run(command)) = crate::keys::in_menu(key, &self.keymap)
+                {
+                    self.entry(&command);
+                }
+            }
+            Said::Choose(List::Menu, command) => {
+                if self.keymap.is_entry(&command) {
+                    self.entry(&command);
+                }
+            }
+            Said::Choose(List::Actions, command) => {
+                if crate::drawer::ACTIONS.contains(&command.as_str()) {
+                    self.chose(opened, &command);
+                }
+            }
+            Said::Choose(List::Commands, value) | Said::Send(Some(value)) => {
+                self.picked(opened, &value);
+            }
+            Said::Send(None) => self.sent(),
+            Said::Active(_, value) => {
+                if is_target(&value) {
+                    self.said(Fact::Hover {
+                        seat: 1,
+                        by: crate::mirror::By::Keyboard,
+                        target: Some(value),
+                    });
+                }
+            }
+            Said::Focus(region) => {
+                self.placed = Some(region);
+                if let Some(window) = self.window() {
+                    let on = crate::mirror::Focus { window, region };
+                    if self.mirror.focus(1) != Some(on) {
+                        self.said(Fact::Focus { seat: 1, on });
+                    }
+                }
+            }
+            Said::Escape => {
+                let asking = self
+                    .mirror
+                    .shell()
+                    .is_some_and(|shell| shell.asking.is_some());
+                self.ask(Ask::bare(escaped(asking), self.context.locale));
+            }
+            Said::Choose(List::Shortcuts, _)
+            | Said::Loaded
+            | Said::Scale(_)
+            | Said::Action(_)
+            | Said::Draft(_)
+            | Said::FirstFrame(_)
+            | Said::Settled(_)
+            | Said::Viewport(..)
+            | Said::Exercised(_) => {}
+        }
+    }
+
+    /// Takes what reached the event loop: the page's words, the daemon's
+    /// state, a press of the Leader, the registry, and the window's own
+    /// events.
+    fn on(&mut self, opened: &mut Opened, event: Event<'_, Arrived>) {
+        match event {
+            Event::UserEvent(Arrived::Said { said, .. }) => match said {
+                Said::Loaded => {
+                    self.showing.loaded();
+                    let mut scripts = opened.drawing.loaded();
+                    scripts.push(format!(
+                        "window.noctua.keys({});",
+                        self.keymap.told().to_canonical()
+                    ));
+                    opened.send(scripts);
+                    apply(&opened.window, self.showing);
+                }
+                Said::Scale(thousandths) => opened.fit(thousandths),
+                Said::Action(action) => self.ask(Ask::Run(action)),
+                Said::Draft(text) => {
+                    let (draft, scripts) = opened.drawing.typed(&text);
+                    opened.send(scripts);
+                    self.said(Fact::Draft(draft));
+                    self.redraw(opened);
+                }
+                Said::FirstFrame(_)
+                | Said::Settled(_)
+                | Said::Viewport(..)
+                | Said::Exercised(_) => {}
+                other => self.heard(opened, other),
+            },
+            Event::UserEvent(Arrived::Told(taken)) => {
+                self.mirror.told(taken);
+                tell(&mut self.mirror, &self.asks);
+            }
+            Event::UserEvent(Arrived::Heard(Heard::Reached)) => {
+                self.mirror.reconnected();
+                self.ask(Ask::Registry);
+                if let Some(said) = self.unheard.clone() {
+                    self.run("info.say", say_on_the_info_line(&said), false);
+                }
+            }
+            Event::UserEvent(Arrived::Heard(Heard::Changed(changed))) => {
+                // A state this build does not read leaves the one held drawn.
+                if self.mirror.watched(changed).is_ok() {
+                    self.redraw(opened);
+                    if let Some(shown) = shown(&self.mirror) {
+                        self.showing.want(shown);
+                        apply(&opened.window, self.showing);
+                    }
+                }
+            }
+            Event::UserEvent(Arrived::Pressed) => {
+                let focused = self.focused && self.showing.shows();
+                let act = self.leader.pressed(focused);
+                self.act(act);
+                if self.leader.is_held() {
+                    opened.send(vec!["window.noctua.held();".to_owned()]);
+                }
+            }
+            Event::UserEvent(Arrived::Unheard(said)) => {
+                self.run("info.say", say_on_the_info_line(&said), false);
+                self.unheard = Some(said);
+            }
+            Event::UserEvent(Arrived::Registry(commands)) => {
+                self.commands = commands;
+                self.redraw(opened);
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Focused(focused),
+                ..
+            } => {
+                self.focused = focused;
+                if !focused {
+                    self.leader.blurred();
+                }
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                if let Some(window) = self.window() {
+                    self.ask(Ask::Close(window));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Runs the interface for the daemon of `found`'s install: a window opened
 /// hidden in the theme the system prefers, shown and hidden as the daemon's
-/// state says once its document has loaded, its footer drawn from the state,
+/// state says once its document has loaded, its footer and its drawer drawn
+/// from the state, the Leader asked of the system where this window is its
+/// listener, and every key, list and control run as the command it names,
 /// until the event loop ends — which nothing in this build asks it to.
 ///
 /// # Errors
@@ -876,6 +1621,7 @@ pub fn run(found: Found) -> Result<(), Unopened> {
         locale: nc_catalog::Locale::En,
         channel: found.install.channel,
     };
+    let keymap = Keymap::of(&nc_channel::keys::effective(&found));
     let mut opened = open(
         &event_loop,
         event_loop.create_proxy(),
@@ -883,82 +1629,45 @@ pub fn run(found: Found) -> Result<(), Unopened> {
         Mode::DEFAULT,
         (0, false),
     )?;
+    // **Held on this thread**, the event loop's, as a registration must be
+    // (`nc_platform::leader`), and given back when the loop has ended.
+    let (held, unheard) = listened(&found, &keymap, &event_loop.create_proxy(), context.locale);
     following(found.clone(), event_loop.create_proxy()).map_err(Unopened::Thread)?;
     let asks = asking(found, event_loop.create_proxy()).map_err(Unopened::Thread)?;
-    let mut mirror = Mirror::new();
-    let mut showing = Showing::default();
+    let mut running = Running {
+        context,
+        mirror: Mirror::new(),
+        showing: Showing::default(),
+        keymap,
+        commands: Commands::from_catalog(),
+        leader: crate::keys::Leader::default(),
+        focused: false,
+        placed: None,
+        unheard,
+        asks,
+    };
+    running.ask(Ask::Registry);
     event_loop.run_return(|event, _, flow| {
         *flow = ControlFlow::Wait;
-        match event {
-            Event::UserEvent(Arrived::Said { said, .. }) => match said {
-                Said::Loaded => {
-                    showing.loaded();
-                    let scripts = opened.drawing.loaded();
-                    opened.send(scripts);
-                    apply(&opened.window, showing);
-                }
-                Said::Scale(thousandths) => opened.fit(thousandths),
-                Said::Action(action) => {
-                    // The asking thread outlives the loop.
-                    let _ = asks.send(Ask::Run(action));
-                }
-                Said::Draft(text) => {
-                    let (draft, scripts) = opened.drawing.typed(&text);
-                    opened.send(scripts);
-                    mirror.said(Fact::Draft(draft));
-                    tell(&mut mirror, &asks);
-                }
-                Said::FirstFrame(_)
-                | Said::Settled(_)
-                | Said::Viewport(..)
-                | Said::Exercised(_) => {}
-            },
-            Event::UserEvent(Arrived::Told(taken)) => {
-                mirror.told(taken);
-                tell(&mut mirror, &asks);
-            }
-            Event::UserEvent(Arrived::Heard(Heard::Reached)) => mirror.reconnected(),
-            Event::UserEvent(Arrived::Heard(Heard::Changed(changed))) => {
-                // A state this build does not read leaves the one held drawn.
-                if mirror.watched(changed).is_ok()
-                    && let Some(shell) = mirror.shell()
-                {
-                    let footer = crate::footer::view(Some(shell), context);
-                    let scripts = opened
-                        .drawing
-                        .shows(crate::footer::markup(&footer), &shell.draft);
-                    opened.send(scripts);
-                    if let Some(shown) = shown(&mirror) {
-                        showing.want(shown);
-                        apply(&opened.window, showing);
-                    }
-                }
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
-                if let Some(window) = mirror.shell().and_then(this_window) {
-                    // The asking thread outlives the loop.
-                    let _ = asks.send(Ask::Close(window.id));
-                }
-            }
-            _ => {}
-        }
+        running.on(&mut opened, event);
     });
     drop(opened);
+    drop(held);
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use nc_canon::Value;
     use nc_ipc::client::Changed;
     use tao::dpi::LogicalSize;
 
+    use nc_schema::keys::Key;
+
     use super::{Ask, Said, Showing, at_least, fitted, least, said, shown, this_window, within};
+    use crate::drawer::List;
     use crate::footer::Action;
-    use crate::mirror::Mirror;
+    use crate::mirror::{Mirror, Region};
 
     /// A state as the kernel writes one, its windows shown as `shown` says.
     fn state(shown: &[bool]) -> Value {
@@ -1133,6 +1842,284 @@ mod tests {
             "exercised 1  1 1",
         ] {
             assert_eq!(said(other), None, "{other:?}");
+        }
+    }
+
+    /// The keys, the lists and the focus the page says are read in one
+    /// spelling each — a key of the vocabulary by its code, a list of the
+    /// four, a value of an option whole and within its bound — and nothing
+    /// else is one.
+    #[test]
+    fn the_keys_the_lists_and_the_focus_are_read_in_one_spelling() {
+        for other in [
+            "leader",
+            "leader down ",
+            "Leader down",
+            "leader left",
+            "key held KeyQ",
+            "key held KeyQ 2",
+            "key held keyq 0",
+            "key held AltLeft 0",
+            "key held Escape 0",
+            "key menu",
+            "key menu Numpad1",
+            "key menu KeyS 1",
+            "choose",
+            "choose leader",
+            "choose leader ",
+            "choose menu page.settings",
+            "choose leader page.settings\n",
+            "active commands",
+            "active shortcut x",
+            "send ",
+            "send\n",
+            "focus",
+            "focus sidebar",
+            "focus prompt ",
+            "escape ",
+            "Escape",
+        ] {
+            assert_eq!(said(other), None, "{other:?}");
+        }
+        let long = format!("send {}", "a".repeat(super::VALUE_BYTES_MAX + 1));
+        assert_eq!(said(&long), None, "a value past its bound");
+        for (message, read) in [
+            ("leader down", Said::LeaderDown),
+            ("leader up", Said::LeaderUp),
+            ("key held KeyQ 0", Said::Held(Key::KeyQ, false)),
+            ("key held ArrowLeft 1", Said::Held(Key::ArrowLeft, true)),
+            ("key menu Slash", Said::InMenu(Key::Slash)),
+            (
+                "choose leader page.settings",
+                Said::Choose(List::Menu, "page.settings".to_owned()),
+            ),
+            (
+                "choose commands value:two words",
+                Said::Choose(List::Commands, "value:two words".to_owned()),
+            ),
+            (
+                "active actions window.hide",
+                Said::Active(List::Actions, "window.hide".to_owned()),
+            ),
+            ("send", Said::Send(None)),
+            (
+                "send parameter:kind",
+                Said::Send(Some("parameter:kind".to_owned())),
+            ),
+            ("focus prompt", Said::Focus(Region::Prompt)),
+            ("focus drawer", Said::Focus(Region::Drawer)),
+            ("escape", Said::Escape),
+        ] {
+            assert_eq!(said(message), Some(read), "{message:?}");
+        }
+    }
+
+    /// A refusal is said by its code and its message in the window's
+    /// locale; where a compositor's binding delivers the Leader, by the code
+    /// of a session that registers no key, and the binding to make.
+    #[test]
+    fn a_leader_not_heard_is_said_by_its_code_and_message() {
+        let refusal = nc_ipc::leader::refusal(&nc_platform::leader::Refused::Taken);
+        for locale in nc_catalog::Locale::ALL {
+            let said = super::refused_said(&refusal, *locale);
+            let message = nc_catalog::message(
+                nc_catalog::ErrorCode::ChannelLeaderTaken.message_key(),
+                *locale,
+            )
+            .expect("a message");
+            assert_eq!(
+                said,
+                format!(
+                    "[{}] {message}",
+                    nc_catalog::ErrorCode::ChannelLeaderTaken.code()
+                )
+            );
+        }
+        let leader = nc_schema::keys::Leader::of(
+            nc_schema::keys::Chord::parse("Alt+Super+Space").expect("a chord"),
+        )
+        .expect("a Leader");
+        let bound = super::bound_said(
+            leader,
+            std::path::Path::new("/home/a/bin/noctua-dev-0123abcd"),
+            nc_catalog::Locale::En,
+        );
+        assert!(
+            bound.starts_with(&format!(
+                "[{}] ",
+                nc_catalog::ErrorCode::ChannelLeaderNoSession.code()
+            )),
+            "{bound}"
+        );
+        assert!(
+            bound.ends_with(" Alt+Super+Space: /home/a/bin/noctua-dev-0123abcd leader"),
+            "{bound}"
+        );
+        for said in [
+            super::refused_said(&refusal, nc_catalog::Locale::PtBR),
+            bound,
+        ] {
+            assert!(
+                !said.chars().any(nc_schema::unseen) && said.len() <= 4096,
+                "`info.say` takes it: {said}"
+            );
+        }
+    }
+
+    /// The desktop asks the system for the Leader where it is the listener,
+    /// and never for a test's install.
+    #[test]
+    fn the_desktop_asks_for_the_leader_where_it_listens_and_never_for_a_test() {
+        use nc_ipc::leader::Listener;
+        assert!(super::asks(false, Listener::Desktop));
+        assert!(!super::asks(false, Listener::Daemon));
+        assert!(!super::asks(true, Listener::Desktop));
+        assert!(!super::asks(true, Listener::Daemon));
+    }
+
+    /// A menu entry that opens no page closes the open menu first, and one
+    /// that opens a page leaves the menu, and its flip, to the kernel; every
+    /// command that opens a page among the catalog's entries is one the
+    /// window knows opens one.
+    #[test]
+    pub(crate) fn an_entry_closes_the_menu_first_unless_it_opens_a_page() {
+        let en = nc_catalog::Locale::En;
+        let bare = |command: &str| Ask::bare(command, en);
+        assert_eq!(
+            super::entry_asks("page.close", Some(7), en),
+            [
+                Ask::Dispatch {
+                    command: "page.close".to_owned(),
+                    arguments: Value::object([
+                        ("page", Value::Integer(7)),
+                        ("in", Value::text("drawer")),
+                    ]),
+                    clear: false,
+                    locale: en,
+                },
+                bare("page.close"),
+            ]
+        );
+        assert_eq!(
+            super::entry_asks("sidebar.cycle", None, en),
+            [bare("sidebar.cycle")]
+        );
+        for opens in super::OPENS_A_PAGE {
+            assert_eq!(
+                super::entry_asks(opens, Some(7), en),
+                [bare(opens)],
+                "{opens}"
+            );
+            assert!(nc_catalog::command(opens).is_some(), "{opens}");
+        }
+        for (command, bound) in nc_channel::keys::catalog_bindings() {
+            let in_menu = bound
+                .iter()
+                .any(|binding| binding.table == nc_schema::keys::Table::Menu);
+            if in_menu && command.starts_with("page.") && command != "page.close" {
+                assert!(super::OPENS_A_PAGE.contains(&command.as_str()), "{command}");
+            }
+        }
+        let run = bare("window.hide");
+        assert_eq!(run.command(), Some("window.hide"));
+        assert_eq!(
+            run.arguments(),
+            Some(Value::object(Vec::<(&str, Value)>::new()))
+        );
+        assert_eq!(
+            (Ask::Registry.command(), Ask::Registry.arguments()),
+            (None, None)
+        );
+    }
+
+    /// A command chosen runs at once where it takes no parameter — clearing
+    /// the prompt where it asked — and otherwise keeps the prompt on it.
+    #[test]
+    pub(crate) fn a_command_chosen_runs_or_asks_for_its_parameters() {
+        let en = nc_catalog::Locale::En;
+        let commands = crate::commands::Commands::from_catalog();
+        let hide = commands.named("window.hide").expect("listed");
+        let (ask, asks) = super::chosen_asks(hide, true, en);
+        assert!(asks, "an optional parameter is a parameter");
+        assert_eq!(ask.command(), Some("prompt.ask"));
+        assert_eq!(
+            ask.arguments(),
+            Some(Value::object([("command", Value::text("window.hide"))]))
+        );
+        let shown = commands.named("sidebar.show").expect("listed");
+        for asking in [true, false] {
+            let (ask, asks) = super::chosen_asks(shown, asking, en);
+            assert!(!asks);
+            assert_eq!(
+                ask,
+                Ask::Dispatch {
+                    command: "sidebar.show".to_owned(),
+                    arguments: Value::object(Vec::<(&str, Value)>::new()),
+                    clear: asking,
+                    locale: en,
+                }
+            );
+        }
+    }
+
+    /// The prompt's list chooses a command while it asks for the list, and
+    /// completes the draft with what it offers while it asks for a command's
+    /// parameters; a value it does not offer comes to nothing. Sent with no
+    /// option, the command runs with what the draft gives it, the prompt
+    /// cleared once it ran. Esc clears the prompt while it asks, and goes
+    /// back in the drawer otherwise.
+    #[test]
+    pub(crate) fn the_prompts_list_chooses_completes_and_runs() {
+        use crate::mirror::Asking;
+        let en = nc_catalog::Locale::En;
+        let commands = crate::commands::Commands::from_catalog();
+        let parameters = Asking::Parameters {
+            command: "page.open".to_owned(),
+            parameter: None,
+        };
+        assert_eq!(
+            super::picked(Some(&Asking::Commands), ";x", "page.help", &commands),
+            Some(super::Picked::Command("page.help".to_owned()))
+        );
+        assert_eq!(
+            super::picked(Some(&Asking::Commands), ";x", "no.such", &commands),
+            None
+        );
+        assert_eq!(
+            super::picked(Some(&parameters), "kind=he", "value:help", &commands),
+            Some(super::Picked::Draft("kind=help ".to_owned()))
+        );
+        assert_eq!(
+            super::picked(Some(&parameters), "", "parameter:kind", &commands),
+            Some(super::Picked::Draft("kind=".to_owned()))
+        );
+        assert_eq!(
+            super::picked(Some(&parameters), "kind=he", "value:dev", &commands),
+            None,
+            "a value not offered"
+        );
+        assert_eq!(super::picked(None, "", "page.help", &commands), None);
+        assert_eq!(
+            super::sent_asks(Some(&parameters), "kind=help", &commands, en),
+            Some(Ask::Dispatch {
+                command: "page.open".to_owned(),
+                arguments: Value::object([("kind", Value::text("help"))]),
+                clear: true,
+                locale: en,
+            })
+        );
+        assert_eq!(
+            super::sent_asks(Some(&Asking::Commands), ";x", &commands, en),
+            None
+        );
+        assert_eq!(super::sent_asks(None, "x", &commands, en), None);
+        assert_eq!(super::escaped(true), "prompt.clear");
+        assert_eq!(super::escaped(false), "drawer.back");
+        for target in ["page.help", "parameter:kind", "value:help"] {
+            assert!(super::is_target(target), "{target}");
+        }
+        for other in ["", "value:two words", &"a".repeat(65), "é"] {
+            assert!(!super::is_target(other), "{other}");
         }
     }
 

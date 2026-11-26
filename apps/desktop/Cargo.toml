@@ -34,6 +34,12 @@ nc-channel.workspace = true
 # The protocol, and the one client every program asks a daemon through
 # (`nc_ipc::client`): the handshake that proves both ends, a watch and a note.
 nc-ipc.workspace = true
+# The Leader's grammar: the keys a binding names, by `KeyboardEvent.code`,
+# the three tables and the bindings in force (`NOCTUA.md §12.8`).
+nc-schema.workspace = true
+# The one fuzzy core the command list is filtered by, as `kernel.find`
+# filters (`§12.4`): never a second matcher.
+nc-fuzzy.workspace = true
 # **The one call that puts the webview into the window**, which each system
 # makes its own way, behind the feature only this crate turns on
 # (`nc_platform::webview`, `§2.7`).

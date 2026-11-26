@@ -621,6 +621,7 @@ and `run.rs`, its process control, `control.rs`, its installer, `install.rs`,
 the MCP server `noctua mcp` serves a client with, `mcp.rs`,
 the desktop interface's `main.rs`, `mirror.rs`, `page.rs`, its footer, `footer.rs`, its
 theme, `theme.rs`, the paths its protocol answers, `assets.rs`, `host.rs` and `client.rs`,
+its keys, `keys.rs`, its command list, `commands.rs`, and its drawer, `drawer.rs`,
 the desktop's sheet, `tailwind.rs`,
 `nc-prune`'s `sqlite.rs`,
 `local.rs`, which builds that database's schema from its migrations, and the fuzzy

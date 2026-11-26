@@ -172,6 +172,24 @@ impl Asker {
         self.kept(asked)
     }
 
+    /// Every command the daemon's registry holds — the catalog's and every
+    /// loaded plugin's — its texts in `locale`.
+    ///
+    /// # Errors
+    ///
+    /// What `nc_ipc::client::connect` refuses, and what
+    /// `nc_ipc::client::Connection::registry` does.
+    pub async fn registry(
+        &mut self,
+        locale: nc_catalog::Locale,
+    ) -> Result<Vec<nc_ipc::client::Listed>, Unasked> {
+        let asked = match self.connection().await {
+            Ok(connection) => connection.registry(locale).await,
+            Err(unasked) => Err(unasked),
+        };
+        self.kept(asked)
+    }
+
     /// Tells the daemon `note`, which its kernel applies whole or not at all.
     ///
     /// # Errors

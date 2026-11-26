@@ -21,6 +21,11 @@
 //!   loaded, and the footer ([`footer`]) drawn from it, its modeline, its
 //!   info line and its prompt line; and what the window asks, a command or a
 //!   note, sent on the other connection.
+//! - **The keys** ([`keys`], [`commands`], [`drawer`]): the Leader asked of
+//!   the system where this window is its listener, tapped or held as the
+//!   window hears it, every key a physical key run by the binding in force,
+//!   and the leader menu, the command list and a command's parameters drawn
+//!   in the drawer — each press, entry and row a command run as the person.
 //!
 //! **The interface is a view** (`§12.1`): it holds no authoritative state, so
 //! killing it loses nothing, and a window opened again draws what the daemon
@@ -41,8 +46,10 @@
 //! message channel is read for a closed set of messages. A page asking the
 //! window to run what it pleases: a control's word is run only when it is
 //! one of the footer's closed set of commands, none of which takes an
-//! argument, and the prompt's text is said only as `prompt.set`'s, cut to its
-//! bound — so the page can do nothing the person could not do from the CLI.
+//! argument, a key, an entry or a row only as what a binding in force, the
+//! `w` list or the window's own list offers, and the prompt's text is said
+//! only as `prompt.set`'s, cut to its bound — so the page can do nothing the
+//! person could not do from the CLI.
 //! Markup drawn as something it is not: every text the footer shows is
 //! escaped where it is rendered, and the page is handed markup only as a
 //! script's string literal.
@@ -62,8 +69,11 @@
 
 pub mod assets;
 pub mod client;
+pub mod commands;
+pub mod drawer;
 pub mod footer;
 pub mod host;
+pub mod keys;
 pub mod mirror;
 pub mod page;
 pub mod sheet;
