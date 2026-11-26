@@ -19782,8 +19782,8 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 130, 22),
-        ("daemon/serves_its_kernel.rs", 27, 3),
+        ("daemon/server.rs", 131, 22),
+        ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
@@ -19800,7 +19800,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/emit.rs", 37, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
-        ("nc-catalog-compiler/load.rs", 63, 18),
+        ("nc-catalog-compiler/load.rs", 64, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 25, 2),
         ("nc-catalog-compiler/model.rs", 64, 20),
@@ -19884,7 +19884,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/dispatch.rs", 138, 31),
+        ("nc-kernel/dispatch.rs", 139, 31),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -19892,7 +19892,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/history.rs", 49, 7),
         ("nc-kernel/host.rs", 49, 18),
         ("nc-kernel/host/blobs.rs", 36, 41),
-        ("nc-kernel/host/commands.rs", 35, 15),
+        ("nc-kernel/host/commands.rs", 37, 15),
         ("nc-kernel/host/context.rs", 1, 7),
         ("nc-kernel/host/events.rs", 0, 4),
         ("nc-kernel/host/log.rs", 13, 12),
@@ -19901,25 +19901,25 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 65, 59),
+        ("nc-kernel/lib.rs", 66, 59),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
         ("nc-kernel/net.rs", 30, 13),
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
-        ("nc-kernel/pump.rs", 9, 2),
+        ("nc-kernel/pump.rs", 10, 2),
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
-        ("nc-kernel/shell.rs", 190, 35),
+        ("nc-kernel/shell.rs", 207, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 301, 87),
+        ("nc-kernel/the_decision_point.rs", 303, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 72, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 74, 64),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
-        ("nc-kernel/units.rs", 115, 18),
+        ("nc-kernel/units.rs", 116, 18),
         ("nc-kernel/units_and_history.rs", 159, 48),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
@@ -19967,7 +19967,7 @@ mod the_frozen_path_rule {
         ("nc-schema/properties.rs", 36, 2),
         ("nc-schema/selector.rs", 22, 20),
         ("reference/adapter.rs", 18, 28),
-        ("reference/behaviour.rs", 134, 60),
+        ("reference/behaviour.rs", 136, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
         ("xtask/check.rs", 693, 57),
@@ -25947,7 +25947,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23117;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23171;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25966,7 +25966,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6562;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6579;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25983,7 +25983,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2224;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2231;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26000,7 +26000,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [98, 20, 43, 44, 97];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [100, 19, 44, 45, 98];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26017,7 +26017,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30364;
+    const THE_REARRANGEMENTS_JUDGED: usize = 30475;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26035,7 +26035,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 557;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 561;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26071,8 +26071,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **557 of 30,364 are accepted by the first-line
-    /// rule alone, and 302 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **561 of 30,475 are accepted by the first-line
+    /// rule alone, and 306 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26093,8 +26093,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **98 ascending sorts, 20 descending, 43
-    /// swaps, 44 rotations and 97 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **100 ascending sorts, 19 descending, 44
+    /// swaps, 45 rotations and 98 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26104,7 +26104,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2224 of
+    /// this tree offers, **2231 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38194,7 +38194,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3022] = [
+    static OPERATORS: [(&str, &str, &str); 3037] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44420,8 +44420,13 @@ Options:
         ),
         (
             "kernel_shell",
-            "ran",
+            "the_read",
             "the read answers the revision the state is at",
+        ),
+        (
+            "kernel_shell",
+            "the_read",
+            "a read in a tree that holds a change answers it with no revision",
         ),
         (
             "kernel_shell",
@@ -44432,6 +44437,11 @@ Options:
             "kernel_shell",
             "leader_tap",
             "the menu's rule comes before the prompt's",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
+            "the menu's rule is a tap's only where a window shown holds the menu",
         ),
         (
             "kernel_shell",
@@ -44468,6 +44478,11 @@ Options:
             "kernel_shell",
             "window_open",
             "the windows are held to their bound",
+        ),
+        (
+            "kernel_shell",
+            "minted",
+            "an identifier is never given past the last one a state writes",
         ),
         (
             "kernel_shell",
@@ -44559,25 +44574,54 @@ Options:
         ),
         (
             "kernel_shell",
-            "holds",
+            "window_rules",
             "a window's size is held to the smallest",
         ),
         (
             "kernel_shell",
-            "holds",
+            "window_rules",
+            "the windows kept are at most their bound",
+        ),
+        (
+            "kernel_shell",
+            "drawer_rules",
             "the drawer's share is held below half",
         ),
         (
             "kernel_shell",
-            "holds",
+            "drawer_rules",
+            "the drawer's pages kept are at most their bound",
+        ),
+        (
+            "kernel_shell",
+            "in_front",
+            "a stack kept with nothing in front is empty",
+        ),
+        (
+            "kernel_shell",
+            "line_rules",
             "a seat kept is one the bound allows",
         ),
         (
             "kernel_shell",
-            "holds",
+            "window_rules",
             "a list of the drawer's is never kept in a window",
         ),
-        ("kernel_shell", "holds", "a page kept is shown somewhere"),
+        (
+            "kernel_shell",
+            "page_rules",
+            "a page kept is shown somewhere",
+        ),
+        (
+            "kernel_shell",
+            "page_rules",
+            "the pages kept are at most their bound",
+        ),
+        (
+            "kernel_shell",
+            "page_rules",
+            "a page kept is the one of its kind and topic",
+        ),
         (
             "kernel_shell",
             "restored",
@@ -44609,6 +44653,11 @@ Options:
             "a tree reads back the interface's state its unit holds",
         ),
         (
+            "kernel_dispatch",
+            "closed",
+            "a unit kept lets go of the tree's own state of the interface it carries",
+        ),
+        (
             "kernel_builtin",
             "name",
             "a command of the interface is named as its verb",
@@ -44617,6 +44666,16 @@ Options:
             "kernel_pump",
             "pumped",
             "a pump says it kept the interface's state",
+        ),
+        (
+            "kernel_pump",
+            "called_back",
+            "the interface's state a callback holds is released after the unit it began",
+        ),
+        (
+            "kernel",
+            "keep_interface",
+            "a stop's save is the save a pump makes",
         ),
         (
             "kernel_backend",
@@ -46374,9 +46433,24 @@ Options:
             "a note in parts is written to every part",
         ),
         (
+            "reference_behaviour",
+            "windows_opened",
+            "a timer told to group its windows opens the middle one in a unit",
+        ),
+        (
             "loader",
             "check_kernel",
             "an event queue holds one payload under the longest topic",
+        ),
+        (
+            "loader",
+            "check_kernel_interface",
+            "the drawer's share is held below half where the limits are written",
+        ),
+        (
+            "loader",
+            "check_kernel_interface",
+            "the drawer holds no more pages than the interface where the limits are written",
         ),
         (
             "kernel_events",
@@ -46737,7 +46811,7 @@ Options:
         ),
         (
             "kernel_pump",
-            "called_back",
+            "kept_or_let_go",
             "a timer's callback killed lets the unit it began go",
         ),
         (
@@ -47611,7 +47685,7 @@ Options:
         ),
         (
             "kernel_pump",
-            "called_back",
+            "kept_or_let_go",
             "a step a timer's callback keeps joins the history of whom its tree acts for",
         ),
         (
@@ -49310,6 +49384,11 @@ Options:
             "daemon_server",
             "took_in",
             "a state the kernel holds at the revision taken in moves no revision",
+        ),
+        (
+            "daemon_server",
+            "took_in",
+            "a state the kernel held before the one taken in is never taken in",
         ),
         (
             "daemon_server",

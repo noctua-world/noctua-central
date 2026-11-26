@@ -22,9 +22,15 @@
 //! of the system by anyone: [`listen`] answers [`Listening::ByBinding`].
 //!
 //! **A refusal is told, never dropped** ([`refusal`]): each kind of
-//! `nc_platform::leader::Refused` is a code of the catalog's, which the
-//! interface's info line says in the person's language, so the process that
-//! was refused hands it on rather than running on in silence.
+//! `nc_platform::leader::Refused` is a code of the catalog's, so the process
+//! that was refused hands it on rather than running on in silence — the
+//! daemon in its status and its log, and the desktop interface, once it is
+//! built, on its info line in the person's language.
+//!
+//! **Which process asks is decided here for every system, and only the
+//! daemon asks yet**: the desktop interface, the listener on Linux and macOS,
+//! is not built, so on those systems a press reaches the kernel only through
+//! `noctua leader` until it is.
 //!
 //! # What this does not answer
 //!

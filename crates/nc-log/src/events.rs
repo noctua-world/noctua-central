@@ -615,7 +615,7 @@ impl Event for KernelRevertFailed {
     }
 }
 
-/// `kernel.shell_discarded` — The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's
+/// `kernel.shell_discarded` — The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read
 #[derive(Debug, Clone)]
 pub struct KernelShellDiscarded {
     /// A count.
@@ -636,7 +636,7 @@ impl Event for KernelShellDiscarded {
     }
 }
 
-/// `kernel.shell_unkept` — The kernel could not save the interface's state to the local store, and will try again at the next pump
+/// `kernel.shell_unkept` — The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save
 #[derive(Debug, Clone)]
 pub struct KernelShellUnkept {
     /// A code from the error registry.

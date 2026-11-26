@@ -43,26 +43,39 @@
 //! kept. A tree whose entry the journal refused leaves the state as it was. A
 //! state held is released only over the state it was computed from, so one a
 //! unit inside the same tree already released is never written back over by
-//! the older one the tree held before it.
+//! the older one the tree held before it. **A unit's state carries the
+//! tree's**: computed over what the tree held when the unit began — a timer's
+//! callback, the one tree that holds changes of its own beside a unit — it is
+//! released whole when the unit is kept, and the tree lets its own go then
+//! (`CallTree::kept_over_its_own`), so the commands after the unit read what
+//! it released, and a callback's own is released after its unit, only when
+//! no unit was kept holding one. `shell.read` inside a tree that holds a change
+//! answers that change, which is not the kernel's yet, with no revision.
 //!
 //! **Kept between starts, outside every unit.** The pump saves the state to
 //! the channel's local store when it changed (`StoreBackend::keep`, under the
-//! kernel's own holder and the key [`KEY`], which no unit writes), and the
-//! kernel reads it back when it opens. A save the store refuses is logged as
-//! `kernel.shell_unkept` and tried again at the next pump. **What is read back
+//! kernel's own holder and the key [`KEY`], which no unit writes), a stop
+//! saves it last, once nothing runs ([`crate::Kernel::keep_interface`]), and
+//! the kernel reads it back when it opens. A save the store refuses is logged
+//! as `kernel.shell_unkept` and tried again at the next pump — at a stop there
+//! is none, and what changed since the last save is lost. **What is read back
 //! is never trusted**: a saved state of another shape, or one that breaks any
-//! rule this module holds the state to — a bound, a page no place shows, a
-//! seat past `shell_seats_max` — is set aside whole, logged as
+//! rule this module holds the state to ([`State::holds`]) — a bound, a page no
+//! place shows, a seat past `shell_seats_max` — is set aside whole, logged as
 //! `kernel.shell_discarded` with the shape it named, and the kernel begins from
-//! the first run's state, which shows nothing but the footer (§12.2).
+//! the first run's state, which shows nothing but the footer (§12.2). Every
+//! identifier is one canonical JSON writes: a window or a page past the last
+//! one is refused (`[NC-KERN-0028]`), never given a number another holds.
 //!
 //! **What a Leader tap does is decided here** (§12.8), so the CLI's `noctua
-//! leader` and a hotkey do the same: with the leader menu open in the drawer, a
-//! tap sends the next page opened to the other region; with the seat's
-//! keyboard on the prompt line of a window that is shown, it opens the leader
-//! menu in the drawer; otherwise it shows the window, shows the footer and puts
-//! the seat's keyboard on the prompt line. **A tap never hides the
-//! interface**: §12.8 gives a tap no such rule.
+//! leader` and a hotkey do the same: with the leader menu open in the drawer of
+//! the seat's window, shown, a tap sends the next page opened to the other
+//! region; with the seat's keyboard on the prompt line of a window that is
+//! shown, it opens the leader menu in the drawer; otherwise — the window hidden
+//! with the menu open in it included — it shows the window, shows the footer
+//! and puts the seat's keyboard on the prompt line. **A tap never hides the
+//! interface**: §12.8 gives a tap no such rule, and a menu no window shows
+//! never keeps a tap from showing one.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
@@ -109,6 +122,10 @@ pub(crate) const PLACE_MAX: i64 = 32_767;
 
 /// The least a window's corner may be placed at.
 pub(crate) const PLACE_MIN: i64 = -32_768;
+
+/// The furthest the next identifier goes: the largest integer canonical JSON
+/// writes, so every identifier given, and the next, is written as itself.
+const NEXT_MAX: u64 = i64::MAX.unsigned_abs();
 
 /// The share of the height the drawer takes until a person sets one, in
 /// percent: a third.
@@ -904,6 +921,9 @@ pub(crate) fn ran<E: Environment>(
     args: &serde_json::Value,
 ) -> Result<String, Failure> {
     let held = dispatch::lock(tree).shell_held().cloned();
+    if verb == Verb::ShellRead {
+        return Ok(the_read(shared, held.as_ref()).to_canonical());
+    }
     let Held { mut state, base } = held.unwrap_or_else(|| {
         let cell = dispatch::lock(&shared.shell);
         Held {
@@ -911,13 +931,6 @@ pub(crate) fn ran<E: Environment>(
             base: cell.released,
         }
     });
-    if verb == Verb::ShellRead {
-        let revision = dispatch::lock(&shared.shell).revision;
-        return Ok(
-            Value::object([("revision", count(revision)), ("shell", state.to_value())])
-                .to_canonical(),
-        );
-    }
     changed(&mut state, verb, args, &Now { shared })
         .map_err(|refusal| Failure::new(refusal, "shell-refused"))?;
     let answer = Value::object([("shell", state.to_value())]).to_canonical();
@@ -925,6 +938,24 @@ pub(crate) fn ran<E: Environment>(
         .later_mut()
         .hold_shell(Held { state, base });
     Ok(answer)
+}
+
+/// What `shell.read` answers: the kernel's state at the revision it is at, or,
+/// in a call tree that holds a change, that change alone.
+///
+/// **A revision names a state the kernel held**, and the one a tree holds is
+/// not the kernel's yet — it may never be, if the journal refuses the tree's
+/// entry — so it is answered with no revision rather than beside one that
+/// names the state before it.
+fn the_read<E: Environment>(shared: &Shared<E>, held: Option<&Held>) -> Value {
+    if let Some(held) = held {
+        return Value::object([("shell", held.state.to_value())]);
+    }
+    let cell = dispatch::lock(&shared.shell);
+    Value::object([
+        ("revision", count(cell.revision)),
+        ("shell", cell.state.to_value()),
+    ])
 }
 
 /// What `verb` with `args` makes of `state`, judged against what `known`
@@ -1193,12 +1224,17 @@ impl Change<'_> {
     }
 
     /// The text of `text`, held to `shell_text_bytes`.
+    ///
+    /// **An argument refused as its schema refuses one**: the schema counts
+    /// the text in characters, to the same number, and this in bytes, so a
+    /// text within the one and past the other is the same refusal,
+    /// `[NC-VAL-0002]` — never `[NC-KERN-0028]`, which is the state full.
     fn text(&self) -> Result<String, Refusal> {
         let text = self
             .optional_text(TEXT)?
             .ok_or_else(|| invalid(format!("`{TEXT}` is required, and was not given")))?;
         if u64::try_from(text.len()).unwrap_or(u64::MAX) > KERNEL.shell_text_bytes {
-            return Err(full(format!(
+            return Err(invalid(format!(
                 "`{TEXT}` holds {} bytes, past the {} `[kernel] shell_text_bytes` allows",
                 text.len(),
                 KERNEL.shell_text_bytes
@@ -1253,7 +1289,7 @@ impl Change<'_> {
                 self.state.windows.len()
             )));
         }
-        let id = self.state.minted();
+        let id = self.state.minted()?;
         self.state.windows.push(Window::new(id, true));
         Ok(())
     }
@@ -1298,18 +1334,24 @@ impl Change<'_> {
 
     /// `leader.tap`: the three rules of §12.8, in the order the menu's
     /// precedes the prompt's.
+    ///
+    /// **The menu's rule only where the menu is seen**: open in the drawer of
+    /// the seat's window, and that window shown. A menu left open in a window
+    /// hidden — by `window.hide`, or by closing the last one — shows nothing,
+    /// so the tap is rule 1's and shows the window, rather than flip where a
+    /// page no one sees goes.
     fn leader_tap(&mut self) -> Result<(), Refusal> {
         let seat = self.seat()?;
-        if self.state.leader_open() {
+        let window = self.state.current(seat);
+        let shown = self.state.window(window)?.shown;
+        if shown && self.state.leader_open() {
             self.state.drawer.flipped = !self.state.drawer.flipped;
             return Ok(());
         }
-        let window = self.state.current(seat);
         let on_the_prompt = Focus {
             window,
             region: Region::Prompt,
         };
-        let shown = self.state.window(window)?.shown;
         if shown && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt) {
             self.state
                 .opened(Kind::Leader, None, Place::Drawer, window)?;
@@ -1631,10 +1673,23 @@ impl State {
     }
 
     /// A new identifier for a window or a page.
-    fn minted(&mut self) -> u64 {
+    ///
+    /// # Errors
+    ///
+    /// `invalid` with `[NC-KERN-0028]` once the next would pass [`NEXT_MAX`]:
+    /// past it, an identifier would be written as one another holds, and the
+    /// state read back as two windows or two pages of one number.
+    fn minted(&mut self) -> Result<u64, Refusal> {
         let id = self.next;
-        self.next = self.next.saturating_add(1);
-        id
+        if id >= NEXT_MAX {
+            return Err(full(format!(
+                "the interface has given every identifier a window or a page can have, the \
+                 last {}",
+                NEXT_MAX.saturating_sub(1)
+            )));
+        }
+        self.next = id.saturating_add(1);
+        Ok(id)
     }
 
     /// Whether the leader menu is open: in focus in the drawer, which is not
@@ -1705,7 +1760,7 @@ impl State {
         let id = if let Some(id) = existing {
             id
         } else {
-            let id = self.minted();
+            let id = self.minted()?;
             self.pages.insert(
                 id,
                 Page {
@@ -2104,98 +2159,260 @@ impl State {
     /// Whether the state holds to every rule a command keeps it to: what
     /// [`State::from_value`] asks of a state it did not see made.
     pub(crate) fn holds(&self) -> bool {
+        self.rules().iter().all(|(_, kept)| *kept)
+    }
+
+    /// Every rule a command keeps the state to, by what it says, and whether
+    /// the state keeps it.
+    ///
+    /// **One clause, one rule**: each is asked on its own, never inside
+    /// another, so a test breaks each alone and reads that it alone is broken
+    /// (`rule_breakers`) — a clause asked inside another is one that could be
+    /// lost with every state the other refuses still refused, and nothing
+    /// told. A page is held under its own identifier by the reading itself,
+    /// which keys each page by the identifier it writes.
+    fn rules(&self) -> Vec<(&str, bool)> {
+        let mut rules = self.window_rules();
+        rules.extend(self.page_rules());
+        rules.extend(self.drawer_rules());
+        rules.extend(self.line_rules());
+        rules
+    }
+
+    /// The rules of the windows.
+    fn window_rules(&self) -> Vec<(&str, bool)> {
         let window_ids: Vec<u64> = self.windows.iter().map(|window| window.id).collect();
-        let stack_holds = |pages: &[u64], focused: Option<u64>| {
-            let mut seen = pages.to_vec();
-            seen.sort_unstable();
-            seen.dedup();
-            seen.len() == pages.len()
-                && pages.iter().all(|id| self.pages.contains_key(id))
-                && match focused {
-                    Some(id) => pages.contains(&id),
-                    None => pages.is_empty(),
-                }
-        };
-        let shown_somewhere = |id: &u64| {
-            self.drawer.pages.contains(id)
-                || self.windows.iter().any(|window| window.pages.contains(id))
-        };
-        let windows_hold = !self.windows.is_empty()
-            && self.windows.len() <= limit(KERNEL.shell_windows_max)
-            && {
-                let mut unique = window_ids.clone();
-                unique.sort_unstable();
-                unique.dedup();
-                unique.len() == window_ids.len()
-            }
-            && self.windows.iter().all(|window| {
-                window.id >= 1
-                    && window.id < self.next
-                    && stack_holds(&window.pages, window.focused)
-                    && window.pages.iter().all(|id| {
+        let windows = |rule: &dyn Fn(&Window) -> bool| self.windows.iter().all(rule);
+        vec![
+            ("the interface holds a window", !self.windows.is_empty()),
+            (
+                "the windows are at most their bound",
+                self.windows.len() <= limit(KERNEL.shell_windows_max),
+            ),
+            ("no two windows share an identifier", once(&window_ids)),
+            (
+                "a window's identifier is one at least",
+                windows(&|window| window.id >= 1),
+            ),
+            (
+                "a window's identifier was given",
+                windows(&|window| window.id < self.next),
+            ),
+            (
+                "a window's stack holds a page once",
+                windows(&|window| once(&window.pages)),
+            ),
+            (
+                "a window's stack holds pages the state holds",
+                windows(&|window| self.holds_pages(&window.pages)),
+            ),
+            (
+                "a window's focus is on its stack, and on nothing only when it is empty",
+                windows(&|window| in_front(&window.pages, window.focused)),
+            ),
+            (
+                "a window shows no list of the drawer's",
+                windows(&|window| {
+                    window.pages.iter().all(|id| {
                         self.pages
                             .get(id)
-                            .is_some_and(|page| !page.kind.drawer_only())
+                            .is_none_or(|page| !page.kind.drawer_only())
                     })
-                    && window.size.is_none_or(|(width, height)| {
+                }),
+            ),
+            (
+                "a window's size is within the smallest and the largest",
+                windows(&|window| {
+                    window.size.is_none_or(|(width, height)| {
                         (i64::from(KERNEL.shell_window_min_width)..=WINDOW_MAX).contains(&width)
                             && (i64::from(KERNEL.shell_window_min_height)..=WINDOW_MAX)
                                 .contains(&height)
                     })
-                    && window.place.is_none_or(|(x, y)| {
+                }),
+            ),
+            (
+                "a window's corner is within an X position's sixteen bits",
+                windows(&|window| {
+                    window.place.is_none_or(|(x, y)| {
                         (PLACE_MIN..=PLACE_MAX).contains(&x) && (PLACE_MIN..=PLACE_MAX).contains(&y)
                     })
-            });
-        let pages_hold = self.pages.len() <= limit(KERNEL.shell_pages_max)
-            && self.pages.iter().all(|(id, page)| {
-                *id == page.id
-                    && page.id >= 1
-                    && page.id < self.next
-                    && !window_ids.contains(id)
-                    && shown_somewhere(id)
-                    && match (page.kind.topic(), &page.topic) {
-                        (Topic::None, Some(_)) | (Topic::Required, None) => false,
-                        (_, topic) => topic.as_deref().is_none_or(is_word),
-                    }
-                    && page.trail.len() <= limit(KERNEL.shell_trail_max)
-                    && page.trail.iter().all(|step| is_word(step))
-                    && self
-                        .pages
+                }),
+            ),
+        ]
+    }
+
+    /// The rules of the pages.
+    fn page_rules(&self) -> Vec<(&str, bool)> {
+        let pages = |rule: &dyn Fn(&Page) -> bool| self.pages.values().all(rule);
+        let shown_somewhere = |id: &u64| {
+            self.drawer.pages.contains(id)
+                || self.windows.iter().any(|window| window.pages.contains(id))
+        };
+        vec![
+            (
+                "the pages are at most their bound",
+                self.pages.len() <= limit(KERNEL.shell_pages_max),
+            ),
+            (
+                "a page's identifier is one at least",
+                pages(&|page| page.id >= 1),
+            ),
+            (
+                "a page's identifier was given",
+                pages(&|page| page.id < self.next),
+            ),
+            (
+                "a page's identifier is no window's",
+                pages(&|page| self.windows.iter().all(|window| window.id != page.id)),
+            ),
+            (
+                "a page is shown somewhere",
+                pages(&|page| shown_somewhere(&page.id)),
+            ),
+            (
+                "a page has a topic where its kind takes one, and only there",
+                pages(&|page| {
+                    !matches!(
+                        (page.kind.topic(), &page.topic),
+                        (Topic::None, Some(_)) | (Topic::Required, None)
+                    )
+                }),
+            ),
+            (
+                "a page's topic is a word",
+                pages(&|page| page.topic.as_deref().is_none_or(is_word)),
+            ),
+            (
+                "a page's sub-pages are at most their bound",
+                pages(&|page| page.trail.len() <= limit(KERNEL.shell_trail_max)),
+            ),
+            (
+                "a page's sub-pages are words",
+                pages(&|page| page.trail.iter().all(|step| is_word(step))),
+            ),
+            (
+                "a page is the one of its kind and topic",
+                pages(&|page| {
+                    self.pages
                         .values()
                         .filter(|other| other.kind == page.kind && other.topic == page.topic)
                         .count()
                         == 1
-            });
-        let drawer_holds = self.drawer.pages.len() <= limit(KERNEL.shell_drawer_pages_max)
-            && stack_holds(&self.drawer.pages, self.drawer.focused)
-            && (!self.drawer.collapsed || !self.drawer.pages.is_empty())
-            && (1..=KERNEL.shell_drawer_share_max).contains(&self.drawer.share);
-        let texts_hold = u64::try_from(self.draft.len()).unwrap_or(u64::MAX)
-            <= KERNEL.shell_text_bytes
-            && self.message.as_deref().is_none_or(|message| {
-                !message.is_empty()
-                    && u64::try_from(message.len()).unwrap_or(u64::MAX) <= KERNEL.shell_text_bytes
-                    && !message
+                }),
+            ),
+        ]
+    }
+
+    /// The rules of the drawer.
+    fn drawer_rules(&self) -> Vec<(&str, bool)> {
+        vec![
+            (
+                "the drawer's pages are at most their bound",
+                self.drawer.pages.len() <= limit(KERNEL.shell_drawer_pages_max),
+            ),
+            ("the drawer holds a page once", once(&self.drawer.pages)),
+            (
+                "the drawer holds pages the state holds",
+                self.holds_pages(&self.drawer.pages),
+            ),
+            (
+                "the drawer's focus is on a page of it, and on nothing only when it is empty",
+                in_front(&self.drawer.pages, self.drawer.focused),
+            ),
+            (
+                "the drawer is collapsed only when it holds a page",
+                !self.drawer.collapsed || !self.drawer.pages.is_empty(),
+            ),
+            (
+                "the drawer's share is within its bound",
+                (1..=KERNEL.shell_drawer_share_max).contains(&self.drawer.share),
+            ),
+        ]
+    }
+
+    /// The rules of the info line, the prompt and the seats.
+    fn line_rules(&self) -> Vec<(&str, bool)> {
+        let message = |rule: &dyn Fn(&str) -> bool| self.message.as_deref().is_none_or(rule);
+        let within =
+            |text: &str| u64::try_from(text.len()).unwrap_or(u64::MAX) <= KERNEL.shell_text_bytes;
+        let parameters = |rule: &dyn Fn(&str, Option<&str>) -> bool| match &self.asking {
+            None | Some(Asking::Commands) => true,
+            Some(Asking::Parameters { command, parameter }) => rule(command, parameter.as_deref()),
+        };
+        let seats = |rule: &dyn Fn(&Seat) -> bool| self.seats.values().all(rule);
+        vec![
+            (
+                "the draft is at most its bound in bytes",
+                within(&self.draft),
+            ),
+            (
+                "a message says something",
+                message(&|said| !said.is_empty()),
+            ),
+            ("a message is at most its bound in bytes", message(&within)),
+            (
+                "a message is all a reader sees",
+                message(&|said| {
+                    !said
                         .chars()
                         .any(|character| character != '\n' && nc_schema::unseen(character))
-            })
-            && match &self.asking {
-                None | Some(Asking::Commands) => true,
-                Some(Asking::Parameters { command, parameter }) => {
+                }),
+            ),
+            (
+                "the prompt asks of a command by its name",
+                parameters(&|command, _| {
                     nc_schema::descriptor::command_name_is_well_formed(command)
-                        && parameter.as_deref().is_none_or(is_word)
-                }
-            };
-        let seats_hold = self.seats.iter().all(|(id, seat)| {
-            (1..=u64::from(KERNEL.shell_seats_max)).contains(id)
-                && seat
-                    .focus
-                    .is_none_or(|focus| window_ids.contains(&focus.window))
-                && [&seat.hover, &seat.selection, &seat.drag]
-                    .into_iter()
-                    .all(|target| target.as_deref().is_none_or(is_word))
-        });
-        windows_hold && pages_hold && drawer_holds && texts_hold && seats_hold
+                }),
+            ),
+            (
+                "the parameter the prompt asks for is a word",
+                parameters(&|_, parameter| parameter.is_none_or(is_word)),
+            ),
+            (
+                "a seat is one the bound allows",
+                self.seats
+                    .keys()
+                    .all(|id| (1..=u64::from(KERNEL.shell_seats_max)).contains(id)),
+            ),
+            (
+                "a seat's focus is on a window the state holds",
+                seats(&|seat| {
+                    seat.focus.is_none_or(|focus| {
+                        self.windows.iter().any(|window| window.id == focus.window)
+                    })
+                }),
+            ),
+            (
+                "what a seat hovers, selects or drags is a word",
+                seats(&|seat| {
+                    [&seat.hover, &seat.selection, &seat.drag]
+                        .into_iter()
+                        .all(|target| target.as_deref().is_none_or(is_word))
+                }),
+            ),
+        ]
+    }
+
+    /// Whether every one of `ids` is a page the state holds.
+    fn holds_pages(&self, ids: &[u64]) -> bool {
+        ids.iter().all(|id| self.pages.contains_key(id))
+    }
+}
+
+/// Whether no identifier is twice in `ids`.
+fn once(ids: &[u64]) -> bool {
+    let mut seen = ids.to_vec();
+    seen.sort_unstable();
+    seen.dedup();
+    seen.len() == ids.len()
+}
+
+/// Whether `focused` is one of `ids`, or nothing where `ids` is empty: the
+/// page in front of a stack.
+fn in_front(ids: &[u64], focused: Option<u64>) -> bool {
+    match focused {
+        Some(id) => ids.contains(&id),
+        None => ids.is_empty(),
     }
 }
 
@@ -2793,8 +3010,9 @@ mod tests {
     /// where the next page goes — a fourth flips it back, a fifth again — and
     /// the page opened then goes to the drawer, closing the menu and the flip
     /// with it. A tap with the keyboard on the prompt of a hidden window shows
-    /// it rather than open the menu, and the seat a tap names is the one that
-    /// moves.
+    /// it rather than open the menu, one with the menu open in a window hidden
+    /// or closed shows it rather than flip, and the seat a tap names is the
+    /// one that moves.
     #[test]
     fn a_leader_tap_follows_the_three_rules_and_never_hides_the_interface() {
         let hidden = ran(&State::default(), Verb::FooterHide, &json!({}));
@@ -2836,6 +3054,26 @@ mod tests {
             shown_again.drawer.pages.is_empty(),
             "a hidden window is shown first"
         );
+        // **A menu no window shows keeps no tap from showing one**: the menu
+        // open in a window hidden — or in the last one closed, which hides it
+        // — is rule 1's, and the tap shows the window and puts the keyboard
+        // on the prompt, the flip untouched; the tap after it, the menu now
+        // seen, flips.
+        for hiding in [Verb::WindowHide, Verb::WindowClose] {
+            let unseen = ran(&second, hiding, &json!({}));
+            assert!(unseen.leader_open() && !window(&unseen, 1).shown);
+            let shown = ran(&unseen, Verb::LeaderTap, &json!({}));
+            assert!(window(&shown, 1).shown && shown.footer, "{}", hiding.name());
+            assert!(!shown.drawer.flipped, "{}", hiding.name());
+            assert_eq!(
+                shown.seats[&1].focus.map(|focus| focus.region),
+                Some(Region::Prompt),
+                "{}",
+                hiding.name()
+            );
+            let flipped = ran(&shown, Verb::LeaderTap, &json!({}));
+            assert!(flipped.drawer.flipped, "{}", hiding.name());
+        }
         let other = ran(&first, Verb::LeaderTap, &json!({"seat": 2}));
         assert!(
             other.drawer.pages.is_empty(),
@@ -3005,15 +3243,6 @@ mod tests {
             said(&refused(&deep, Verb::PageInto, &json!({"topic": "past"}))),
             (RefusalKind::Invalid, ErrorCode::KernelShellFull)
         );
-        let long = "a".repeat(usize::try_from(KERNEL.shell_text_bytes).expect("small") + 1);
-        for verb in [Verb::InfoSay, Verb::PromptSet] {
-            assert_eq!(
-                said(&refused(&State::default(), verb, &json!({"text": long}))),
-                (RefusalKind::Invalid, ErrorCode::KernelShellFull),
-                "{}",
-                verb.name()
-            );
-        }
         for (verb, args) in [
             (Verb::ShellFocus, json!({"seat": 5, "region": "prompt"})),
             (Verb::ShellFocus, json!({"seat": 0, "region": "prompt"})),
@@ -3049,6 +3278,74 @@ mod tests {
             &json!({"x": -32_768, "y": 32_767}),
         );
         assert_eq!(window(&placed, 1).place, Some((-32_768, 32_767)));
+    }
+
+    /// A text past its bytes is an argument refused, as its schema refuses
+    /// one past its characters, and never the state full.
+    ///
+    /// **One character more than the bound, or as many as the bound each
+    /// written in two bytes**: the schema counts the second within its
+    /// `maxLength`, so the module's count in bytes is the one that refuses it,
+    /// with `[NC-VAL-0002]` as the schema would.
+    #[test]
+    fn a_text_past_its_bytes_is_an_argument_refused() {
+        let long = "a".repeat(usize::try_from(KERNEL.shell_text_bytes).expect("small") + 1);
+        let wide = "\u{e9}".repeat(usize::try_from(KERNEL.shell_text_bytes).expect("small"));
+        for verb in [Verb::InfoSay, Verb::PromptSet] {
+            for text in [&long, &wide] {
+                assert_eq!(
+                    said(&refused(&State::default(), verb, &json!({"text": text}))),
+                    (RefusalKind::Invalid, ErrorCode::ValidationArgumentsInvalid),
+                    "{}",
+                    verb.name()
+                );
+            }
+        }
+    }
+
+    /// An identifier is never given past the last one canonical JSON writes,
+    /// so no two windows or pages are read back as one number.
+    ///
+    /// **From a kept state whose next identifier is the largest a state
+    /// writes**: it is read back, and a window or a page opened over it is
+    /// refused with `[NC-KERN-0028]`, the state left as it was and still read
+    /// back. The control, one identifier below, gives that last one — and the
+    /// state it leaves is read back as itself, its window and its next both
+    /// written as what they are.
+    #[test]
+    fn an_identifier_is_never_given_past_the_last_one_a_state_writes() {
+        let at_the_last = State {
+            next: super::NEXT_MAX,
+            ..State::default()
+        };
+        let text = snapshot(&at_the_last);
+        assert_eq!(unkept(&text), Ok(at_the_last.clone()));
+        for (verb, args) in [
+            (Verb::WindowOpen, json!({})),
+            (Verb::PageOpen, json!({"kind": "help"})),
+            (Verb::PageOpen, json!({"kind": "leader"})),
+        ] {
+            assert_eq!(
+                said(&refused(&at_the_last, verb, &args)),
+                (RefusalKind::Invalid, ErrorCode::KernelShellFull),
+                "{} {args}",
+                verb.name()
+            );
+        }
+        let below = State {
+            next: super::NEXT_MAX - 1,
+            ..State::default()
+        };
+        let opened = ran(&below, Verb::WindowOpen, &json!({}));
+        assert_eq!(
+            (opened.windows[1].id, opened.next),
+            (super::NEXT_MAX - 1, super::NEXT_MAX)
+        );
+        assert_eq!(unkept(&snapshot(&opened)), Ok(opened.clone()));
+        assert_eq!(
+            said(&refused(&opened, Verb::WindowOpen, &json!({}))),
+            (RefusalKind::Invalid, ErrorCode::KernelShellFull)
+        );
     }
 
     /// A page closes from one place, or from every place when it is named and
@@ -3424,7 +3721,16 @@ mod tests {
         );
     }
 
-    /// A state of every part, as commands leave it.
+    /// A state of every part, as commands leave it, every field of it holding
+    /// what the first run's does not.
+    ///
+    /// Two windows, the second hidden; a page in a window, scrolled, and two
+    /// in the drawer, one gone a sub-page deeper and the other the leader
+    /// menu, opened by a second tap and flipped by a third; the drawer
+    /// collapsed, sent toward itself and resized; the sidebar shown and the
+    /// footer hidden; a message expanded; the prompt asking for a parameter
+    /// with a draft no ASCII writes; and seat 1's pointer and seat 3's
+    /// keyboard each on something, seat 3 dragging.
     fn varied() -> State {
         let mut state = State::default();
         for (verb, args) in [
@@ -3451,10 +3757,18 @@ mod tests {
             ),
             (
                 Verb::ShellHover,
+                json!({"by": "pointer", "target": "modeline.glyph"}),
+            ),
+            (
+                Verb::ShellHover,
                 json!({"seat": 3, "by": "keyboard", "target": "a"}),
             ),
             (Verb::ShellDrag, json!({"seat": 3, "target": "b"})),
+            (Verb::WindowHide, json!({"window": 2})),
+            (Verb::LeaderTap, json!({})),
+            (Verb::LeaderTap, json!({})),
             (Verb::DrawerCollapse, json!({})),
+            (Verb::FooterHide, json!({})),
         ] {
             state = ran(&state, verb, &args);
         }
@@ -3462,6 +3776,11 @@ mod tests {
     }
 
     /// What is kept is read back as itself.
+    ///
+    /// **Every field, at a value the first run's state does not hold**, so a
+    /// reading that took any one of them for its default is refused here: the
+    /// fields are named whole, with no `..`, and a field added to the state
+    /// does not compile here until [`varied`] gives it a value of its own.
     #[test]
     fn what_is_kept_is_read_back_as_itself() {
         for state in [State::default(), varied()] {
@@ -3469,108 +3788,492 @@ mod tests {
             assert_eq!(unkept(&text), Ok(state.clone()), "{text}");
             assert!(text.starts_with(&format!("{{\"shape\":{SHAPE},")), "{text}");
         }
+        let first = State::default();
+        let State {
+            windows,
+            pages,
+            drawer,
+            sidebar,
+            footer,
+            message,
+            expanded,
+            draft,
+            asking,
+            seats,
+            next,
+        } = varied();
+        assert!(
+            windows != first.windows
+                && pages != first.pages
+                && sidebar != first.sidebar
+                && footer != first.footer
+                && message != first.message
+                && expanded != first.expanded
+                && draft != first.draft
+                && asking != first.asking
+                && seats != first.seats
+                && next != first.next
+        );
+        let super::Drawer {
+            pages: drawn,
+            focused,
+            collapsed,
+            toward,
+            flipped,
+            share,
+        } = drawer;
+        assert!(
+            drawn != first.drawer.pages
+                && focused != first.drawer.focused
+                && collapsed != first.drawer.collapsed
+                && toward != first.drawer.toward
+                && flipped != first.drawer.flipped
+                && share != first.drawer.share,
+            "the drawer"
+        );
+        let shown: Vec<bool> = windows.iter().map(|window| window.shown).collect();
+        assert_eq!(shown, [true, false], "a window shown and one hidden");
+        assert!(windows.iter().any(|window| window.size.is_some()
+            && window.place.is_some()
+            && window.focused.is_some()));
+        assert!(pages.values().any(|page| page.topic.is_some()));
+        assert!(pages.values().any(|page| !page.trail.is_empty()));
+        assert!(pages.values().any(|page| page.scroll > 0));
+        let seat = |id: u64| seats.get(&id).cloned().unwrap_or_default();
+        let super::Seat {
+            focus,
+            hover,
+            selection: _,
+            latest: _,
+            drag: _,
+        } = seat(1);
+        let super::Seat {
+            focus: _,
+            hover: _,
+            selection,
+            latest,
+            drag,
+        } = seat(3);
+        let none = super::Seat::default();
+        assert!(
+            focus.is_some()
+                && hover.is_some()
+                && selection.is_some()
+                && latest != none.latest
+                && drag.is_some(),
+            "the seats"
+        );
     }
 
     /// One edit of a state that breaks a rule a command never breaks.
     type Edit = Box<dyn Fn(&mut State)>;
 
-    /// Every edit of [`varied`] that breaks one rule a command never breaks.
+    /// A page numbered `id`, of `kind` and on `topic`, at the top and in no
+    /// place yet.
+    fn a_page(id: u64, kind: Kind, topic: Option<&str>) -> super::Page {
+        super::Page {
+            id,
+            kind,
+            topic: topic.map(str::to_owned),
+            trail: Vec::new(),
+            scroll: 0,
+        }
+    }
+
+    /// Gives the page numbered `from` the number `to`, in every place it is
+    /// shown and in focus.
+    fn renumbered(state: &mut State, from: u64, to: u64) {
+        let mut page = state.pages.remove(&from).expect("the page is held");
+        page.id = to;
+        state.pages.insert(to, page);
+        let swap = |id: &mut u64| {
+            if *id == from {
+                *id = to;
+            }
+        };
+        for window in &mut state.windows {
+            window.pages.iter_mut().for_each(swap);
+            window.focused.iter_mut().for_each(swap);
+        }
+        state.drawer.pages.iter_mut().for_each(swap);
+        state.drawer.focused.iter_mut().for_each(swap);
+    }
+
+    /// `state`'s window numbered `id`, to edit.
+    fn window_mut(state: &mut State, id: u64) -> &mut super::Window {
+        state.window_mut(id).expect("the window is held")
+    }
+
+    /// `state`'s page of `kind`, to edit.
+    fn page_mut(state: &mut State, kind: Kind) -> &mut super::Page {
+        let id = page_of(state, kind);
+        state.page_mut(id).expect("the page is held")
+    }
+
+    /// A bound of the catalog's, as a count.
+    fn bound(limit: u32) -> usize {
+        usize::try_from(limit).expect("small")
+    }
+
+    /// Every edit of [`varied`] that breaks one rule a command never breaks,
+    /// beside the rule [`State::rules`] names it by — and that rule alone.
     ///
-    /// A window too few or twice, a page no place holds, one no place shows or
-    /// one in focus nowhere, a size or a place out of range, the next
-    /// identifier behind one given, the drawer's share at half, its focus or
-    /// its pages gone, a list of the drawer's in a window, a topic or a
-    /// sub-page that is no word or too many of them, a message a reader does
-    /// not see whole, a draft too long, a command that is no name, a seat past
-    /// the bound and a focus on no window.
-    fn rule_breakers() -> Vec<Edit> {
-        vec![
-            Box::new(|state| state.windows.clear()),
-            Box::new(|state| state.windows[0].pages.push(99)),
-            Box::new(|state| {
-                let id = state.minted();
-                state.pages.insert(
-                    id,
-                    super::Page {
-                        id,
-                        kind: Kind::Dev,
-                        topic: None,
-                        trail: Vec::new(),
-                        scroll: 0,
-                    },
-                );
-            }),
-            Box::new(|state| state.windows[0].focused = Some(99)),
-            Box::new(|state| state.windows[1].size = Some((319, 600))),
-            Box::new(|state| state.windows[1].place = Some((PLACE_MAX + 1, 0))),
-            Box::new(|state| {
-                let id = state.windows[0].id;
-                state.windows.push(super::Window::new(id, true));
-            }),
-            Box::new(|state| state.next = 1),
-            Box::new(|state| state.drawer.share = 50),
-            Box::new(|state| state.drawer.pages.clear()),
-            Box::new(|state| {
-                state.drawer.pages.clear();
-                state.drawer.focused = None;
-            }),
-            Box::new(|state| {
-                let leader = state.minted();
-                state.pages.insert(
-                    leader,
-                    super::Page {
-                        id: leader,
-                        kind: Kind::Leader,
-                        topic: None,
-                        trail: Vec::new(),
-                        scroll: 0,
-                    },
-                );
-                state.windows[0].pages.push(leader);
-            }),
-            Box::new(|state| {
-                for page in state.pages.values_mut() {
-                    page.topic = Some("a b".to_owned());
-                }
-            }),
-            Box::new(|state| {
-                for page in state.pages.values_mut() {
-                    page.trail = vec!["x".to_owned(); 17];
-                }
-            }),
-            Box::new(|state| state.message = Some("a\u{202E}".to_owned())),
-            Box::new(|state| state.draft = "a".repeat(4_097)),
-            Box::new(|state| {
-                state.asking = Some(Asking::Parameters {
-                    command: "Not A Name".to_owned(),
-                    parameter: None,
-                });
-            }),
-            Box::new(|state| {
-                state.seats.insert(5, super::Seat::default());
-            }),
-            Box::new(|state| {
-                state.seats.insert(
-                    1,
-                    super::Seat {
-                        focus: Some(Focus {
-                            window: 99,
-                            region: Region::Prompt,
-                        }),
-                        ..super::Seat::default()
-                    },
-                );
-            }),
-        ]
+    /// **Each clause of the rules, broken where it is the only one broken**,
+    /// so taking any clause out leaves a state this table holds refused by
+    /// nothing: no window, or windows past their bound or two of one number,
+    /// numbered zero or never given; a page twice in a stack, one no state
+    /// holds, a focus out of the stack or on nothing over it, a list of the
+    /// drawer's in a window, a size or a corner out of range; pages past their
+    /// bound, one numbered zero, never given or a window's, one shown nowhere,
+    /// a topic on a kind that takes none and none on one that needs it, a
+    /// topic or a sub-page that is no word, too many sub-pages, two of one
+    /// kind and topic; the drawer past its bound, holding a page twice or one
+    /// no state holds, its focus out of it or on nothing over it, collapsed
+    /// with nothing in it, its share at half or at nothing; a draft or a
+    /// message past its bytes, a message empty or holding what no reader
+    /// sees, a command that is no name and a parameter that is no word; and a
+    /// seat past the bound or numbered zero, its focus on no window, and what
+    /// it hovers, selects or drags no word.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one table, a row for each clause of the rules: split, a clause could lose \
+                  its row unseen"
+    )]
+    fn rule_breakers() -> Vec<(String, Edit)> {
+        let helping = |state: &State| page_of(state, Kind::Help);
+        let settings = |state: &State| page_of(state, Kind::Settings);
+        let leader = |state: &State| page_of(state, Kind::Leader);
+        let long = "a".repeat(usize::try_from(KERNEL.shell_text_bytes).expect("small") + 1);
+        let long_too = long.clone();
+        let table: Vec<(&str, Edit)> = vec![
+            (
+                "the interface holds a window",
+                Box::new(|state: &mut State| {
+                    let shown: Vec<u64> = state
+                        .windows
+                        .iter()
+                        .flat_map(|window| window.pages.clone())
+                        .collect();
+                    state.windows.clear();
+                    state.drawer.pages.extend(shown);
+                    for seat in state.seats.values_mut() {
+                        seat.focus = None;
+                    }
+                }),
+            ),
+            (
+                "the windows are at most their bound",
+                Box::new(|state: &mut State| {
+                    while state.windows.len() <= bound(KERNEL.shell_windows_max) {
+                        let id = state.minted().expect("minted");
+                        state.windows.push(super::Window::new(id, false));
+                    }
+                }),
+            ),
+            (
+                "no two windows share an identifier",
+                Box::new(|state: &mut State| {
+                    let id = state.windows[0].id;
+                    state.windows.push(super::Window::new(id, false));
+                }),
+            ),
+            (
+                "a window's identifier is one at least",
+                Box::new(|state: &mut State| window_mut(state, 2).id = 0),
+            ),
+            (
+                "a window's identifier was given",
+                Box::new(|state: &mut State| window_mut(state, 2).id = state.next),
+            ),
+            (
+                "a window's stack holds a page once",
+                Box::new(move |state: &mut State| {
+                    let page = settings(state);
+                    window_mut(state, 1).pages.push(page);
+                }),
+            ),
+            (
+                "a window's stack holds pages the state holds",
+                Box::new(|state: &mut State| {
+                    let held = window_mut(state, 2);
+                    held.pages = vec![99];
+                    held.focused = Some(99);
+                }),
+            ),
+            (
+                "a window's focus is on its stack, and on nothing only when it is empty",
+                Box::new(|state: &mut State| window_mut(state, 1).focused = None),
+            ),
+            (
+                "a window's focus is on its stack, and on nothing only when it is empty",
+                Box::new(move |state: &mut State| {
+                    let page = settings(state);
+                    window_mut(state, 2).focused = Some(page);
+                }),
+            ),
+            (
+                "a window shows no list of the drawer's",
+                Box::new(move |state: &mut State| {
+                    let page = leader(state);
+                    let held = window_mut(state, 2);
+                    held.pages = vec![page];
+                    held.focused = Some(page);
+                }),
+            ),
+            (
+                "a window's size is within the smallest and the largest",
+                Box::new(|state: &mut State| window_mut(state, 1).size = Some((319, 600))),
+            ),
+            (
+                "a window's size is within the smallest and the largest",
+                Box::new(|state: &mut State| window_mut(state, 1).size = Some((800, 239))),
+            ),
+            (
+                "a window's size is within the smallest and the largest",
+                Box::new(|state: &mut State| {
+                    window_mut(state, 1).size = Some((WINDOW_MAX + 1, 600));
+                }),
+            ),
+            (
+                "a window's size is within the smallest and the largest",
+                Box::new(|state: &mut State| {
+                    window_mut(state, 1).size = Some((800, WINDOW_MAX + 1));
+                }),
+            ),
+            (
+                "a window's corner is within an X position's sixteen bits",
+                Box::new(|state: &mut State| {
+                    window_mut(state, 1).place = Some((PLACE_MAX + 1, 0));
+                }),
+            ),
+            (
+                "a window's corner is within an X position's sixteen bits",
+                Box::new(|state: &mut State| {
+                    window_mut(state, 1).place = Some((0, PLACE_MIN - 1));
+                }),
+            ),
+            (
+                "the pages are at most their bound",
+                Box::new(|state: &mut State| {
+                    let mut topic = 0;
+                    while state.pages.len() <= bound(KERNEL.shell_pages_max) {
+                        let id = state.minted().expect("minted");
+                        let named = format!("t{topic}");
+                        state.pages.insert(id, a_page(id, Kind::Help, Some(&named)));
+                        let held = window_mut(state, 2);
+                        held.pages.push(id);
+                        held.focused = Some(id);
+                        topic += 1;
+                    }
+                }),
+            ),
+            (
+                "a page's identifier is one at least",
+                Box::new(move |state: &mut State| {
+                    let page = helping(state);
+                    renumbered(state, page, 0);
+                }),
+            ),
+            (
+                "a page's identifier was given",
+                Box::new(|state: &mut State| {
+                    state.next = state.pages.keys().copied().max().expect("a page");
+                }),
+            ),
+            (
+                "a page's identifier is no window's",
+                Box::new(move |state: &mut State| {
+                    let page = settings(state);
+                    renumbered(state, page, 2);
+                }),
+            ),
+            (
+                "a page is shown somewhere",
+                Box::new(|state: &mut State| {
+                    let id = state.minted().expect("minted");
+                    state.pages.insert(id, a_page(id, Kind::Dev, None));
+                }),
+            ),
+            (
+                "a page has a topic where its kind takes one, and only there",
+                Box::new(|state: &mut State| {
+                    page_mut(state, Kind::Leader).topic = Some("x".to_owned());
+                }),
+            ),
+            (
+                "a page has a topic where its kind takes one, and only there",
+                Box::new(|state: &mut State| page_mut(state, Kind::Help).kind = Kind::Surface),
+            ),
+            (
+                "a page's topic is a word",
+                Box::new(|state: &mut State| {
+                    page_mut(state, Kind::Settings).topic = Some("a b".to_owned());
+                }),
+            ),
+            (
+                "a page's sub-pages are at most their bound",
+                Box::new(|state: &mut State| {
+                    page_mut(state, Kind::Help).trail =
+                        vec!["x".to_owned(); bound(KERNEL.shell_trail_max) + 1];
+                }),
+            ),
+            (
+                "a page's sub-pages are words",
+                Box::new(|state: &mut State| {
+                    page_mut(state, Kind::Help).trail = vec!["a b".to_owned()];
+                }),
+            ),
+            (
+                "a page is the one of its kind and topic",
+                Box::new(|state: &mut State| {
+                    let id = state.minted().expect("minted");
+                    state
+                        .pages
+                        .insert(id, a_page(id, Kind::Settings, Some("mcp")));
+                    let held = window_mut(state, 2);
+                    held.pages.push(id);
+                    held.focused = Some(id);
+                }),
+            ),
+            (
+                "the drawer's pages are at most their bound",
+                Box::new(|state: &mut State| {
+                    let mut topic = 0;
+                    while state.drawer.pages.len() <= bound(KERNEL.shell_drawer_pages_max) {
+                        let id = state.minted().expect("minted");
+                        let named = format!("t{topic}");
+                        state.pages.insert(id, a_page(id, Kind::Help, Some(&named)));
+                        state.drawer.pages.push(id);
+                        topic += 1;
+                    }
+                }),
+            ),
+            (
+                "the drawer holds a page once",
+                Box::new(move |state: &mut State| {
+                    let page = helping(state);
+                    state.drawer.pages.push(page);
+                }),
+            ),
+            (
+                "the drawer holds pages the state holds",
+                Box::new(|state: &mut State| state.drawer.pages.push(99)),
+            ),
+            (
+                "the drawer's focus is on a page of it, and on nothing only when it is empty",
+                Box::new(|state: &mut State| state.drawer.focused = None),
+            ),
+            (
+                "the drawer's focus is on a page of it, and on nothing only when it is empty",
+                Box::new(move |state: &mut State| state.drawer.focused = Some(settings(state))),
+            ),
+            (
+                "the drawer is collapsed only when it holds a page",
+                Box::new(|state: &mut State| {
+                    for page in state.drawer.pages.clone() {
+                        state.pages.remove(&page);
+                    }
+                    state.drawer.pages.clear();
+                    state.drawer.focused = None;
+                }),
+            ),
+            (
+                "the drawer's share is within its bound",
+                Box::new(|state: &mut State| {
+                    state.drawer.share = KERNEL.shell_drawer_share_max + 1;
+                }),
+            ),
+            (
+                "the drawer's share is within its bound",
+                Box::new(|state: &mut State| state.drawer.share = 0),
+            ),
+            (
+                "the draft is at most its bound in bytes",
+                Box::new(move |state: &mut State| state.draft.clone_from(&long)),
+            ),
+            (
+                "a message says something",
+                Box::new(|state: &mut State| state.message = Some(String::new())),
+            ),
+            (
+                "a message is at most its bound in bytes",
+                Box::new(move |state: &mut State| state.message = Some(long_too.clone())),
+            ),
+            (
+                "a message is all a reader sees",
+                Box::new(|state: &mut State| state.message = Some("a\u{202E}".to_owned())),
+            ),
+            (
+                "the prompt asks of a command by its name",
+                Box::new(|state: &mut State| {
+                    state.asking = Some(Asking::Parameters {
+                        command: "Not A Name".to_owned(),
+                        parameter: None,
+                    });
+                }),
+            ),
+            (
+                "the parameter the prompt asks for is a word",
+                Box::new(|state: &mut State| {
+                    state.asking = Some(Asking::Parameters {
+                        command: "settings.mcp.set".to_owned(),
+                        parameter: Some("a b".to_owned()),
+                    });
+                }),
+            ),
+            (
+                "a seat is one the bound allows",
+                Box::new(|state: &mut State| {
+                    let past = u64::from(KERNEL.shell_seats_max) + 1;
+                    state.seats.insert(past, super::Seat::default());
+                }),
+            ),
+            (
+                "a seat is one the bound allows",
+                Box::new(|state: &mut State| {
+                    state.seats.insert(0, super::Seat::default());
+                }),
+            ),
+            (
+                "a seat's focus is on a window the state holds",
+                Box::new(|state: &mut State| {
+                    state.seat_mut(1).focus = Some(Focus {
+                        window: 99,
+                        region: Region::Prompt,
+                    });
+                }),
+            ),
+            (
+                "what a seat hovers, selects or drags is a word",
+                Box::new(|state: &mut State| state.seat_mut(1).hover = Some("a b".to_owned())),
+            ),
+            (
+                "what a seat hovers, selects or drags is a word",
+                Box::new(|state: &mut State| {
+                    state.seat_mut(3).selection = Some("a b".to_owned());
+                }),
+            ),
+            (
+                "what a seat hovers, selects or drags is a word",
+                Box::new(|state: &mut State| state.seat_mut(3).drag = Some("a b".to_owned())),
+            ),
+        ];
+        table
+            .into_iter()
+            .map(|(rule, edit)| (rule.to_owned(), edit))
+            .collect()
     }
 
     /// A kept state of another shape, or not one this module writes, is set
     /// aside and never read as one.
     ///
-    /// **Every rule, from the outside**: another shape is named; a text that
-    /// is not JSON, a shape that is not a number and a field beside the state
-    /// are shape zero; and each state below breaks one rule a command never
-    /// breaks — every one refused, whatever else it holds.
+    /// **Every rule, from the outside, one at a time**: another shape is
+    /// named; a text that is not JSON, a shape that is not a number and a
+    /// field beside the state are shape zero; each state of
+    /// [`rule_breakers`] breaks the one rule it names and no other, and is
+    /// refused — so every rule [`State::rules`] asks is one a test breaks
+    /// alone, and the table names every rule; and a page or a seat written
+    /// twice is refused by the reading.
     #[test]
     fn a_kept_state_of_another_shape_or_not_one_this_module_writes_is_set_aside() {
         let kept = snapshot(&varied());
@@ -3590,29 +4293,42 @@ mod tests {
             Err(1)
         );
         assert_eq!(unkept(r#"{"shape":1}"#), Err(1));
-        let broken = |edit: &dyn Fn(&mut State)| {
+        let edits = rule_breakers();
+        for (at, (rule, edit)) in edits.iter().enumerate() {
             let mut state = varied();
             edit(&mut state);
-            assert!(!state.holds(), "{state:?}");
-            unkept(&snapshot(&state))
-        };
-        let edits = rule_breakers();
-        for (at, edit) in edits.iter().enumerate() {
-            assert_eq!(broken(edit.as_ref()), Err(1), "edit {at}");
+            let broken: Vec<&str> = state
+                .rules()
+                .into_iter()
+                .filter(|(_, kept)| !kept)
+                .map(|(rule, _)| rule)
+                .collect();
+            assert_eq!(broken, [rule.as_str()], "edit {at}: {state:?}");
+            assert_eq!(unkept(&snapshot(&state)), Err(1), "edit {at}: {rule}");
         }
-        let mut twice = nc_canon::parse(&shell).expect("the state is JSON");
-        if let Value::Object(fields) = &mut twice
-            && let Some(Value::Array(pages)) = fields.get_mut("pages")
-        {
-            let first = pages[0].clone();
-            pages.push(first);
+        let named: BTreeSet<&str> = edits.iter().map(|(rule, _)| rule.as_str()).collect();
+        let state = varied();
+        let rules = state.rules();
+        let asked: BTreeSet<&str> = rules.iter().map(|(rule, _)| *rule).collect();
+        assert_eq!(named, asked, "a rule no edit breaks alone");
+        assert_eq!(rules.len(), asked.len(), "two rules are named alike");
+        for written in ["pages", "seats"] {
+            let mut twice = nc_canon::parse(&shell).expect("the state is JSON");
+            if let Value::Object(fields) = &mut twice
+                && let Some(Value::Array(items)) = fields.get_mut(written)
+            {
+                let first = items[0].clone();
+                items.push(first);
+            }
+            assert_ne!(twice.to_canonical(), shell, "{written}: one written twice");
+            assert_eq!(
+                unkept(
+                    &Value::object([("shape", Value::Integer(1)), ("shell", twice)]).to_canonical()
+                ),
+                Err(1),
+                "{written}: one written twice"
+            );
         }
-        assert_ne!(twice.to_canonical(), shell, "a page is written twice");
-        assert_eq!(
-            unkept(&Value::object([("shape", Value::Integer(1)), ("shell", twice)]).to_canonical()),
-            Err(1),
-            "a page written twice"
-        );
     }
 
     /// The widest state there can be is an answer a dispatch may give.
@@ -3630,11 +4346,11 @@ mod tests {
             ..State::default()
         };
         for _ in 1..KERNEL.shell_windows_max {
-            let id = state.minted();
+            let id = state.minted().expect("minted");
             state.windows.push(super::Window::new(id, true));
         }
         for _ in 0..KERNEL.shell_pages_max {
-            let id = state.minted();
+            let id = state.minted().expect("minted");
             state.pages.insert(
                 id,
                 super::Page {

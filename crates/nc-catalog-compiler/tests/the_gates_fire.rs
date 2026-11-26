@@ -2637,6 +2637,18 @@ fn a_kernel_limit_that_outgrows_the_one_bounding_it_fails_the_build() {
             "`[kernel] event_queue_bytes` is 1048671 and `payload_bytes` + the longest topic \
              is 1048576 + 96",
         ),
+        (
+            "drawer-share-half-or-more",
+            "shell_drawer_share_max = 49",
+            "shell_drawer_share_max = 50",
+            "`[kernel] shell_drawer_share_max` is 50",
+        ),
+        (
+            "drawer-pages-past-the-pages",
+            "shell_drawer_pages_max = 16",
+            "shell_drawer_pages_max = 65",
+            "`[kernel] shell_drawer_pages_max` is 65 and `shell_pages_max` is 64",
+        ),
     ] {
         let scratch = Scratch::new(check);
         scratch.replacing("catalog/limits.toml", from, to);

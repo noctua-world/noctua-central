@@ -493,7 +493,7 @@ async fn as_changed(
 /// The local database held in memory, whose reads a test can make wait until
 /// it lets them go — announcing that one is waiting — whose commit of a
 /// reversal or of a step it can make refuse, and whose listing of a person's
-/// units and reading of one unit too.
+/// units and reading of one unit too, and the next keep of a kernel's key.
 #[derive(Debug, Clone)]
 struct Stalling {
     inner: LocalStore,
@@ -504,6 +504,8 @@ struct Stalling {
     refuses_steps: Arc<std::sync::atomic::AtomicBool>,
     refuses_history: Arc<std::sync::atomic::AtomicBool>,
     refuses_units: Arc<std::sync::atomic::AtomicBool>,
+    /// Whether the next keep is refused: once, and then kept again.
+    refuses_a_keep: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Stalling {
@@ -586,7 +588,18 @@ impl StoreBackend for Stalling {
         key: &str,
         value: &str,
     ) -> impl Future<Output = Result<(), nc_local::CommitError>> + Send {
-        self.inner.keep(realm, key, value)
+        let refused = self.refuses_a_keep.swap(false, Ordering::SeqCst);
+        let kept = self.inner.keep(realm, key, value);
+        async move {
+            if refused {
+                return Err(nc_local::CommitError::Store(
+                    nc_local::LocalError::Unavailable(
+                        "the store refuses a keep, as the test made it".to_owned(),
+                    ),
+                ));
+            }
+            kept.await
+        }
     }
 
     fn commit(
@@ -925,6 +938,7 @@ fn stalling(store: LocalStore) -> Stalling {
         refuses_steps: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         refuses_history: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         refuses_units: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        refuses_a_keep: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     }
 }
 
@@ -10797,6 +10811,97 @@ async fn the_interface_is_kept_outside_every_unit_and_read_back_when_the_kernel_
     let discarded = log.named("kernel.shell_discarded");
     assert_eq!(discarded.len(), 1, "{:?}", log.lines());
     assert_eq!(discarded[0].text("found").as_deref(), Some("0"));
+}
+
+/// A save of the interface's state the store refuses is logged with the
+/// store's code and made at the next pump.
+///
+/// **What it holds against**: a refusal dropped — no line in the log, and
+/// the state marked kept, so no pump saves it again and the next start
+/// begins without the change. ana shows the window; the store refuses the
+/// next keep once, and the pump says so with the store's code and logs
+/// `kernel.shell_unkept` with it; the pump after it keeps the state, and a
+/// kernel opened over the store reads the window shown.
+#[tokio::test]
+async fn a_save_of_the_interface_the_store_refuses_is_logged_and_made_at_the_next_pump() {
+    let (fixture, _) = with(&[], "").await;
+    fixture
+        .as_("ana", "window.show", "{}")
+        .await
+        .expect("the window is shown");
+    fixture.store.refuses_a_keep.store(true, Ordering::SeqCst);
+    let refused = fixture.kernel.pump().await;
+    let code = nc_local::LocalError::Unavailable(String::new()).code();
+    assert_eq!(
+        (refused.shell_kept, refused.shell_refused),
+        (false, Some(code)),
+        "{refused:?}"
+    );
+    let unkept: Vec<Option<String>> = fixture
+        .log
+        .named("kernel.shell_unkept")
+        .iter()
+        .map(|line| line.text("code"))
+        .collect();
+    assert_eq!(unkept, [Some(code.code().to_owned())]);
+    let again = fixture.kernel.pump().await;
+    assert!(
+        again.shell_kept && again.shell_refused.is_none(),
+        "the state was not saved again: {again:?}"
+    );
+    let reopened = opening(
+        6,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::new(Captured::default()),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert!(
+        shown_in(&interface(&reopened).1),
+        "the state saved at the second pump"
+    );
+}
+
+/// The save a stop makes last keeps what changed since the last pump, and
+/// keeps nothing where nothing changed.
+///
+/// **What a daemon's stop asks of its kernel** (`Kernel::keep_interface`):
+/// with nothing changed it saves nothing; once ana shows the window it saves
+/// that, once — the pump after it has nothing to keep — and a kernel opened
+/// over the store reads the window shown.
+#[tokio::test]
+async fn the_save_a_stop_makes_keeps_what_changed_since_the_last_pump() {
+    let (fixture, _) = with(&[], "").await;
+    assert_eq!(
+        fixture.kernel.keep_interface().await,
+        None,
+        "nothing changed"
+    );
+    fixture
+        .as_("ana", "window.show", "{}")
+        .await
+        .expect("the window is shown");
+    assert_eq!(fixture.kernel.keep_interface().await, Some(Ok(())));
+    assert_eq!(fixture.kernel.keep_interface().await, None, "kept already");
+    assert!(
+        !fixture.kernel.pump().await.shell_kept,
+        "the pump found something left to keep"
+    );
+    let reopened = opening(
+        7,
+        nc_journal::InMemory::default(),
+        Ok(family()),
+        fixture.store.clone(),
+        Arc::new(Captured::default()),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert!(
+        shown_in(&interface(&reopened).1),
+        "the state the stop saved"
+    );
 }
 
 /// The windows of `shell`, by their identifiers.

@@ -680,6 +680,19 @@ impl CallTree {
             .or_else(|| self.put_off.shell_held())
     }
 
+    /// The tree once a unit of its own was kept holding the interface's
+    /// state, which the unit released.
+    ///
+    /// **That state was computed over the tree's own, and carries it**: a
+    /// command in the unit read back what the tree held when the unit began,
+    /// and nothing the tree holds changed while the unit was open. So the
+    /// tree's own is let go — released at the tree's end, it would be a state
+    /// older than the kernel's, refused — and every command after the unit
+    /// reads the state the unit released, the identifiers it gave included.
+    pub(crate) fn kept_over_its_own(&mut self) {
+        drop(self.put_off.shell_taken());
+    }
+
     /// How many timers the tree holds for the plugin in `owner`: its own,
     /// and its unit's.
     pub(crate) fn timers_held_for(&self, owner: PluginSlot) -> usize {
@@ -2508,9 +2521,19 @@ async fn closed<E: Environment>(
             Err(units::not_run(refusal, &ambient))
         }
         (Ok(answer), None) => {
+            // **The interface's state a unit holds carries the tree's own**
+            // (`CallTree::kept_over_its_own`): a unit opened here inside a
+            // timer's callback, the one tree that holds changes of its own
+            // beside one, is kept with the tree's changes in it.
+            let carries = ambient.later().shell_held().is_some();
             units::close(shared, ambient, asked.acting.whose_history(), &asked.name)
                 .await
-                .map(|()| answer)
+                .map(|()| {
+                    if carries {
+                        lock(tree).kept_over_its_own();
+                    }
+                    answer
+                })
         }
     }
 }

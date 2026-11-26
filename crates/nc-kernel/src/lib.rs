@@ -678,6 +678,21 @@ impl<E: Environment> Kernel<E> {
         pump::pumped(&self.shared).await
     }
 
+    /// Saves the interface's state to the store now, when it changed since it
+    /// was last kept, between call trees as a pump does, answering what came
+    /// of it: nothing when there was nothing to save, and otherwise whether
+    /// the store kept it or the code it refused it with.
+    ///
+    /// **What a stop does last** (`NOCTUA.md §12.1`), once nothing it waited
+    /// for runs: a pump saves the state only every so often, and every change
+    /// made since — by a command or a note answered as made — would be lost
+    /// with the run. A refusal is logged as `kernel.shell_unkept`, as a
+    /// pump's is; at a stop there is no next pump to try again.
+    pub async fn keep_interface(&self) -> Option<Result<(), nc_catalog::ErrorCode>> {
+        let _no_tree_moves_it = self.shared.bus.lock().await;
+        shell::kept(&self.shared).await
+    }
+
     /// What the kernel keeps of the log of the plugin in `slot`, if this kernel
     /// loaded one there: its newest lines, and how many older ones went.
     ///

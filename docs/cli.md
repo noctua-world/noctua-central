@@ -5,7 +5,7 @@
 
 What the command line reads and answers (`NOCTUA.md §20.2`): its grammar, its verbs, its exit codes, and what its help says of every command the catalog declares. The CLI is named for its channel (`§17.1`), and this page writes production's name, `noctua`.
 
-**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
+**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it is asked to dispatch — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and two that carry dispatches: `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent, and `leader`, which announces the graphical environment a compositor's binding runs it in and dispatches the Leader's tap as the person — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.
 
 ## Usage
 
@@ -835,7 +835,7 @@ In `en`:
 leader.tap — Tap the Leader
 Do what one tap of the Leader key does in the interface.
 
-Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.
+Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.
 
 Categories: none
 Tags: leader, leader key, shortcut, menu, interface
@@ -854,7 +854,7 @@ In `pt-BR`:
 leader.tap — Tocar a tecla Leader
 Fazer o que um toque da tecla Leader faz na interface.
 
-Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.
+Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.
 
 Categories: none
 Tags: leader, tecla leader, atalho, menu, interface
@@ -1687,7 +1687,7 @@ In `en`:
 shell.read — Read the interface's state
 Show all the interface holds: its windows, pages, drawer, prompt and seats.
 
-Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing.
+Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing.
 
 Categories: none
 Tags: interface, window, state, layout, what is open
@@ -1706,7 +1706,7 @@ In `pt-BR`:
 shell.read — Ler o estado da interface
 Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt.
 
-Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada.
+Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada.
 
 Categories: none
 Tags: interface, janela, estado, disposição, o que está aberto

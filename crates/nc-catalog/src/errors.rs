@@ -325,7 +325,7 @@ pub enum ErrorCode {
     KernelCompensationForAnAgent,
     /// NC-KERN-0027 — A command of the interface named a window or a page the interface does not hold, or the page in focus where none is
     KernelShellUnknown,
-    /// NC-KERN-0028 — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit
+    /// NC-KERN-0028 — A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with
     KernelShellFull,
     /// NC-LOG-0001 — The central log store did not accept a batch
     LogUnreachable,
@@ -1313,7 +1313,7 @@ impl ErrorCode {
                 "A command of the interface named a window or a page the interface does not hold, or the page in focus where none is"
             }
             Self::KernelShellFull => {
-                "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit"
+                "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
             }
             Self::LogUnreachable => "The central log store did not accept a batch",
             Self::LogDropped => "Log events were dropped because the queue was full",

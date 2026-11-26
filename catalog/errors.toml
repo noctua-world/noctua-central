@@ -884,10 +884,14 @@ retryable = false
 [[error]]
 # The interface's own state is held to `[kernel] shell_windows_max`,
 # `shell_pages_max`, `shell_drawer_pages_max` and `shell_trail_max`, and a
-# command that would pass one is refused whole. Not NC-PLUG-0017, whose
+# command that would pass one is refused whole — as is one that would number a
+# window or a page past the last number the state is written with, which only
+# a saved state edited outside the kernel comes near. A text past
+# `shell_text_bytes`, and a seat past `shell_seats_max`, are arguments, refused
+# with NC-VAL-0002 as their schema refuses them. Not NC-PLUG-0017, whose
 # description names a plugin.
 code = "NC-KERN-0028"
-description = "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit"
+description = "A command of the interface would have held more windows, pages, drawer pages or sub-pages than the catalog's limit, or numbered one past the last number the state is written with"
 message = "error.kernel.shell-full"
 severity = "warning"
 retryable = false

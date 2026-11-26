@@ -575,7 +575,7 @@ static PROSE: [(&str, &str); 2244] = [
     ),
     (
         "cli.md",
-        "**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it dispatches — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.",
+        "**A verb is one word and every command's name is dotted**, so the two never meet: a verb is what the CLI does itself rather than a command it is asked to dispatch — help, its own channel's daemon started, stopped and asked how it is, the development checkouts, and two that carry dispatches: `mcp`, which serves an MCP client and sends each call it makes to be decided as its session's agent, and `leader`, which announces the graphical environment a compositor's binding runs it in and dispatches the Leader's tap as the person — while a command is dispatched by the daemon, decided and journaled. **Each command below is what help prints of it**, in each language the environment can name, laid out by the one function help lays it out with: the CLI's own words in English, the command's texts from its entry. A plugin's commands are not on this page: the daemon's registry holds them while the plugin is loaded, and help lists them from there.",
     ),
     ("cli.md", "## Usage"),
     ("cli.md", "```text"),
@@ -1465,7 +1465,7 @@ static PROSE: [(&str, &str); 2244] = [
     ),
     (
         "cli.md",
-        "Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.",
+        "Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -1487,7 +1487,7 @@ static PROSE: [(&str, &str); 2244] = [
     ),
     (
         "cli.md",
-        "Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.",
+        "Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -2450,7 +2450,7 @@ static PROSE: [(&str, &str); 2244] = [
     ),
     (
         "cli.md",
-        "Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing.",
+        "Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -2472,7 +2472,7 @@ static PROSE: [(&str, &str); 2244] = [
     ),
     (
         "cli.md",
-        "Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada.",
+        "Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -3561,13 +3561,13 @@ static PROSE: [(&str, &str); 2244] = [
     ("log-events.md", "## `kernel.shell_discarded`"),
     (
         "log-events.md",
-        "The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's",
+        "The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read",
     ),
     ("log-events.md", "Level: `warn`"),
     ("log-events.md", "## `kernel.shell_unkept`"),
     (
         "log-events.md",
-        "The kernel could not save the interface's state to the local store, and will try again at the next pump",
+        "The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save",
     ),
     ("log-events.md", "Level: `warn`"),
     ("log-events.md", "## `kernel.step_reversed`"),
@@ -3916,14 +3916,14 @@ static PROSE: [(&str, &str); 2244] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"leader_tap\",\"description\":\"Do what one tap of the Leader key does in the interface.\\n\\nDoes what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"seat\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":4}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"leader_tap\",\"description\":\"Do what one tap of the Leader key does in the interface.\\n\\nDoes what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"seat\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":4}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"leader_tap\",\"description\":\"Fazer o que um toque da tecla Leader faz na interface.\\n\\nFaz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"seat\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":4}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"leader_tap\",\"description\":\"Fazer o que um toque da tecla Leader faz na interface.\\n\\nFaz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"seat\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":4}},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `limits.prune`"),
@@ -4216,14 +4216,14 @@ static PROSE: [(&str, &str); 2244] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"shell_read\",\"description\":\"Show all the interface holds: its windows, pages, drawer, prompt and seats.\\n\\nAnswers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"shell_read\",\"description\":\"Show all the interface holds: its windows, pages, drawer, prompt and seats.\\n\\nAnswers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"shell_read\",\"description\":\"Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt.\\n\\nResponde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"shell_read\",\"description\":\"Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt.\\n\\nResponde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `sidebar.cycle`"),

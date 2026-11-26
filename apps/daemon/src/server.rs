@@ -61,8 +61,9 @@
 //! - **The kernel's state is taken in when a watch is asked and each time the
 //!   kernel tells it moved** (`nc_kernel::Kernel::shell_moves`), the move
 //!   marked seen before the state is read, so no move is missed: a state the
-//!   kernel holds at another revision than the one taken in last moves the
-//!   watched revision by one, and so answers every watch that waits.
+//!   kernel holds at a revision newer than the one taken in last moves the
+//!   watched revision by one, and so answers every watch that waits — and
+//!   an older one a slower watch read, taken in after it, moves nothing.
 //! - **A note is the kernel's to apply** (`nc_kernel::Kernel::note`): the
 //!   facts of the interface's state it says, each decided for the person as
 //!   the command it is the equivalent of would be, journaled nowhere and made
@@ -511,10 +512,22 @@ impl Server {
     }
 
     /// Takes in the interface's state `now` holds, at a new revision — or
-    /// changes nothing where the kernel's revision is the one taken in last.
+    /// changes nothing where the kernel's revision is not newer than the one
+    /// taken in last.
+    ///
+    /// **Newer, never merely another**: two watches read the kernel's state
+    /// each outside the channel's lock, so one that read before a move may
+    /// take its state in after a watch that read after it; taken in, that
+    /// older state would move the watched revision forward with content gone
+    /// back, answer every watch waiting with it, and stay until the next
+    /// move. The kernel's revision only moves forward in one run, which is
+    /// the one kernel this server serves.
     fn took_in(&self, (revision, shell): (u64, Value)) {
         self.watched.send_if_modified(|watched| {
-            let another = watched.shell.as_ref().map(|(taken, _)| *taken) != Some(revision);
+            let another = watched
+                .shell
+                .as_ref()
+                .is_none_or(|(taken, _)| *taken < revision);
             if another {
                 watched.shell = Some((revision, shell));
                 watched.moved();
@@ -2247,6 +2260,34 @@ mod tests {
         assert_eq!(before.elapsed(), Duration::from_millis(100));
         assert_eq!(changed(watched), (5, Some(both("d"))));
         assert_eq!(server.announced(), Some(a_display(":1")));
+    }
+
+    /// A state of the kernel's read before a newer one was taken in is never
+    /// taken in after it.
+    ///
+    /// **Two watches racing a move** (`NOCTUA.md §11.1`: a state newer than
+    /// the revision a watch names answers it): the kernel at revision 3 is
+    /// taken in by one watch, and then a slower watch's read of revision 2,
+    /// made before the move, reaches the channel. It moves nothing — the
+    /// state held and the revision watched are the newer one's — and a watch
+    /// naming the revision watched waits it out, answered the revision alone.
+    #[tokio::test(start_paused = true)]
+    async fn a_state_read_before_a_newer_one_was_taken_in_is_never_taken_in_after_it() {
+        let server = a_server(nc_channel::Channel::Staging);
+        let moving = Moving::new("a");
+        moving.moved(3, "c");
+        let fresh = Value::object([("shell", shell("c"))]);
+        assert_eq!(
+            changed(server.watch(&moving, None, 0).await),
+            (1, Some(fresh))
+        );
+        server.took_in((2, shell("b")));
+        assert_eq!(
+            server.watched.borrow().shell,
+            Some((3, shell("c"))),
+            "an older state was taken in"
+        );
+        assert_eq!(changed(server.watch(&moving, Some(1), 0).await), (1, None));
     }
 
     /// A watch that was waiting when a stop began is refused as stopping, at

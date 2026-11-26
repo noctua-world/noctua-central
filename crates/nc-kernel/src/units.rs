@@ -356,6 +356,12 @@ impl Later {
         self.held = self.held.saturating_add(1);
     }
 
+    /// Takes out the interface's state it holds, which is then released by
+    /// whoever took it, or by nobody.
+    pub(crate) const fn shell_taken(&mut self) -> Option<crate::shell::Held> {
+        self.shell.take()
+    }
+
     /// Holds the cancel of the armed timer `id` until it is released,
     /// answering whether it was not held already.
     pub(crate) fn cancel_timer(&mut self, id: u64) -> bool {

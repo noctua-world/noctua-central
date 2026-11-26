@@ -1591,11 +1591,16 @@ fn running_for(imports: &mut impl Imports) -> String {
 /// callback is refused for anything but a `GET` or a `HEAD`, whatever unit it
 /// holds; `again:<ms>` sets a
 /// timer of `ms` tagged `log`, and `cancel:<id>` cancels the timer `id`, each
-/// from a callback that holds no unit; `publish` publishes
-/// `<namespace>.fired`; `trap` panics; anything else does nothing more. What
-/// each dispatch answered is a line of the log too. **The namespace is
-/// another plugin's**, because a callback runs in the plugin it calls, and a
-/// command of that plugin dispatched from it is a dispatch into itself.
+/// from a callback that holds no unit; `windows:<into>:relayed` opens a
+/// window, then dispatches the `relay.write` of `into` relaying one more
+/// `window.open`, then opens a third — a unit opened and kept between two
+/// changes the callback holds itself — and `windows:<into>:grouped` opens a
+/// window, then begins a unit, opens another in it and commits it;
+/// `publish` publishes `<namespace>.fired`; `trap` panics; anything else
+/// does nothing more. What each dispatch answered is a line of the log too.
+/// **The namespace is another plugin's**, because a callback runs in the
+/// plugin it calls, and a command of that plugin dispatched from it is a
+/// dispatch into itself.
 ///
 /// # Panics
 ///
@@ -1652,6 +1657,7 @@ pub fn on_timer(namespace: &str, tag: &str, imports: &mut impl Imports) {
                 &format!("cancel {}", said(cancelled).to_canonical()),
             );
         }
+        (Some("windows"), Some(how)) => windows_opened(into.unwrap_or(namespace), how, imports),
         (Some("drop"), Some(which)) => {
             let unit = imports.begin("Fired and let go");
             let answered = imports.dispatch(&put, &note("dropped", which));
@@ -1691,6 +1697,37 @@ pub fn on_timer(namespace: &str, tag: &str, imports: &mut impl Imports) {
         _ if tag == "trap" => panic!("the timer `{tag}` trapped, as it was told to"),
         _ => {}
     }
+}
+
+/// Opens three windows of the interface from a timer's callback, the middle
+/// one in a unit, as `how` says: `relayed` by the `relay.write` of `into`,
+/// which opens a unit of its own, and `grouped` in a unit the callback
+/// begins and commits, with no third. Writes to the log what each answered.
+fn windows_opened(into: &str, how: &str, imports: &mut impl Imports) {
+    let open = "window.open";
+    let first = said(imports.dispatch(open, "{}"));
+    let (middle, last) = if how == "grouped" {
+        let unit = imports.begin("Windows in a group");
+        let opened = said(imports.dispatch(open, "{}"));
+        (opened, said(unit.and_then(|unit| imports.commit(unit))))
+    } else {
+        let relayed = answer([
+            ("args", nc_canon::Value::text("{}")),
+            ("name", nc_canon::Value::text(open)),
+            ("note", nc_canon::Value::text("photo")),
+        ]);
+        let middle = said(imports.dispatch(&format!("{into}.relay.write"), &relayed));
+        (middle, said(imports.dispatch(open, "{}")))
+    };
+    imports.log(
+        "info",
+        &format!(
+            "windows {} {} {}",
+            first.to_canonical(),
+            middle.to_canonical(),
+            last.to_canonical()
+        ),
+    );
 }
 
 /// Begins a unit, sends a `method` of `https://example.com/fired` in it and
@@ -3697,6 +3734,44 @@ mod tests {
             )]
         );
         assert!(nothing.dispatched.is_empty() && nothing.world.is_empty());
+    }
+
+    /// A timer told to open windows opens three, the middle one through the
+    /// peer's relay, or two with the second in a unit it begins and commits.
+    #[test]
+    fn a_timer_firing_opens_windows_around_a_unit_as_its_tag_says() {
+        let mut relayed = Scripted::answering(|_| Outcome::Answered);
+        on_timer("reference", "windows:peer:relayed", &mut relayed);
+        assert_eq!(
+            relayed.dispatched,
+            [
+                ("window.open".to_owned(), "{}".to_owned()),
+                (
+                    "peer.relay.write".to_owned(),
+                    r#"{"args":"{}","name":"window.open","note":"photo"}"#.to_owned()
+                ),
+                ("window.open".to_owned(), "{}".to_owned()),
+            ]
+        );
+        assert!(relayed.units.is_empty(), "the relay opens its own unit");
+        assert_eq!(
+            relayed.logged[1].1,
+            r#"windows "answered" "answered" "answered""#
+        );
+        let mut grouped = Scripted::answering(|_| Outcome::Answered);
+        on_timer("reference", "windows:peer:grouped", &mut grouped);
+        assert_eq!(
+            grouped.dispatched,
+            [
+                ("window.open".to_owned(), "{}".to_owned()),
+                ("window.open".to_owned(), "{}".to_owned()),
+            ]
+        );
+        assert_eq!(grouped.units, [("begin", 0), ("commit", 0)]);
+        assert_eq!(
+            grouped.logged[1].1,
+            r#"windows "answered" "answered" "answered""#
+        );
     }
 
     #[test]

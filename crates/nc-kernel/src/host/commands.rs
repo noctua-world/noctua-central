@@ -937,6 +937,66 @@ mod tests {
         state
     }
 
+    /// How many windows the state a `shell.read` answered holds, and the
+    /// revision it named, if it named one.
+    fn read_of(answer: &str) -> (usize, Option<i64>) {
+        let mut fields = nc_canon::parse(answer)
+            .expect("an answer is JSON")
+            .into_object()
+            .expect("an object");
+        let revision = fields.remove("revision").map(|revision| match revision {
+            nc_canon::Value::Integer(revision) => revision,
+            other => panic!("a revision is a number: {other:?}"),
+        });
+        let windows = fields
+            .remove("shell")
+            .and_then(nc_canon::Value::into_object)
+            .and_then(|mut shell| shell.remove("windows"))
+            .and_then(nc_canon::Value::into_array)
+            .expect("the state holds its windows")
+            .len();
+        (windows, revision)
+    }
+
+    /// `shell.read` in a call tree that changed the interface answers the
+    /// change the tree holds, with no revision; at the top of a tree, the
+    /// kernel's state at the revision it is at.
+    ///
+    /// **A revision names a state the kernel held**: the window a timer's
+    /// callback opened is its tree's until the tree ends, so a read in the
+    /// tree answers two windows and names no revision — the kernel, at
+    /// revision 0, holds one, which a read at the top of its own tree
+    /// answers.
+    #[tokio::test]
+    async fn a_read_in_a_tree_that_changed_the_interface_answers_the_change_with_no_revision() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let mut state = in_a_timers_callback(
+            &kernel,
+            ana.clone(),
+            Capability::CommandsDispatch,
+            std::time::Instant::now(),
+        );
+        let before = state
+            .dispatch("shell.read".to_owned(), "{}".to_owned())
+            .await
+            .expect("read");
+        assert_eq!(read_of(&before), (1, Some(0)), "{before}");
+        state
+            .dispatch("window.open".to_owned(), "{}".to_owned())
+            .await
+            .expect("opened");
+        let held = state
+            .dispatch("shell.read".to_owned(), "{}".to_owned())
+            .await
+            .expect("read");
+        assert_eq!(read_of(&held), (2, None), "{held}");
+        let kernels = kernel
+            .dispatch(&crate::Caller::new(ana), "shell.read", "{}")
+            .await
+            .expect("read");
+        assert_eq!(read_of(&kernels), (1, Some(0)), "{kernels}");
+    }
+
     /// A timer's `begin` whose journal never answers traps at the host call's
     /// deadline, rather than holding the pump that called it for ever.
     ///

@@ -93,15 +93,23 @@
 //! written, each is refused as every message no request is — malformed — and
 //! a command declared irreversible is refused as it was under protocol 3.
 //!
-//! **This is the one exception to a new message being a new number**, and
-//! `AGENTS.md` writes it beside the rule (*an IPC message*): it holds only
-//! for a protocol no release carries, and only until the Stage that builds
-//! it closes. **What it costs** is a development install whose daemon was
-//! built from an earlier commit of protocol 4 than its client: the two pass
-//! the handshake, and the daemon closes the connection at the first of the
-//! three it does not read. `cargo xtask dev --install` replaces both ends,
-//! and no released build is ever in that place — a release that carries 4
-//! carries all of it.
+//! **Its own messages may change what they mean under it, too**: since 4
+//! reached `dev`, a note — once held by the daemon and decided nowhere — is
+//! applied by the kernel to the interface's state, decided as its commands
+//! are and refused as they are, and a watch is answered that state and what
+//! came of asking for the Leader, where it was answered the last note.
+//!
+//! **This is the one exception to a new message, or a new meaning, being a
+//! new number**, and `AGENTS.md` writes it beside the rule (*an IPC
+//! message*): it holds only for a protocol no release carries, and only until
+//! the Stage that builds it closes. **What it costs** is a development
+//! install whose daemon was built from an earlier commit of protocol 4 than
+//! its client: the two pass the handshake, and then the daemon closes the
+//! connection at the first of the three it does not read, or reads a message
+//! as that earlier commit meant it — a note held rather than applied, a watch
+//! answered without the interface's state. `cargo xtask dev --install`
+//! replaces both ends, and no released build is ever in that place — a
+//! release that carries 4 carries all of it.
 //!
 //! # What this answers (`§2.4`)
 //!

@@ -336,14 +336,40 @@ async fn called_back<E: Environment>(
             false
         }
     };
-    let put_off = lock(&tree).put_off_taken();
+    // **The interface's state the tree holds waits for its unit**: a state
+    // the unit holds was computed over it and carries it
+    // (`CallTree::kept_over_its_own`). Released first, the tree's own would
+    // leave the unit's computed over a state older than the kernel's,
+    // refused, and the change of a kept unit lost; released after it, the
+    // tree's own is the older one, and refused alone, unless no unit was kept
+    // holding one. The rest of what the tree put off goes first, in the order
+    // it was held.
+    let mut put_off = lock(&tree).put_off_taken();
+    let own = put_off.as_mut().and_then(units::Later::shell_taken);
     if let Some(later) = put_off {
         later.released(shared);
     }
     let unit = lock(&tree).unit_taken();
-    let Some(ambient) = unit else {
-        return ran;
+    let ended_well = match unit {
+        None => ran,
+        Some(ambient) => kept_or_let_go(shared, slot, acting, ran, ambient).await,
     };
+    if let Some(held) = own {
+        crate::shell::released(shared, held);
+    }
+    ended_well
+}
+
+/// Keeps the unit a callback began, `ambient`, when the callback `ran` to its
+/// end and nothing doomed the unit, and lets it go otherwise, answering
+/// whether it was kept.
+async fn kept_or_let_go<E: Environment>(
+    shared: &Arc<Shared<E>>,
+    slot: PluginSlot,
+    acting: &Acting,
+    ran: bool,
+    ambient: units::Ambient,
+) -> bool {
     match (ran, ambient.doomed_for()) {
         (true, None) => {
             let label = shared.plugin_of(slot).unwrap_or_default();

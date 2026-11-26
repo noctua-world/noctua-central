@@ -714,7 +714,49 @@ async fn a_watch_is_answered_what_another_connection_told_and_no_display_is_kept
     let (revision, state) = changed(asked(&mut client, watch(Some(4))).await);
     assert_eq!(revision, 1);
     assert_eq!(held_at(state.as_ref(), "display", &[]), None, "{state:?}");
-    assert!(held_at(state.as_ref(), "shell", &[]).is_some(), "{state:?}");
+    assert_eq!(
+        held_at(state.as_ref(), "shell", &["prompt", "draft"]),
+        Some(Value::text("b")),
+        "the interface's state noted before the stop: {state:?}"
+    );
+    stopped(&mut client, &mut again).await;
+}
+
+/// The interface's state a note changed just before a stop is the one the
+/// next start holds.
+///
+/// **The stop saves it last** (`nc_kernel::Kernel::keep_interface`): a pump
+/// saves the state only every `pump_every_ms`, and a stop asked at once after
+/// a note — answered as made — leaves no pump between the two. Without the
+/// save the next start begins from the state the last pump kept, its draft
+/// empty.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_interfaces_state_noted_just_before_a_stop_is_the_next_starts() {
+    let installed = Installed::new(Path::new(BINARY));
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    once(&mut client, runs).await;
+    let drafted = "kept across a restart";
+    let note = nc_ipc::Note::new(Value::object([(
+        "draft",
+        Value::object([("text", Value::text(drafted))]),
+    )]))
+    .expect("a note");
+    assert_eq!(asked(&mut client, Request::Note(note)).await, Answer::Noted);
+    stopped(&mut client, &mut daemon).await;
+    let mut again = installed.spawn();
+    let (mut client, _) = again.connected().await;
+    once(&mut client, runs).await;
+    let watch = Request::Watch {
+        seen: None,
+        wait_ms: 0,
+    };
+    let (_, state) = changed(asked(&mut client, watch).await);
+    assert_eq!(
+        held_at(state.as_ref(), "shell", &["prompt", "draft"]),
+        Some(Value::text(drafted)),
+        "{state:?}"
+    );
     stopped(&mut client, &mut again).await;
 }
 

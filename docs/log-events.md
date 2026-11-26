@@ -271,7 +271,7 @@ Level: `error`
 
 ## `kernel.shell_discarded`
 
-The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's
+The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read
 
 Level: `warn`
 
@@ -281,7 +281,7 @@ Level: `warn`
 
 ## `kernel.shell_unkept`
 
-The kernel could not save the interface's state to the local store, and will try again at the next pump
+The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save
 
 Level: `warn`
 

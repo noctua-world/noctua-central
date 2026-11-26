@@ -15,7 +15,7 @@
 //! **What a test asserts is what was kept.** A callback is shown to have run,
 //! and as whom, by the lines it wrote to its plugin's log and the entries its
 //! dispatches left in the journal; a change by what the store holds; a surface
-//! by what the kernel lists.
+//! by what the kernel lists, and the interface's state by what it holds.
 
 use core::fmt::Debug;
 use core::future::Future;
@@ -2922,4 +2922,80 @@ async fn an_agents_timer_step_joins_its_operators_history_and_they_undo_it() {
         "{undone:?}"
     );
     assert_eq!((undone[1].0, undone[1].1), (Outcome::Allowed, "ana"));
+}
+
+/// The numbers of the windows the interface's state `shell` holds, in its
+/// order.
+fn window_ids(shell: &Value) -> Vec<i64> {
+    shell
+        .clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove("windows"))
+        .and_then(Value::into_array)
+        .expect("the state holds its windows")
+        .into_iter()
+        .map(|window| {
+            match window
+                .into_object()
+                .and_then(|mut fields| fields.remove("id"))
+            {
+                Some(Value::Integer(id)) => id,
+                other => panic!("a window's number is a number: {other:?}"),
+            }
+        })
+        .collect()
+}
+
+/// A timer's callback that changes the interface around a unit kept in it
+/// leaves the kernel holding every change it was answered as made
+/// (`NOCTUA.md §12.1`).
+///
+/// **A unit's state carries the tree's own** (`crate::shell`): the callback
+/// opens a window outside any unit, then one more in a unit — the peer's
+/// relay, which opens a unit of its own, kept before the callback goes on, or
+/// a unit the callback begins and commits — and, after the relay, a third.
+/// Every dispatch is answered, and the kernel then holds every window, each
+/// under a number of its own. **What it holds against**: a command after the
+/// relay computed over the tree's own hold, which no longer names the state
+/// the kernel holds — answered, then dropped at the tree's end, the number it
+/// gave a window the relay's window had already — and the tree's own released
+/// before the callback's unit, which leaves the kept unit's change dropped.
+#[tokio::test]
+async fn a_timers_callback_keeps_every_change_it_made_to_the_interface_around_a_unit() {
+    for (how, windows) in [("relayed", 4), ("grouped", 3)] {
+        let fixture = opened().await;
+        fixture
+            .ana(
+                "reference.timer.set",
+                &timer(1_000, &format!("windows:peer:{how}"), &[]),
+            )
+            .await;
+        fixture.clock.advance(1_000);
+        let pumped = fixture.pump().await;
+        assert_eq!((pumped.fired, pumped.failed), (1, 0), "{how}: {pumped:?}");
+        assert_eq!(
+            fixture.lines_opening(fixture.reference, "windows"),
+            [r#"windows "answered" "answered" "answered""#],
+            "{how}"
+        );
+        let (_, shell) = fixture.kernel.shell();
+        assert_eq!(
+            window_ids(&shell),
+            (1..=windows).collect::<Vec<i64>>(),
+            "{how}: {shell:?}"
+        );
+        let entries = fixture.entries().await;
+        let opened = entries_of(&entries, "window.open");
+        assert_eq!(
+            opened.len(),
+            usize::try_from(windows - 1).expect("small"),
+            "{how}"
+        );
+        assert!(
+            opened
+                .iter()
+                .all(|entry| entry.record.result == Outcome::Allowed),
+            "{how}"
+        );
+    }
 }

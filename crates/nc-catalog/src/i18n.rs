@@ -2404,8 +2404,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.leader.tap.paragraph",
         [
-            "Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.",
-            "Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.",
+            "Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round.",
+            "Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário.",
         ],
     ),
     (
@@ -2773,8 +2773,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.shell.read.paragraph",
         [
-            "Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing.",
-            "Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada.",
+            "Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing.",
+            "Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada.",
         ],
     ),
     (

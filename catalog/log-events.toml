@@ -273,18 +273,19 @@ fields = [
 
 [[event]]
 name = "kernel.shell_discarded"
-description = "The kernel, opening, found the interface's saved state in a shape it does not read, set it aside and began from the first run's"
+description = "The kernel, opening, set the interface's saved state aside and began from the first run's: a state of another shape, one of its own shape breaking a rule it holds the state to, or one the store could not read"
 level = "warn"
 fields = [
-  # The shape the saved state named: an older build's number, or zero when it
-  # named none or was not read whole — never anything of the state itself,
-  # which holds what the person typed.
+  # The shape the saved state named: an older build's number, this build's
+  # own for a state that breaks a rule, or zero when it named none, was not
+  # read whole or the store could not be read — never anything of the state
+  # itself, which holds what the person typed.
   { name = "found", type = "u64" },
 ]
 
 [[event]]
 name = "kernel.shell_unkept"
-description = "The kernel could not save the interface's state to the local store, and will try again at the next pump"
+description = "The kernel could not save the interface's state to the local store: a pump tries again at the next one, and a stop loses what changed since the last save"
 level = "warn"
 fields = [
   # The store's code for what refused the write.
@@ -378,7 +379,9 @@ level = "info"
 fields = [
   { name = "ran", type = "duration" },
   # The dispatches, pumps and sweeps still running when `stop_drain_ms` ran
-  # out, which a start recovers; zero for a stop that waited for every one.
+  # out, which a start recovers, and the last save of the interface's state
+  # when it was given up on with them; zero for a stop that waited for every
+  # one.
   { name = "abandoned", type = "u32" },
 ]
 

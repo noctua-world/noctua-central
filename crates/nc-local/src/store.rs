@@ -18,10 +18,12 @@
 //! **And one write outside every unit, the kernel's alone**:
 //! [`LocalStore::keep`] writes a key of [`KERNEL`]'s with no unit, at the
 //! revision [`KEPT`] — what the kernel keeps of the interface's state between
-//! starts, which no undo takes back. A key is kept or written by units, never
-//! both: `keep` refuses a key a unit wrote, so no image of a unit ever covers
-//! one it wrote, and an undo never finds a kept value where it expected its
-//! own.
+//! starts, which no undo takes back. `keep` refuses a key a unit wrote, so a
+//! kept value never lands over one a unit's image would put back; the other
+//! way the store does not refuse — a unit may write over a kept key, naming
+//! the revision a keep left — and what holds the two apart is the kernel,
+//! the one writer of its keys, which keeps only keys no unit of its own
+//! writes.
 //!
 //! These types are the kernel's too: its `StoreBackend` wraps this store, and
 //! a unit record is what its overlay becomes when the unit commits.

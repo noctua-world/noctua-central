@@ -419,7 +419,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 |---|---|---|
 | Display name | Tap the Leader | Tocar a tecla Leader |
 | Line description | Do what one tap of the Leader key does in the interface. | Fazer o que um toque da tecla Leader faz na interface. |
-| Paragraph | Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round. | Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário. |
+| Paragraph | Does what a tap of the Leader does: it shows the interface and its footer and puts the keyboard on the prompt line; tapped again there, it opens the leader menu in the drawer; and tapped while the menu is open in a window shown, it sends the next page opened to the other region — the drawer instead of the workspace area, or the other way round. | Faz o que um toque da tecla Leader faz: mostra a interface e o rodapé e leva o teclado para a linha do prompt; tocada de novo ali, abre o menu do Leader na gaveta; e tocada com o menu aberto numa janela à vista, manda a próxima página aberta para a outra região — a gaveta em vez da área de trabalho, ou o contrário. |
 | Tags | leader, leader key, shortcut, menu, interface | leader, tecla leader, atalho, menu, interface |
 
 ```json
@@ -829,7 +829,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 |---|---|---|
 | Display name | Read the interface's state | Ler o estado da interface |
 | Line description | Show all the interface holds: its windows, pages, drawer, prompt and seats. | Mostrar tudo o que a interface guarda: janelas, páginas, gaveta e prompt. |
-| Paragraph | Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. It changes nothing. | Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Não altera nada. |
+| Paragraph | Answers the whole state of the desktop interface as Noctua keeps it: each window and the pages open in it, the drawer, the sidebar, the footer, the info line, the prompt and what each seat is on, with the revision it is at. Asked from inside a command that changed the interface, it answers that change instead, which is not Noctua's until the command ends, and with no revision. It changes nothing. | Responde o estado completo da interface como o Noctua o guarda: cada janela e as páginas abertas nela, a gaveta, a barra lateral, o rodapé, a linha de informações, o prompt e onde cada assento está, com a revisão em que está. Pedido de dentro de um comando que mudou a interface, responde essa mudança, que só é do Noctua quando o comando termina, e sem revisão. Não altera nada. |
 | Tags | interface, window, state, layout, what is open | interface, janela, estado, disposição, o que está aberto |
 
 ```json
