@@ -40,17 +40,23 @@
 //! `Later`): the state it leaves is the call tree's, read back by every command
 //! after it in the tree, and the kernel's only once the tree has ended with
 //! every entry it gave the journal taken — or, inside a unit, once the unit is
-//! kept. A tree whose entry the journal refused leaves the state as it was. A
-//! state held is released only over the state it was computed from, so one a
-//! unit inside the same tree already released is never written back over by
-//! the older one the tree held before it. **A unit's state carries the
-//! tree's**: computed over what the tree held when the unit began — a timer's
-//! callback, the one tree that holds changes of its own beside a unit — it is
-//! released whole when the unit is kept, and the tree lets its own go then
+//! kept. A tree whose entry the journal refused releases nothing it holds
+//! itself: what it held is let go the moment the entry is refused, and the
+//! changes it holds after are never released. A state held is released only
+//! over the state it was computed from, so one a unit inside the same tree
+//! already released is never written back over by the older one the tree
+//! held before it. **A unit's state carries the tree's**: computed over what
+//! the tree held when the unit began — a timer's callback, the one tree that
+//! holds changes of its own beside a unit — it is released whole when the
+//! unit is kept, and the tree lets its own go then
 //! (`CallTree::kept_over_its_own`), so the commands after the unit read what
 //! it released, and a callback's own is released after its unit, only when
-//! no unit was kept holding one. `shell.read` inside a tree that holds a change
-//! answers that change, which is not the kernel's yet, with no revision.
+//! no unit was kept holding one. **Except once the journal refused an entry
+//! of the tree**: a unit begun then computes over the kernel's state, never
+//! over what the tree holds itself (`CallTree::shell_held`), so a unit kept
+//! carries no change the journal did not take, nor one the tree will not
+//! release. `shell.read` inside a tree that holds a change answers that
+//! change, which is not the kernel's yet, with no revision.
 //!
 //! **Kept between starts, outside every unit.** The pump saves the state to
 //! the channel's local store when it changed (`StoreBackend::keep`, under the
@@ -71,11 +77,13 @@
 //! leader` and a hotkey do the same: with the leader menu open in the drawer of
 //! the seat's window, shown, a tap sends the next page opened to the other
 //! region; with the seat's keyboard on the prompt line of a window that is
-//! shown, it opens the leader menu in the drawer; otherwise — the window hidden
-//! with the menu open in it included — it shows the window, shows the footer
-//! and puts the seat's keyboard on the prompt line. **A tap never hides the
-//! interface**: §12.8 gives a tap no such rule, and a menu no window shows
-//! never keeps a tap from showing one.
+//! shown, the footer shown, it opens the leader menu in the drawer; otherwise
+//! — the window hidden with the menu open in it, or the footer hidden with
+//! the keyboard on its prompt line, included — it shows the window and puts
+//! the seat's keyboard on the prompt line. Every tap shows the footer
+//! (§12.3). **A tap never hides the interface**: §12.8 gives a tap no such
+//! rule, and a menu or a prompt line no one sees never keeps a tap from
+//! showing it.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
@@ -1335,15 +1343,22 @@ impl Change<'_> {
     /// `leader.tap`: the three rules of §12.8, in the order the menu's
     /// precedes the prompt's.
     ///
-    /// **The menu's rule only where the menu is seen**: open in the drawer of
-    /// the seat's window, and that window shown. A menu left open in a window
-    /// hidden — by `window.hide`, or by closing the last one — shows nothing,
-    /// so the tap is rule 1's and shows the window, rather than flip where a
-    /// page no one sees goes.
+    /// **Each rule only where what it asks about is seen.** The menu's: open
+    /// in the drawer of the seat's window, and that window shown. A menu left
+    /// open in a window hidden — by `window.hide`, or by closing the last one
+    /// — shows nothing, so the tap is rule 1's and shows the window, rather
+    /// than flip where a page no one sees goes. The prompt's: the seat's
+    /// keyboard on the prompt line of a window shown, and the footer that
+    /// holds the line shown — with `footer.hide` the line is not seen, so the
+    /// tap is rule 1's and shows the footer, rather than open a menu over a
+    /// line no one sees. **Every tap shows the footer** (§12.3).
     fn leader_tap(&mut self) -> Result<(), Refusal> {
         let seat = self.seat()?;
         let window = self.state.current(seat);
         let shown = self.state.window(window)?.shown;
+        // A hidden footer appears when the Leader is pressed, whichever rule
+        // the tap follows; the prompt's rule asks whether it was shown before.
+        let footer = core::mem::replace(&mut self.state.footer, true);
         if shown && self.state.leader_open() {
             self.state.drawer.flipped = !self.state.drawer.flipped;
             return Ok(());
@@ -1352,7 +1367,10 @@ impl Change<'_> {
             window,
             region: Region::Prompt,
         };
-        if shown && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt) {
+        if shown
+            && footer
+            && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt)
+        {
             self.state
                 .opened(Kind::Leader, None, Place::Drawer, window)?;
             self.state.seat_mut(seat).focus = Some(Focus {
@@ -1362,7 +1380,6 @@ impl Change<'_> {
             return Ok(());
         }
         self.state.window_mut(window)?.shown = true;
-        self.state.footer = true;
         self.state.seat_mut(seat).focus = Some(on_the_prompt);
         Ok(())
     }
@@ -3011,8 +3028,10 @@ mod tests {
     /// the page opened then goes to the drawer, closing the menu and the flip
     /// with it. A tap with the keyboard on the prompt of a hidden window shows
     /// it rather than open the menu, one with the menu open in a window hidden
-    /// or closed shows it rather than flip, and the seat a tap names is the
-    /// one that moves.
+    /// or closed shows it rather than flip, one with the keyboard on the
+    /// prompt line of a footer hidden shows the footer rather than open the
+    /// menu, every tap shows the footer, and the seat a tap names is the one
+    /// that moves.
     #[test]
     fn a_leader_tap_follows_the_three_rules_and_never_hides_the_interface() {
         let hidden = ran(&State::default(), Verb::FooterHide, &json!({}));
@@ -3074,6 +3093,35 @@ mod tests {
             let flipped = ran(&shown, Verb::LeaderTap, &json!({}));
             assert!(flipped.drawer.flipped, "{}", hiding.name());
         }
+        // **Nor does a prompt line no one sees** (§12.3, §12.8 rule 1): with
+        // the footer hidden and the keyboard left on its prompt line in a
+        // window shown, a tap shows the footer and opens no menu, and the tap
+        // after it, the line now seen, opens the menu. With the menu open and
+        // the footer hidden, a tap flips and shows the footer.
+        let unseen = ran(&first, Verb::FooterHide, &json!({}));
+        assert!(window(&unseen, 1).shown && !unseen.footer);
+        assert_eq!(
+            unseen.seats[&1].focus.map(|focus| focus.region),
+            Some(Region::Prompt)
+        );
+        let footer_shown = ran(&unseen, Verb::LeaderTap, &json!({}));
+        assert!(footer_shown.footer && window(&footer_shown, 1).shown);
+        assert!(
+            footer_shown.drawer.pages.is_empty(),
+            "a tap opened the menu over a prompt line no one saw"
+        );
+        assert_eq!(
+            footer_shown.seats[&1].focus.map(|focus| focus.region),
+            Some(Region::Prompt)
+        );
+        let seen = ran(&footer_shown, Verb::LeaderTap, &json!({}));
+        assert!(seen.leader_open() && seen.footer);
+        let menu_seen = ran(&second, Verb::FooterHide, &json!({}));
+        let flipped = ran(&menu_seen, Verb::LeaderTap, &json!({}));
+        assert!(
+            flipped.drawer.flipped && flipped.footer,
+            "a tap with the menu open left the footer hidden"
+        );
         let other = ran(&first, Verb::LeaderTap, &json!({"seat": 2}));
         assert!(
             other.drawer.pages.is_empty(),

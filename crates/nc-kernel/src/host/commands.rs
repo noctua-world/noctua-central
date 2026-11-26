@@ -906,7 +906,7 @@ mod tests {
     fn in_a_timers_callback(
         kernel: &crate::Kernel<InMemory>,
         ana: nc_authz::Principal,
-        granted: Capability,
+        granted: &[Capability],
         began: std::time::Instant,
     ) -> HostState<InMemory> {
         let now_ms = nc_ids::Clock::now_ms(&nc_ids::SystemClock);
@@ -915,7 +915,7 @@ mod tests {
             0,
             now_ms,
         )));
-        let mut state = HostState::in_memory(GrantSet::of([granted]));
+        let mut state = HostState::in_memory(GrantSet::of(granted.iter().copied()));
         state.enter(
             Frame::new(
                 std::sync::Arc::downgrade(&kernel.shared),
@@ -973,7 +973,7 @@ mod tests {
         let mut state = in_a_timers_callback(
             &kernel,
             ana.clone(),
-            Capability::CommandsDispatch,
+            &[Capability::CommandsDispatch],
             std::time::Instant::now(),
         );
         let before = state
@@ -997,6 +997,87 @@ mod tests {
         assert_eq!(read_of(&kernels), (1, Some(0)), "{kernels}");
     }
 
+    /// A timer's callback lets go of the interface's state it held the moment
+    /// the journal refuses an entry of its tree, and a unit it begins after
+    /// computes over the kernel's state, never over what the tree held since.
+    ///
+    /// **Nothing the tree holds itself is released once an entry is refused**
+    /// (`CallTree::put_off_taken`), and a unit kept releases its state whole.
+    /// The first `window.open`'s entry is not taken in time, the journal's
+    /// lock held by the test, so a `shell.read` after it answers the kernel's
+    /// one window at its revision rather than the window nobody journaled. A
+    /// second `window.open`, journaled, is read back by the tree's own
+    /// commands, which hold two windows; the unit the callback then begins
+    /// opens one more over the kernel's one window, and holds two, not three.
+    /// **What it holds against**: the refused change read back by what comes
+    /// after it, and a unit carrying the tree's own changes, which the tree
+    /// never releases, into the kernel's state when it is kept.
+    #[tokio::test(start_paused = true)]
+    async fn a_refused_entry_lets_the_trees_interface_go_and_a_later_unit_reads_the_kernels() {
+        let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
+        let mut state = in_a_timers_callback(
+            &kernel,
+            ana,
+            &[Capability::CommandsDispatch, Capability::CommandsBegin],
+            std::time::Instant::now(),
+        );
+        {
+            let _the_journal_answers_nobody = kernel.shared.journal.lock().await;
+            let withheld = state
+                .dispatch("window.open".to_owned(), "{}".to_owned())
+                .await;
+            assert!(
+                refused_as(
+                    &withheld,
+                    |error| match error {
+                        types::Error::Unavailable(why) => Some(why),
+                        _ => None,
+                    },
+                    ErrorCode::JournalUnavailable
+                ),
+                "{withheld:?}"
+            );
+        }
+        let after = state
+            .dispatch("shell.read".to_owned(), "{}".to_owned())
+            .await
+            .expect("read");
+        assert_eq!(
+            read_of(&after),
+            (1, Some(0)),
+            "a change the journal did not take was read back: {after}"
+        );
+        state
+            .dispatch("window.open".to_owned(), "{}".to_owned())
+            .await
+            .expect("opened");
+        let own = state
+            .dispatch("shell.read".to_owned(), "{}".to_owned())
+            .await
+            .expect("read");
+        assert_eq!(read_of(&own), (2, None), "{own}");
+        let unit = state.begin("windows".to_owned()).await.expect("begun");
+        state
+            .dispatch("window.open".to_owned(), "{}".to_owned())
+            .await
+            .expect("opened in the unit");
+        let in_the_unit = state
+            .dispatch("shell.read".to_owned(), "{}".to_owned())
+            .await
+            .expect("read");
+        assert_eq!(
+            read_of(&in_the_unit),
+            (2, None),
+            "the unit computed over what the tree held itself: {in_the_unit}"
+        );
+        state.commit(unit).await.expect("committed");
+        assert_eq!(
+            kernel.shell().0,
+            0,
+            "the kernel's state moved inside the tree"
+        );
+    }
+
     /// A timer's `begin` whose journal never answers traps at the host call's
     /// deadline, rather than holding the pump that called it for ever.
     ///
@@ -1012,7 +1093,7 @@ mod tests {
         let mut state = in_a_timers_callback(
             &kernel,
             ana,
-            Capability::CommandsBegin,
+            &[Capability::CommandsBegin],
             std::time::Instant::now(),
         );
         let _the_journal_answers_nobody = kernel.shared.journal.lock().await;
@@ -1045,7 +1126,7 @@ mod tests {
         let mut state = in_a_timers_callback(
             &kernel,
             ana,
-            Capability::CommandsDispatch,
+            &[Capability::CommandsDispatch],
             std::time::Instant::now(),
         );
         let _the_journal_answers_nobody = kernel.shared.journal.lock().await;
@@ -1086,7 +1167,8 @@ mod tests {
                 KERNEL.dispatch_deadline_ms,
             ))
             .expect("the machine has run longer than a call tree may");
-        let mut state = in_a_timers_callback(&kernel, ana, Capability::CommandsDispatch, long_ago);
+        let mut state =
+            in_a_timers_callback(&kernel, ana, &[Capability::CommandsDispatch], long_ago);
         let _the_journal_answers_nobody = kernel.shared.journal.lock().await;
         let started = tokio::time::Instant::now();
         let answered = tokio::time::timeout(

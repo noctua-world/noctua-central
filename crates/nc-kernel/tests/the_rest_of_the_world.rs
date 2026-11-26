@@ -151,27 +151,35 @@ impl Directory for Revoking {
     }
 }
 
-/// What a test holds of the journal's openings of a unit: whether they stall
-/// now, and the gate a stalled one waits at until the test hands it a permit.
+/// What a test holds of the journal's entries: whether it stalls them, and
+/// which one it refuses.
+///
+/// Its openings of a unit stall while `stalled` holds, each waiting at the
+/// gate until the test hands it a permit; and the next allowed entry of the
+/// command `refuses_once` names is refused, once.
 #[derive(Debug, Clone)]
 struct Stall {
     stalled: Arc<AtomicBool>,
     gate: Arc<tokio::sync::Semaphore>,
+    refuses_once: Arc<std::sync::Mutex<Option<&'static str>>>,
 }
 
 impl Stall {
-    /// Openings that land at once, until a test stalls them.
+    /// Openings that land at once, until a test stalls them, and every entry
+    /// taken, until a test names one to refuse.
     fn none() -> Self {
         Self {
             stalled: Arc::new(AtomicBool::new(false)),
             gate: Arc::new(tokio::sync::Semaphore::new(0)),
+            refuses_once: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
 
 /// The journal in memory, whose every opening of a unit waits at the gate of
-/// its [`Stall`] while the test stalls them, and whose every other entry lands
-/// at once.
+/// its [`Stall`] while the test stalls them, which refuses the one entry its
+/// [`Stall`] names, as a store that did not answer, and whose every other
+/// entry lands at once.
 #[derive(Debug)]
 struct Stalling {
     inner: nc_journal::InMemory,
@@ -195,9 +203,29 @@ impl nc_journal::Store for Stalling {
     ) -> impl Future<Output = Result<(), nc_journal::Error>> + Send {
         let stalls =
             self.stall.stalled.load(Ordering::SeqCst) && entry.record.result == Outcome::UnitBegun;
+        let refused = {
+            let mut once = self
+                .stall
+                .refuses_once
+                .lock()
+                .expect("nothing panics holding it");
+            let refused = entry.record.result == Outcome::Allowed
+                && once.is_some_and(|command| command_of(&entry).as_deref() == Some(command));
+            if refused {
+                *once = None;
+            }
+            refused
+        };
         let gate = Arc::clone(&self.stall.gate);
-        let appended = self.inner.append(entry);
+        // Not handed to the store at all when refused: the store in memory
+        // writes as it is handed an entry, before it is awaited.
+        let appended = (!refused).then(|| self.inner.append(entry));
         async move {
+            let Some(appended) = appended else {
+                return Err(nc_journal::Error::Unavailable(
+                    "the journal's store did not answer, as the test made it".to_owned(),
+                ));
+            };
             if stalls {
                 gate.acquire().await.expect("never closed").forget();
             }
@@ -673,21 +701,22 @@ fn is(refused: &Result<String, Refusal>, kind: RefusalKind, code: ErrorCode) -> 
         .is_some_and(|refusal| refusal.kind() == kind && refusal.code() == code)
 }
 
+/// The command whose dispatch `entry` records, none for a bracket.
+fn command_of(entry: &Entry) -> Option<String> {
+    entry
+        .record
+        .resource
+        .clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove("command"))
+        .and_then(Value::into_text)
+}
+
 /// The entries of dispatches of `command`, brackets left out.
 fn entries_of<'a>(entries: &'a [Entry], command: &str) -> Vec<&'a Entry> {
     entries
         .iter()
-        .filter(|entry| {
-            entry
-                .record
-                .resource
-                .clone()
-                .into_object()
-                .and_then(|mut fields| fields.remove("command"))
-                .and_then(Value::into_text)
-                .as_deref()
-                == Some(command)
-        })
+        .filter(|entry| command_of(entry).as_deref() == Some(command))
         .collect()
 }
 
@@ -2996,6 +3025,76 @@ async fn a_timers_callback_keeps_every_change_it_made_to_the_interface_around_a_
                 .iter()
                 .all(|entry| entry.record.result == Outcome::Allowed),
             "{how}"
+        );
+    }
+}
+
+/// A timer's callback whose change of the interface the journal did not take
+/// never makes it, a unit kept in the callback after it included
+/// (`NOCTUA.md §12.1`).
+///
+/// **A change the journal did not take is never made**: the callback's first
+/// `window.open` is refused its entry, its answer withheld as the plugin's
+/// log says, and the unit after it — the peer's relay, or the callback's own
+/// — opens one window over the kernel's state and is kept with it. Nothing the
+/// tree holds itself is released once an entry of it was refused
+/// (`CallTree::put_off_taken`), so the relayed tag's third `window.open`,
+/// answered, goes with the first, and the kernel holds the first run's window
+/// and the unit's, which the journal recorded in the unit. **What it holds
+/// against**: the unit computing over the tree's own hold, which carries the
+/// refused window, and releasing it whole when it is kept — the kernel then
+/// holding a window the journal never recorded beside the unit's.
+#[tokio::test]
+async fn a_timers_callback_never_makes_a_change_the_journal_refused_through_a_unit_after_it() {
+    for (how, journaled) in [("relayed", 2), ("grouped", 1)] {
+        let fixture = opened().await;
+        fixture
+            .ana(
+                "reference.timer.set",
+                &timer(1_000, &format!("windows:peer:{how}"), &[]),
+            )
+            .await;
+        *fixture
+            .stall
+            .refuses_once
+            .lock()
+            .expect("nothing panics holding it") = Some("window.open");
+        fixture.clock.advance(1_000);
+        let pumped = fixture.pump().await;
+        assert_eq!(pumped.fired, 1, "{how}: {pumped:?}");
+        let lines = fixture.lines_opening(fixture.reference, "windows");
+        assert!(
+            lines.len() == 1
+                && lines[0].starts_with(&format!(
+                    "windows \"unavailable: [{}] the journal did not take the entry of \
+                     `window.open`",
+                    ErrorCode::JournalUnavailable
+                ))
+                && lines[0].ends_with(r#" "answered" "answered""#),
+            "{how}: {lines:?}"
+        );
+        let (_, shell) = fixture.kernel.shell();
+        assert_eq!(
+            window_ids(&shell),
+            [1, 2],
+            "{how}: the kernel holds a window the journal never recorded: {shell:?}"
+        );
+        let entries = fixture.entries().await;
+        let opened = entries_of(&entries, "window.open");
+        assert_eq!(opened.len(), journaled, "{how}: {opened:#?}");
+        assert!(
+            opened
+                .iter()
+                .all(|entry| entry.record.result == Outcome::Allowed),
+            "{how}"
+        );
+        assert_eq!(
+            opened
+                .iter()
+                .filter(|entry| entry.record.work_unit.is_some())
+                .count(),
+            1,
+            "{how}: the window the kernel holds past the first run's is the unit's"
         );
     }
 }

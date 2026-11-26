@@ -1887,15 +1887,20 @@ hover, selection and drag.
   command and the feature and never the arguments.
 - **Held until its call tree ends.** What a command changes is its call tree's until the
   tree ends with every entry it gave the journal taken — or, nested in a command that
-  writes, until that unit is kept — so a tree the journal refused leaves the state as it
-  was. The next command of the same tree reads the change back, and a state held is
-  released only over the one it was computed from, never over one released since. **A
-  unit's state carries the tree's own**: in a timer's callback, the one tree that holds
-  changes of its own beside a unit, a unit kept releases what it computed over the tree's
-  hold, and the tree lets its own go then (`CallTree::kept_over_its_own`), so the commands
-  after it read what the unit released; a callback's own is released after its unit, and
-  only where no unit was kept holding one. `shell.read` in a tree that holds a change
-  answers that change with no revision, since a revision names a state the kernel held.
+  writes, until that unit is kept — so a tree the journal refused releases nothing it
+  holds itself: what it held is let go the moment the entry is refused, and what it holds
+  after is never released. The next command of the same tree reads the change back, and a
+  state held is released only over the one it was computed from, never over one released
+  since. **A unit's state carries the tree's own**: in a timer's callback, the one tree
+  that holds changes of its own beside a unit, a unit kept releases what it computed over
+  the tree's hold, and the tree lets its own go then (`CallTree::kept_over_its_own`), so
+  the commands after it read what the unit released; a callback's own is released after
+  its unit, and only where no unit was kept holding one. **Except once the journal refused
+  an entry of the tree**: a unit begun then computes over the kernel's state, never over
+  the tree's own (`CallTree::shell_held`), so a unit kept carries no change the journal
+  did not take, nor one the tree will not release. `shell.read` in a tree that holds a
+  change answers that change with no revision, since a revision names a state the kernel
+  held.
 - **Bounded.** The windows, the pages, the drawer's pages and a page's sub-pages are each
   held to their `[kernel]` limit, a command that would pass one refused with
   `[NC-KERN-0028]`, as is one that would number a window or a page past the last number
@@ -1916,10 +1921,12 @@ hover, selection and drag.
   run's state, which shows nothing but the footer.
 - **A Leader tap follows `NOCTUA.md §12.8`'s three rules in order**: with the leader menu
   open in the drawer of the seat's window, shown, it sends the next page to the other
-  place, with the seat's keyboard on the prompt of a window shown it opens the menu, and
-  otherwise — the menu left open in a window hidden or closed included — it shows the
-  window and the footer and puts the keyboard on the prompt. **It never hides the
-  interface**, and a menu no window shows never keeps it from showing one.
+  place, with the seat's keyboard on the prompt of a window shown and the footer that
+  holds it shown it opens the menu, and otherwise — the menu left open in a window hidden
+  or closed, or the footer hidden with the keyboard on its prompt, included — it shows the
+  window and puts the keyboard on the prompt. Every tap shows the footer, as
+  `NOCTUA.md §12.3` says. **It never hides the interface**, and a menu or a prompt line no
+  one sees never keeps it from showing it.
 
 **Enforced by** the tests beside `crates/nc-kernel/src/shell.rs` — the declarations and
 every schema's bound held to what the module reads and the catalog's limits, each
@@ -1927,7 +1934,8 @@ command's change and refusal, the three rules of a tap, the last identifier, eve
 of a saved state read back at a value the first run's does not hold, every rule a saved
 state is held to broken alone, the one rule broken read back, the widest state within a
 payload, and a release over the state it was computed from alone; the read in a tree
-that holds a change, in `crates/nc-kernel/src/host/commands.rs`;
+that holds a change, and a tree's own state let go when the journal refuses its entry and
+never read by a unit begun after, in `crates/nc-kernel/src/host/commands.rs`;
 `crates/nc-kernel/tests/the_decision_point.rs` over the real
 pack and world — a person driving the interface in no unit, a frozen account and a device
 refused, a change whose entry the journal refused never made, an undo passing over the
@@ -1935,7 +1943,7 @@ interface to a note, the state kept and read back by a kernel opened again, a sa
 store refused logged and made at the next pump, the stop's save, one of another shape set
 aside, and a plugin driving it twice in one tree from a read and from a write;
 `crates/nc-kernel/tests/the_rest_of_the_world.rs`, a timer's callback changing it around a
-unit kept in it; `apps/daemon/tests/serves_its_kernel.rs`, a note made just before a stop
+unit kept in it, and one whose first change the journal refused making the unit's alone; `apps/daemon/tests/serves_its_kernel.rs`, a note made just before a stop
 read back by the next start; `crates/nc-kernel/tests/both_stores_answer_alike.rs` and
 `crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` for the keep;
 `policy/packs/family/tests/features.toml`; `apps/daemon/tests/every_command_from_the_cli.rs`,
