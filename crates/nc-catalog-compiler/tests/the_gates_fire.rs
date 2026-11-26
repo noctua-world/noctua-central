@@ -4227,14 +4227,19 @@ fn a_command_title_a_reader_cannot_see_all_of_fails_the_build() {
 #[test]
 fn two_commands_bound_to_one_key_of_one_table_fail_the_build() {
     let scratch = Scratch::new("keybinding");
+    // **The first command of each kind, once**: a command the catalog binds
+    // already holds a list of its own, and a second one would be TOML's
+    // refusal rather than the judge's.
     scratch.edit("catalog/commands.toml", |text| {
-        text.replace(
+        text.replacen(
             "mutating = false",
             "mutating = false\nkeybindings = [\"Leader+KeyJ\"]",
+            1,
         )
-        .replace(
+        .replacen(
             "mutating = true",
             "mutating = true\nkeybindings = [\"Leader+KeyJ\"]",
+            1,
         )
     });
     scratch.must_fail("duplicate-keybinding", "Leader+KeyJ");
@@ -6973,6 +6978,9 @@ fn the_cli_page_lays_each_command_out_with_the_layout_it_was_handed() {
 /// The keybindings page lists a binding the moment one is declared, with the
 /// display name of the command it runs in every locale, and says there is none
 /// while none is.
+///
+/// **From a catalog that declares none**: the shipped one binds the leader
+/// menu's keys, so each scratch below takes every binding out first.
 #[test]
 fn the_keybindings_page_lists_a_binding_the_moment_one_is_declared() {
     let none = "No command in the catalog declares a binding";
@@ -6985,12 +6993,28 @@ fn the_keybindings_page_lists_a_binding_the_moment_one_is_declared() {
             .contents
             .clone()
     };
+    let unbound = |text: String| -> String {
+        let mut kept = String::with_capacity(text.len());
+        for line in text
+            .lines()
+            .filter(|line| !line.starts_with("keybindings = ["))
+        {
+            kept.push_str(line);
+            kept.push('\n');
+        }
+        kept
+    };
     let shipped = page(
         &compile(&repository(), Bootstrap::Refuse, &surfaces()).expect("the catalog compiles"),
     );
-    assert!(shipped.contains(none), "{shipped}");
+    assert!(!shipped.contains(none), "{shipped}");
+    let bare = Scratch::new("no-binding-declared");
+    bare.edit("catalog/commands.toml", unbound);
+    let without = page(&compile(&bare.root, Bootstrap::Refuse, &surfaces()).expect("compiles"));
+    assert!(without.contains(none), "{without}");
 
     let scratch = Scratch::new("a-binding-declared");
+    scratch.edit("catalog/commands.toml", unbound);
     scratch.replacing(
         "catalog/commands.toml",
         "name = \"kernel.undo\"\n",

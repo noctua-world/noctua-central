@@ -576,6 +576,11 @@ pub(crate) enum Verb {
     WindowResize,
     LeaderTap,
     PageOpen,
+    PageSettings,
+    PageHelp,
+    PageDev,
+    PageShortcuts,
+    PageActions,
     PageClose,
     PageFocus,
     PageNext,
@@ -604,7 +609,7 @@ pub(crate) enum Verb {
 
 impl Verb {
     /// Every one: the only place one is made.
-    pub(crate) const ALL: [Self; 36] = [
+    pub(crate) const ALL: [Self; 41] = [
         Self::ShellRead,
         Self::ShellFocus,
         Self::ShellHover,
@@ -617,6 +622,11 @@ impl Verb {
         Self::WindowResize,
         Self::LeaderTap,
         Self::PageOpen,
+        Self::PageSettings,
+        Self::PageHelp,
+        Self::PageDev,
+        Self::PageShortcuts,
+        Self::PageActions,
         Self::PageClose,
         Self::PageFocus,
         Self::PageNext,
@@ -658,6 +668,11 @@ impl Verb {
             Self::WindowResize => "window.resize",
             Self::LeaderTap => "leader.tap",
             Self::PageOpen => "page.open",
+            Self::PageSettings => "page.settings",
+            Self::PageHelp => "page.help",
+            Self::PageDev => "page.dev",
+            Self::PageShortcuts => "page.shortcuts",
+            Self::PageActions => "page.actions",
             Self::PageClose => "page.close",
             Self::PageFocus => "page.focus",
             Self::PageNext => "page.next",
@@ -691,6 +706,11 @@ impl Verb {
         match self {
             Self::ShellRead
             | Self::WindowOpen
+            | Self::PageSettings
+            | Self::PageHelp
+            | Self::PageDev
+            | Self::PageShortcuts
+            | Self::PageActions
             | Self::DrawerCollapse
             | Self::DrawerExpand
             | Self::DrawerBack
@@ -1016,6 +1036,11 @@ impl Change<'_> {
             Verb::WindowResize => self.window_resize(),
             Verb::LeaderTap => self.leader_tap(),
             Verb::PageOpen => self.page_open(),
+            Verb::PageSettings => self.page_of_kind(Kind::Settings),
+            Verb::PageHelp => self.page_of_kind(Kind::Help),
+            Verb::PageDev => self.page_of_kind(Kind::Dev),
+            Verb::PageShortcuts => self.page_of_kind(Kind::Shortcuts),
+            Verb::PageActions => self.page_of_kind(Kind::Actions),
             Verb::PageClose => self.page_close(),
             Verb::PageFocus => self.page_focus(),
             Verb::PageNext | Verb::PagePrevious => {
@@ -1424,6 +1449,24 @@ impl Change<'_> {
         };
         let window = self.window()?;
         self.state.opened(kind, topic, place, window)
+    }
+
+    /// `page.settings`, `page.help`, `page.dev`, `page.shortcuts` and
+    /// `page.actions`: the page of `kind` on no topic, opened as `page.open`
+    /// opens it when it names that kind alone — where the drawer's direction
+    /// says, or in the drawer for a kind that opens there alone.
+    ///
+    /// **A command for each entry of the leader menu that opens a page**
+    /// (§12.9): a binding names a command and carries no argument (§12.8), so
+    /// the menu's `s`, `h`, `d`, `/` and `w` each need one that takes none.
+    fn page_of_kind(&mut self, kind: Kind) -> Result<(), Refusal> {
+        let place = if kind.drawer_only() {
+            Place::Drawer
+        } else {
+            self.state.direction()
+        };
+        let window = self.window()?;
+        self.state.opened(kind, None, place, window)
     }
 
     /// Whether `topic` names what a page of `kind` can show.
@@ -3131,6 +3174,48 @@ mod tests {
             other.seats[&2].focus.map(|focus| focus.region),
             Some(Region::Prompt)
         );
+    }
+
+    /// Each command of a leader menu's entry that opens a page leaves the
+    /// state `page.open` naming its kind alone leaves — from the first run,
+    /// with the drawer's direction turned, with the menu open and its next
+    /// target flipped, and with the page open already — and reads no
+    /// argument.
+    #[test]
+    fn each_entry_of_the_leader_menu_opens_its_page_as_page_open_does() {
+        let first = State::default();
+        let toward = ran(&first, Verb::DrawerToward, &json!({"region": "drawer"}));
+        let tapped = ran(
+            &ran(
+                &ran(&first, Verb::LeaderTap, &json!({})),
+                Verb::LeaderTap,
+                &json!({}),
+            ),
+            Verb::LeaderTap,
+            &json!({}),
+        );
+        assert!(
+            tapped.drawer.flipped,
+            "the menu is open and its target flipped"
+        );
+        let opened = ran(&first, Verb::PageOpen, &json!({"kind": "help"}));
+        for (verb, kind) in [
+            (Verb::PageSettings, "settings"),
+            (Verb::PageHelp, "help"),
+            (Verb::PageDev, "dev"),
+            (Verb::PageShortcuts, "shortcuts"),
+            (Verb::PageActions, "actions"),
+        ] {
+            assert!(verb.reads().is_empty(), "{}", verb.name());
+            for state in [&first, &toward, &tapped, &opened] {
+                assert_eq!(
+                    ran(state, verb, &json!({})),
+                    ran(state, Verb::PageOpen, &json!({"kind": kind})),
+                    "{}",
+                    verb.name()
+                );
+            }
+        }
     }
 
     /// A page opens where it is asked for or where the drawer's direction

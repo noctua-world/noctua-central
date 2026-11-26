@@ -553,6 +553,27 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false}
 ```
 
+## `page.actions`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader KeyW` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open the window's actions | Abrir as ações da janela |
+| Line description | Open the actions on the window and the page in focus, in the drawer. | Abrir na gaveta as ações sobre a janela e a página em foco. |
+| Paragraph | Opens, in the drawer, the list of what can be done to the window — hide it, close it, move it, resize it — as Leader w does. Choosing one runs it, asking for what it needs on the prompt line. | Abre, na gaveta, a lista do que se pode fazer com a janela — escondê-la, fechá-la, movê-la, redimensioná-la — como Leader w faz. Escolher uma a executa, pedindo na linha de comando o que ela precisar. |
+| Tags | window, actions, container, open, leader w, interface | janela, ações, contêiner, abrir, leader w, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
 ## `page.back`
 
 | | |
@@ -581,6 +602,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `feature:interface` |
 | Mutating | no |
 | Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader KeyQ`, `Leader+KeyQ` |
 
 | | en | pt-BR |
 |---|---|---|
@@ -591,6 +613,27 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}
+```
+
+## `page.dev`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader KeyD` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open the dev pages | Abrir as páginas de dev |
+| Line description | Open the pages for developing and running Noctua. | Abrir as páginas para desenvolver e operar o Noctua. |
+| Paragraph | Opens the list of dev pages, as Leader d does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Each dev page is authorized as any command is. | Abre a lista de páginas de dev, como Leader d faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Cada página de dev é autorizada como qualquer comando. |
+| Tags | dev, developer, logs, registries, open, leader d, interface | dev, desenvolvimento, logs, registros, abrir, leader d, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
 ```
 
 ## `page.focus`
@@ -611,6 +654,27 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["page"],"additionalProperties":false}
+```
+
+## `page.help`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader KeyH` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open help | Abrir a ajuda |
+| Line description | Open the help pages, where the leader menu's direction says. | Abrir as páginas de ajuda, onde a direção do menu do Leader indicar. |
+| Paragraph | Opens the list of help pages, as Leader h does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Help already open is shown again there. | Abre a lista de páginas de ajuda, como Leader h faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se a ajuda já está aberta, aparece de novo ali. |
+| Tags | help, manual, documentation, open, leader h, interface | ajuda, manual, documentação, abrir, leader h, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
 ```
 
 ## `page.into`
@@ -641,6 +705,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `feature:interface` |
 | Mutating | no |
 | Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader+ArrowRight`, `Leader+ArrowDown` |
 
 | | en | pt-BR |
 |---|---|---|
@@ -681,6 +746,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `feature:interface` |
 | Mutating | no |
 | Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader+ArrowLeft`, `Leader+ArrowUp` |
 
 | | en | pt-BR |
 |---|---|---|
@@ -711,6 +777,48 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"to":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["to"],"additionalProperties":false}
+```
+
+## `page.settings`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader KeyS` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open settings | Abrir as configurações |
+| Line description | Open the settings, where the leader menu's direction says. | Abrir as configurações, onde a direção do menu do Leader indicar. |
+| Paragraph | Opens the list of settings, as Leader s does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Settings already open is shown again there. | Abre a lista de configurações, como Leader s faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se as configurações já estão abertas, aparecem de novo ali. |
+| Tags | settings, preferences, open, leader s, interface | configurações, preferências, abrir, leader s, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `page.shortcuts`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader Slash` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Open the page's shortcuts | Abrir os atalhos da página |
+| Line description | Open the shortcuts of the page in focus, in the drawer. | Abrir na gaveta os atalhos da página em foco. |
+| Paragraph | Opens, in the drawer, the list of the shortcuts the page in focus keeps for itself, as Leader / does. A page keeps its own shortcuts there rather than in the global bindings. | Abre, na gaveta, a lista dos atalhos que a página em foco guarda para si, como Leader / faz. Uma página guarda ali os seus próprios atalhos, e não nos atalhos globais. |
+| Tags | shortcuts, page, keys, open, leader slash, interface | atalhos, página, teclas, abrir, leader barra, interface |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
 ```
 
 ## `prompt.ask`
@@ -905,6 +1013,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | Resource selector | `feature:interface` |
 | Mutating | no |
 | Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Keybindings | `Leader Space` |
 
 | | en | pt-BR |
 |---|---|---|

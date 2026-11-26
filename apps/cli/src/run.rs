@@ -587,7 +587,7 @@ mod tests {
                 "The Leader, the channel's default,",
                 "  Linux    Ctrl+Alt+Space",
                 "  macOS    Control+Option+Space",
-                "Bindings, the catalog's:\n  none: no command is bound to a key\n",
+                "Bindings, the catalog's:\n  Leader ",
             ] {
                 assert!(shown.contains(said), "{said}: {shown}");
             }

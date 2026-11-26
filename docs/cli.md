@@ -1119,6 +1119,46 @@ Arguments:
   --name <text, from 1 to 255 characters>  required
 ```
 
+## `page.actions`
+
+In `en`:
+
+```text
+page.actions — Open the window's actions
+Open the actions on the window and the page in focus, in the drawer.
+
+Opens, in the drawer, the list of what can be done to the window — hide it, close it, move it, resize it — as Leader w does. Choosing one runs it, asking for what it needs on the prompt line.
+
+Categories: none
+Tags: window, actions, container, open, leader w, interface
+
+Usage:
+  noctua page.actions [arguments]
+  noctua page.actions -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.actions — Abrir as ações da janela
+Abrir na gaveta as ações sobre a janela e a página em foco.
+
+Abre, na gaveta, a lista do que se pode fazer com a janela — escondê-la, fechá-la, movê-la, redimensioná-la — como Leader w faz. Escolher uma a executa, pedindo na linha de comando o que ela precisar.
+
+Categories: none
+Tags: janela, ações, contêiner, abrir, leader w, interface
+
+Usage:
+  noctua page.actions [arguments]
+  noctua page.actions -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `page.back`
 
 In `en`:
@@ -1207,6 +1247,46 @@ Arguments:
   --window <whole number, at least 1>
 ```
 
+## `page.dev`
+
+In `en`:
+
+```text
+page.dev — Open the dev pages
+Open the pages for developing and running Noctua.
+
+Opens the list of dev pages, as Leader d does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Each dev page is authorized as any command is.
+
+Categories: none
+Tags: dev, developer, logs, registries, open, leader d, interface
+
+Usage:
+  noctua page.dev [arguments]
+  noctua page.dev -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.dev — Abrir as páginas de dev
+Abrir as páginas para desenvolver e operar o Noctua.
+
+Abre a lista de páginas de dev, como Leader d faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Cada página de dev é autorizada como qualquer comando.
+
+Categories: none
+Tags: dev, desenvolvimento, logs, registros, abrir, leader d, interface
+
+Usage:
+  noctua page.dev [arguments]
+  noctua page.dev -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `page.focus`
 
 In `en`:
@@ -1249,6 +1329,46 @@ Arguments:
   --page <whole number, at least 1>  required
   --in <one of: workspace, drawer>
   --window <whole number, at least 1>
+```
+
+## `page.help`
+
+In `en`:
+
+```text
+page.help — Open help
+Open the help pages, where the leader menu's direction says.
+
+Opens the list of help pages, as Leader h does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Help already open is shown again there.
+
+Categories: none
+Tags: help, manual, documentation, open, leader h, interface
+
+Usage:
+  noctua page.help [arguments]
+  noctua page.help -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.help — Abrir a ajuda
+Abrir as páginas de ajuda, onde a direção do menu do Leader indicar.
+
+Abre a lista de páginas de ajuda, como Leader h faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se a ajuda já está aberta, aparece de novo ali.
+
+Categories: none
+Tags: ajuda, manual, documentação, abrir, leader h, interface
+
+Usage:
+  noctua page.help [arguments]
+  noctua page.help -- '<one JSON object>'
+
+Arguments:
+  none
 ```
 
 ## `page.into`
@@ -1467,6 +1587,86 @@ Arguments:
   --in <one of: workspace, drawer>
   --window <whole number, at least 1>
   --to <whole number, from 0 to 4294967295>  required
+```
+
+## `page.settings`
+
+In `en`:
+
+```text
+page.settings — Open settings
+Open the settings, where the leader menu's direction says.
+
+Opens the list of settings, as Leader s does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Settings already open is shown again there.
+
+Categories: none
+Tags: settings, preferences, open, leader s, interface
+
+Usage:
+  noctua page.settings [arguments]
+  noctua page.settings -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.settings — Abrir as configurações
+Abrir as configurações, onde a direção do menu do Leader indicar.
+
+Abre a lista de configurações, como Leader s faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se as configurações já estão abertas, aparecem de novo ali.
+
+Categories: none
+Tags: configurações, preferências, abrir, leader s, interface
+
+Usage:
+  noctua page.settings [arguments]
+  noctua page.settings -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `page.shortcuts`
+
+In `en`:
+
+```text
+page.shortcuts — Open the page's shortcuts
+Open the shortcuts of the page in focus, in the drawer.
+
+Opens, in the drawer, the list of the shortcuts the page in focus keeps for itself, as Leader / does. A page keeps its own shortcuts there rather than in the global bindings.
+
+Categories: none
+Tags: shortcuts, page, keys, open, leader slash, interface
+
+Usage:
+  noctua page.shortcuts [arguments]
+  noctua page.shortcuts -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.shortcuts — Abrir os atalhos da página
+Abrir na gaveta os atalhos da página em foco.
+
+Abre, na gaveta, a lista dos atalhos que a página em foco guarda para si, como Leader / faz. Uma página guarda ali os seus próprios atalhos, e não nos atalhos globais.
+
+Categories: none
+Tags: atalhos, página, teclas, abrir, leader barra, interface
+
+Usage:
+  noctua page.shortcuts [arguments]
+  noctua page.shortcuts -- '<one JSON object>'
+
+Arguments:
+  none
 ```
 
 ## `prompt.ask`
