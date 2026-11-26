@@ -432,7 +432,7 @@ pub struct KernelLimits {
     pub log_line_bytes: u64,
     /// How many of a person's newest steps an undo looks through, and of their newest units a redo does.
     pub undo_history: u32,
-    /// How long a confirmation a person gave stays good for, in milliseconds.
+    /// How long a confirmation a person gave stays good for, and how long a call waits for one, in milliseconds.
     pub confirmation_ttl_ms: u64,
     /// How many calls may wait for a person's confirmation at once.
     pub confirmations_pending_max: u32,

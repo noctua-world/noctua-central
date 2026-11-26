@@ -443,12 +443,16 @@ ui_text_bytes = 4_096
 log_ring_lines = 256
 log_line_bytes = 1_024
 undo_history = 100
+# How long a confirmation a person gave stays good for, and how long a call
+# held for one waits for the person's answer before it is refused as not
+# confirmed in time.
 confirmation_ttl_ms = 60_000
 # How many calls the kernel holds at once for a person's confirmation in the
-# desktop interface (`NOCTUA.md §11.1`): a call that cannot be undone, asked
-# from the CLI or by an agent's session while the desktop the daemon started is
-# attached, waits there up to `confirmation_ttl_ms`; one asked past this bound
-# is refused at once, as it is with no desktop attached.
+# desktop interface (`NOCTUA.md §11.1`): a call that cannot be undone, or one
+# that switches MCP on, asked from the CLI or by an agent's session while the
+# desktop the daemon started is attached, waits there up to
+# `confirmation_ttl_ms`; one asked past this bound is refused at once, as it
+# is with no desktop attached.
 confirmations_pending_max = 8
 # An agent a person makes (§14.6): the most a session of it may be given to
 # spend, and the longest a grant to it may run, in minutes — thirty days, so a

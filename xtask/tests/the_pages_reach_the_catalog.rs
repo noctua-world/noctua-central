@@ -861,16 +861,16 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Show every call that cannot be undone and waits for a person to confirm it.",
+        "Show every call waiting for a person to confirm it in the Noctua window.",
     ),
     (
         "cli.md",
-        "Lists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.",
+        "Lists every call Noctua holds until a person confirms it in the Noctua window — one that cannot be undone, or one that switches MCP on: its number, the command, whether it can be undone, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.",
     ),
     ("cli.md", "Categories: none"),
     (
         "cli.md",
-        "Tags: confirmation, confirm, waiting, irreversible, pending, approve",
+        "Tags: confirmation, confirm, waiting, irreversible, mcp, pending, approve",
     ),
     ("cli.md", "Usage:"),
     ("cli.md", "  noctua confirmations.list [arguments]"),
@@ -889,16 +889,16 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.",
+        "Mostrar cada chamada que aguarda uma pessoa confirmá-la na janela do Noctua.",
     ),
     (
         "cli.md",
-        "Lista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.",
+        "Lista cada chamada que o Noctua segura até que uma pessoa a confirme na janela do Noctua — uma que não pode ser desfeita, ou uma que liga o MCP: seu número, o comando, se pode ser desfeita, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.",
     ),
     ("cli.md", "Categories: none"),
     (
         "cli.md",
-        "Tags: confirmação, confirmar, aguardando, irreversível, pendente, aprovar",
+        "Tags: confirmação, confirmar, aguardando, irreversível, mcp, pendente, aprovar",
     ),
     ("cli.md", "Usage:"),
     ("cli.md", "  noctua confirmations.list [arguments]"),
@@ -2427,7 +2427,7 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on.",
+        "Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was; when that would switch it on, the undo waits for you to confirm it in the Noctua window too.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -2452,7 +2452,7 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue.",
+        "Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -2785,7 +2785,7 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own.",
+        "Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo treats it as that command's own step.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -2824,7 +2824,7 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "cli.md",
-        "Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio.",
+        "Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o trata como um passo daquele comando.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -3767,7 +3767,7 @@ static PROSE: [(&str, &str); 2488] = [
     ),
     (
         "limits.md",
-        "**Every one is enforced by `crates/nc-kernel`.** It reads them as the ceiling a plugin's manifest may lower, and holds a plugin's instance to its memory, instances, tables, stack and fuel, each call into it to its epoch deadline — the plugin's own running, which a ticker advances every `epoch_tick_ms` — and to the deadline of a whole call tree, every host call it makes but a dispatch to `host_call_deadline_ms`, its kills but those at a call tree's deadline to `restart_budget` inside `restart_window_ms`, its declarations to `commands_per_plugin` and each one's texts to `entry_bytes`, a call tree's dispatches to its deadline, depth and count, each question the decision point asks the directory to `host_call_deadline_ms`, a confirmation or an approval to `confirmation_ttl_ms` and the calls waiting for a person's confirmation to `confirmations_pending_max`, a dispatch's arguments and answer to `payload_bytes` (`agents.list`'s answer apart, below), the store's keys, values and listings to theirs, what one unit stages to `store_writes`' bound in keys and to `unit_bytes` in bytes, a blob to `blob_bytes`, each read of one to `blob_read_chunk_bytes`, the blob readers and writers a plugin holds to `blob_handles`, the units it holds begun inside one command to `unit_handles`, what the blobs' sweep keeps of a blob no unit holds to `blob_orphan_grace_ms`, how far back an undo and a redo look in a person's history to `undo_history`, a plugin's network request to `net_header_count` headers, `net_request_head_bytes` of URL and headers and `net_request_body_bytes` of body and its answer to `net_header_count` and `net_response_body_bytes`, the transport a daemon sends it with to `net_timeout_ms`, the timers a plugin holds to `timers_per_plugin`, each to `timer_min_interval_ms` and `timer_max_delay_ms`, the events waiting for delivery to `event_queue` and `event_queue_bytes`, the surfaces a plugin holds to `surfaces_per_plugin` and each tree it renders to `ui_tree_nodes`, `ui_tree_depth` and `ui_text_bytes`, a plugin's own log to `log_ring_lines` lines of `log_line_bytes` each, and what a person gives an agent to spend to `agent_budget_max` and how long a grant to one runs to `agent_grant_minutes_max`, through the schemas of `agents.create` and `agents.grant`, which a test holds to them; and the interface's own state (`§12.1`) to `shell_windows_max` windows, `shell_pages_max` pages open, `shell_drawer_pages_max` of them in the drawer, each `shell_trail_max` sub-pages deep at most, `shell_seats_max` seats, a prompt's draft and an info line's message of `shell_text_bytes` each, a window no smaller than `shell_window_min_width` by `shell_window_min_height` and a drawer of at most `shell_drawer_share_max` percent of the height it shares with the workspace area. **`agents.list`'s answer is not held to `payload_bytes`**: the widest list of agents a profile of the shipped world can hold is longer than a payload, and a test holds it within one frame, so a plugin that dispatches it can be handed more than it may answer with itself.",
+        "**Every one is enforced by `crates/nc-kernel`.** It reads them as the ceiling a plugin's manifest may lower, and holds a plugin's instance to its memory, instances, tables, stack and fuel, each call into it to its epoch deadline — the plugin's own running, which a ticker advances every `epoch_tick_ms` — and to the deadline of a whole call tree, every host call it makes but a dispatch to `host_call_deadline_ms`, its kills but those at a call tree's deadline to `restart_budget` inside `restart_window_ms`, its declarations to `commands_per_plugin` and each one's texts to `entry_bytes`, a call tree's dispatches to its deadline, depth and count, each question the decision point asks the directory to `host_call_deadline_ms`, a confirmation or an approval, and a call's wait for a person's confirmation, to `confirmation_ttl_ms` and the calls waiting for one to `confirmations_pending_max`, a dispatch's arguments and answer to `payload_bytes` (`agents.list`'s answer apart, below), the store's keys, values and listings to theirs, what one unit stages to `store_writes`' bound in keys and to `unit_bytes` in bytes, a blob to `blob_bytes`, each read of one to `blob_read_chunk_bytes`, the blob readers and writers a plugin holds to `blob_handles`, the units it holds begun inside one command to `unit_handles`, what the blobs' sweep keeps of a blob no unit holds to `blob_orphan_grace_ms`, how far back an undo and a redo look in a person's history to `undo_history`, a plugin's network request to `net_header_count` headers, `net_request_head_bytes` of URL and headers and `net_request_body_bytes` of body and its answer to `net_header_count` and `net_response_body_bytes`, the transport a daemon sends it with to `net_timeout_ms`, the timers a plugin holds to `timers_per_plugin`, each to `timer_min_interval_ms` and `timer_max_delay_ms`, the events waiting for delivery to `event_queue` and `event_queue_bytes`, the surfaces a plugin holds to `surfaces_per_plugin` and each tree it renders to `ui_tree_nodes`, `ui_tree_depth` and `ui_text_bytes`, a plugin's own log to `log_ring_lines` lines of `log_line_bytes` each, and what a person gives an agent to spend to `agent_budget_max` and how long a grant to one runs to `agent_grant_minutes_max`, through the schemas of `agents.create` and `agents.grant`, which a test holds to them; and the interface's own state (`§12.1`) to `shell_windows_max` windows, `shell_pages_max` pages open, `shell_drawer_pages_max` of them in the drawer, each `shell_trail_max` sub-pages deep at most, `shell_seats_max` seats, a prompt's draft and an info line's message of `shell_text_bytes` each, a window no smaller than `shell_window_min_width` by `shell_window_min_height` and a drawer of at most `shell_drawer_share_max` percent of the height it shares with the workspace area. **`agents.list`'s answer is not held to `payload_bytes`**: the widest list of agents a profile of the shipped world can hold is longer than a payload, and a test holds it within one frame, so a plugin that dispatches it can be handed more than it may answer with itself.",
     ),
     ("limits.md", "## Daemon"),
     (
@@ -4078,14 +4078,14 @@ static PROSE: [(&str, &str); 2488] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"confirmations_list\",\"description\":\"Show every call that cannot be undone and waits for a person to confirm it.\\n\\nLists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"confirmations_list\",\"description\":\"Show every call waiting for a person to confirm it in the Noctua window.\\n\\nLists every call Noctua holds until a person confirms it in the Noctua window — one that cannot be undone, or one that switches MCP on: its number, the command, whether it can be undone, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"confirmations_list\",\"description\":\"Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.\\n\\nLista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"confirmations_list\",\"description\":\"Mostrar cada chamada que aguarda uma pessoa confirmá-la na janela do Noctua.\\n\\nLista cada chamada que o Noctua segura até que uma pessoa a confirme na janela do Noctua — uma que não pode ser desfeita, ou uma que liga o MCP: seu número, o comando, se pode ser desfeita, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `confirmations.read`"),
@@ -4588,14 +4588,14 @@ static PROSE: [(&str, &str); 2488] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_mcp_set\",\"description\":\"Let MCP clients act here as agents, or stop them.\\n\\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
+        "{\"name\":\"settings_mcp_set\",\"description\":\"Let MCP clients act here as agents, or stop them.\\n\\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was; when that would switch it on, the undo waits for you to confirm it in the Noctua window too.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_mcp_set\",\"description\":\"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\\n\\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
+        "{\"name\":\"settings_mcp_set\",\"description\":\"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\\n\\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"on\":{\"type\":\"boolean\"}},\"required\":[\"on\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `shell.drag`"),
@@ -4708,14 +4708,14 @@ static PROSE: [(&str, &str); 2488] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"surfaces_activate\",\"description\":\"Run what a button or a toggle on a surface runs, as a click would.\\n\\nDoes what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"surface\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"node\":{\"type\":\"string\",\"maxLength\":512},\"inputs\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"value\":{\"type\":\"string\",\"maxLength\":4096}},\"required\":[\"name\",\"value\"],\"additionalProperties\":false},\"maxItems\":2000}},\"required\":[\"surface\",\"node\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
+        "{\"name\":\"surfaces_activate\",\"description\":\"Run what a button or a toggle on a surface runs, as a click would.\\n\\nDoes what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo treats it as that command's own step.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"surface\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"node\":{\"type\":\"string\",\"maxLength\":512},\"inputs\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"value\":{\"type\":\"string\",\"maxLength\":4096}},\"required\":[\"name\",\"value\"],\"additionalProperties\":false},\"maxItems\":2000}},\"required\":[\"surface\",\"node\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"surfaces_activate\",\"description\":\"Executar o que um botão ou chave de uma superfície executa, como um clique.\\n\\nFaz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"surface\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"node\":{\"type\":\"string\",\"maxLength\":512},\"inputs\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"value\":{\"type\":\"string\",\"maxLength\":4096}},\"required\":[\"name\",\"value\"],\"additionalProperties\":false},\"maxItems\":2000}},\"required\":[\"surface\",\"node\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
+        "{\"name\":\"surfaces_activate\",\"description\":\"Executar o que um botão ou chave de uma superfície executa, como um clique.\\n\\nFaz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o trata como um passo daquele comando.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"surface\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"node\":{\"type\":\"string\",\"maxLength\":512},\"inputs\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":64},\"value\":{\"type\":\"string\",\"maxLength\":4096}},\"required\":[\"name\",\"value\"],\"additionalProperties\":false},\"maxItems\":2000}},\"required\":[\"surface\",\"node\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":false}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `surfaces.list`"),

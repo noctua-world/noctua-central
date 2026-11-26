@@ -1906,28 +1906,50 @@ agent is granted — and its serial is in the daemon's watched state as `confirm
 is answered by `Kernel::settle` alone, which the daemon calls for a `confirm` or a
 `decline` on a connection attached as that desktop and on no other (`[NC-DMN-0018]`, logged
 as `ipc.refused`); no command answers it, and `confirm` is no command — the named exception
-to Stage 16's twelfth criterion. **A connection attaches by both halves**: a proof of the 32
-bytes the daemon handed the process it started down its standard input — never written to
-disk, sent or logged — keyed over the connection's own handshake nonces, so a proof is
-good on its connection alone; and the process the system names at the other end being that
-process, still running. One that fails either is refused `[NC-DMN-0017]`, logged, and
-closed. Confirmed, the kernel issues the person's confirmation of that very call — bound to
-the person the tree acts for, the command by its name and its holder and the arguments'
-canonical text, redeemed by that call alone and never presented by a caller — and decides
-the call again from the start; declined, it is refused with `[NC-KERN-0030]`, exit 15; with
-no answer in time, or once the daemon stops, `[NC-KERN-0029]`, exit 14; each journaled once
-under `kernel.irreversible_needs_confirmation`, and a session's budget spent once. **MCP
+to Stage 16's twelfth criterion. **A connection attaches by both halves, once**: a proof of
+the 32 bytes the daemon handed the process it started down its standard input — never
+written to disk, sent or logged — keyed over the connection's own handshake nonces, so a
+proof is good on its connection alone; and the process the system names at the other end,
+by its number as the connection was accepted, being that process, still running. One that
+fails either, or that attached already, is refused `[NC-DMN-0017]`, logged as
+`ipc.refused`, and closed. Confirmed, the call is asked of its asker first — the daemon
+reads MCP again for an agent's session, so MCP switched off while the call waited refuses
+it with `[NC-DMN-0014]`, ends the session, and journals nothing, as any request of the
+session once MCP is off — then the kernel issues the person's confirmation of that very
+call — bound to the person the tree acts for, the command by its name and its holder and
+the arguments' canonical text, redeemed by that call alone and never presented by a
+caller — and decides the call again from the start; declined, it is refused with
+`[NC-KERN-0030]`, exit 15; with no answer in time, or once the daemon stops — its wait
+ending as the stop begins — `[NC-KERN-0029]`, exit 14; each journaled once under
+`kernel.irreversible_needs_confirmation`, and a session's budget spent once. **An answer
+given as the wait ended is the one the call is decided by**: `settle` hands it over while
+the call is still held, under the lock that lets the call go, so either the call takes it
+or the answer is refused `[NC-KERN-0031]` — never a confirm answered while its call is
+refused as not confirmed in time — and an answer to a call whose asker stopped waiting is
+refused the same way. **MCP
 switched on is held the same way** — the set asking for on, and an undo or a redo that would
 put it back on — under codes and a sentinel of its own (*A setting is switched by a person's
 own call*, above). **An agent's call is held the same way and the agent confirms nothing**: the confirmation is
 bound to its person and never to an agent, and its plugin's `context` still answers that no
-person confirmed a call in an agent's tree. Proven by the four held-call tests of
-`crates/nc-kernel/tests/the_decision_point.rs`, `a_held_calls_confirmation_is_bound_by_that_call_alone`
-in `crates/nc-kernel/src/dispatch.rs`, the two tests of `apps/daemon/src/desktop.rs` — the
-second over a daemon a child of the test binary serves, whose desktop is another child
-handed its secret, the CLI's held calls confirmed and declined there and a connection that
-did not attach, and one that attached with a proof of no secret, refused —
-`no_request_the_wire_reads_carries_a_confirmation` in `crates/nc-ipc/src/message.rs`, and
+person confirmed a call in an agent's tree. Proven by the held-call tests of
+`crates/nc-kernel/tests/the_decision_point.rs` — among them
+`a_confirmed_call_its_asker_no_longer_admits_runs_nowhere_and_is_journaled_nowhere` and
+`an_answer_given_as_the_wait_ends_decides_the_call_and_one_nobody_waits_for_answers_nothing`,
+the second over two dozen rounds each a coin the wait's select tosses —
+`a_held_calls_confirmation_is_bound_by_that_call_alone` in
+`crates/nc-kernel/src/dispatch.rs`, the tests of `apps/daemon/src/desktop.rs` —
+`a_desktop_the_daemon_started_attaches_and_answers_what_waits_and_nothing_else_does` over a
+daemon a child of the test binary serves, whose desktop is another child handed its secret:
+a second connection of it attaching and refused an attach asked again, the CLI's held
+calls confirmed and declined there, a desktop started again by a person's `leader.tap` once
+the first ended, a connection that did not attach and one that attached with a proof of no
+secret refused, a held call ended in 14 by the daemon's stop well before
+`confirmation_ttl_ms`, and each refused attach and answer logged as `ipc.refused` by its
+code; and `a_desktop_attaches_by_its_own_process_proving_its_own_secret`, each half held
+alone — `a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed` and
+`a_press_of_the_leader_starts_the_desktop_again_where_the_one_started_last_is_gone` in
+`apps/daemon/src/server.rs`, `no_request_the_wire_reads_carries_a_confirmation` in
+`crates/nc-ipc/src/message.rs`, and
 `a_session_asks_for_its_tools_and_dispatches_and_is_refused_the_rest` in
 `apps/daemon/src/server.rs`.
 
@@ -1945,6 +1967,11 @@ did not attach, and one that attached with a proof of no secret, refused —
   in a confirmation the desktop drew is the desktop's to hold, and is not built yet;
 - a desktop a daemon started before it last started: it holds the old secret, so it can
   watch and dispatch as the person and never attach, and retiring it is the desktop's;
+- a process number handed out again: the process half compares the number the system
+  named at the connection's other end as it was accepted, never when that process
+  started, so a process that read the secret, connected, handed the connection to another
+  and ended leaves a connection that passes the process half once the daemon starts a
+  desktop under that number — reading the secret being already outside the promise, above;
 - a held call whose desktop went away waits its whole time, unless another desktop the
   daemon starts attaches and answers it; and a desktop that ended is started again only
   when the daemon serves, a person's connection announces a display, or the Leader is
@@ -2884,6 +2911,15 @@ and a client asks through, over any stream: the endpoint's, or a test's.
   are written as one number. A daemon of 3 reads each of the three as malformed and closes,
   so `PROTOCOL` is 4 and a peer of 3 is refused at the handshake (`NC-IPC-0004`), each end
   reading the other's version before a request is sent.
+- **An attach, a confirm and a decline are requests like the others, and the desktop's
+  alone.** An attach holds a proof of exactly 32 bytes, which the client makes of the secret
+  its daemon handed it over this connection's own handshake nonces (`Secret::proof`), so a
+  proof made over another connection's proves nothing; a confirm and a decline name one
+  serial, a whole number not below zero, and nothing beside it. No field of any of the three
+  is read as a confirmation of a dispatch. Joining protocol 4 as Stage 16 built it, a daemon
+  of an earlier commit of it reads each as malformed and closes (*an IPC message*,
+  **Making a change**). Who may ask them is the daemon's (*A call that cannot be undone
+  runs once the person confirms it*).
 - **One client for every program that asks a daemon.** `nc_ipc::client` (whose header has
   the checks in order) is what the CLI connects through and the desktop interface will: the
   endpoint, the token judged before it is read, the handshake, the welcome held to the
@@ -2917,7 +2953,10 @@ and a display crossing in order and one written wrong refused by the daemon's en
 (`a_watch_a_note_and_a_display_cross_and_one_written_wrong_is_refused`), a watch's answer
 whose state is not an object refused by the client's, and a note and an environment naming
 every variable, each at its bound in the bytes JSON doubles, crossing in one frame
-(`a_note_and_an_environment_at_every_bound_cross_in_one_frame`)); `handshake.rs` again
+(`a_note_and_an_environment_at_every_bound_cross_in_one_frame`), and an attach, a confirm
+and a decline crossing through a real `serve` and `connect`, the attach the proof over this
+connection's own nonces, and each written wrong by hand refused by the daemon's reader
+(`an_attach_a_confirm_and_a_decline_cross_and_one_written_wrong_is_refused`)); `handshake.rs` again
 for the two versions (`a_client_and_a_daemon_of_protocol_3_are_refused_at_the_handshake`,
 the numbers written out, the client having sent nothing but its goodbye) — every wait in
 the three bounded, so an end that never comes fails the suite rather than spinning the
@@ -3289,10 +3328,11 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   `NC-POL-0006` when the directory does not answer). Every refusal closes the connection
   once it is written, so no client that was refused goes on as the person.
 - **A session asks for its tools and dispatches commands, and nothing else.** While MCP is
-  on, the registry, the status, a stop, a second session, a watch, a note and a display are
-  refused (`NC-DMN-0015`) and the session stands: an agent never stops the daemon, reads the
-  person's status, learns what the person's interface shows or tells the daemon anything as
-  one.
+  on, the registry, the status, a stop, a second session, a watch, a note, a display, an
+  attach as the desktop interface and a confirm or a decline of a held call are refused
+  (`NC-DMN-0015`) and the session stands: an agent never stops the daemon, reads the
+  person's status, learns what the person's interface shows, tells the daemon anything as
+  one, attaches as the person's desktop or answers what waits for its person.
   Its tools are the kernel's probe of what its agent may dispatch now
   (`Kernel::dispatchable`), which journals and spends nothing; its dispatches are the
   kernel's, decided for the agent and its person and journaled with both, each admitted as
@@ -3301,8 +3341,13 @@ asks for (`NOCTUA.md §20.3`) and serves it on the connection that asked.
   requests, before what it asks is read, so once it is off — by the person's set, undo or
   redo alike — or its switch cannot be read, the session's next request, whatever it asks,
   is refused (`NC-DMN-0014`, or the store's code) and the connection closed once the
-  refusal is written. A request made while the kernel does not run yet or is stopping is
-  refused as the person's is (`NC-DMN-0009`, `NC-DMN-0010`), the session standing.
+  refusal is written. **And once its held call is confirmed**: a session's call held for
+  its person's confirmation (*A call that cannot be undone runs once the person confirms
+  it*) waits past the request it was read in, so MCP is read again once the person
+  confirms it, before the kernel decides it again — off, or unreadable, refuses the call
+  the same way, run nowhere and journaled nowhere, and ends the session. A request made
+  while the kernel does not run yet or is stopping is refused as the person's is
+  (`NC-DMN-0009`, `NC-DMN-0010`), the session standing.
 - **What is refused here is logged, never journaled.** Each refusal of an opening, each
   request no session is answered and each ending for MCP off or its switch unreadable is
   logged as `daemon.session_refused` by its code — no command was dispatched — and a
@@ -3316,8 +3361,11 @@ the server serves, while a person's refused registry leaves theirs going; the sw
 off and unreadable; a session's dispatch counted as running until it answers; the bound
 and its places given back; over a kernel opened as the daemon opens one, a session refused
 for an agent no person made and while MCP is off, a connection bound to its agent until
-MCP is switched off, and a session's status refused with the session standing while MCP is
-on and ending it once MCP is off; and, over a daemon a child of the test binary serves, a
+MCP is switched off, a session's status refused with the session standing while MCP is
+on and ending it once MCP is off, and — deciding with a pack that lets an agent switch MCP,
+which no shipped pack does — a session's call held while its person switched MCP off,
+refused and ending the session once confirmed
+(`a_sessions_call_held_while_mcp_was_switched_off_is_refused_once_confirmed`); and, over a daemon a child of the test binary serves, a
 session's opening, each refusal of it and its end logged in order, by its agent or its
 code — by `apps/daemon/tests/agent_sessions.rs` against a real daemon — off until switched
 on and ended once off again, every refusal with no command dispatched logged and nothing
@@ -3475,8 +3523,17 @@ be removed then. A task stores no credential: it runs with the user's own intera
 token, at least privilege. What each manager is told to restore is what its system's hosted
 runner measured (`NOCTUA.md §17.3`). **Started at login by where it is, never by a
 reload**: systemd is told with `enable --no-reload` — a link among the units
-`default.target` wants, read as the user's manager starts — and a unit in the runtime
+`default.target` wants, read as the user's manager starts, or, for a program the person's
+graphical session starts (`Wanted::WithTheGraphicalSession`, systemd's alone and refused
+by the other two managers before anything is written), among the units
+`graphical-session.target` wants, a `Type=oneshot` run ordered after that target and part
+of it, never restored, its failure taken as a success — and a unit in the runtime
 directory is linked there alone (`--runtime`); `unregister` takes the links away first.
+**A daemon's unit stops its own process alone** (`KillMode=process`): a stop, and a
+restart after a crash, end the program's process and leave what it started detached — the
+desktop interface a daemon starts — running, where systemd's default would end every
+process of the unit's group; the generator's text says so, and no scratch service
+measures it (below).
 launchd starts at login the agents in the folder `Manager::loaded_at_login` names, and
 Task Scheduler a task by its logon trigger. **One reload lets an enabled unit go, and only
 a real install's**: once the user's manager has read a unit's link, at a login or a boot,
@@ -3552,7 +3609,11 @@ register.
 **Not answered:** a process running as the same user, which can rewrite or remove any
 definition, register a program of its own under any name — the test prefix included — or
 stop the manager's restorer, and can race a registration between the name being asked and
-the definition being loaded; whoever the system lets past every access list; registering a
+the definition being loaded; whoever the system lets past every access list; that a
+process a daemon's unit started detached outlives the unit's stop under
+`KillMode=process`, which the generator writes and no scratch service of
+`with_the_manager` measures, nor a unit the graphical session starts, which no runner's
+manager reaches; registering a
 task, on Windows, as a user who is not an administrator, which no runner measures, the
 hosted one being elevated; a test's unit the user's manager came to want while it ran —
 its links read again by a reload or a re-execution something else asked for, as a NixOS
@@ -3806,7 +3867,15 @@ is installed.
   whether it holds the restorer, it stops nothing and removes nothing, since that manager
   may hold the restorer; it then stops the daemon and unregisters its restorer — its
   links and its definition with it, and the one reload a unit the user's manager has read
-  needs to go.
+  needs to go. **On systemd the announcer is registered beside the restorer**, before
+  the daemon is started: `nc_cli::install`'s unit the person's graphical session starts,
+  under the layout's `announcer_unit`, which runs the install's own CLI as
+  `leader --announce` once each time the session comes up — and once as it is enabled —
+  so a daemon lingering started before any session learns the session's environment and
+  starts its desktop interface in it (`NOCTUA.md §11.1`); one that cannot be registered or
+  enabled takes the restorer back with it, and an uninstall, or the install made again,
+  lets an earlier announcer go first. launchd and Task Scheduler start their programs
+  inside the person's session already, and register none.
   Lingering, which starts a user's manager at boot, is enabled only by
   `cargo xtask dev --install` for a real install, where logind lets this user — logind is
   never asked for a relocated one (`lingering_asked` in `xtask/src/dev.rs`) — and is

@@ -68,13 +68,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"confirmations_list","description":"Show every call that cannot be undone and waits for a person to confirm it.\n\nLists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"confirmations_list","description":"Show every call waiting for a person to confirm it in the Noctua window.\n\nLists every call Noctua holds until a person confirms it in the Noctua window — one that cannot be undone, or one that switches MCP on: its number, the command, whether it can be undone, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"confirmations_list","description":"Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.\n\nLista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"confirmations_list","description":"Mostrar cada chamada que aguarda uma pessoa confirmá-la na janela do Noctua.\n\nLista cada chamada que o Noctua segura até que uma pessoa a confirme na janela do Noctua — uma que não pode ser desfeita, ou uma que liga o MCP: seu número, o comando, se pode ser desfeita, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `confirmations.read`
@@ -544,13 +544,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"settings_mcp_set","description":"Let MCP clients act here as agents, or stop them.\n\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"settings_mcp_set","description":"Let MCP clients act here as agents, or stop them.\n\nTurns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was; when that would switch it on, the undo waits for you to confirm it in the Noctua window too.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"settings_mcp_set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"settings_mcp_set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 ## `shell.drag`
@@ -656,13 +656,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"surfaces_activate","description":"Run what a button or a toggle on a surface runs, as a click would.\n\nDoes what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"surfaces_activate","description":"Run what a button or a toggle on a surface runs, as a click would.\n\nDoes what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo treats it as that command's own step.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"surfaces_activate","description":"Executar o que um botão ou chave de uma superfície executa, como um clique.\n\nFaz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+{"name":"surfaces_activate","description":"Executar o que um botão ou chave de uma superfície executa, como um clique.\n\nFaz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o trata como um passo daquele comando.","inputSchema":{"type":"object","properties":{"surface":{"type":"string","minLength":1,"maxLength":64},"node":{"type":"string","maxLength":512},"inputs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":4096}},"required":["name","value"],"additionalProperties":false},"maxItems":2000}},"required":["surface","node"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 ## `surfaces.list`

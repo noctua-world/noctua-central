@@ -44,7 +44,7 @@ Arguments follow a command's name: `--<name> <value>`, `--<name>=<value>`, `--<b
 | 1 | the CLI itself failed: it could not write its answer, or could not start what it reaches the daemon with |
 | 2 | the command line or the arguments were refused: the CLI could not read them, or the command's schema refused them |
 | 3 | the command was denied |
-| 4 | the command needs a person's confirmation in the Noctua window, which no command line can give, and no Noctua window this Noctua started was there to ask |
+| 4 | the command needs a person's confirmation in the Noctua window, which no command line can give, and it was not held for one: no Noctua window this Noctua started was attached, too many calls were already waiting, or it was found to need one where no call waits — inside another command, or as an undo or a redo ran |
 | 5 | what the command names is not there, the command itself included |
 | 6 | the command was written against something that changed |
 | 7 | something the command needs did not answer; try again |
@@ -233,12 +233,12 @@ In `en`:
 
 ```text
 confirmations.list — List what waits for a confirmation
-Show every call that cannot be undone and waits for a person to confirm it.
+Show every call waiting for a person to confirm it in the Noctua window.
 
-Lists every call that cannot be undone which Noctua holds until a person confirms it in the Noctua window: its number, the command, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.
+Lists every call Noctua holds until a person confirms it in the Noctua window — one that cannot be undone, or one that switches MCP on: its number, the command, whether it can be undone, the person whose confirmation it waits for and the agent that asked for it when an agent did, and when the wait ends. Only the Noctua window can confirm or decline one; this command only shows them, and changes nothing.
 
 Categories: none
-Tags: confirmation, confirm, waiting, irreversible, pending, approve
+Tags: confirmation, confirm, waiting, irreversible, mcp, pending, approve
 
 Usage:
   noctua confirmations.list [arguments]
@@ -252,12 +252,12 @@ In `pt-BR`:
 
 ```text
 confirmations.list — Listar o que aguarda confirmação
-Mostrar cada chamada que não pode ser desfeita e aguarda uma pessoa confirmá-la.
+Mostrar cada chamada que aguarda uma pessoa confirmá-la na janela do Noctua.
 
-Lista cada chamada que não pode ser desfeita e que o Noctua segura até que uma pessoa a confirme na janela do Noctua: seu número, o comando, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.
+Lista cada chamada que o Noctua segura até que uma pessoa a confirme na janela do Noctua — uma que não pode ser desfeita, ou uma que liga o MCP: seu número, o comando, se pode ser desfeita, a pessoa cuja confirmação ela aguarda e o agente que a pediu, quando foi um agente, e quando a espera termina. Só a janela do Noctua pode confirmar ou recusar uma delas; este comando apenas as mostra e não altera nada.
 
 Categories: none
-Tags: confirmação, confirmar, aguardando, irreversível, pendente, aprovar
+Tags: confirmação, confirmar, aguardando, irreversível, mcp, pendente, aprovar
 
 Usage:
   noctua confirmations.list [arguments]
@@ -1639,7 +1639,7 @@ In `en`:
 settings.mcp.set — Switch MCP on or off
 Let MCP clients act here as agents, or stop them.
 
-Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was, unless that would switch it on.
+Turns MCP on or off in this installation of Noctua, and in no other. While it is off, no MCP client is let in; while it is on, a client acts only as an agent you made and granted, never as you. Only you can switch it, asking directly, never from inside another action, and switching it on waits for you to confirm it in the Noctua window. Undo puts it back as it was; when that would switch it on, the undo waits for you to confirm it in the Noctua window too.
 
 Categories: noctua.settings
 Tags: mcp, agents, settings, turn on, turn off, model context protocol, ai tools
@@ -1658,7 +1658,7 @@ In `pt-BR`:
 settings.mcp.set — Ligar ou desligar o MCP
 Deixar clientes MCP agirem aqui como agentes, ou impedi-los.
 
-Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava, a menos que isso o ligue.
+Liga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.
 
 Categories: noctua.settings
 Tags: mcp, agentes, configurações, ligar, desligar, ferramentas de ia, protocolo de contexto
@@ -1969,7 +1969,7 @@ In `en`:
 surfaces.activate — Press something on a surface
 Run what a button or a toggle on a surface runs, as a click would.
 
-Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo takes it back as a step of its own.
+Does what clicking a button or a toggle on a surface does: runs the action the surface itself names for it, with what you typed into the fields it uses, and nothing you name yourself. Something an agent drew is never run this way, since it would run with your authority. What it runs is decided and recorded as itself, and undo treats it as that command's own step.
 
 Categories: none
 Tags: surface, click, press, button, submit, interface
@@ -1990,7 +1990,7 @@ In `pt-BR`:
 surfaces.activate — Acionar algo em uma superfície
 Executar o que um botão ou chave de uma superfície executa, como um clique.
 
-Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o desfaz como um passo próprio.
+Faz o que clicar em um botão ou chave de uma superfície faz: executa a ação que a própria superfície indica, com o que você digitou nos campos que ela usa, e nada que você mesmo indique. Algo desenhado por um agente nunca é executado assim, pois rodaria com a sua autoridade. O que ele executa é decidido e registrado como si mesmo, e desfazer o trata como um passo daquele comando.
 
 Categories: none
 Tags: superfície, clicar, acionar, botão, enviar, interface

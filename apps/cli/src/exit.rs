@@ -23,7 +23,8 @@ pub enum Exit {
     Invalid,
     /// The command was denied.
     Denied,
-    /// The command needs the Noctua window.
+    /// The command needs a person's confirmation in the Noctua window, and
+    /// was not held for one.
     NeedsTheInterface,
     /// The command waited for a person's confirmation in the Noctua window,
     /// and none came in time.
@@ -111,7 +112,10 @@ impl Exit {
             Self::Denied => "the command was denied",
             Self::NeedsTheInterface => {
                 "the command needs a person's confirmation in the Noctua window, which no \
-                 command line can give, and no Noctua window this Noctua started was there to ask"
+                 command line can give, and it was not held for one: no Noctua window this \
+                 Noctua started was attached, too many calls were already waiting, or it was \
+                 found to need one where no call waits — inside another command, or as an undo \
+                 or a redo ran"
             }
             Self::NotConfirmedInTime => {
                 "the command waited for a person's confirmation in the Noctua window, and none \

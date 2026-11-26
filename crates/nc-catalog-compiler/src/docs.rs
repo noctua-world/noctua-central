@@ -951,8 +951,9 @@ fn kernel(catalog: &Catalog) -> String {
          `restart_budget` inside `restart_window_ms`, its declarations to \
          `commands_per_plugin` and each one's texts to `entry_bytes`, a call tree's dispatches to its deadline, depth and count, \
          each question the decision point asks the directory to `host_call_deadline_ms`, \
-         a confirmation or an approval to `confirmation_ttl_ms` and the calls waiting \
-         for a person's confirmation to `confirmations_pending_max`, a dispatch's arguments \
+         a confirmation or an approval, and a call's wait for a person's confirmation, to \
+         `confirmation_ttl_ms` and the calls waiting for one to `confirmations_pending_max`, \
+         a dispatch's arguments \
          and answer to `payload_bytes` (`agents.list`'s answer apart, below), the store's \
          keys, values and listings to theirs, \
          what one unit stages to `store_writes`' bound in keys and to `unit_bytes` in \
