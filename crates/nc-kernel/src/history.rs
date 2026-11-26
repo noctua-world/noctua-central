@@ -1607,6 +1607,37 @@ mod tests {
         }
     }
 
+    /// The declared history is the one this module implements.
+    ///
+    /// `next` reads no argument, and the command is a read on the interface's
+    /// feature, changing nothing, so it opens no unit and is no step an undo
+    /// stops at.
+    #[test]
+    fn the_declared_history_is_the_one_this_module_implements() {
+        let declared = nc_catalog::command(super::HISTORY)
+            .unwrap_or_else(|| panic!("`{}` is declared", super::HISTORY));
+        assert!(
+            declared.arguments.is_empty(),
+            "`{}` declares {:?}, and `next` reads no argument",
+            super::HISTORY,
+            declared.arguments
+        );
+        assert_eq!(
+            (
+                declared.action,
+                declared.resource_selector,
+                declared.mutating
+            ),
+            ("Read", "feature:interface", false)
+        );
+        assert!(
+            matches!(declared.reversibility, nc_catalog::Reversibility::Read),
+            "{:?}",
+            declared.reversibility
+        );
+        assert_eq!(super::HISTORY, "kernel.history");
+    }
+
     /// A command that cannot be undone leaves the machine.
     ///
     /// So does one the kernel owns that changes state — `limits.prune`, and

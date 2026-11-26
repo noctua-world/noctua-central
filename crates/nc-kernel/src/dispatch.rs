@@ -3460,9 +3460,6 @@ mod tests {
         }
     }
 
-    /// A name proposed at the top of a tree acting as `acting`, and what that
-    /// tree asks with.
-    ///
     /// The person's confirmation of a call the kernel held is bound by that
     /// call alone, and a token a caller holds by none.
     ///
@@ -3513,6 +3510,9 @@ mod tests {
         assert!(issued.bound(Token::Confirmation, presented, &ana, held, "{}", 1_001));
     }
 
+    /// A name proposed at the top of a tree acting as `acting`, and what that
+    /// tree asks with.
+    ///
     /// The asking presents a confirmation and an approval of this very
     /// dispatch, both issued to `to` now. The command is the kernel's own, so
     /// no plugin holds it.
