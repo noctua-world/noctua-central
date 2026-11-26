@@ -38,8 +38,9 @@ use crate::exit::Exit;
 pub const LOCALE_VARIABLES: [&str; 3] = ["LC_ALL", "LC_MESSAGES", "LANG"];
 
 /// What the CLI reads of its environment: the language it answers in, whether
-/// it runs at a terminal, and the tools the clipboard is reached through —
-/// never a location, which is the install's (`§17.1`).
+/// it runs at a terminal, the tools the clipboard is reached through, and the
+/// graphical environment it runs in, which `noctua leader` announces — never a
+/// location of the install's, which is the install's own to say (`§17.1`).
 ///
 /// **At no terminal, and with no clipboard, unless the binary says so**: what
 /// [`Env::of`] makes, as a suite does, opens no picker and copies nothing.
@@ -47,6 +48,9 @@ pub const LOCALE_VARIABLES: [&str; 3] = ["LC_ALL", "LC_MESSAGES", "LANG"];
 pub struct Env {
     /// The value of each of [`LOCALE_VARIABLES`], in that order.
     locale: [Option<String>; 3],
+    /// The value of each of the variables a graphical environment is
+    /// announced by (`nc_ipc::Graphical::NAMES`), in that order.
+    graphical: [Option<String>; 4],
     /// Whether standard input and standard output are both a terminal.
     terminal: bool,
     /// The tools a text is put on the clipboard with, in the order they are
@@ -56,11 +60,13 @@ pub struct Env {
 
 impl Env {
     /// The environment `variable` answers for, asked of each of
-    /// [`LOCALE_VARIABLES`].
+    /// [`LOCALE_VARIABLES`] and of each variable a graphical environment is
+    /// announced by.
     #[must_use]
     pub fn of(variable: impl Fn(&str) -> Option<String>) -> Self {
         Self {
             locale: LOCALE_VARIABLES.map(&variable),
+            graphical: nc_ipc::Graphical::NAMES.map(&variable),
             terminal: false,
             clipboard: Vec::new(),
         }
@@ -91,6 +97,23 @@ impl Env {
     #[must_use]
     pub fn clipboard(&self) -> &[nc_platform::clipboard::Tool] {
         &self.clipboard
+    }
+
+    /// Each variable of the graphical environment this runs in that is set
+    /// and not empty, by its name, in the order of
+    /// `nc_ipc::Graphical::NAMES`.
+    #[must_use]
+    pub fn graphical(&self) -> Vec<(&str, &str)> {
+        nc_ipc::Graphical::NAMES
+            .iter()
+            .zip(&self.graphical)
+            .filter_map(|(name, value)| {
+                value
+                    .as_deref()
+                    .filter(|value| !value.is_empty())
+                    .map(|value| (*name, value))
+            })
+            .collect()
     }
 
     /// The language the CLI answers in: Brazilian Portuguese for the first
@@ -288,6 +311,30 @@ mod tests {
         ] {
             assert_eq!(environment_of(pairs).locale(), locale, "{pairs:?}");
         }
+    }
+
+    /// The graphical environment is each of its variables set and not empty,
+    /// in the protocol's order, and no other variable.
+    #[test]
+    fn the_graphical_environment_is_its_variables_set_and_nothing_else() {
+        assert_eq!(environment_of(&[("LANG", "pt_BR")]).graphical(), []);
+        let named = environment_of(&[
+            ("XDG_RUNTIME_DIR", "runtime"),
+            ("XAUTHORITY", ""),
+            ("WAYLAND_DISPLAY", "wayland-1"),
+            ("DISPLAY", ":0"),
+            ("XDG_SESSION_TYPE", "wayland"),
+            ("HOME", "home"),
+        ]);
+        assert_eq!(
+            named.graphical(),
+            [
+                ("DISPLAY", ":0"),
+                ("WAYLAND_DISPLAY", "wayland-1"),
+                ("XDG_RUNTIME_DIR", "runtime"),
+            ]
+        );
+        assert_eq!(named.locale(), Locale::En);
     }
 
     /// An environment is at no terminal and has no clipboard until the binary

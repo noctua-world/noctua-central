@@ -603,6 +603,11 @@ SOURCES = {
     "daemon_schedule": os.path.join(ROOT, "apps/daemon/src/schedule.rs"),
     "daemon_server": os.path.join(ROOT, "apps/daemon/src/server.rs"),
     "daemon_environment": os.path.join(ROOT, "apps/daemon/src/environment.rs"),
+    # **The Leader where the daemon asks for it**: whether it asks, the thread
+    # that holds a registration, a press tapped and what came of asking told.
+    # Decided by the module's own unit tests and the server's, over a
+    # registration a test grants, refuses or loses.
+    "daemon_leader": os.path.join(ROOT, "apps/daemon/src/leader.rs"),
     # The start's refusals before anything of its run is made, and the install
     # the suites start a daemon in, each by its own module's unit tests, which
     # start no process: what the start does past them, and what the suites do
@@ -648,6 +653,10 @@ SOURCES = {
     # scripted daemon in-process, so no command here starts one.
     "ipc_client": os.path.join(ROOT, "crates/nc-ipc/src/client.rs"),
     "ipc_testing": os.path.join(ROOT, "crates/nc-ipc/src/testing.rs"),
+    # **The Leader heard by a process of an install**: which process listens
+    # on each system, what a press is sent as and how a refusal is told.
+    # Decided by the module's own unit tests.
+    "ipc_leader": os.path.join(ROOT, "crates/nc-ipc/src/leader.rs"),
     # **The one reader of the manifest beside an executable**, which every
     # binary of an install asks: the executable canonicalized, the directory
     # and the manifest judged this user's alone, and each refusal's code.
@@ -8854,9 +8863,9 @@ WEAKENINGS = [
     ("daemon_server", "answer", "a watch waits for the kernel to run",
      "            Request::Watch { seen, wait_ms } => match self.kernel_if_running() {",
      "            Request::Watch { seen, wait_ms } => match Ok::<(), Refusal>(()) {"),
-    ("daemon_server", "answer", "a note waits for the kernel to run",
-     "            Request::Note(note) => match self.kernel_if_running() {",
-     "            Request::Note(note) => match Ok::<(), Refusal>(()) {"),
+    ("daemon_server", "noted", "a note waits for the kernel to run",
+     "            Err(refusal) => return Answer::Refused(refusal),\n        };\n        let applied",
+     "            Err(_) => return Answer::Noted,\n        };\n        let applied"),
     ("daemon_server", "watch", "a watch waits the catalog's bound at most",
      "        let wait = Duration::from_millis(wait_ms.min(nc_catalog::DAEMON.ipc_watch_wait_ms));",
      "        let wait = Duration::from_millis(wait_ms);"),
@@ -8866,9 +8875,48 @@ WEAKENINGS = [
     ("daemon_server", "watch", "a watch waiting when a stop begins is refused",
      "            () = self.stopping() => Some(Answer::Refused(as_stopping(",
      "            () = core::future::pending::<()>() => Some(Answer::Refused(as_stopping("),
-    ("daemon_server", "note", "a note that says what is held moves no revision",
-     "            let another = watched.note.as_ref() != Some(&note);",
+    ("daemon_server", "took_in", "a state the kernel holds at the revision taken in moves no revision",
+     "            let another = watched.shell.as_ref().map(|(taken, _)| *taken) != Some(revision);",
      "            let another = true;"),
+    ("daemon_server", "noted", "a note the kernel refuses is answered with its refusal",
+     "            Err(refusal) => Answer::Refused(refused_by_kernel(&refusal)),",
+     "            Err(_) => Answer::Noted,"),
+    ("daemon_server", "watch", "a move the kernel tells answers a watch that waits",
+     "                    told = heard.is_ok();",
+     "                    told = false;"),
+    ("daemon_server", "leader_asked", "a refused Leader is logged by its code",
+     "                self.log\n                    .record(&nc_log::events::DaemonLeaderRefused { code: refusal.code });\n",
+     ""),
+    ("daemon_server", "leader_asked", "what is held of the Leader already moves no revision",
+     "            let another = watched.leader.as_ref() != Some(&said);",
+     "            let another = true;"),
+    ("daemon_server", "status", "the status shows what came of the Leader",
+     "            fields.push((\"leader\", leader));",
+     "            let _ = leader;"),
+    ("daemon_server", "leader_pressed", "a press is the person's tap",
+     "            .admitted_dispatch(&person, nc_ipc::leader::TAP, &nc_ipc::leader::tap())",
+     "            .admitted_dispatch(&person, \"shell.read\", &nc_ipc::leader::tap())"),
+    # Where the daemon asks for the Leader: only on the system it listens on
+    # and never for a test's install, the registration held until it is given
+    # back, every press tapped, and what came of asking or of a loss told.
+    ("daemon_leader", "asks", "a test's install never asks for the Leader",
+     "    listener == Listener::Daemon && install.namespace.is_none()",
+     "    listener == Listener::Daemon"),
+    ("daemon_leader", "listening", "a Leader granted is said held",
+     "            Ok(Listening::Held(_)) => told.leader_asked(Ok(())),",
+     "            Ok(Listening::Held(_)) => {}"),
+    ("daemon_leader", "listening", "a Leader refused is said refused",
+     "            Err(refusal) => told.leader_asked(Err(refusal)),",
+     "            Err(_) => {}"),
+    ("daemon_leader", "listening", "a registration is held until it is given back",
+     "        let _ = stopped.recv();\n",
+     ""),
+    ("daemon_leader", "listening", "a registration lost is told as a refusal",
+     "            Box::new(move |why| lost.leader_asked(Err(&nc_ipc::leader::refusal(&why)))),",
+     "            Box::new(move |_why| drop(lost)),"),
+    ("daemon_leader", "listening", "a press heard is tapped",
+     "                let _ = presses.send(());\n",
+     "                let _ = &presses;\n"),
     ("daemon_server", "display", "a display that says what is held moves no revision",
      "            let another = watched.display.as_ref() != Some(&environment);",
      "            let another = true;"),
@@ -10479,6 +10527,69 @@ WEAKENINGS = [
     ("cli_run", "renders_json", "a refused line naming mcp is said on standard error",
      "    asks_for_json(argv) && !names_mcp(argv)",
      "    asks_for_json(argv)"),
+    # Stage 16's wiring of the interface: a note applied by the kernel whole
+    # or not at all, between two call trees and decided as its commands would
+    # be, each move of the state told; which process listens for the Leader,
+    # a press sent as `leader.tap` and a refusal told by its code; the CLI's
+    # `leader`, which announces the environment it runs in and taps; and the
+    # line `dev --install` gives a Wayland session to bind the Leader with.
+    ("kernel_shell", "facts", "a note says one fact at least",
+     "    if fields.is_empty() {\n        return Err(invalid(format!(\n            \"a note says one fact at least",
+     "    if false {\n        return Err(invalid(format!(\n            \"a note says one fact at least"),
+    ("kernel_shell", "facts", "a note says the facts a note says, and nothing else",
+     "                .find(|(fact, _)| fact == name)",
+     "                .find(|_| true)"),
+    ("kernel_shell", "noted", "a note is decided as its commands would be",
+     "        if !crate::session::may(shared, began, acting, acting.spent(), action, &resource).await {",
+     "        if !crate::session::may(shared, began, acting, acting.spent(), action, &resource).await && false {"),
+    ("kernel_shell", "noted", "a note is made between two call trees",
+     "    let _between_trees = shared.bus.lock().await;\n",
+     ""),
+    ("kernel_shell", "noted", "a note is made whole or not at all",
+     "        changed(&mut state, *verb, json, &Now { shared })?;",
+     "        let _ = changed(&mut state, *verb, json, &Now { shared });"),
+    ("kernel_shell", "released", "a state released tells the revision it moved to",
+     "    told(&shared.shell_moves, revision);\n",
+     ""),
+    ("kernel_shell", "told", "a revision told again tells no move",
+     "        let another = *seen != revision;",
+     "        let another = true;"),
+    ("ipc_leader", "listener_on", "the daemon listens on Windows",
+     "        System::Windows => Listener::Daemon,",
+     "        System::Windows => Listener::Desktop,"),
+    ("ipc_leader", "refusal", "a chord another program holds is told as taken",
+     "        Refused::Taken => (ErrorCode::ChannelLeaderTaken, RefusalKind::Conflict),",
+     "        Refused::Taken => (ErrorCode::ChannelLeaderUnregistered, RefusalKind::Conflict),"),
+    ("ipc_leader", "listen", "a binding asks the system for nothing",
+     "        Delivery::CompositorBinding => Ok(Listening::ByBinding),",
+     "        Delivery::CompositorBinding => Err(refusal(&Refused::ByBinding)),"),
+    ("cli_args", "read", "leader is read alone as the Leader's tap",
+     "                None => Asked::Leader,",
+     "                None => Asked::Help(Topic::Verbs),"),
+    ("cli_run", "tapped", "leader announces the environment it runs in",
+     "    if let Some(environment) = environment {",
+     "    if let Some(environment) = environment.filter(|_| false) {"),
+    ("cli_run", "announced", "an environment naming no display announces nothing",
+     "        .any(|(name, _)| nc_ipc::Graphical::DISPLAYS.contains(name))\n    {\n        return Ok(None);",
+     "        .any(|(name, _)| nc_ipc::Graphical::DISPLAYS.contains(name))\n        && false\n    {\n        return Ok(None);"),
+    ("cli_run", "announced", "an environment the protocol refuses ends the run as refused",
+     "            exit: Exit::Invalid,\n            detail: format!(\n                \"the graphical environment",
+     "            exit: Exit::Failed,\n            detail: format!(\n                \"the graphical environment"),
+    ("cli_render", "graphical", "a variable set to nothing names nothing",
+     "                    .filter(|value| !value.is_empty())\n                    .map(|value| (*name, value))",
+     "                    .map(|value| (*name, value))"),
+    ("dev", "leader_said", "a session that registers a hotkey is told nothing",
+     "        Ok(Delivery::GlobalHotkey) => None,",
+     "        Ok(Delivery::GlobalHotkey) => Some(Said::ToDo(String::new())),"),
+    ("dev", "leader_said", "niri is found among the session's desktops in any case",
+     "            .any(|named| named.eq_ignore_ascii_case(\"niri\"))",
+     "            .any(|named| named == \"niri\")"),
+    ("dev", "niri_line", "a quote in the program's path is escaped",
+     "        .replace('\"', \"\\\\\\\"\");",
+     "        .replace('\"', \"\\\"\");"),
+    ("platform_leader", "xkb_name", "Space is space, as XKB names it",
+     "        Key::Space => \"space\",",
+     "        Key::Space => \"Space\","),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -10625,6 +10736,7 @@ ELSEWHERE = {
     "daemon_plugins": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "plugins::"],
     "daemon_schedule": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "schedule::"],
     "daemon_server": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "server::"],
+    "daemon_leader": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "leader::", "server::"],
     "daemon_environment": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "environment::"],
     "daemon_run": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
     # The suites' install has no test module of its own: its file is compiled
@@ -10641,6 +10753,7 @@ ELSEWHERE = {
     "ipc_handshake": ["cargo", "test", "-q", "-p", "nc-ipc"],
     "ipc_connection": ["cargo", "test", "-q", "-p", "nc-ipc"],
     "ipc_client": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "client::"],
+    "ipc_leader": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "leader::"],
     "ipc_testing": ["cargo", "test", "-q", "-p", "nc-ipc", "--", "client::"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and

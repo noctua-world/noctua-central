@@ -299,7 +299,13 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
         let server = Arc::clone(&server);
         async move { crate::schedule::sweeping(kernel, done, server.stopping()).await }
     });
+    // Asked where the daemon is the process that asks for the Leader, and
+    // given back before the drain, so no press is heard once a stop began.
+    let leader = crate::leader::listened(found, &server, &tokio::runtime::Handle::current());
     server.stopping().await;
+    if let Some(leader) = leader {
+        let _ = tokio::task::spawn_blocking(move || leader.given_back()).await;
+    }
     // The dispatches running, the pump and the sweep each inside a run or
     // between two, and every connection's last answer, waited for within one
     // bound: a run is call trees as a dispatch is, and the store closes under

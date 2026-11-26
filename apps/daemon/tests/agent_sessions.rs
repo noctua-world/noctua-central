@@ -641,9 +641,9 @@ async fn an_agent_is_held_to_its_own_rights_over_the_endpoint() {
 /// session, a watch, a note and a display asked on a session are each
 /// `NC-DMN-0015`; the daemon still runs, its status answered on the person's
 /// connection, and holds nothing the session told it — the person's watch is
-/// answered a state that is empty, at the revision it started at; and the
-/// session's next dispatch is journaled as the same agent, acting for the
-/// person.
+/// answered the interface's state alone, its draft empty and no display
+/// announced; and the session's next dispatch is journaled as the same agent,
+/// acting for the person.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_session_asks_for_its_tools_and_dispatches_and_for_nothing_else_and_stays_bound() {
     let installed = Installed::new(Path::new(BINARY));
@@ -660,8 +660,11 @@ async fn a_session_asks_for_its_tools_and_dispatches_and_for_nothing_else_and_st
             wait_ms: 0,
         },
         Request::Note(
-            nc_ipc::Note::new(Value::object([("draft", Value::text("an agent's"))]))
-                .expect("a note"),
+            nc_ipc::Note::new(Value::object([(
+                "draft",
+                Value::object([("text", Value::text("an agent's"))]),
+            )]))
+            .expect("a note"),
         ),
         Request::Display(nc_ipc::Graphical::new([("DISPLAY", ":66")]).expect("an environment")),
     ] {
@@ -678,14 +681,27 @@ async fn a_session_asks_for_its_tools_and_dispatches_and_for_nothing_else_and_st
         },
     )
     .await;
+    let Answer::Changed {
+        revision: 1,
+        state: Some(state),
+    } = watched
+    else {
+        panic!("the person's watch was answered {watched:?}");
+    };
+    let held = state.into_object().expect("one object");
     assert_eq!(
-        watched,
-        Answer::Changed {
-            revision: 0,
-            state: Some(Value::object(Vec::<(&str, Value)>::new())),
-        },
-        "a session's note or display was held"
+        held.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["shell"],
+        "a session's display was held"
     );
+    let draft = held
+        .get("shell")
+        .cloned()
+        .and_then(Value::into_object)
+        .and_then(|mut shell| shell.remove("prompt"))
+        .and_then(Value::into_object)
+        .and_then(|mut prompt| prompt.remove("draft"));
+    assert_eq!(draft, Some(Value::text("")), "a session's note was applied");
     match asked(&mut person, Request::Status).await {
         Answer::Status(status) => assert!(
             status.to_canonical().contains("\"state\":\"running\""),

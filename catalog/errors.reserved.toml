@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "f3e4d98a0a3b3409cb7ee6d9abc7425483b6d28300fb83e23c95347a9567eb0e"
-count = 173
+checksum = "65631d6ae4134ba3e180ddf2e530de833f802ae03de010ac9097d2c3c57c3a32"
+count = 176
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -53,6 +53,9 @@ count = 173
 "NC-CHAN-0017" = "error.channel.keybindings-unjudged — error — retryable:false — params:[] — Another channel's keybinding configuration, which the configured Leader is judged against, could not be judged; the channel's default Leader stands"
 "NC-CHAN-0018" = "error.channel.key-the-system-uses — warning — retryable:false — params:[] — A chord the keys in force are pressed with is one a system keeps for itself; it is kept, and named with the system and the source that says so"
 "NC-CHAN-0019" = "error.channel.key-unpressable — warning — retryable:false — params:[] — A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
+"NC-CHAN-0020" = "error.channel.leader-taken — warning — retryable:true — params:[] — Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
+"NC-CHAN-0021" = "error.channel.leader-no-session — warning — retryable:false — params:[] — The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
+"NC-CHAN-0022" = "error.channel.leader-unregistered — error — retryable:true — params:[] — The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
 "NC-CLI-0001" = "error.cli.command-line-unreadable — warning — retryable:false — params:[] — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
 "NC-CLI-0002" = "error.cli.token-not-private — critical — retryable:false — params:[] — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
 "NC-CLI-0003" = "error.cli.token-unreadable — error — retryable:true — params:[] — The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"

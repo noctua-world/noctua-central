@@ -1370,6 +1370,44 @@ message = "error.channel.key-unpressable"
 severity = "warning"
 retryable = false
 
+# --- The Leader asked of the system (§12.8) ---
+#
+# What a process of the install that asks the system for the channel's Leader
+# is refused, each by what refused it (`nc_ipc::leader::refusal`), so the
+# interface's info line says it in the person's language and a log is queried
+# by which it was (`§15.1`). **None stops anything**: the channel's Leader is
+# then not delivered to that process, and every other way the interface is
+# reached stands.
+
+[[error]]
+# Never shared and never taken from the program that holds it: X11's
+# `BadAccess` to the grab, Windows' `ERROR_HOTKEY_ALREADY_REGISTERED` and
+# Carbon's `eventHotKeyExistsErr`, and on X11 a chord another program was
+# granted while the Leader was held and kept.
+code = "NC-CHAN-0020"
+description = "Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
+message = "error.channel.leader-taken"
+severity = "warning"
+retryable = true
+
+[[error]]
+# A Linux environment that names no display, or one whose compositor delivers
+# the Leader by a binding of its own rather than a registration.
+code = "NC-CHAN-0021"
+description = "The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
+message = "error.channel.leader-no-session"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The system could not be asked, answered what is not read, or — on X11 — the
+# server holding the registration went away.
+code = "NC-CHAN-0022"
+description = "The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
+message = "error.channel.leader-unregistered"
+severity = "error"
+retryable = true
+
 # --- The daemon (§11.1, §16.2) ---
 #
 # What a daemon refuses to start on, each by what it found, so a log is

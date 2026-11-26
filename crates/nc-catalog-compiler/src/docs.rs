@@ -1616,8 +1616,8 @@ fn log_events(catalog: &Catalog) -> String {
          kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and \
          `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, \
          `daemon.started`, `daemon.stopped`, `daemon.plugin_refused`, \
-         `daemon.prune_stuck`, `daemon.session_opened`, `daemon.session_ended` and \
-         `daemon.session_refused`; every other event is \
+         `daemon.prune_stuck`, `daemon.leader_refused`, `daemon.session_opened`, \
+         `daemon.session_ended` and `daemon.session_refused`; every other event is \
          declared for a later stage, and `cargo xtask check` counts the crates that may \
          log beside their logging call sites. The types and the guarantee are real today.",
     );

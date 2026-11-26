@@ -50,8 +50,10 @@
 //! - **A note** ([`Note`], [`Answer::Noted`]) is what an interface says at
 //!   the rate it draws — a scroll position, a prompt's draft, what a pointer
 //!   is over — as one object of `ipc_note_max_bytes` at most. It is not a
-//!   command: nothing of it is dispatched, decided or journaled. The daemon
-//!   holds the last one told, as part of what a watch is answered.
+//!   command: nothing of it is dispatched or journaled. The daemon hands it to
+//!   its kernel, which reads it as the facts of the interface's state it
+//!   names, each decided as the command it is the equivalent of would be, and
+//!   applies it whole or not at all (`nc_kernel::Kernel::note`).
 //! - **A display** ([`Graphical`], [`Answer::Displayed`]) announces the
 //!   graphical environment a window for the person would be shown in: some of
 //!   `DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY` and `XDG_RUNTIME_DIR` and no
@@ -69,14 +71,17 @@
 //! connection. Every refusal is an [`IpcError`], which carries its code
 //! (`§15.1`).
 //!
-//! # The client ([`client`])
+//! # The client ([`client`]) and the Leader ([`leader`])
 //!
 //! What every program that asks a daemon shares — the CLI, and the desktop
 //! interface: the endpoint reached, the token read once its file is judged
 //! the user's alone, the handshake, the welcome held to the process the
 //! system shows and to the install's channel, and then each request with its
 //! answer held to the request's kind. [`testing`], behind `test-support`, is
-//! the scripted daemon their suites connect to.
+//! the scripted daemon their suites connect to. What a press of the Leader is
+//! sent as, which process of the install listens for one on each system, and
+//! how a refusal of it is told are [`leader`]'s, shared by the daemon, the CLI
+//! and the desktop interface alike.
 //!
 //! # What protocol 4 does not hold yet
 //!
@@ -129,6 +134,7 @@ pub mod client;
 mod connection;
 pub mod frame;
 mod handshake;
+pub mod leader;
 mod message;
 pub mod testing;
 

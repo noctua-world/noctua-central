@@ -444,4 +444,7 @@ fn record_the_daemons(log: &nc_log::Log, agent: nc_ids::Snowflake) {
     log.record(&events::DaemonSessionRefused {
         code: ErrorCode::DaemonTooManySessions,
     });
+    log.record(&events::DaemonLeaderRefused {
+        code: ErrorCode::ChannelLeaderTaken,
+    });
 }

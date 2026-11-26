@@ -3112,10 +3112,31 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.leader-no-session",
+        [
+            "Noctua is not running in a desktop session that lets it listen for the Leader, so pressing it does not reach Noctua from here.",
+            "O Noctua não está rodando numa sessão de desktop que o deixe ouvir o Leader, então pressioná-lo não chega ao Noctua daqui.",
+        ],
+    ),
+    (
         "error.channel.leader-of-another-channel",
         [
             "The Leader, as your settings leave it, is already the Leader of another Noctua installation on this computer, so Noctua kept this installation's standard Leader and added key.",
             "O Leader, como suas configurações o deixam, já é o Leader de outra instalação do Noctua neste computador, então o Noctua manteve o Leader padrão desta instalação e a tecla padrão acrescentada a ele.",
+        ],
+    ),
+    (
+        "error.channel.leader-taken",
+        [
+            "Another program already uses the Leader's keys, so pressing them does not reach Noctua. Free them in that program, or choose another Leader.",
+            "Outro programa já usa as teclas do Leader, então pressioná-las não chega ao Noctua. Libere-as nesse programa ou escolha outro Leader.",
+        ],
+    ),
+    (
+        "error.channel.leader-unregistered",
+        [
+            "The system did not let Noctua listen for the Leader, so pressing it does not reach Noctua. It is tried again when Noctua starts.",
+            "O sistema não deixou o Noctua ouvir o Leader, então pressioná-lo não chega ao Noctua. Isso é tentado de novo quando o Noctua inicia.",
         ],
     ),
     (
@@ -4798,7 +4819,10 @@ pub const KEYS: &[&str] = &[
     "error.channel.keybindings-unreadable",
     "error.channel.leader-held-with-the-chord-is-anothers",
     "error.channel.leader-holds-the-chord-modifier",
+    "error.channel.leader-no-session",
     "error.channel.leader-of-another-channel",
+    "error.channel.leader-taken",
+    "error.channel.leader-unregistered",
     "error.channel.leader-without-a-modifier",
     "error.channel.manifest-not-private",
     "error.channel.manifest-unavailable",

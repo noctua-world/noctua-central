@@ -5,7 +5,17 @@
 
 Every event the central log can receive. **No field here can be written as free text at a logging call**: the kinds below are the only ones the registry has, `type = "id"` is refused outright, and a `String` cannot be made into a `LogValue` (`§15.4`). What that closes is a sentence a caller composed; what it does not close is a caller who encodes something into a value of a kind the registry does allow — `Snowflake` is written as its Crockford base32 text, and twelve of its characters are the caller’s. The source gate refuses the conversion at a logging call site, which is where it is visible; `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.
 
-**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, `daemon.started`, `daemon.stopped`, `daemon.plugin_refused`, `daemon.prune_stuck`, `daemon.session_opened`, `daemon.session_ended` and `daemon.session_refused`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.
+**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, `daemon.started`, `daemon.stopped`, `daemon.plugin_refused`, `daemon.prune_stuck`, `daemon.leader_refused`, `daemon.session_opened`, `daemon.session_ended` and `daemon.session_refused`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.
+
+## `daemon.leader_refused`
+
+The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader
+
+Level: `warn`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
 
 ## `daemon.plugin_refused`
 

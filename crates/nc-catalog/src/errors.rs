@@ -117,6 +117,12 @@ pub enum ErrorCode {
     ChannelKeyTheSystemUses,
     /// NC-CHAN-0019 — A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept
     ChannelKeyUnpressable,
+    /// NC-CHAN-0020 — Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program
+    ChannelLeaderTaken,
+    /// NC-CHAN-0021 — The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered
+    ChannelLeaderNoSession,
+    /// NC-CHAN-0022 — The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered
+    ChannelLeaderUnregistered,
     /// NC-CLI-0001 — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object
     CliCommandLineUnreadable,
     /// NC-CLI-0002 — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent
@@ -438,6 +444,9 @@ impl ErrorCode {
         Self::ChannelKeybindingsUnjudged,
         Self::ChannelKeyTheSystemUses,
         Self::ChannelKeyUnpressable,
+        Self::ChannelLeaderTaken,
+        Self::ChannelLeaderNoSession,
+        Self::ChannelLeaderUnregistered,
         Self::CliCommandLineUnreadable,
         Self::CliTokenNotPrivate,
         Self::CliTokenUnreadable,
@@ -617,6 +626,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => "NC-CHAN-0017",
             Self::ChannelKeyTheSystemUses => "NC-CHAN-0018",
             Self::ChannelKeyUnpressable => "NC-CHAN-0019",
+            Self::ChannelLeaderTaken => "NC-CHAN-0020",
+            Self::ChannelLeaderNoSession => "NC-CHAN-0021",
+            Self::ChannelLeaderUnregistered => "NC-CHAN-0022",
             Self::CliCommandLineUnreadable => "NC-CLI-0001",
             Self::CliTokenNotPrivate => "NC-CLI-0002",
             Self::CliTokenUnreadable => "NC-CLI-0003",
@@ -797,6 +809,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => "CHAN",
             Self::ChannelKeyTheSystemUses => "CHAN",
             Self::ChannelKeyUnpressable => "CHAN",
+            Self::ChannelLeaderTaken => "CHAN",
+            Self::ChannelLeaderNoSession => "CHAN",
+            Self::ChannelLeaderUnregistered => "CHAN",
             Self::CliCommandLineUnreadable => "CLI",
             Self::CliTokenNotPrivate => "CLI",
             Self::CliTokenUnreadable => "CLI",
@@ -1020,6 +1035,15 @@ impl ErrorCode {
             }
             Self::ChannelKeyUnpressable => {
                 "A key bound with the Leader held is the Leader's own key, which no hand presses while holding it; it is kept"
+            }
+            Self::ChannelLeaderTaken => {
+                "Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
+            }
+            Self::ChannelLeaderNoSession => {
+                "The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
+            }
+            Self::ChannelLeaderUnregistered => {
+                "The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
             }
             Self::CliCommandLineUnreadable => {
                 "A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
@@ -1435,6 +1459,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => "error.channel.keybindings-unjudged",
             Self::ChannelKeyTheSystemUses => "error.channel.key-the-system-uses",
             Self::ChannelKeyUnpressable => "error.channel.key-unpressable",
+            Self::ChannelLeaderTaken => "error.channel.leader-taken",
+            Self::ChannelLeaderNoSession => "error.channel.leader-no-session",
+            Self::ChannelLeaderUnregistered => "error.channel.leader-unregistered",
             Self::CliCommandLineUnreadable => "error.cli.command-line-unreadable",
             Self::CliTokenNotPrivate => "error.cli.token-not-private",
             Self::CliTokenUnreadable => "error.cli.token-unreadable",
@@ -1615,6 +1642,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => Severity::Error,
             Self::ChannelKeyTheSystemUses => Severity::Warning,
             Self::ChannelKeyUnpressable => Severity::Warning,
+            Self::ChannelLeaderTaken => Severity::Warning,
+            Self::ChannelLeaderNoSession => Severity::Warning,
+            Self::ChannelLeaderUnregistered => Severity::Error,
             Self::CliCommandLineUnreadable => Severity::Warning,
             Self::CliTokenNotPrivate => Severity::Critical,
             Self::CliTokenUnreadable => Severity::Error,
@@ -1795,6 +1825,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => false,
             Self::ChannelKeyTheSystemUses => false,
             Self::ChannelKeyUnpressable => false,
+            Self::ChannelLeaderTaken => true,
+            Self::ChannelLeaderNoSession => false,
+            Self::ChannelLeaderUnregistered => true,
             Self::CliCommandLineUnreadable => false,
             Self::CliTokenNotPrivate => false,
             Self::CliTokenUnreadable => true,
@@ -1975,6 +2008,9 @@ impl ErrorCode {
             Self::ChannelKeybindingsUnjudged => &[],
             Self::ChannelKeyTheSystemUses => &[],
             Self::ChannelKeyUnpressable => &[],
+            Self::ChannelLeaderTaken => &[],
+            Self::ChannelLeaderNoSession => &[],
+            Self::ChannelLeaderUnregistered => &[],
             Self::CliCommandLineUnreadable => &[],
             Self::CliTokenNotPrivate => &[],
             Self::CliTokenUnreadable => &[],

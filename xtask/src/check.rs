@@ -11320,7 +11320,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 795] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 799] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -12133,6 +12133,13 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 795] = [
     "logind keeps your user manager from boot on (lingering), so the daemon starts with the computer",
     "{} restores its daemon, `{}`, kept in `{}`, and starts it at each login",
     "`noctua-dev` reaches it, from `{}`",
+    // What `dev --install` says of the Leader where a compositor's binding
+    // delivers it: the line to add to niri's configuration, or the chord and
+    // the command to bind there, and that nothing edits it.
+    "a Wayland compositor delivers the Leader, {chord}, by a key binding of its own, and nothing edits its configuration for you: add `{}` to the `binds` section of niri's",
+    "a Wayland compositor delivers the Leader, {chord}, by a key binding of its own, and nothing edits its configuration for you: bind {chord} to run {command} there",
+    "this shell names no graphical session, so how the Leader, {chord}, reaches Noctua is not known here; in a Wayland session, bind {chord} to run {command} in the compositor's configuration",
+    "{} {{ spawn \"{program}\" \"leader\"; }}",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -19625,8 +19632,8 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 240] = [
-        ("cli/args.rs", 50, 10),
+    const DOCUMENTED: [(&str, usize, usize); 242] = [
+        ("cli/args.rs", 52, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
         ("cli/chosen.rs", 26, 10),
@@ -19640,8 +19647,8 @@ mod the_frozen_path_rule {
         ("cli/main.rs", 8, 5),
         ("cli/mcp.rs", 111, 15),
         ("cli/picker.rs", 33, 5),
-        ("cli/render.rs", 25, 4),
-        ("cli/run.rs", 35, 5),
+        ("cli/render.rs", 27, 4),
+        ("cli/run.rs", 38, 5),
         ("cli/terminal.rs", 14, 21),
         ("cli/the_launcher_passes_everything_through.rs", 8, 4),
         (
@@ -19657,7 +19664,8 @@ mod the_frozen_path_rule {
         ("daemon/every_command_from_the_cli.rs", 45, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
-        ("daemon/lib.rs", 7, 14),
+        ("daemon/leader.rs", 8, 2),
+        ("daemon/lib.rs", 7, 15),
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 10, 7),
@@ -19665,8 +19673,8 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 110, 13),
-        ("daemon/serves_its_kernel.rs", 26, 3),
+        ("daemon/server.rs", 130, 22),
+        ("daemon/serves_its_kernel.rs", 27, 3),
         ("daemon/testing.rs", 42, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
@@ -19744,7 +19752,8 @@ mod the_frozen_path_rule {
         ("nc-ipc/handshake.rs", 10, 0),
         ("nc-ipc/handshake.rs", 15, 15),
         ("nc-ipc/heartbeat.rs", 21, 19),
-        ("nc-ipc/lib.rs", 9, 17),
+        ("nc-ipc/leader.rs", 13, 2),
+        ("nc-ipc/lib.rs", 9, 18),
         ("nc-ipc/message.rs", 73, 8),
         ("nc-ipc/testing.rs", 12, 6),
         ("nc-journal/across_threads.rs", 2, 5),
@@ -19783,7 +19792,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 63, 59),
+        ("nc-kernel/lib.rs", 65, 59),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -19794,9 +19803,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 25, 1),
-        ("nc-kernel/shell.rs", 183, 35),
+        ("nc-kernel/shell.rs", 190, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 296, 87),
+        ("nc-kernel/the_decision_point.rs", 301, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 72, 64),
         ("nc-kernel/timers.rs", 18, 5),
@@ -19814,14 +19823,14 @@ mod the_frozen_path_rule {
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 89, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
-        ("nc-log/events.rs", 32, 160),
+        ("nc-log/events.rs", 33, 165),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
         ("nc-log/lib.rs", 22, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/leader.rs", 50, 7),
+        ("nc-platform/leader.rs", 52, 8),
         ("nc-platform/lib.rs", 112, 26),
         ("nc-platform/macos.rs", 16, 10),
         ("nc-platform/process.rs", 48, 15),
@@ -19857,7 +19866,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 85, 8),
+        ("xtask/dev.rs", 90, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 253, 33),
@@ -22660,8 +22669,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 914 scratches this tree
-    /// builds, 826 of the 914 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 916 scratches this tree
+    /// builds, 828 of the 916 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22735,7 +22744,7 @@ mod the_frozen_path_rule {
         ("cli/install.rs", 18, 18),
         ("cli/launcher.rs", 4, 4),
         ("cli/mcp.rs", 3, 3),
-        ("cli/run.rs", 12, 12),
+        ("cli/run.rs", 14, 14),
         ("cli/the_launcher_passes_everything_through.rs", 4, 4),
         (
             "cli/the_mcp_server_writes_nothing_but_the_protocol.rs",
@@ -25828,7 +25837,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 22954;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23085;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25847,7 +25856,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6495;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6555;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25864,7 +25873,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2201;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2222;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25881,7 +25890,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [94, 20, 37, 38, 94];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [98, 20, 43, 44, 97];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25898,7 +25907,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 30144;
+    const THE_REARRANGEMENTS_JUDGED: usize = 30328;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25916,7 +25925,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 535;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 557;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25952,8 +25961,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **535 of 30,144 are accepted by the first-line
-    /// rule alone, and 283 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **557 of 30,328 are accepted by the first-line
+    /// rule alone, and 302 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25974,8 +25983,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **94 ascending sorts, 20 descending, 37
-    /// swaps, 38 rotations and 94 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **98 ascending sorts, 20 descending, 43
+    /// swaps, 44 rotations and 97 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25985,7 +25994,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2201 of
+    /// this tree offers, **2222 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28536,7 +28545,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 795;
+    const THE_REST_IT_SAYS: usize = 799;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -30264,7 +30273,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 118] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 119] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -30474,6 +30483,7 @@ mod the_frozen_path_rule {
             "// `now`, the rows, not `count`, the files on disk — the",
         ),
         ("—", "started.trim_end("),
+        ("—", "&said"),
         ("—", "&said"),
         ("—", "&said"),
         ("—", "&page.path"),
@@ -38027,7 +38037,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 254,
+            walked, 256,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38067,7 +38077,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2979] = [
+    static OPERATORS: [(&str, &str, &str); 3010] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -49129,7 +49139,7 @@ Options:
         ),
         (
             "daemon_server",
-            "answer",
+            "noted",
             "a note waits for the kernel to run",
         ),
         (
@@ -49149,9 +49159,65 @@ Options:
         ),
         (
             "daemon_server",
-            "note",
-            "a note that says what is held moves no revision",
+            "took_in",
+            "a state the kernel holds at the revision taken in moves no revision",
         ),
+        (
+            "daemon_server",
+            "noted",
+            "a note the kernel refuses is answered with its refusal",
+        ),
+        (
+            "daemon_server",
+            "watch",
+            "a move the kernel tells answers a watch that waits",
+        ),
+        (
+            "daemon_server",
+            "leader_asked",
+            "a refused Leader is logged by its code",
+        ),
+        (
+            "daemon_server",
+            "leader_asked",
+            "what is held of the Leader already moves no revision",
+        ),
+        (
+            "daemon_server",
+            "status",
+            "the status shows what came of the Leader",
+        ),
+        (
+            "daemon_server",
+            "leader_pressed",
+            "a press is the person's tap",
+        ),
+        (
+            "daemon_leader",
+            "asks",
+            "a test's install never asks for the Leader",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader granted is said held",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader refused is said refused",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a registration is held until it is given back",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a registration lost is told as a refusal",
+        ),
+        ("daemon_leader", "listening", "a press heard is tapped"),
         (
             "daemon_server",
             "display",
@@ -51518,6 +51584,93 @@ Options:
             "cli_run",
             "renders_json",
             "a refused line naming mcp is said on standard error",
+        ),
+        ("kernel_shell", "facts", "a note says one fact at least"),
+        (
+            "kernel_shell",
+            "facts",
+            "a note says the facts a note says, and nothing else",
+        ),
+        (
+            "kernel_shell",
+            "noted",
+            "a note is decided as its commands would be",
+        ),
+        (
+            "kernel_shell",
+            "noted",
+            "a note is made between two call trees",
+        ),
+        (
+            "kernel_shell",
+            "noted",
+            "a note is made whole or not at all",
+        ),
+        (
+            "kernel_shell",
+            "released",
+            "a state released tells the revision it moved to",
+        ),
+        (
+            "kernel_shell",
+            "told",
+            "a revision told again tells no move",
+        ),
+        ("ipc_leader", "listener_on", "the daemon listens on Windows"),
+        (
+            "ipc_leader",
+            "refusal",
+            "a chord another program holds is told as taken",
+        ),
+        (
+            "ipc_leader",
+            "listen",
+            "a binding asks the system for nothing",
+        ),
+        (
+            "cli_args",
+            "read",
+            "leader is read alone as the Leader's tap",
+        ),
+        (
+            "cli_run",
+            "tapped",
+            "leader announces the environment it runs in",
+        ),
+        (
+            "cli_run",
+            "announced",
+            "an environment naming no display announces nothing",
+        ),
+        (
+            "cli_run",
+            "announced",
+            "an environment the protocol refuses ends the run as refused",
+        ),
+        (
+            "cli_render",
+            "graphical",
+            "a variable set to nothing names nothing",
+        ),
+        (
+            "dev",
+            "leader_said",
+            "a session that registers a hotkey is told nothing",
+        ),
+        (
+            "dev",
+            "leader_said",
+            "niri is found among the session's desktops in any case",
+        ),
+        (
+            "dev",
+            "niri_line",
+            "a quote in the program's path is escaped",
+        ),
+        (
+            "platform_leader",
+            "xkb_name",
+            "Space is space, as XKB names it",
         ),
     ];
 

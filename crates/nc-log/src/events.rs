@@ -13,6 +13,27 @@ use nc_catalog::Level;
 
 use crate::{Event, Field, LogValue as _};
 
+/// `daemon.leader_refused` — The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader
+#[derive(Debug, Clone)]
+pub struct DaemonLeaderRefused {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for DaemonLeaderRefused {}
+
+impl Event for DaemonLeaderRefused {
+    fn name(&self) -> &'static str {
+        "daemon.leader_refused"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
+    }
+}
+
 /// `daemon.plugin_refused` — A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it
 #[derive(Debug, Clone)]
 pub struct DaemonPluginRefused {

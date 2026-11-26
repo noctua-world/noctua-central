@@ -960,7 +960,7 @@ fn the_generated_surface_is_judged_whole() {
     let emitted = emitted();
     assert_eq!(
         emitted.len(),
-        255,
+        256,
         "the walk over the generated crate found {} value(s) rather than the number \
          written down. A filter inside it narrows what every rule in this file judges \
          and moves the comparison's own expectation with it",

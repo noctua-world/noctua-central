@@ -10,7 +10,10 @@
 //! on everything shows the grammar and the verbs when no registry can be read,
 //! beside the refusal and in its exit code; a verb that controls the daemon's
 //! process is [`crate::control`]'s, which reads no registry; `mcp` is
-//! [`crate::mcp`]'s, served on the streams the run was handed; for anything
+//! [`crate::mcp`]'s, served on the streams the run was handed; `leader`
+//! announces the graphical environment the run is in, where it names a
+//! display, and dispatches `leader.tap`, reading no registry (`tapped`);
+//! for anything
 //! else the daemon is reached and proven ([`crate::client`]), its registry
 //! read, the command found there and its arguments read against the schema it
 //! lists and held to it, and only then is the command dispatched — so a
@@ -189,6 +192,9 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
             crate::control::Done::Status(status) => Ok(render::answered(json, &status)),
         };
     }
+    if let Asked::Leader = asked {
+        return tapped(found, json, env).await;
+    }
     let cli = found.layout.cli.as_str();
     let mut connection = client::connect(found)
         .await
@@ -215,10 +221,69 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
         // Help on everything; a verb that controls the daemon was answered
         // above, before the connection, and the checkouts and `mcp` before
         // any.
-        Asked::Help(_) | Asked::Control(_) | Asked::Checkouts(_) | Asked::Mcp(_) => {
-            Ok(render::shown(json, help::everything(cli, &registry)))
-        }
+        Asked::Help(_)
+        | Asked::Control(_)
+        | Asked::Checkouts(_)
+        | Asked::Mcp(_)
+        | Asked::Leader => Ok(render::shown(json, help::everything(cli, &registry))),
     }
+}
+
+/// `noctua leader`: the graphical environment `env` names announced to the
+/// daemon of `found`'s install where it names a display, then the Leader
+/// tapped (`nc_ipc::leader::TAP`), its answer rendered as the command's is.
+///
+/// **In order, the first refusal the end**: the environment read — one the
+/// protocol would refuse is refused before anything is sent, with exit 2, and
+/// one that names no display, as on macOS, on Windows or at a console,
+/// announces nothing; the daemon reached, never started, so a person's stop
+/// stands and a stopped daemon ends the run in exit 9; the environment
+/// announced; and the tap dispatched as the person, a refusal of it ending
+/// the run as a command's does.
+async fn tapped(found: &Found, json: bool, env: &Env) -> Result<Outcome, Failure> {
+    let environment = announced(env)?;
+    let mut connection = client::connect(found)
+        .await
+        .map_err(|refused| unasked(&refused))?;
+    if let Some(environment) = environment {
+        connection
+            .display(environment)
+            .await
+            .map_err(|refused| unasked(&refused))?;
+    }
+    dispatched(
+        &mut connection,
+        nc_ipc::leader::TAP,
+        nc_ipc::leader::tap(),
+        json,
+    )
+    .await
+}
+
+/// The graphical environment `env` names, as the daemon is told of it: none
+/// where it names no display.
+///
+/// **Read by the protocol's own rule** (`nc_ipc::Graphical::new`), so a
+/// value the daemon would refuse is refused here, with nothing sent.
+fn announced(env: &Env) -> Result<Option<nc_ipc::Graphical>, Failure> {
+    let named = env.graphical();
+    if !named
+        .iter()
+        .any(|(name, _)| nc_ipc::Graphical::DISPLAYS.contains(name))
+    {
+        return Ok(None);
+    }
+    nc_ipc::Graphical::new(named)
+        .map(Some)
+        .map_err(|refused| Failure {
+            code: refused.code(),
+            exit: Exit::Invalid,
+            detail: format!(
+                "the graphical environment this runs in is not one the daemon is told of, so \
+             nothing was sent: {}",
+                render::without_code(&refused.to_string(), refused.code())
+            ),
+        })
 }
 
 /// The entry `name` has in `registry`, and its schema compiled.
@@ -930,6 +995,96 @@ mod tests {
         let outcome = super::run(&argv(&["journal.verify"]), &installed.found, &english());
         assert_eq!(outcome.exit, Exit::Refused, "{outcome:?}");
         assert_eq!(daemon.heard(), [] as [Request; 0]);
+    }
+
+    /// `leader` announces the graphical environment it runs in, where it
+    /// names a display, then taps the Leader, asking no registry.
+    ///
+    /// **In the order a compositor's binding needs**: an environment naming
+    /// an X display, a Wayland display and its runtime directory — and an
+    /// authority file set to nothing, which names none — is announced as
+    /// those three, then `leader.tap` is dispatched with no argument, its
+    /// answer one document under `--json`; an environment naming no display,
+    /// as on macOS, on Windows or at a console, announces nothing and still
+    /// taps; a tap the kernel denies ends in exit 3. One naming a display
+    /// beside a path the protocol refuses is refused with exit 2 before any
+    /// daemon is reached, and a daemon that does not answer ends the run in
+    /// 9.
+    #[test]
+    fn leader_announces_the_environment_it_runs_in_then_taps() {
+        let installed = Scratch::new("ldr");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let tapped = Value::object([("shell", Value::object([("footer", Value::Bool(true))]))]);
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: installed.welcome(),
+                connections: vec![
+                    vec![Answer::Displayed, Answer::Result(tapped.clone())],
+                    vec![Answer::Result(tapped.clone())],
+                    vec![Answer::Refused(refusal(
+                        ErrorCode::PolicyDenied,
+                        RefusalKind::Denied,
+                    ))],
+                ],
+            },
+        );
+        let wayland = Env::of(|name| {
+            match name {
+                "DISPLAY" => Some(":0"),
+                "WAYLAND_DISPLAY" => Some("wayland-1"),
+                "XDG_RUNTIME_DIR" => Some("/run/user/1000"),
+                "XAUTHORITY" => Some(""),
+                _ => None,
+            }
+            .map(str::to_owned)
+        });
+        let outcome = super::run(&argv(&["--json", "leader"]), &installed.found, &wayland);
+        assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+        assert_eq!(
+            outcome.stdout,
+            format!("{}\n", Value::object([("ok", tapped)]).to_canonical())
+        );
+        let outcome = super::run(&argv(&["leader"]), &installed.found, &english());
+        assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+        let outcome = super::run(&argv(&["leader"]), &installed.found, &english());
+        assert_eq!(outcome.exit, Exit::Denied, "{outcome:?}");
+        let tap = || Request::Dispatch {
+            command: "leader.tap".to_owned(),
+            args: Value::object(Vec::<(&str, Value)>::new()),
+        };
+        let announced = nc_ipc::Graphical::new([
+            ("DISPLAY", ":0"),
+            ("WAYLAND_DISPLAY", "wayland-1"),
+            ("XDG_RUNTIME_DIR", "/run/user/1000"),
+        ])
+        .expect("an environment");
+        assert_eq!(
+            daemon.heard(),
+            [Request::Display(announced), tap(), tap(), tap()]
+        );
+        let unreadable = Env::of(|name| {
+            match name {
+                "DISPLAY" => Some(":0"),
+                "XAUTHORITY" => Some("relative/.Xauthority"),
+                _ => None,
+            }
+            .map(str::to_owned)
+        });
+        let nobody = Scratch::new("ldrn");
+        nobody.token(&Token::fresh().expect("a token"));
+        let outcome = super::run(&argv(&["leader"]), &nobody.found, &unreadable);
+        assert_eq!(outcome.exit, Exit::Invalid, "{outcome:?}");
+        assert!(
+            outcome.stderr.contains(ErrorCode::IpcMalformed.code())
+                && outcome.stderr.contains("nothing was sent"),
+            "{}",
+            outcome.stderr
+        );
+        let outcome = super::run(&argv(&["leader"]), &nobody.found, &wayland);
+        assert_eq!(outcome.exit, Exit::Unreachable, "{outcome:?}");
     }
 
     /// A refused line that names `mcp` is said on standard error, whatever

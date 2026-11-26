@@ -398,6 +398,12 @@ fields = [
 ]
 
 [[event]]
+name = "daemon.leader_refused"
+description = "The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader"
+level = "warn"
+fields = [{ name = "code", type = "error_code" }]
+
+[[event]]
 name = "daemon.session_opened"
 description = "A connection opened the session of an agent the profile's person made: from then on each dispatch on it is decided as that agent, for that person"
 level = "info"

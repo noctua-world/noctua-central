@@ -43,7 +43,9 @@
 //! layout's name for the key, so a layout switched afterwards leaves the
 //! chord where the old one had it until it is registered again. One table,
 //! [`physical`], holds all three, and the compiler holds it to every key of
-//! the vocabulary.
+//! the vocabulary. A Wayland compositor's binding names a key by the keysym a
+//! layout types there, as XKB names it ([`xkb_name`]): `space` for the key of
+//! every channel's default Leader.
 //!
 //! # Where the press arrives
 //!
@@ -324,6 +326,96 @@ pub const fn physical(key: Key) -> Physical {
         Key::F10 => fixed(68, 109, 0x79),
         Key::F11 => fixed(87, 103, 0x7A),
         Key::F12 => fixed(88, 111, 0x7B),
+    }
+}
+
+/// The name XKB gives the keysym `key` types on a US board, which a Wayland
+/// compositor's key binding names a key by ([`Delivery::CompositorBinding`]):
+/// copied from the keysymdef.h header of xorgproto, each `XK_` name without
+/// its prefix — `Prior` and `Next`, not their deprecated aliases `Page_Up` and
+/// `Page_Down`.
+///
+/// **A keysym is the layout's**: on another layout a letter's or a
+/// punctuation key's name is the one that layout gives the key, while Space,
+/// the key of every channel's default Leader, is `space` on every one. A key
+/// joins the vocabulary with a row here too, and this does not compile until
+/// it has one.
+#[must_use]
+pub const fn xkb_name(key: Key) -> &'static str {
+    match key {
+        Key::KeyA => "a",
+        Key::KeyB => "b",
+        Key::KeyC => "c",
+        Key::KeyD => "d",
+        Key::KeyE => "e",
+        Key::KeyF => "f",
+        Key::KeyG => "g",
+        Key::KeyH => "h",
+        Key::KeyI => "i",
+        Key::KeyJ => "j",
+        Key::KeyK => "k",
+        Key::KeyL => "l",
+        Key::KeyM => "m",
+        Key::KeyN => "n",
+        Key::KeyO => "o",
+        Key::KeyP => "p",
+        Key::KeyQ => "q",
+        Key::KeyR => "r",
+        Key::KeyS => "s",
+        Key::KeyT => "t",
+        Key::KeyU => "u",
+        Key::KeyV => "v",
+        Key::KeyW => "w",
+        Key::KeyX => "x",
+        Key::KeyY => "y",
+        Key::KeyZ => "z",
+        Key::Digit0 => "0",
+        Key::Digit1 => "1",
+        Key::Digit2 => "2",
+        Key::Digit3 => "3",
+        Key::Digit4 => "4",
+        Key::Digit5 => "5",
+        Key::Digit6 => "6",
+        Key::Digit7 => "7",
+        Key::Digit8 => "8",
+        Key::Digit9 => "9",
+        Key::Minus => "minus",
+        Key::Equal => "equal",
+        Key::BracketLeft => "bracketleft",
+        Key::BracketRight => "bracketright",
+        Key::Backslash => "backslash",
+        Key::Semicolon => "semicolon",
+        Key::Quote => "apostrophe",
+        Key::Backquote => "grave",
+        Key::Comma => "comma",
+        Key::Period => "period",
+        Key::Slash => "slash",
+        Key::Space => "space",
+        Key::Tab => "Tab",
+        Key::Enter => "Return",
+        Key::Backspace => "BackSpace",
+        Key::ArrowUp => "Up",
+        Key::ArrowDown => "Down",
+        Key::ArrowLeft => "Left",
+        Key::ArrowRight => "Right",
+        Key::Home => "Home",
+        Key::End => "End",
+        Key::PageUp => "Prior",
+        Key::PageDown => "Next",
+        Key::Insert => "Insert",
+        Key::Delete => "Delete",
+        Key::F1 => "F1",
+        Key::F2 => "F2",
+        Key::F3 => "F3",
+        Key::F4 => "F4",
+        Key::F5 => "F5",
+        Key::F6 => "F6",
+        Key::F7 => "F7",
+        Key::F8 => "F8",
+        Key::F9 => "F9",
+        Key::F10 => "F10",
+        Key::F11 => "F11",
+        Key::F12 => "F12",
     }
 }
 
@@ -846,6 +938,93 @@ mod tests {
                 .find(|(held, _)| held == name)
                 .map(|(_, value)| value.clone())
         }
+    }
+
+    /// Every key of the vocabulary has the XKB name the keysymdef.h header of
+    /// xorgproto gives the keysym it types on a US board, written out again
+    /// here in the vocabulary's order.
+    #[test]
+    fn every_key_has_the_xkb_name_keysymdef_gives_it() {
+        const WRITTEN: [(&str, &str); 73] = [
+            ("KeyA", "a"),
+            ("KeyB", "b"),
+            ("KeyC", "c"),
+            ("KeyD", "d"),
+            ("KeyE", "e"),
+            ("KeyF", "f"),
+            ("KeyG", "g"),
+            ("KeyH", "h"),
+            ("KeyI", "i"),
+            ("KeyJ", "j"),
+            ("KeyK", "k"),
+            ("KeyL", "l"),
+            ("KeyM", "m"),
+            ("KeyN", "n"),
+            ("KeyO", "o"),
+            ("KeyP", "p"),
+            ("KeyQ", "q"),
+            ("KeyR", "r"),
+            ("KeyS", "s"),
+            ("KeyT", "t"),
+            ("KeyU", "u"),
+            ("KeyV", "v"),
+            ("KeyW", "w"),
+            ("KeyX", "x"),
+            ("KeyY", "y"),
+            ("KeyZ", "z"),
+            ("Digit0", "0"),
+            ("Digit1", "1"),
+            ("Digit2", "2"),
+            ("Digit3", "3"),
+            ("Digit4", "4"),
+            ("Digit5", "5"),
+            ("Digit6", "6"),
+            ("Digit7", "7"),
+            ("Digit8", "8"),
+            ("Digit9", "9"),
+            ("Minus", "minus"),
+            ("Equal", "equal"),
+            ("BracketLeft", "bracketleft"),
+            ("BracketRight", "bracketright"),
+            ("Backslash", "backslash"),
+            ("Semicolon", "semicolon"),
+            ("Quote", "apostrophe"),
+            ("Backquote", "grave"),
+            ("Comma", "comma"),
+            ("Period", "period"),
+            ("Slash", "slash"),
+            ("Space", "space"),
+            ("Tab", "Tab"),
+            ("Enter", "Return"),
+            ("Backspace", "BackSpace"),
+            ("ArrowUp", "Up"),
+            ("ArrowDown", "Down"),
+            ("ArrowLeft", "Left"),
+            ("ArrowRight", "Right"),
+            ("Home", "Home"),
+            ("End", "End"),
+            ("PageUp", "Prior"),
+            ("PageDown", "Next"),
+            ("Insert", "Insert"),
+            ("Delete", "Delete"),
+            ("F1", "F1"),
+            ("F2", "F2"),
+            ("F3", "F3"),
+            ("F4", "F4"),
+            ("F5", "F5"),
+            ("F6", "F6"),
+            ("F7", "F7"),
+            ("F8", "F8"),
+            ("F9", "F9"),
+            ("F10", "F10"),
+            ("F11", "F11"),
+            ("F12", "F12"),
+        ];
+        let named: Vec<(&str, &str)> = Key::ALL
+            .iter()
+            .map(|key| (key.code(), super::xkb_name(*key)))
+            .collect();
+        assert_eq!(named, WRITTEN);
     }
 
     /// Every key of the vocabulary has the code each system's own list gives

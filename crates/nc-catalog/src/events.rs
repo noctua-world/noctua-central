@@ -107,6 +107,16 @@ pub struct EventSpec {
 /// Every event, in name order.
 pub const EVENTS: &[EventSpec] = &[
     EventSpec {
+        name: "daemon.leader_refused",
+        description: "The daemon, where it is the process that asks the system for the channel's Leader, was refused it, or lost the registration it held; logged by its code, which the interface's info line says and the status shows, and the daemon runs on without the Leader",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
+    },
+    EventSpec {
         name: "daemon.plugin_refused",
         description: "A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it",
         level: Level::Error,
