@@ -389,6 +389,20 @@ fn start_with(
         .expect("the daemon starts")
 }
 
+/// The last lines of the file at `path`, joined by ` | `, or what kept it
+/// from being read: what a daemon that ended before it answered wrote last.
+fn last_lines(path: &Path) -> String {
+    /// How many lines are shown.
+    const LINES: usize = 12;
+    match std::fs::read_to_string(path) {
+        Ok(text) => {
+            let lines: Vec<&str> = text.lines().collect();
+            lines[lines.len().saturating_sub(LINES)..].join(" | ")
+        }
+        Err(error) => format!("unread ({error})"),
+    }
+}
+
 /// A daemon a suite started, killed and waited for however the suite leaves.
 #[derive(Debug)]
 pub struct Running {
@@ -426,16 +440,21 @@ impl Running {
     ///
     /// # Panics
     ///
-    /// When it does not answer within [`PATIENCE`], or ends first.
+    /// When it does not answer within [`PATIENCE`], or ends first: saying
+    /// then the last lines it wrote to its standard error, where a refused
+    /// start says why.
     pub async fn connected(&mut self) -> (nc_ipc::Client, nc_ipc::Welcome) {
         let pid = self.child.id();
         let child = &mut self.child;
+        let written = self.installed.layout.daemon_err.clone();
         self.installed
             .connected(pid, &mut || {
                 let ended = child.try_wait().expect("the daemon is asked");
                 assert!(
                     ended.is_none(),
-                    "the daemon ended as {ended:?} before it answered"
+                    "the daemon ended as {ended:?} before it answered, its standard error \
+                     ending: {}",
+                    last_lines(&written)
                 );
             })
             .await

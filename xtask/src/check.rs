@@ -19785,7 +19785,7 @@ mod the_frozen_path_rule {
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 149, 30),
         ("daemon/serves_its_kernel.rs", 28, 3),
-        ("daemon/testing.rs", 43, 8),
+        ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
@@ -25955,7 +25955,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23662;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 23664;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25974,7 +25974,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6904;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 6907;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25991,7 +25991,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2351;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2352;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26008,7 +26008,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [126, 26, 51, 52, 100];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [126, 26, 51, 52, 99];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26025,7 +26025,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 31180;
+    const THE_REARRANGEMENTS_JUDGED: usize = 31181;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26043,7 +26043,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 620;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 618;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26079,8 +26079,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **620 of 31,180 are accepted by the first-line
-    /// rule alone, and 355 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **618 of 31,181 are accepted by the first-line
+    /// rule alone, and 354 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26102,7 +26102,7 @@ mod the_frozen_path_rule {
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
     /// [`THE_RESIDUAL_BY_SHAPE`] — **126 ascending sorts, 26 descending, 51
-    /// swaps, 52 rotations and 100 reversals** — so the reversal is one of its
+    /// swaps, 52 rotations and 99 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26112,7 +26112,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2351 of
+    /// this tree offers, **2352 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a

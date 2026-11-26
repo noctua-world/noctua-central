@@ -906,7 +906,10 @@ fn the_stop_mark_silences_every_restorer() {
 ///
 /// **A daemon lost with no mark** is said not running and counted down, and at
 /// the deadline the restorer the line names — the install's own daemon,
-/// `--restored` — brings it back as a new instance. **A daemon stopped as
+/// `--restored` — brings it back as a new instance. **The deadline is kept by
+/// the clock**, the line asked again until it ends the countdown, as the
+/// desktop asks it: no line restores the moment its daemon was lost, and on
+/// Windows what a killed process held is let go when the system gets to it. **A daemon stopped as
 /// `noctua stop` stops one**, the mark written before the daemon is asked, is
 /// said stopped and counts nothing down; and the restorer run anyway, as a
 /// line that read the mark a moment before the stop would, ends at once, well,
@@ -952,8 +955,25 @@ async fn the_interfaces_countdown_restores_a_daemon_lost_and_leaves_a_stopped_on
         !absence.at(deadline - 1, false).restore,
         "restored before its deadline"
     );
-    let due = absence.at(deadline, nc_ipc::alert::stopped(layout, user));
-    assert!(due.restore, "the countdown ended and restored nothing");
+    // Asked by the clock until the line says to restore, and run then.
+    let until = deadline.saturating_add(
+        u64::try_from(nc_daemon::testing::PATIENCE.as_millis()).expect("a patience in ms"),
+    );
+    loop {
+        let moment = now();
+        if absence
+            .at(moment, nc_ipc::alert::stopped(layout, user))
+            .restore
+        {
+            assert!(
+                moment >= deadline,
+                "restored at {moment}, before {deadline}"
+            );
+            break;
+        }
+        assert!(moment < until, "the countdown ended and restored nothing");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     let mut back = installed.spawn_as(&restorer.program, restorer.arguments, &[]);
     let (mut client, second) = back.connected().await;
     assert_ne!(
