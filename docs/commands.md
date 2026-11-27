@@ -137,6 +137,146 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false}
 ```
 
+## `dev.agents.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show agents' tables in use | Mostrar o uso das tabelas de agentes |
+| Line description | Show how full the tables that keep agents and their grants are. | Mostrar o quanto as tabelas que guardam agentes e suas concessões estão cheias. |
+| Paragraph | Shows the two tables of this machine's database that keep the agents people made and the grants they gave them: the rows each holds and the bound at which a new agent or a new grant is refused. It counts rows and shows no agent; listing your agents is its own command. It changes nothing. | Mostra as duas tabelas do banco de dados desta máquina que guardam os agentes que as pessoas criaram e as concessões que lhes deram: as linhas que cada uma guarda e o limite em que um novo agente ou uma nova concessão é recusado. Conta linhas e não mostra nenhum agente; listar os seus agentes é um comando próprio. Não altera nada. |
+| Tags | agents, grants, tables, rows, bounds, dev | agentes, concessões, tabelas, linhas, limites, dev |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `dev.journal.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `realm` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Browse the journal | Navegar pelo journal |
+| Line description | Read a page of the realm's journal, entry by entry. | Ler uma página do journal do realm, entrada por entrada. |
+| Paragraph | Reads a page of the realm's journal from the entry you name, oldest first: who asked, for whom, which command, on what, how it was decided and by which policy, in which unit of work, and when. It says where the next page starts and which entry is the newest, and names an entry it could not read instead of skipping it. It changes nothing; verifying the journal's chain is its own command. | Lê uma página do journal do realm a partir da entrada que você indicar, da mais antiga para a mais nova: quem pediu, em nome de quem, qual comando, sobre o quê, como foi decidido e por qual política, em qual unidade de trabalho e quando. Diz onde a próxima página começa e qual é a entrada mais nova, e nomeia uma entrada que não conseguiu ler em vez de pulá-la. Não altera nada; verificar a cadeia do journal é um comando próprio. |
+| Tags | journal, audit, history, entries, browse, dev, records | journal, auditoria, histórico, entradas, navegar, dev, registros |
+
+```json
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}
+```
+
+## `dev.limits.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show limits in use | Mostrar limites em uso |
+| Line description | Show how full each bounded table and count on this machine is. | Mostrar o quanto cada tabela e contagem limitada desta máquina está cheia. |
+| Paragraph | Lists each table of this machine's database with the rows it holds and the bound it declares, and each count the local server keeps against a limit — agents' sessions, connections, calls waiting for confirmation, log lines kept — with how many are in use now. A bound counted for each plugin or each unit is shown beside the whole table's rows, which it does not bound. Limits that are a size or a time have no use to show; the limits page lists them. It changes nothing. | Lista cada tabela do banco de dados desta máquina com as linhas que ela guarda e o limite que declara, e cada contagem que o servidor local mantém contra um limite — sessões de agentes, conexões, chamadas aguardando confirmação, linhas de log guardadas — com quantas estão em uso agora. Um limite contado por plugin ou por unidade aparece ao lado das linhas da tabela inteira, que ele não limita. Limites que são um tamanho ou um tempo não têm uso a mostrar; a página de limites os lista. Não altera nada. |
+| Tags | limits, bounds, usage, tables, rows, dev, capacity | limites, uso, tabelas, linhas, dev, capacidade, ocupação |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `dev.logs.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `realm` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the live log | Ler o log ao vivo |
+| Line description | Read the newest log lines this machine's local server recorded. | Ler as linhas de log mais novas que o servidor local desta máquina registrou. |
+| Paragraph | Reads a page of the lines the local server on this machine recorded since it started, oldest first, each under the number it was recorded at, and says where the next page starts, so reading again from there follows the log as it grows. Only the newest lines are kept, in memory. A line holds an event's name, its level and its declared fields — codes, counts and identifiers, never text a person wrote. It changes nothing. | Lê uma página das linhas que o servidor local desta máquina registrou desde que iniciou, da mais antiga para a mais nova, cada uma sob o número em que foi registrada, e diz onde a próxima página começa, de modo que ler de novo a partir dali acompanha o log enquanto ele cresce. Só as linhas mais novas são guardadas, em memória. Uma linha traz o nome de um evento, seu nível e seus campos declarados — códigos, contagens e identificadores, nunca texto que uma pessoa escreveu. Não altera nada. |
+| Tags | logs, log, live, errors, events, dev, tail | logs, log, ao vivo, erros, eventos, dev, acompanhar |
+
+```json
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}
+```
+
+## `dev.plugins.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show loaded plugins | Mostrar plugins carregados |
+| Line description | List each loaded plugin with what it was granted and what it uses. | Listar cada plugin carregado com o que lhe foi concedido e o que ele usa. |
+| Paragraph | Lists the plugins the local server loaded, a page at a time: each one's identity and namespace, the capabilities it was granted, how many commands it declares, the surfaces and timers it holds, the lines its own log keeps, how often it was stopped and started again, why it was last stopped, and whether it is quarantined. It changes nothing. | Lista os plugins que o servidor local carregou, uma página por vez: a identidade e o namespace de cada um, as capacidades que lhe foram concedidas, quantos comandos declara, as superfícies e os temporizadores que mantém, as linhas que o seu próprio log guarda, quantas vezes foi parado e iniciado de novo, por que foi parado da última vez e se está em quarentena. Não altera nada. |
+| Tags | plugins, loaded, capabilities, resources, restarts, dev, quarantine | plugins, carregados, capacidades, recursos, reinícios, dev, quarentena |
+
+```json
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}
+```
+
+## `dev.policy.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show the policy pack | Mostrar o pacote de políticas |
+| Line description | Show the realm's policy pack, its version and its policy epoch. | Mostrar o pacote de políticas do realm, sua versão e sua época. |
+| Paragraph | Shows which policy pack decides what may be done in this realm: the pack and its version, as the realm pins it and the local server carries it, and the realm's policy epoch, which moves each time its permissions change. It changes nothing. | Mostra qual pacote de políticas decide o que pode ser feito neste realm: o pacote e a sua versão, como o realm o fixa e o servidor local o carrega, e a época de políticas do realm, que avança cada vez que suas permissões mudam. Não altera nada. |
+| Tags | policy, pack, version, epoch, realm, dev, authorization | política, pacote, versão, época, realm, dev, autorização |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `dev.sessions.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Show agents' sessions | Mostrar sessões de agentes |
+| Line description | List the agents' sessions the local server holds open now. | Listar as sessões de agentes que o servidor local mantém abertas agora. |
+| Paragraph | Shows each session an agent holds open on the local server, by the agent's identifier, with how many sessions and connections are open and the most the server allows of each. It changes nothing. | Mostra cada sessão que um agente mantém aberta no servidor local, pelo identificador do agente, com quantas sessões e conexões estão abertas e o máximo que o servidor permite de cada uma. Não altera nada. |
+| Tags | sessions, agents, mcp, connections, open, dev | sessões, agentes, mcp, conexões, abertas, dev |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
 ## `drawer.back`
 
 | | |

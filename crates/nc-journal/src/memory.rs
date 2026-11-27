@@ -249,6 +249,26 @@ impl Store for InMemory {
         }))
     }
 
+    fn page(
+        &self,
+        sequence: u64,
+        most: u32,
+    ) -> impl Future<Output = Result<crate::Read, Error>> + Send {
+        // The entries are held in order, so the first `most` at or past
+        // `sequence` are the page; nothing here is undecodable, as in `from`.
+        let entries: Vec<Entry> = self
+            .entries
+            .iter()
+            .filter(|entry| entry.sequence >= sequence)
+            .take(usize::try_from(most).unwrap_or(usize::MAX))
+            .cloned()
+            .collect();
+        core::future::ready(Ok(crate::Read {
+            entries,
+            stopped_at: None,
+        }))
+    }
+
     fn unit_opened(
         &self,
         realm: &nc_ids::OpaqueId,
@@ -453,6 +473,43 @@ mod tests {
         );
         assert_eq!(store.open_units(&realm("realm-2")).await, Ok(vec![there]));
         assert_eq!(store.open_units(&realm("realm-3")).await, Ok(Vec::new()));
+    }
+
+    /// A page is the first entries at or past where it was asked from, as
+    /// many as it was asked for at most, in order.
+    ///
+    /// **Each of the three clauses, decided by a page that differs in it
+    /// alone**: where it starts, how many it holds, and that it holds no more
+    /// than there are. A page of none, and one from past the end, hold
+    /// nothing; one wide enough for everything is what [`Store::from`] reads.
+    #[tokio::test]
+    async fn a_page_is_the_first_entries_from_where_it_was_asked_and_no_more() {
+        let mut store = InMemory::default();
+        for _ in 0..5 {
+            write(&mut store, Outcome::Allowed, None).await;
+        }
+        let page = |from: u64, most: u32| {
+            let read = store.page(from, most);
+            async move {
+                let read = read.await.expect("a store in memory reads");
+                assert_eq!(read.stopped_at, None);
+                read.entries
+                    .iter()
+                    .map(|entry| entry.sequence)
+                    .collect::<Vec<u64>>()
+            }
+        };
+        assert_eq!(page(0, 2).await, vec![0, 1], "from the start");
+        assert_eq!(page(1, 2).await, vec![1, 2], "from inside");
+        assert_eq!(page(1, 3).await, vec![1, 2, 3], "as many as asked");
+        assert_eq!(page(3, 8).await, vec![3, 4], "no more than there are");
+        assert_eq!(page(5, 8).await, Vec::<u64>::new(), "past the end");
+        assert_eq!(page(0, 0).await, Vec::<u64>::new(), "a page of none");
+        assert_eq!(
+            store.page(0, u32::MAX).await,
+            store.from(0).await,
+            "a page of everything is the history"
+        );
     }
 
     /// One entry, chained and appended, so a test can start from a history.

@@ -32,7 +32,9 @@
 // expired grant is still refused by `core.grant_not_expired`.
 
 // A guardian reads the realm she keeps: the journal verified is the first
-// command that reads it.
+// command that reads it, and the journal browsed and this machine's log read
+// are the dev pages' two (`dev.journal.read`, `dev.logs.read`;
+// `NOCTUA.md §12.16`), which say who did what.
 //
 // **No `resource is Realm`.** `principal in resource` already holds it: a
 // principal can be in a `Group` or a `Realm` and nothing else the schema

@@ -2501,6 +2501,7 @@ fn the_interfaces_limits_are_the_ones_declared(catalog: &Catalog) {
         generated.shell_drawer_share_max,
         declared.shell_drawer_share_max
     );
+    assert_eq!(generated.dev_page_max, declared.dev_page_max);
 }
 
 #[test]
@@ -2600,7 +2601,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        57,
+        58,
         "a kernel limit was added or lost"
     );
 }
@@ -2636,9 +2637,10 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.start_within_ms, declared.start_within_ms);
     assert_eq!(generated.stop_within_ms, declared.stop_within_ms);
     assert_eq!(generated.kill_within_ms, declared.kill_within_ms);
+    assert_eq!(generated.dev_logs_ring_lines, declared.dev_logs_ring_lines);
     assert_eq!(
         declared.each().len(),
-        17,
+        18,
         "a daemon limit was added or lost"
     );
 }

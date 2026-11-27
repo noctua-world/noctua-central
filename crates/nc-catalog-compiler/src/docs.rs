@@ -980,7 +980,9 @@ fn kernel(catalog: &Catalog) -> String {
          line's message of `shell_text_bytes` each, a window no smaller than \
          `shell_window_min_width` by `shell_window_min_height` and a drawer of at most \
          `shell_drawer_share_max` percent of the height it shares with the workspace \
-         area. **`agents.list`'s answer is not held \
+         area; and a page of what the dev pages read (`§12.16`) — the plugins loaded, \
+         the daemon's own log, the journal — to `dev_page_max` rows, and to half of \
+         `payload_bytes` where that is fewer. **`agents.list`'s answer is not held \
          to `payload_bytes`**: the widest list of agents a profile of the shipped world can \
          hold is longer than a payload, and a test holds it within one frame, so a plugin \
          that dispatches it can be handed more than it may answer with itself.\n\n",
@@ -1041,7 +1043,12 @@ fn daemon(catalog: &Catalog) -> String {
          then killed — through the process its PID record was held to. The compiler holds \
          the start above `ipc_handshake_ms`, so a handshake the daemon is allowed is never \
          cut short, and the stop to at least twice `stop_drain_ms`, which a stopping daemon \
-         waits once for what it still runs and once more for its runtime's last work.\n\n",
+         waits once for what it still runs and once more for its runtime's last work.\n\n\
+         **The live log is kept by `crates/nc-log`, as `apps/daemon` tells it.** The daemon \
+         keeps its newest `dev_logs_ring_lines` log lines in memory, each the one line the \
+         central log is sent, for `dev.logs.read` to read a page at a time (`§12.16`); a \
+         line past the bound takes the oldest one's place, and a daemon that starts keeps \
+         none of the last one's.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.daemon.each() {

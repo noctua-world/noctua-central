@@ -369,6 +369,8 @@ pub struct KernelLimits {
     /// How much of the height the drawer shares with the workspace area it
     /// may take.
     pub shell_drawer_share_max: u32,
+    /// How many rows one page of what the dev pages read may hold.
+    pub dev_page_max: u32,
 }
 
 /// What one kernel limit is counted in.
@@ -497,6 +499,7 @@ impl KernelLimits {
             shell_window_min_width,
             shell_window_min_height,
             shell_drawer_share_max,
+            dev_page_max,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -842,6 +845,11 @@ impl KernelLimits {
                 bounds: "How much of the height the drawer shares with the workspace area it \
                          may take",
             },
+            narrow(
+                "dev_page_max",
+                dev_page_max,
+                "How many rows one page of what the dev pages read may hold",
+            ),
         ]
     }
 }
@@ -892,6 +900,8 @@ pub struct DaemonLimits {
     pub stop_within_ms: u64,
     /// How long `stop` waits for a daemon it signalled to end.
     pub kill_within_ms: u64,
+    /// How many of its newest log lines the daemon keeps in memory.
+    pub dev_logs_ring_lines: u32,
 }
 
 impl DaemonLimits {
@@ -924,6 +934,7 @@ impl DaemonLimits {
             start_within_ms,
             stop_within_ms,
             kill_within_ms,
+            dev_logs_ring_lines,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -1037,6 +1048,13 @@ impl DaemonLimits {
                 Unit::Milliseconds,
                 "How long `stop` waits for a daemon it signalled to end",
             ),
+            NamedLimit {
+                name: "dev_logs_ring_lines",
+                value: u64::from(dev_logs_ring_lines),
+                wide: false,
+                unit: Unit::Count,
+                bounds: "How many of its newest log lines the daemon keeps in memory",
+            },
         ]
     }
 }

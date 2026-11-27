@@ -2989,6 +2989,17 @@ async fn builtin<E: Environment>(
         Some(Builtin::SurfacesRead) => crate::ui::read(shared, &asked.json),
         Some(Builtin::SurfacesActivate) => crate::ui::activated(shared, tree, &asked.json).await,
         Some(Builtin::History) => history::next(shared, asked.acting.principal()).await,
+        Some(Builtin::DevLimits) => Ok(crate::dev::limits(shared).await),
+        Some(Builtin::DevPlugins) => Ok(crate::dev::plugins(shared, &asked.json)),
+        Some(Builtin::DevSessions) => Ok(crate::dev::open_sessions(shared)),
+        Some(Builtin::DevAgents) => Ok(crate::dev::agents(shared).await),
+        Some(Builtin::DevPolicy) => Ok(crate::dev::policy(
+            shared,
+            &authorized.decided.pack,
+            authorized.decided.epoch,
+        )),
+        Some(Builtin::DevLogs) => Ok(crate::dev::logs(shared, &asked.json)),
+        Some(Builtin::DevJournal) => crate::dev::journal(shared, &asked.json, asked.waits).await,
         None => Err(Failure::new(
             Refusal::new(
                 RefusalKind::NotFound,

@@ -27,8 +27,16 @@
 //! (`crate::leader::Asking`), so one the system refuses refuses the setting,
 //! and each write is told to the server, whose watched state counts them.
 //!
+//! **What the daemon holds open is the daemon's to say**: [`Host`] answers
+//! the kernel's dev pages the agents' sessions and the connections its server
+//! holds (`NOCTUA.md §12.16`), read from the server each time.
+//!
 //! **The central log is the manifest's**, and the daemon writes its own events
-//! to the same sink the kernel writes to. An install naming no store has its
+//! to the same sink the kernel writes to. **The sink keeps its newest lines
+//! in memory as well** ([`sink`]): `[daemon] dev_logs_ring_lines` of them,
+//! this machine's own, which `dev.logs.read` answers a page at a time — each
+//! the line the store is sent, so nothing reaches the ring that the log's
+//! types keep out of the store (`NOCTUA.md §15.4`). An install naming no store has its
 //! lines written to the daemon's standard error alone, and a store that does
 //! not answer is `nc_log`'s to handle, its lines written to the same place; but
 //! an install naming a store `nc_log` refuses — one off this machine, or not
@@ -59,6 +67,54 @@ impl nc_kernel::Environment for Daemon {
 
 /// The central log, shared by the kernel and the daemon's own events.
 pub type Sink = Arc<Mutex<nc_log::Log>>;
+
+/// The daemon's sink over the log `opened`: the same log, keeping its newest
+/// `[daemon] dev_logs_ring_lines` lines in memory as well.
+///
+/// **What [`log`] makes every daemon's sink with**, so a daemon that starts
+/// keeps the ring `dev.logs.read` answers from (`NOCTUA.md §12.16`) and holds
+/// it to the catalog's bound: this machine's lines, each the one line the
+/// central log is sent, the oldest going first.
+#[must_use]
+pub fn sink(opened: nc_log::Log) -> Sink {
+    let lines = usize::try_from(nc_catalog::DAEMON.dev_logs_ring_lines).unwrap_or(usize::MAX);
+    Arc::new(Mutex::new(opened.keeping(lines)))
+}
+
+/// What the daemon says of itself to its kernel: the agents' sessions and
+/// the connections its server holds open, which `dev.sessions.read` and
+/// `dev.limits.read` answer (`NOCTUA.md §12.16`, §20.6).
+///
+/// Read from the server each time it is asked; a server that is gone holds
+/// nothing.
+#[derive(Debug)]
+pub struct Host {
+    /// The server asked: weak, since the server holds the kernel that holds
+    /// this.
+    server: std::sync::Weak<crate::server::Server>,
+}
+
+impl Host {
+    /// The host that answers for `server`.
+    #[must_use]
+    pub const fn new(server: std::sync::Weak<crate::server::Server>) -> Self {
+        Self { server }
+    }
+}
+
+impl nc_kernel::Hosting for Host {
+    fn sessions(&self) -> Vec<Snowflake> {
+        self.server
+            .upgrade()
+            .map_or_else(Vec::new, |server| server.open_sessions())
+    }
+
+    fn connections(&self) -> u64 {
+        self.server
+            .upgrade()
+            .map_or(0, |server| server.open_connections())
+    }
+}
 
 /// Where the daemon's kernel keeps its channel's choice of keys: the
 /// install's keybinding configuration (`Layout.keybindings`), read and
@@ -345,7 +401,7 @@ pub fn log(install: &nc_channel::Install) -> Result<Sink, Refused> {
             })?
         }
     };
-    Ok(Arc::new(Mutex::new(opened)))
+    Ok(sink(opened))
 }
 
 /// The local database in the profile's data directory, and the newest unit
@@ -499,6 +555,49 @@ mod tests {
         super::log(&an_install(Some("http://127.0.0.1:0/insert")))
             .expect("a store on this machine, answering or not");
         super::log(&an_install(None)).expect("no store named: the standard error alone");
+    }
+
+    /// The daemon's sink keeps its newest lines within the catalog's bound,
+    /// and the log an install opens is one that keeps them.
+    ///
+    /// **Past the bound by three**: the three oldest lines are gone, the
+    /// rest kept under the serials they were recorded at, each the line the
+    /// store is sent — and what `log` opens keeps the line it records, so no
+    /// daemon starts with a log that answers its dev pages nothing.
+    #[test]
+    fn the_daemons_sink_keeps_its_newest_lines_within_the_catalogs_bound() {
+        let bound = u64::from(nc_catalog::DAEMON.dev_logs_ring_lines);
+        let event = nc_log::events::DaemonSessionRefused {
+            code: ErrorCode::DaemonMcpOff,
+        };
+        let sink = super::sink(
+            nc_log::Log::open(super::origin(), crate::testing::NOBODY_LISTENS)
+                .expect("a store on this machine"),
+        );
+        let log = sink.lock().expect("nothing panics holding it");
+        for _ in 0..bound + 3 {
+            log.record(&event);
+        }
+        let kept = log.kept(0, usize::MAX);
+        assert_eq!(
+            (
+                u64::try_from(kept.lines.len()).expect("fits"),
+                kept.held,
+                kept.next
+            ),
+            (bound, bound, bound + 4)
+        );
+        assert_eq!(
+            kept.lines.first(),
+            Some(&(4, log.line(&event))),
+            "the three oldest went, and the line kept is the one the store is sent"
+        );
+        drop(log);
+        let opened = super::log(&an_install(Some("http://127.0.0.1:0/insert")))
+            .expect("a store on this machine, answering or not");
+        let opened = opened.lock().expect("nothing panics holding it");
+        opened.record(&event);
+        assert_eq!(opened.kept(0, usize::MAX).lines.len(), 1);
     }
 
     /// A scratch directory for one test, removed however the test leaves.

@@ -105,6 +105,7 @@ mod built;
 mod builtin;
 pub mod capability;
 mod confirmations;
+mod dev;
 mod dispatch;
 pub mod engine;
 pub mod entries;
@@ -128,6 +129,7 @@ mod units;
 pub mod world;
 
 pub use confirmations::Settled;
+pub use dev::Hosting;
 pub use dispatch::{Approval, Asker, Caller, Confirmation, Refusal, RefusalKind};
 pub use host::log::{LogLevel, LogLine, PluginLog};
 pub use pump::Pumped;
@@ -262,6 +264,10 @@ pub(crate) struct Shared<E: Environment> {
     /// says where ([`Kernel::keep_shortcuts`]): what the shortcut settings
     /// read and write (`crate::settings`).
     pub(crate) shortcuts: Mutex<Option<Arc<dyn settings::Shortcuts>>>,
+    /// What hosts this kernel, once it says so ([`Kernel::hosted_by`]): what
+    /// the dev pages read of the sessions and connections a daemon holds
+    /// (`crate::dev`).
+    pub(crate) host: Mutex<Option<Arc<dyn dev::Hosting>>>,
     /// Every unit this kernel left committed in the store and open in the
     /// journal — its close not taken, its reversal refused — until a prune
     /// reverts it first (`crate::units::reverted_again`): what the pruner may
@@ -379,6 +385,7 @@ impl<E: Environment> Kernel<E> {
                 shell: Mutex::new(shell::Cell::default()),
                 shell_moves: tokio::sync::watch::Sender::new(0),
                 shortcuts: Mutex::new(None),
+                host: Mutex::new(None),
                 left_committed: Mutex::new(BTreeSet::new()),
                 ticker,
             }),
@@ -486,6 +493,16 @@ impl<E: Environment> Kernel<E> {
     /// `[NC-CHAN-0027]`, and runs every other as ever.
     pub fn keep_shortcuts(&self, shortcuts: Arc<dyn Shortcuts>) {
         *dispatch::lock(&self.shared.shortcuts) = Some(shortcuts);
+    }
+
+    /// Says what hosts this kernel: whose sessions and connections
+    /// `dev.sessions.read` and `dev.limits.read` answer from then on
+    /// (`crate::dev`).
+    ///
+    /// **The host said last stands**, in place of any said before. A kernel
+    /// told of none answers no session, and the two counts as `null`.
+    pub fn hosted_by(&self, host: Arc<dyn Hosting>) {
+        *dispatch::lock(&self.shared.host) = Some(host);
     }
 
     /// Dispatches the command `name` with `args` for `asker`, as the top of a

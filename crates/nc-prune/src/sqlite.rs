@@ -76,6 +76,32 @@ impl Sqlite {
     pub const fn pool(&self) -> &SqlitePool {
         &self.pool
     }
+
+    /// How many rows `table` holds, for a reader that only shows the number.
+    ///
+    /// **A read, so it asks nothing of what a `DELETE` would reach.**
+    /// [`Target::count`] answers only for a table this crate may prune, and
+    /// refuses one a delete could reach past — one whose own trigger fires on
+    /// a delete among them, which is every table the local database protects
+    /// from deletion: the journal's and the agents'. This counts
+    /// `main.<table>` and changes nothing, so such a table is counted as any
+    /// other, and a temporary table of the same name is never the one read.
+    ///
+    /// # Errors
+    ///
+    /// Returns why the table was not counted: a name that is not a plain
+    /// identifier, a table the database does not hold, or a database that did
+    /// not answer.
+    pub async fn rows(&self, table: &str) -> Result<u64, crate::Failure> {
+        let quoted = identifier(table)?;
+        let held: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM main.{quoted}"
+        )))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|error| said("could not count", &error))?;
+        Ok(u64::try_from(held).unwrap_or(0))
+    }
 }
 
 /// A name safe to write into a statement, quoted — or why it is not one.

@@ -318,6 +318,14 @@ async fn transcript_of<S: Store>(store: &mut S, script: &[Step]) -> Vec<String> 
         said.push(format!("step {index} {step:?}: {answered:?}"));
     }
     said.push(format!("history: {:?}", store.from(0).await));
+    // Every page of it a reader could ask for: of nothing, from the start,
+    // from inside, and from past the end.
+    for (from, most) in [(0, 0), (0, 1), (0, 2), (1, 2), (2, 8), (9, 4)] {
+        said.push(format!(
+            "page of {most} from {from}: {:?}",
+            store.page(from, most).await
+        ));
+    }
     said.push(format!("tail: {:?}", store.tail().await));
     said.push(format!("head: {:?}", store.head().await));
     for realm in REALMS.map(id) {

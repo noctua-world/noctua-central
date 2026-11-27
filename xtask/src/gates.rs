@@ -4530,10 +4530,11 @@ pub(crate) struct Asserted {
 /// is the reading a row records and no walk makes.
 pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `query` is `COLUMNS`, a constant of the same file, with a `FROM` and an
-    // `ORDER BY` written beside it; nothing a caller passes reaches the text.
+    // `ORDER BY` written beside it — and, for a page, a `LIMIT` whose number
+    // is bound; nothing a caller passes reaches the text.
     Asserted {
         file: "crates/nc-journal/src/postgres.rs",
-        calls: 2,
+        calls: 3,
         from: &["query"],
     },
     // Schema and role names the suite builds from its own constants and the
@@ -4570,10 +4571,11 @@ pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `pragma_table_info` and put through the same function. `unheld` is the
     // `NOT EXISTS` of each table holding the table's rows by a `RESTRICT`
     // reference, every name in it read from `pragma_foreign_key_list` and put
-    // through `identifier` too, and `key` again.
+    // through `identifier` too, and `key` again. The count a reader is shown
+    // (`rows`) names `quoted` alone.
     Asserted {
         file: "crates/nc-prune/src/sqlite.rs",
-        calls: 2,
+        calls: 3,
         from: &["key", "ordered", "quoted", "unheld"],
     },
     // The decision point's schemas, one per test, each named from a literal,

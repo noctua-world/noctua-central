@@ -587,7 +587,7 @@ the units of work its writes are kept in,
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
 `history.rs`, the commands the catalog gives the kernel to run, `builtin.rs`,
-the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, the interface's own state, `shell.rs`, the calls held for a person's confirmation, `confirmations.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
+the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, the interface's own state, `shell.rs`, the calls held for a person's confirmation, `confirmations.rs`, what the dev pages read of this machine, `dev.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's

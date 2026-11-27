@@ -4136,6 +4136,14 @@ impl nc_journal::Store for Holding {
         self.inner.from(sequence)
     }
 
+    fn page(
+        &self,
+        sequence: u64,
+        most: u32,
+    ) -> impl Future<Output = Result<nc_journal::Read, nc_journal::Error>> + Send {
+        self.inner.page(sequence, most)
+    }
+
     fn unit_closing(
         &self,
         realm: &OpaqueId,

@@ -178,6 +178,14 @@ pub(crate) struct Pending {
     held: BTreeMap<u64, Waiting>,
 }
 
+impl Pending {
+    /// How many calls are held now: what `dev.limits.read` answers against
+    /// `confirmations_pending_max` (`crate::dev`).
+    pub(crate) fn waiting(&self) -> usize {
+        self.held.len()
+    }
+}
+
 /// One call held: the call, when its wait ends, and where its answer goes.
 #[derive(Debug)]
 struct Waiting {

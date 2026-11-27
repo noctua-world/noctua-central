@@ -98,6 +98,39 @@ pub struct Log {
     origin: Origin,
     /// The store's shipper; none for a log told of no store.
     shipper: Option<Shipper>,
+    /// The newest lines, kept in memory for a reader on this machine; none
+    /// for a log not told to keep any ([`Log::keeping`]).
+    ring: Option<std::sync::Mutex<Ring>>,
+}
+
+/// The newest lines a log recorded, the oldest going first.
+///
+/// **Bounded by the number it was told, and by nothing a line says**: a line
+/// past the bound takes the oldest one's place. Every line counts once in
+/// `written`, kept or gone, so a line's serial — its place among every line
+/// this log ever recorded, from 1 — never names two lines.
+#[derive(Debug)]
+struct Ring {
+    /// The lines kept, the oldest first.
+    lines: std::collections::VecDeque<String>,
+    /// How many lines are kept at most.
+    bound: usize,
+    /// How many lines were ever recorded.
+    written: u64,
+}
+
+/// What a log kept of its newest lines, as one read of them answers.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Kept {
+    /// The lines read, the oldest first, each with its serial: its place
+    /// among every line the log ever recorded, from 1.
+    pub lines: Vec<(u64, String)>,
+    /// The serial the next read starts from to miss nothing and repeat
+    /// nothing: one past the last line read, or where this read began when
+    /// it read none.
+    pub next: u64,
+    /// How many lines the log keeps now.
+    pub held: u64,
 }
 
 impl Log {
@@ -110,6 +143,7 @@ impl Log {
         Ok(Self {
             origin,
             shipper: Some(Shipper::start(endpoint)?),
+            ring: None,
         })
     }
 
@@ -126,6 +160,62 @@ impl Log {
         Self {
             origin,
             shipper: None,
+            ring: None,
+        }
+    }
+
+    /// The same log, keeping its newest `lines` lines in memory as well, for
+    /// [`Log::kept`] to read.
+    ///
+    /// **What is kept is the line the store is sent**, the one text
+    /// [`Log::line`] makes of an event, so the wall that holds user data out
+    /// of the store holds it out of the ring: no line is written into it any
+    /// other way. A line is kept whether or not the store took it, since the
+    /// ring is this machine's own view of what it said.
+    #[must_use]
+    pub fn keeping(mut self, lines: usize) -> Self {
+        self.ring = Some(std::sync::Mutex::new(Ring {
+            lines: std::collections::VecDeque::new(),
+            bound: lines,
+            written: 0,
+        }));
+        self
+    }
+
+    /// At most `most` of the lines kept, from the serial `from` on, the
+    /// oldest first.
+    ///
+    /// A `from` before the oldest line kept starts at that line — what came
+    /// before it is gone — and one past the newest reads nothing. A log not
+    /// told to keep any answers no line, from 1.
+    #[must_use]
+    pub fn kept(&self, from: u64, most: usize) -> Kept {
+        let Some(ring) = &self.ring else {
+            return Kept {
+                lines: Vec::new(),
+                next: 1,
+                held: 0,
+            };
+        };
+        let ring = ring
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let held = u64::try_from(ring.lines.len()).unwrap_or(u64::MAX);
+        let oldest = ring.written - held + 1;
+        let first = from.clamp(oldest, ring.written + 1);
+        let skipped = usize::try_from(first - oldest).unwrap_or(usize::MAX);
+        let lines: Vec<(u64, String)> = ring
+            .lines
+            .iter()
+            .skip(skipped)
+            .take(most)
+            .zip(first..)
+            .map(|(line, serial)| (serial, line.clone()))
+            .collect();
+        Kept {
+            next: first + u64::try_from(lines.len()).unwrap_or(u64::MAX),
+            lines,
+            held,
         }
     }
 
@@ -136,6 +226,16 @@ impl Log {
     /// could do about a log store that is down (`ship`'s module docs).
     pub fn record(&self, event: &impl Event) {
         let line = self.line(event);
+        if let Some(ring) = &self.ring {
+            let mut ring = ring
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            ring.written += 1;
+            ring.lines.push_back(line.clone());
+            while ring.lines.len() > ring.bound {
+                ring.lines.pop_front();
+            }
+        }
         match &self.shipper {
             Some(shipper) => shipper.send(line),
             None => ship::kept_on_stderr(&line),
@@ -463,6 +563,96 @@ mod tests {
             written,
             [log.line(&Probe), log.line(&Ends_A_Line)],
             "{stderr}"
+        );
+    }
+
+    /// A log told to keep lines keeps its newest, each under the serial it
+    /// was recorded at, and a read starts where it is asked.
+    ///
+    /// **Every clause of the read, by a read that differs in it alone**:
+    /// where it starts, how many it takes, what it says to ask next, a start
+    /// before the oldest line kept and one past the newest — and the bound,
+    /// which the fourth and fifth lines push the first two out of. The two
+    /// events alternate, so a line read under another's serial is seen.
+    #[test]
+    fn a_log_keeps_its_newest_lines_and_reads_them_by_serial() {
+        let log = log().keeping(3);
+        let (odd, even) = (log.line(&Probe), log.line(&Ends_A_Line));
+        assert_ne!(odd, even, "the two fixtures write two lines");
+        let read = |from: u64, most: usize| log.kept(from, most);
+        assert_eq!(
+            read(0, 8),
+            super::Kept {
+                lines: Vec::new(),
+                next: 1,
+                held: 0
+            },
+            "nothing recorded yet"
+        );
+        log.record(&Probe);
+        log.record(&Ends_A_Line);
+        let both = vec![(1, odd.clone()), (2, even.clone())];
+        assert_eq!(read(0, 8).lines, both, "from before the first");
+        assert_eq!(read(1, 8).lines, both, "from the first");
+        assert_eq!((read(0, 8).next, read(0, 8).held), (3, 2));
+        assert_eq!(read(2, 8).lines, vec![(2, even.clone())], "from inside");
+        assert_eq!(read(1, 1).lines, vec![(1, odd.clone())], "as many as asked");
+        assert_eq!(read(1, 1).next, 2, "one past the last line read");
+        assert_eq!(read(1, 0).next, 1, "where a read of none began");
+        assert_eq!((read(3, 8).lines, read(3, 8).next), (Vec::new(), 3));
+        assert_eq!(
+            (read(9, 8).lines, read(9, 8).next),
+            (Vec::new(), 3),
+            "a start past the newest reads nothing, and the next line is still read"
+        );
+        log.record(&Probe);
+        log.record(&Ends_A_Line);
+        log.record(&Probe);
+        assert_eq!(
+            read(0, 8),
+            super::Kept {
+                lines: vec![(3, odd.clone()), (4, even.clone()), (5, odd.clone())],
+                next: 6,
+                held: 3
+            },
+            "the two oldest went, and the three kept kept their serials"
+        );
+        assert_eq!(
+            read(1, 1),
+            super::Kept {
+                lines: vec![(3, odd)],
+                next: 4,
+                held: 3
+            },
+            "a start before the oldest kept begins at it"
+        );
+        assert_eq!(read(4, 1).lines, vec![(4, even)]);
+    }
+
+    /// A log not told to keep lines keeps none, and one told to keep none
+    /// counts what it recorded all the same.
+    #[test]
+    fn a_log_keeps_no_line_it_was_not_told_to_keep() {
+        let log = log();
+        log.record(&Probe);
+        assert_eq!(
+            log.kept(0, 8),
+            super::Kept {
+                lines: Vec::new(),
+                next: 1,
+                held: 0
+            }
+        );
+        let log = self::log().keeping(0);
+        log.record(&Probe);
+        assert_eq!(
+            log.kept(0, 8),
+            super::Kept {
+                lines: Vec::new(),
+                next: 2,
+                held: 0
+            },
+            "a line recorded and not kept still took its serial"
         );
     }
 

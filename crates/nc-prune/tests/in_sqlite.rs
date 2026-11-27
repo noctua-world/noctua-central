@@ -464,6 +464,68 @@ async fn a_temporary_object_on_the_connection_is_refused() {
     pool.close().await;
 }
 
+/// A table's rows are counted for a reader whatever a delete from it would
+/// reach, and from the database's own table alone.
+///
+/// **Where the pruner's own count refuses**: a table whose trigger refuses
+/// every delete — as the journal's and the agents' do in the local database —
+/// is one this crate will not prune and so will not count for pruning, and a
+/// reader of how full it is counts it all the same. A temporary table of the
+/// same name, which shadows the real one in an unqualified statement, is not
+/// the one read; a table that is not there, and a name that is no plain
+/// identifier, are refused and never counted as none.
+#[tokio::test]
+async fn the_rows_of_a_table_are_counted_whatever_a_delete_from_it_would_reach() {
+    let scratch = Scratch::new("rows");
+    let pool = pool(&scratch, 1).await;
+    fill(&pool).await;
+    let target = Sqlite::new(pool.clone());
+    assert_eq!(target.rows("rows_over_time").await, Ok(10));
+    run(
+        &pool,
+        "CREATE TRIGGER kept BEFORE DELETE ON rows_over_time BEGIN SELECT RAISE(ABORT, 'kept'); END",
+    )
+    .await;
+    let for_pruning = Sqlite::new(pool.clone()).count("rows_over_time").await;
+    assert!(
+        for_pruning
+            .as_ref()
+            .is_err_and(|refused| refused.why.contains("fires on DELETE")),
+        "{for_pruning:?}"
+    );
+    assert_eq!(target.rows("rows_over_time").await, Ok(10));
+    run(&pool, "CREATE TEMP TABLE rows_over_time (id INTEGER)").await;
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM rows_over_time")
+            .fetch_one(&pool)
+            .await
+            .expect("the temporary table is counted"),
+        0,
+        "the temporary table shadows the real one where no schema is named"
+    );
+    assert_eq!(target.rows("rows_over_time").await, Ok(10));
+    let absent = target.rows("no_such_table").await;
+    assert!(
+        absent
+            .as_ref()
+            .is_err_and(|refused| refused.why.contains("could not count")),
+        "{absent:?}"
+    );
+    let unsafe_name = target
+        .rows("rows_over_time; DROP TABLE rows_over_time")
+        .await;
+    assert!(
+        unsafe_name
+            .as_ref()
+            .is_err_and(|refused| refused.why.contains("not a plain identifier")),
+        "{unsafe_name:?}"
+    );
+    assert_eq!(surviving(&pool, "rows_over_time").await.len(), 0);
+    run(&pool, "DROP TABLE temp.rows_over_time").await;
+    assert_eq!(surviving(&pool, "rows_over_time").await.len(), 10);
+    pool.close().await;
+}
+
 /// A connection with foreign keys off would leave a cascade's children behind.
 #[tokio::test]
 async fn a_connection_without_foreign_keys_is_refused() {

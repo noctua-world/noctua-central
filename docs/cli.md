@@ -307,6 +307,292 @@ Arguments:
   --serial <whole number, at least 1>  required
 ```
 
+## `dev.agents.read`
+
+In `en`:
+
+```text
+dev.agents.read — Show agents' tables in use
+Show how full the tables that keep agents and their grants are.
+
+Shows the two tables of this machine's database that keep the agents people made and the grants they gave them: the rows each holds and the bound at which a new agent or a new grant is refused. It counts rows and shows no agent; listing your agents is its own command. It changes nothing.
+
+Categories: none
+Tags: agents, grants, tables, rows, bounds, dev
+
+Usage:
+  noctua dev.agents.read [arguments]
+  noctua dev.agents.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.agents.read — Mostrar o uso das tabelas de agentes
+Mostrar o quanto as tabelas que guardam agentes e suas concessões estão cheias.
+
+Mostra as duas tabelas do banco de dados desta máquina que guardam os agentes que as pessoas criaram e as concessões que lhes deram: as linhas que cada uma guarda e o limite em que um novo agente ou uma nova concessão é recusado. Conta linhas e não mostra nenhum agente; listar os seus agentes é um comando próprio. Não altera nada.
+
+Categories: none
+Tags: agentes, concessões, tabelas, linhas, limites, dev
+
+Usage:
+  noctua dev.agents.read [arguments]
+  noctua dev.agents.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.journal.read`
+
+In `en`:
+
+```text
+dev.journal.read — Browse the journal
+Read a page of the realm's journal, entry by entry.
+
+Reads a page of the realm's journal from the entry you name, oldest first: who asked, for whom, which command, on what, how it was decided and by which policy, in which unit of work, and when. It says where the next page starts and which entry is the newest, and names an entry it could not read instead of skipping it. It changes nothing; verifying the journal's chain is its own command.
+
+Categories: none
+Tags: journal, audit, history, entries, browse, dev, records
+
+Usage:
+  noctua dev.journal.read [arguments]
+  noctua dev.journal.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.journal.read — Navegar pelo journal
+Ler uma página do journal do realm, entrada por entrada.
+
+Lê uma página do journal do realm a partir da entrada que você indicar, da mais antiga para a mais nova: quem pediu, em nome de quem, qual comando, sobre o quê, como foi decidido e por qual política, em qual unidade de trabalho e quando. Diz onde a próxima página começa e qual é a entrada mais nova, e nomeia uma entrada que não conseguiu ler em vez de pulá-la. Não altera nada; verificar a cadeia do journal é um comando próprio.
+
+Categories: none
+Tags: journal, auditoria, histórico, entradas, navegar, dev, registros
+
+Usage:
+  noctua dev.journal.read [arguments]
+  noctua dev.journal.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.limits.read`
+
+In `en`:
+
+```text
+dev.limits.read — Show limits in use
+Show how full each bounded table and count on this machine is.
+
+Lists each table of this machine's database with the rows it holds and the bound it declares, and each count the local server keeps against a limit — agents' sessions, connections, calls waiting for confirmation, log lines kept — with how many are in use now. A bound counted for each plugin or each unit is shown beside the whole table's rows, which it does not bound. Limits that are a size or a time have no use to show; the limits page lists them. It changes nothing.
+
+Categories: none
+Tags: limits, bounds, usage, tables, rows, dev, capacity
+
+Usage:
+  noctua dev.limits.read [arguments]
+  noctua dev.limits.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.limits.read — Mostrar limites em uso
+Mostrar o quanto cada tabela e contagem limitada desta máquina está cheia.
+
+Lista cada tabela do banco de dados desta máquina com as linhas que ela guarda e o limite que declara, e cada contagem que o servidor local mantém contra um limite — sessões de agentes, conexões, chamadas aguardando confirmação, linhas de log guardadas — com quantas estão em uso agora. Um limite contado por plugin ou por unidade aparece ao lado das linhas da tabela inteira, que ele não limita. Limites que são um tamanho ou um tempo não têm uso a mostrar; a página de limites os lista. Não altera nada.
+
+Categories: none
+Tags: limites, uso, tabelas, linhas, dev, capacidade, ocupação
+
+Usage:
+  noctua dev.limits.read [arguments]
+  noctua dev.limits.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.logs.read`
+
+In `en`:
+
+```text
+dev.logs.read — Read the live log
+Read the newest log lines this machine's local server recorded.
+
+Reads a page of the lines the local server on this machine recorded since it started, oldest first, each under the number it was recorded at, and says where the next page starts, so reading again from there follows the log as it grows. Only the newest lines are kept, in memory. A line holds an event's name, its level and its declared fields — codes, counts and identifiers, never text a person wrote. It changes nothing.
+
+Categories: none
+Tags: logs, log, live, errors, events, dev, tail
+
+Usage:
+  noctua dev.logs.read [arguments]
+  noctua dev.logs.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.logs.read — Ler o log ao vivo
+Ler as linhas de log mais novas que o servidor local desta máquina registrou.
+
+Lê uma página das linhas que o servidor local desta máquina registrou desde que iniciou, da mais antiga para a mais nova, cada uma sob o número em que foi registrada, e diz onde a próxima página começa, de modo que ler de novo a partir dali acompanha o log enquanto ele cresce. Só as linhas mais novas são guardadas, em memória. Uma linha traz o nome de um evento, seu nível e seus campos declarados — códigos, contagens e identificadores, nunca texto que uma pessoa escreveu. Não altera nada.
+
+Categories: none
+Tags: logs, log, ao vivo, erros, eventos, dev, acompanhar
+
+Usage:
+  noctua dev.logs.read [arguments]
+  noctua dev.logs.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.plugins.read`
+
+In `en`:
+
+```text
+dev.plugins.read — Show loaded plugins
+List each loaded plugin with what it was granted and what it uses.
+
+Lists the plugins the local server loaded, a page at a time: each one's identity and namespace, the capabilities it was granted, how many commands it declares, the surfaces and timers it holds, the lines its own log keeps, how often it was stopped and started again, why it was last stopped, and whether it is quarantined. It changes nothing.
+
+Categories: none
+Tags: plugins, loaded, capabilities, resources, restarts, dev, quarantine
+
+Usage:
+  noctua dev.plugins.read [arguments]
+  noctua dev.plugins.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.plugins.read — Mostrar plugins carregados
+Listar cada plugin carregado com o que lhe foi concedido e o que ele usa.
+
+Lista os plugins que o servidor local carregou, uma página por vez: a identidade e o namespace de cada um, as capacidades que lhe foram concedidas, quantos comandos declara, as superfícies e os temporizadores que mantém, as linhas que o seu próprio log guarda, quantas vezes foi parado e iniciado de novo, por que foi parado da última vez e se está em quarentena. Não altera nada.
+
+Categories: none
+Tags: plugins, carregados, capacidades, recursos, reinícios, dev, quarentena
+
+Usage:
+  noctua dev.plugins.read [arguments]
+  noctua dev.plugins.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.policy.read`
+
+In `en`:
+
+```text
+dev.policy.read — Show the policy pack
+Show the realm's policy pack, its version and its policy epoch.
+
+Shows which policy pack decides what may be done in this realm: the pack and its version, as the realm pins it and the local server carries it, and the realm's policy epoch, which moves each time its permissions change. It changes nothing.
+
+Categories: none
+Tags: policy, pack, version, epoch, realm, dev, authorization
+
+Usage:
+  noctua dev.policy.read [arguments]
+  noctua dev.policy.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.policy.read — Mostrar o pacote de políticas
+Mostrar o pacote de políticas do realm, sua versão e sua época.
+
+Mostra qual pacote de políticas decide o que pode ser feito neste realm: o pacote e a sua versão, como o realm o fixa e o servidor local o carrega, e a época de políticas do realm, que avança cada vez que suas permissões mudam. Não altera nada.
+
+Categories: none
+Tags: política, pacote, versão, época, realm, dev, autorização
+
+Usage:
+  noctua dev.policy.read [arguments]
+  noctua dev.policy.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.sessions.read`
+
+In `en`:
+
+```text
+dev.sessions.read — Show agents' sessions
+List the agents' sessions the local server holds open now.
+
+Shows each session an agent holds open on the local server, by the agent's identifier, with how many sessions and connections are open and the most the server allows of each. It changes nothing.
+
+Categories: none
+Tags: sessions, agents, mcp, connections, open, dev
+
+Usage:
+  noctua dev.sessions.read [arguments]
+  noctua dev.sessions.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.sessions.read — Mostrar sessões de agentes
+Listar as sessões de agentes que o servidor local mantém abertas agora.
+
+Mostra cada sessão que um agente mantém aberta no servidor local, pelo identificador do agente, com quantas sessões e conexões estão abertas e o máximo que o servidor permite de cada uma. Não altera nada.
+
+Categories: none
+Tags: sessões, agentes, mcp, conexões, abertas, dev
+
+Usage:
+  noctua dev.sessions.read [arguments]
+  noctua dev.sessions.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `drawer.back`
 
 In `en`:

@@ -1192,3 +1192,127 @@ reversibility = "read"
 mutating = false
 args_schema = """
 {"type":"object","properties":{},"additionalProperties":false}"""
+
+# What the dev pages read (`NOCTUA.md §12.16`, `§15.3`): the part of the
+# minimum that is the state of this machine rather than a registry — every
+# bound with a use to show, every loaded plugin with what it was granted and
+# what it uses, the agents' sessions the daemon holds open, the tables that
+# keep a person's agents, the realm's policy pack and epoch, the daemon's own
+# log as it is recorded, and the journal, a page at a time. Each is a read of
+# the kernel's own, decided as every command is, so every dev page is
+# authorized and none is reachable only from a window.
+#
+# Five are `Read` on the platform's `interface` feature, as everything the
+# person's interface shows them of the kernel's own is — what waits for their
+# confirmation, the surfaces, their next undo — which the family pack gives
+# every person of the realm and no agent or device: they answer counts, names
+# and versions, and nothing a person wrote. Two are `Read` on the realm, which
+# the pack gives a guardian alone, as it gives `journal.verify`: the log and
+# the journal say who did what, and the journal is the realm's audit log
+# (`§14.9`) — data of the realm's, so no feature is what they select.
+# **Neither group has a feature of its own**, and the reason is measured: an
+# agent may be granted every feature its realm holds, so each feature the
+# shipped world gains widens the widest answer of `agents.list`, and one more
+# than it holds takes that answer past a frame
+# (`the_widest_list_of_agents_fits_one_frame` in `crates/nc-kernel/src/agents.rs`).
+#
+# Every answer is bounded. One that can grow is read a page at a time —
+# `from`, where the page starts, and `max`, at most `[kernel] dev_page_max`
+# rows, which a test holds each schema to — and says in `next` where the next
+# page starts; a page also ends before its rows' text would pass half of
+# `[kernel] payload_bytes`. The log is the daemon's own ring in memory, this
+# machine's lines and no other's, `[daemon] dev_logs_ring_lines` of them at
+# most: each line is the one the central log is sent, so the wall that keeps
+# user data and secrets out of that store (`§15.4`) is what keeps them out of
+# this answer. The central log itself is read from its own store.
+
+[[command]]
+name = "dev.limits.read"
+title = "command.dev.limits.read.title"
+description = "command.dev.limits.read.description"
+paragraph = "command.dev.limits.read.paragraph"
+tags = "command.dev.limits.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.plugins.read"
+title = "command.dev.plugins.read.title"
+description = "command.dev.plugins.read.description"
+paragraph = "command.dev.plugins.read.paragraph"
+tags = "command.dev.plugins.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.sessions.read"
+title = "command.dev.sessions.read.title"
+description = "command.dev.sessions.read.description"
+paragraph = "command.dev.sessions.read.paragraph"
+tags = "command.dev.sessions.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.agents.read"
+title = "command.dev.agents.read.title"
+description = "command.dev.agents.read.description"
+paragraph = "command.dev.agents.read.paragraph"
+tags = "command.dev.agents.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.policy.read"
+title = "command.dev.policy.read.title"
+description = "command.dev.policy.read.description"
+paragraph = "command.dev.policy.read.paragraph"
+tags = "command.dev.policy.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.logs.read"
+title = "command.dev.logs.read.title"
+description = "command.dev.logs.read.description"
+paragraph = "command.dev.logs.read.paragraph"
+tags = "command.dev.logs.read.tags"
+action = "Read"
+resource_selector = "realm"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.journal.read"
+title = "command.dev.journal.read.title"
+description = "command.dev.journal.read.description"
+paragraph = "command.dev.journal.read.paragraph"
+tags = "command.dev.journal.read.tags"
+action = "Read"
+resource_selector = "realm"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""

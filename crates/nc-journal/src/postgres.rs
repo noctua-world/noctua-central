@@ -693,6 +693,40 @@ impl Store for Postgres {
         }
     }
 
+    async fn page(&self, sequence: u64, most: u32) -> Result<Read, Error> {
+        let from = signed("sequence", sequence)?;
+        // **`LIMIT` is the bound, in the statement**: the rows past `most`
+        // are never read from the table, so a page costs what it answers and
+        // not what the history holds. The primary key orders it.
+        let query = format!(
+            "SELECT {COLUMNS} FROM journal_entries WHERE sequence >= $1 ORDER BY sequence \
+             LIMIT $2"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
+            .bind(from)
+            .bind(i64::from(most))
+            .fetch_all(&mut *self.reachable().await?)
+            .await
+            .map_err(|error| unavailable(&error))?;
+        // One row at a time, the rows before a bad one kept and the bad one
+        // named, as `from` reads them.
+        let mut entries = Vec::with_capacity(rows.len());
+        let mut stopped_at = None;
+        for row in &rows {
+            match entry_from(row) {
+                Ok(entry) => entries.push(entry),
+                Err(why) => {
+                    stopped_at = Some(where_it_stopped(row, &why));
+                    break;
+                }
+            }
+        }
+        Ok(Read {
+            entries,
+            stopped_at,
+        })
+    }
+
     async fn unit_opened(&self, realm: &OpaqueId, unit: nc_ids::Snowflake) -> Result<bool, Error> {
         // The same four columns as `unit_closing`, one bracket along, asked as
         // an `EXISTS` and covered by the same index.

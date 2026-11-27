@@ -20035,7 +20035,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 270] = [
+    const DOCUMENTED: [(&str, usize, usize); 271] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -20060,11 +20060,11 @@ mod the_frozen_path_rule {
             3,
         ),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
-        ("daemon/agent_sessions.rs", 65, 3),
+        ("daemon/agent_sessions.rs", 66, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/desktop.rs", 36, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 29, 23),
+        ("daemon/environment.rs", 33, 27),
         ("daemon/every_command_from_the_cli.rs", 47, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
@@ -20077,7 +20077,7 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 169, 32),
+        ("daemon/server.rs", 172, 32),
         ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
@@ -20186,12 +20186,12 @@ mod the_frozen_path_rule {
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
-        ("nc-journal/lib.rs", 72, 23),
-        ("nc-journal/memory.rs", 22, 12),
-        ("nc-journal/postgres.rs", 21, 12),
-        ("nc-journal/tampering.rs", 69, 64),
+        ("nc-journal/lib.rs", 73, 23),
+        ("nc-journal/memory.rs", 23, 13),
+        ("nc-journal/postgres.rs", 21, 13),
+        ("nc-journal/tampering.rs", 69, 68),
         ("nc-journal/the_declared_command.rs", 1, 1),
-        ("nc-journal/unit.rs", 30, 40),
+        ("nc-journal/unit.rs", 30, 43),
         ("nc-kernel/activation.rs", 32, 68),
         ("nc-kernel/agents.rs", 54, 18),
         ("nc-kernel/backend.rs", 36, 40),
@@ -20202,7 +20202,8 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/confirmations.rs", 19, 2),
+        ("nc-kernel/confirmations.rs", 20, 3),
+        ("nc-kernel/dev.rs", 45, 1),
         ("nc-kernel/dispatch.rs", 154, 32),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
@@ -20220,9 +20221,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 70, 60),
+        ("nc-kernel/lib.rs", 71, 61),
         ("nc-kernel/limits.rs", 18, 19),
-        ("nc-kernel/logging.rs", 11, 10),
+        ("nc-kernel/logging.rs", 14, 12),
         ("nc-kernel/manifest.rs", 32, 19),
         ("nc-kernel/net.rs", 30, 13),
         ("nc-kernel/net.rs", 75, 25),
@@ -20233,18 +20234,18 @@ mod the_frozen_path_rule {
         ("nc-kernel/settings.rs", 55, 2),
         ("nc-kernel/shell.rs", 212, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 325, 92),
+        ("nc-kernel/the_decision_point.rs", 351, 96),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 77, 65),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 97, 16),
         ("nc-kernel/units.rs", 117, 18),
-        ("nc-kernel/units_and_history.rs", 166, 48),
+        ("nc-kernel/units_and_history.rs", 166, 49),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
         ("nc-local/agents.rs", 42, 11),
-        ("nc-local/journal.rs", 26, 11),
+        ("nc-local/journal.rs", 26, 12),
         ("nc-local/lib.rs", 12, 10),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
@@ -20253,7 +20254,7 @@ mod the_frozen_path_rule {
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 33, 165),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
-        ("nc-log/lib.rs", 22, 27),
+        ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/clipboard.rs", 16, 11),
@@ -20276,10 +20277,10 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 66, 25),
         ("nc-policy/value.rs", 4, 9),
         ("nc-prune/in_postgres.rs", 45, 21),
-        ("nc-prune/in_sqlite.rs", 18, 7),
+        ("nc-prune/in_sqlite.rs", 19, 7),
         ("nc-prune/lib.rs", 50, 45),
         ("nc-prune/postgres.rs", 21, 10),
-        ("nc-prune/sqlite.rs", 20, 6),
+        ("nc-prune/sqlite.rs", 21, 6),
         ("nc-schema/descriptor.rs", 14, 17),
         ("nc-schema/entry.rs", 53, 42),
         ("nc-schema/keys.rs", 93, 21),
@@ -23100,8 +23101,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 943 scratches this tree
-    /// builds, 855 of the 943 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 944 scratches this tree
+    /// builds, 856 of the 944 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23235,7 +23236,7 @@ mod the_frozen_path_rule {
         ("nc-platform/service.rs", 7, 7),
         ("nc-platform/x11.rs", 10, 10),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
-        ("nc-prune/in_sqlite.rs", 13, 13),
+        ("nc-prune/in_sqlite.rs", 14, 14),
         ("xtask/build.rs", 9, 9),
         ("xtask/check.rs", 44, 32),
         ("xtask/corpus.rs", 15, 15),
@@ -26276,7 +26277,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25189;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25372;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26295,7 +26296,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7988;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8089;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26312,7 +26313,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2735;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2768;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26329,7 +26330,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [263, 38, 67, 69, 113];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [267, 42, 71, 73, 114];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26346,7 +26347,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32872;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33113;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26364,7 +26365,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 826;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 845;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26400,8 +26401,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **826 of 32,872 are accepted by the first-line
-    /// rule alone, and 550 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **845 of 33,113 are accepted by the first-line
+    /// rule alone, and 567 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26422,8 +26423,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **263 ascending sorts, 38 descending, 67
-    /// swaps, 69 rotations and 113 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **267 ascending sorts, 42 descending, 71
+    /// swaps, 73 rotations and 114 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26433,7 +26434,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2735 of
+    /// this tree offers, **2768 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38860,7 +38861,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 284,
+            walked, 285,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38900,7 +38901,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3417] = [
+    static OPERATORS: [(&str, &str, &str); 3498] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -54305,6 +54306,375 @@ Options:
             "channel",
             "layout",
             "the webview keeps its own under the install's cache",
+        ),
+        (
+            "kernel_dev",
+            "page",
+            "a page that says no size holds `dev_page_max` rows",
+        ),
+        (
+            "kernel_dev",
+            "page",
+            "a page that says no start starts at the start",
+        ),
+        (
+            "kernel_dev",
+            "budget",
+            "a page's rows are held to half a payload",
+        ),
+        (
+            "kernel_dev",
+            "fitting",
+            "rows that fill the budget exactly are all kept",
+        ),
+        (
+            "kernel_dev",
+            "fitting",
+            "the first row is answered whatever its size",
+        ),
+        ("kernel_dev", "fitting", "the first row left out is named"),
+        (
+            "kernel_dev",
+            "strategy",
+            "a strategy is answered by its own word",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "only the local database's tables are answered",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "the agents' read answers the tables of agents alone",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "a table is answered with the rows it holds",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "a table is answered with the bound the catalog declares",
+        ),
+        (
+            "kernel_dev",
+            "counted",
+            "a count nothing says is null and one said is itself",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the log's lines are counted against the ring's bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the connections are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the sessions are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the calls held are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the events queued are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the lines counted are the ones the sink keeps",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the connections counted are the host's",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the sessions counted are the host's",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "a call held for a confirmation is counted while it is held",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "an event queued is counted until it is delivered",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the sessions are answered in the order of their agents",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the sessions open are counted",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the connections open are the host's",
+        ),
+        (
+            "kernel_dev",
+            "policy",
+            "the epoch answered is the one the read was decided under",
+        ),
+        (
+            "kernel_dev",
+            "policy",
+            "the pack answered is the one the read was decided under",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page of plugins starts at the slot asked",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page of plugins holds no more than it was asked",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a full page's next is the slot after its last row",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page that ended says the slot the next plugin takes",
+        ),
+        ("kernel_dev", "plugins", "a plugin's commands are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "a plugin's own log lines are counted",
+        ),
+        ("kernel_dev", "plugins", "a plugin's timers are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "a surface is counted for the plugin that holds it",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "the instance that runs is answered",
+        ),
+        ("kernel_dev", "plugins", "a plugin's kills are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "why a plugin was last killed is answered",
+        ),
+        (
+            "kernel_dev",
+            "logs",
+            "a page of the log starts at the serial asked",
+        ),
+        (
+            "kernel_dev",
+            "logs",
+            "a page of the log holds no more than it was asked",
+        ),
+        ("kernel_dev", "logs", "the lines kept are counted"),
+        (
+            "kernel_dev",
+            "entry",
+            "an entry is answered with whom it was asked for",
+        ),
+        (
+            "kernel_dev",
+            "entry",
+            "an entry is answered with the policy that decided it",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page of the journal starts at the sequence asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page of the journal holds no more than it was asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a journal that cannot be read is unavailable",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page past the end starts the next where it was asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "the next page starts past the last entry read",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "an entry another realm's kernel wrote is left out",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "an entry the store could not read is named",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "the next page starts past an entry that could not be read",
+        ),
+        ("kernel_dev", "journal", "the newest sequence is answered"),
+        (
+            "kernel_confirmations",
+            "waiting",
+            "the calls held are counted",
+        ),
+        (
+            "kernel_logging",
+            "LogSink for std::sync::Arc",
+            "a sink behind an `Arc` answers the lines its log kept",
+        ),
+        (
+            "kernel_logging",
+            "LogSink for std::sync::Mutex",
+            "a log behind a mutex answers the lines it kept",
+        ),
+        ("memory", "page", "a page starts where it was asked"),
+        ("memory", "page", "a page holds no more than it was asked"),
+        (
+            "journal_store",
+            "page",
+            "a page starts where the store likes",
+        ),
+        (
+            "journal_store",
+            "page",
+            "a page comes back in whatever order the heap holds",
+        ),
+        (
+            "journal_store",
+            "page",
+            "a page holds as many rows as the store likes",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal starts where the file likes",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal comes back newest first",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal holds as many rows as the file likes",
+        ),
+        (
+            "prune_sqlite",
+            "rows",
+            "a reader's count is of the database's own table",
+        ),
+        (
+            "prune_sqlite",
+            "rows",
+            "a reader's count is the number counted",
+        ),
+        (
+            "log_root",
+            "record",
+            "a line past the bound takes the oldest one's place",
+        ),
+        (
+            "log_root",
+            "record",
+            "a line is kept under the serial it was recorded at",
+        ),
+        (
+            "log_root",
+            "record",
+            "the line kept is the line the store is sent",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a read of the ring starts at the serial asked",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a start before the oldest line kept begins at it",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a read of the ring takes as many lines as asked",
+        ),
+        (
+            "log_root",
+            "kept",
+            "the next read starts past the last line read",
+        ),
+        ("log_root", "kept", "the ring says how many lines it keeps"),
+        (
+            "daemon_environment",
+            "sink",
+            "the daemon's sink keeps its newest lines",
+        ),
+        (
+            "daemon_environment",
+            "sink",
+            "the daemon's ring holds `dev_logs_ring_lines` lines",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "the log an install opens keeps its lines",
+        ),
+        (
+            "daemon_environment",
+            "Hosting for Host",
+            "the host answers the sessions its server holds",
+        ),
+        (
+            "daemon_environment",
+            "Hosting for Host",
+            "the host answers the connections its server holds",
+        ),
+        (
+            "daemon_server",
+            "opened",
+            "a session opened is listed by its agent",
+        ),
+        (
+            "daemon_server",
+            "Drop for Opened",
+            "a session that ended is listed no more",
+        ),
+        (
+            "daemon_server",
+            "open_connections",
+            "the connections answered are the ones counted",
         ),
     ];
 

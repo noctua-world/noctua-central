@@ -191,6 +191,16 @@ const ROWS: &[Row] = &[
         Journaled::Denied("kernel.mcp_on_needs_confirmation"),
     ),
     ran("kernel.history", &[]),
+    // **What the dev pages read of this machine**: the five every person is
+    // allowed and the two records, which the install's person, a guardian,
+    // is allowed too — each a read, answered through the CLI as any command.
+    ran("dev.limits.read", &[]),
+    ran("dev.plugins.read", &["--max", "1"]),
+    ran("dev.sessions.read", &[]),
+    ran("dev.agents.read", &[]),
+    ran("dev.policy.read", &[]),
+    ran("dev.logs.read", &["--from", "1", "--max", "2"]),
+    ran("dev.journal.read", &["--from", "0", "--max", "2"]),
     // **The shortcut settings write the install's own keybinding
     // configuration**,
     // a file outside every unit, so each set is a step undo stops at and

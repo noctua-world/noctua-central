@@ -458,6 +458,8 @@ pub struct KernelLimits {
     pub shell_window_min_height: u32,
     /// How much of the height the drawer shares with the workspace area it may take, in percent.
     pub shell_drawer_share_max: u32,
+    /// How many rows one page of what the dev pages read may hold.
+    pub dev_page_max: u32,
 }
 
 /// The kernel's limits, as `catalog/limits.toml` declares them under `[kernel]`.
@@ -519,6 +521,7 @@ pub const KERNEL: KernelLimits = KernelLimits {
     shell_window_min_width: 320,
     shell_window_min_height: 240,
     shell_drawer_share_max: 49,
+    dev_page_max: 256,
 };
 
 /// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
@@ -562,6 +565,8 @@ pub struct DaemonLimits {
     pub stop_within_ms: u64,
     /// How long `stop` waits for a daemon it signalled to end, in milliseconds.
     pub kill_within_ms: u64,
+    /// How many of its newest log lines the daemon keeps in memory.
+    pub dev_logs_ring_lines: u32,
 }
 
 /// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.
@@ -583,4 +588,5 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     start_within_ms: 30_000,
     stop_within_ms: 65_000,
     kill_within_ms: 5_000,
+    dev_logs_ring_lines: 4_096,
 };

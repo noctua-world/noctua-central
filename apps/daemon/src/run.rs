@@ -420,6 +420,9 @@ async fn opened(started: Started<'_>, server: &Arc<Server>) -> Result<Option<Ope
         found.clone(),
         Arc::downgrade(server),
     )));
+    // What the server holds open is what the kernel's dev pages answer of
+    // the agents' sessions and the connections.
+    kernel.hosted_by(Arc::new(environment::Host::new(Arc::downgrade(server))));
     let loaded = plugins::load(&kernel, &layout.plugins, &found.user, &log).await;
     let refused = loaded
         .iter()

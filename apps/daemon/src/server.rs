@@ -220,6 +220,9 @@ pub struct Server {
     /// How many agents' sessions are open: each counted before it opens, and
     /// until its connection ends.
     sessions: AtomicUsize,
+    /// The agent of each session open, one for each: held from the moment
+    /// the kernel opened it until its connection ends.
+    open: Mutex<Vec<Snowflake>>,
     /// What a client may watch, at the revision it is at.
     watched: tokio::sync::watch::Sender<Watched>,
     /// The desktop interface the daemon starts, and the one it started.
@@ -256,6 +259,7 @@ impl Server {
             connections: AtomicUsize::new(0),
             all_closed: tokio::sync::Notify::new(),
             sessions: AtomicUsize::new(0),
+            open: Mutex::new(Vec::new()),
             watched: tokio::sync::watch::Sender::new(Watched::default()),
             desktop,
             attached: AtomicUsize::new(0),
@@ -821,6 +825,10 @@ impl Server {
             .session(&named, &self.named.person)
             .await
             .map_err(|refusal| refused_by_kernel(&refusal))?;
+        self.open
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(agent);
         Ok(Opened {
             agent,
             session,
@@ -1013,6 +1021,23 @@ impl Server {
         accepting.abort();
         let _ = accepting.await;
         let _ = self.closed(deadline).await;
+    }
+
+    /// The agent of each session open now, one for each session: what the
+    /// kernel's dev pages are answered (`crate::environment::Host`).
+    #[must_use]
+    pub fn open_sessions(&self) -> Vec<Snowflake> {
+        self.open
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// How many connections are open now: what the kernel's dev pages are
+    /// answered against `ipc_connections_max`.
+    #[must_use]
+    pub fn open_connections(&self) -> u64 {
+        u64::try_from(self.connections.load(Ordering::SeqCst)).unwrap_or(u64::MAX)
     }
 
     /// The daemon's status, as one object.
@@ -1314,8 +1339,15 @@ struct Opened {
 
 impl Drop for Opened {
     fn drop(&mut self) {
-        self.counted
-            .0
+        let server = &self.counted.0;
+        // One of this agent's sessions is no longer open: an agent may hold
+        // several, each listed once.
+        let mut open = server.open.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(at) = open.iter().position(|agent| *agent == self.agent) {
+            open.swap_remove(at);
+        }
+        drop(open);
+        server
             .log
             .record(&nc_log::events::DaemonSessionEnded { agent: self.agent });
     }
@@ -1937,10 +1969,10 @@ mod tests {
                 person: world.person().clone(),
                 since: 1_767_225_600_000,
             };
-            let log = Arc::new(std::sync::Mutex::new(
+            let log = crate::environment::sink(
                 nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
                     .expect("a store on this machine"),
-            ));
+            );
             let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
             let opening = crate::environment::Opening {
                 world,
@@ -2350,6 +2382,120 @@ mod tests {
         held.push(server.counted_session().expect("the place given back"));
         drop(held);
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+    }
+
+    /// The daemon answers its kernel's dev pages the sessions and the
+    /// connections it holds, and the newest lines of its own log.
+    ///
+    /// **Over a kernel the daemon opens, told of its host as a start tells
+    /// it**: no session at first; two sessions of one agent are two rows,
+    /// one of them gone when its connection ends, and none once both have;
+    /// the connections are the server's own count. The log read answers the
+    /// lines the daemon's sink kept, each under its serial and exactly the
+    /// line the store is sent — an event's name, its level, the service and
+    /// its version, and its declared fields, nothing else.
+    #[tokio::test]
+    async fn the_dev_pages_read_the_sessions_the_connections_and_the_log_this_daemon_holds() {
+        use nc_kernel::logging::LogSink as _;
+
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        serving
+            .kernel
+            .hosted_by(Arc::new(crate::environment::Host::new(Arc::downgrade(
+                server,
+            ))));
+        let agent = serving.agent.to_crockford();
+        let said = |open: usize, connections: usize| {
+            let rows = vec![format!(r#"{{"agent":"{agent}"}}"#); open].join(",");
+            format!(
+                r#"{{"connections":{connections},"connections_max":{},"max":{},"open":{open},"sessions":[{rows}]}}"#,
+                nc_catalog::DAEMON.ipc_connections_max,
+                nc_catalog::DAEMON.sessions_max
+            )
+        };
+        let read = || async {
+            serving
+                .as_the_person("dev.sessions.read", "{}")
+                .await
+                .to_canonical()
+        };
+        assert_eq!(read().await, said(0, 0));
+        let first = server
+            .asked(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        let second = server
+            .asked(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        assert!(first.opened.is_some() && second.opened.is_some());
+        server.connections.fetch_add(2, Ordering::SeqCst);
+        assert_eq!(read().await, said(2, 2));
+        let limits = serving.as_the_person("dev.limits.read", "{}").await;
+        let used = |limit: &str| {
+            limits
+                .clone()
+                .into_object()
+                .and_then(|mut fields| fields.remove("counts"))
+                .and_then(Value::into_array)
+                .expect("the counts")
+                .into_iter()
+                .filter_map(Value::into_object)
+                .find(|row| row.get("limit") == Some(&Value::text(limit)))
+                .and_then(|mut row| row.remove("used"))
+        };
+        assert_eq!(used("daemon.sessions_max"), Some(Value::Integer(2)));
+        assert_eq!(used("daemon.ipc_connections_max"), Some(Value::Integer(2)));
+        drop(second);
+        assert_eq!(read().await, said(1, 2));
+        drop(first);
+        server.connections.fetch_sub(2, Ordering::SeqCst);
+        assert_eq!(read().await, said(0, 0));
+
+        let kept = server.log.kept(0, usize::MAX);
+        let answered = serving.as_the_person("dev.logs.read", "{}").await;
+        let lines: Vec<(Value, Value)> = answered
+            .clone()
+            .into_object()
+            .and_then(|mut fields| fields.remove("lines"))
+            .and_then(Value::into_array)
+            .expect("the lines")
+            .into_iter()
+            .filter_map(Value::into_object)
+            .filter_map(|mut row| Some((row.remove("serial")?, row.remove("line")?)))
+            .collect();
+        assert_eq!(
+            lines,
+            kept.lines
+                .iter()
+                .map(|(serial, line)| (
+                    Value::Integer(i64::try_from(*serial).expect("fits")),
+                    Value::text(line.as_str())
+                ))
+                .collect::<Vec<_>>()
+        );
+        let opened = format!(
+            r#"{{"_msg":"daemon.session_opened","agent":"{agent}","level":"info","service":"noctua-daemon","version":"{}"}}"#,
+            env!("CARGO_PKG_VERSION")
+        );
+        assert_eq!(
+            kept.lines
+                .iter()
+                .filter(|(_, line)| *line == opened)
+                .count(),
+            2,
+            "{kept:?}"
+        );
+        assert!(
+            kept.lines
+                .iter()
+                .map(|(serial, _)| *serial)
+                .eq(1..=kept.held),
+            "every line this daemon recorded is kept, in order: {kept:?}"
+        );
     }
 
     /// A session is opened only while MCP is on and for an agent of the

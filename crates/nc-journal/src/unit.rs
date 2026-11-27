@@ -240,6 +240,14 @@ mod tests {
             self.beneath.from(sequence)
         }
 
+        fn page(
+            &self,
+            sequence: u64,
+            most: u32,
+        ) -> impl Future<Output = Result<Read, Error>> + Send {
+            self.beneath.page(sequence, most)
+        }
+
         fn unit_opened(
             &self,
             realm: &OpaqueId,
@@ -306,6 +314,14 @@ mod tests {
             self.beneath.from(sequence)
         }
 
+        fn page(
+            &self,
+            sequence: u64,
+            most: u32,
+        ) -> impl Future<Output = Result<Read, Error>> + Send {
+            self.beneath.page(sequence, most)
+        }
+
         fn unit_opened(
             &self,
             realm: &OpaqueId,
@@ -365,6 +381,14 @@ mod tests {
 
         fn from(&self, sequence: u64) -> impl Future<Output = Result<Read, Error>> + Send {
             self.beneath.from(sequence)
+        }
+
+        fn page(
+            &self,
+            sequence: u64,
+            most: u32,
+        ) -> impl Future<Output = Result<Read, Error>> + Send {
+            self.beneath.page(sequence, most)
         }
 
         async fn unit_opened(&self, realm: &OpaqueId, unit: Snowflake) -> Result<bool, Error> {
