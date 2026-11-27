@@ -33,7 +33,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use nc_desktop::host::{Probed, Seen, Unopened};
+use nc_desktop::host::{Exercised, Probed, Seen, Unopened};
 
 /// The exit code of an invocation this build does not answer.
 const UNANSWERED: u8 = 2;
@@ -114,6 +114,68 @@ fn answer(
     }
 }
 
+/// Each fact the exercise of a window's footer and drawer found, `footer`,
+/// with what is wrong where it did not hold.
+// allow-logging: `held_by` hands back the sentences written as literals beside each fact, never text a caller gave
+fn held_by(footer: &Exercised) -> [(bool, &'static str); 14] {
+    [
+        (
+            footer.enhanced,
+            "the design system's script did not enhance the prompt",
+        ),
+        (
+            footer.hovered,
+            "a touch's pointer onto the info line's chevron said no hover",
+        ),
+        (footer.drafted, "typing into the prompt said no draft"),
+        (
+            footer.acted,
+            "activating the info line's chevron said no action",
+        ),
+        (
+            footer.kept,
+            "the footer drawn again did not show the new markup with the focus and the \
+         prompt's block kept",
+        ),
+        (
+            footer.written,
+            "a draft written into the prompt did not reach it",
+        ),
+        (
+            footer.rails,
+            "the design system's scripts did not take the drawer and its tabs rail",
+        ),
+        (
+            footer.capped,
+            "the drawer, holding more than fits, did not stand below the footer inside the \
+         window with its content scrolling",
+        ),
+        (footer.tabbed, "pressing a tab said no page"),
+        (
+            footer.collapsed,
+            "pressing the drawer's collapse said no command",
+        ),
+        (
+            footer.pointed,
+            "the prompt did not point at the active option of the list it names, or pointed \
+         at one gone once both were closed",
+        ),
+        (
+            footer.refused,
+            "a load off the interface's own protocol was not refused by the document's policy, \
+         or one of its own was",
+        ),
+        (
+            footer.placed,
+            "the keyboard on the info line, or given up to nothing, was not said where it went",
+        ),
+        (
+            footer.held,
+            "a Leader holding Super, pressed as WebKitGTK reports it, was not heard held",
+        ),
+    ]
+}
+
 /// What is wrong with the window a probe opened in `mode`, by what it `seen`.
 fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
     if !seen.hidden_when_opened {
@@ -160,44 +222,7 @@ fn wrong_with(mode: &str, seen: &Seen, wrong: &mut Vec<String>) {
         ));
         return;
     };
-    for (held, what) in [
-        (
-            footer.enhanced,
-            "the design system's script did not enhance the prompt",
-        ),
-        (
-            footer.hovered,
-            "a touch's pointer onto the info line's chevron said no hover",
-        ),
-        (footer.drafted, "typing into the prompt said no draft"),
-        (
-            footer.acted,
-            "activating the info line's chevron said no action",
-        ),
-        (
-            footer.kept,
-            "the footer drawn again did not show the new markup with the focus and the \
-             prompt's block kept",
-        ),
-        (
-            footer.written,
-            "a draft written into the prompt did not reach it",
-        ),
-        (
-            footer.rails,
-            "the design system's scripts did not take the drawer and its tabs rail",
-        ),
-        (
-            footer.capped,
-            "the drawer, holding more than fits, did not stand below the footer inside the \
-             window with its content scrolling",
-        ),
-        (footer.tabbed, "pressing a tab said no page"),
-        (
-            footer.collapsed,
-            "pressing the drawer's collapse said no command",
-        ),
-    ] {
+    for (held, what) in held_by(&footer) {
         if !held {
             wrong.push(format!("in the {mode}, {what}"));
         }
@@ -393,6 +418,10 @@ mod tests {
                 capped: true,
                 tabbed: true,
                 collapsed: true,
+                pointed: true,
+                refused: true,
+                placed: true,
+                held: true,
             }),
         }
     }
@@ -497,6 +526,10 @@ mod tests {
                 (Some(7), "content scrolling"),
                 (Some(8), "said no page"),
                 (Some(9), "collapse said no command"),
+                (Some(10), "did not point at the active option"),
+                (Some(11), "not refused by the document's policy"),
+                (Some(12), "was not said where it went"),
+                (Some(13), "was not heard held"),
             ] {
                 let mut probed = passing;
                 let seen = if mode == "light" {
@@ -519,6 +552,10 @@ mod tests {
                             &mut footer.capped,
                             &mut footer.tabbed,
                             &mut footer.collapsed,
+                            &mut footer.pointed,
+                            &mut footer.refused,
+                            &mut footer.placed,
+                            &mut footer.held,
                         ]
                         .into_iter()
                         .nth(part)

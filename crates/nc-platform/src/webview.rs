@@ -10,8 +10,13 @@
 //! `wry` has there. **A custom protocol's page is at `<scheme>://localhost/`
 //! on Linux and macOS, and at `http://<scheme>.localhost/` on Windows**
 //! (`origin`), where `WebView2` serves a custom scheme under a host of its
-//! own. Every other decision about the window and its webview is the
-//! desktop's, made the same on every system.
+//! own. **A webview keeps nothing of its own** (`Kept`): its store is
+//! ephemeral on every system, and Windows alone, whose `WebView2` keeps a
+//! user data folder even then, is handed the folder to keep it in — on Linux
+//! no store with a folder is built at all, since `WebKitGTK` given one still
+//! makes its cache and its HSTS store under the user's own directories, by the
+//! executable's name. Every other decision about the window and its webview
+//! is the desktop's, made the same on every system.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -21,8 +26,12 @@
 //!
 //! **No test is written here**, since a test in a module the feature hides is
 //! a test hidden from every run that leaves the feature off: the desktop's own
-//! suite builds a window and its webview through this, on each system
-//! (`apps/desktop/tests/the_window_opens_hidden.rs`).
+//! suites build a window and its webview through this, on each system, in a
+//! process of their own — `apps/desktop/tests/the_window_opens_hidden.rs`
+//! loads the document from `origin` through `into` and `Kept`, so an address
+//! another system's spelling answers nothing and fails the probe, and both it
+//! and `apps/desktop/tests/the_window_follows_its_daemon.rs` hand the window a
+//! home of their own and hold that nothing was written in it.
 
 #![cfg(feature = "webview")]
 
@@ -75,6 +84,35 @@ pub fn into<'a>(
     #[cfg(not(target_os = "linux"))]
     {
         builder.build(window).map_err(Unbuilt::Refused)
+    }
+}
+
+/// What a webview keeps of its own: built to keep nothing — its store
+/// ephemeral on every system, `WebKitGTK`'s ephemeral context, `WKWebView`'s
+/// store kept in memory, `WebView2` in private — and, where the system's
+/// webview keeps a folder even so, Windows' `WebView2`, the folder it was
+/// handed.
+#[derive(Debug)]
+pub struct Kept(Option<wry::WebContext>);
+
+impl Kept {
+    /// What a webview keeps, `folder` the one it keeps a folder in where its
+    /// system's webview keeps one at all: on Windows alone. Elsewhere no
+    /// store with a folder is built, since `WebKitGTK` given one still writes
+    /// under the user's own directories.
+    #[must_use]
+    pub fn in_folder(folder: &std::path::Path) -> Self {
+        Self(cfg!(windows).then(|| wry::WebContext::new(Some(folder.to_path_buf()))))
+    }
+
+    /// A builder of a webview that keeps nothing of its own: in private, and
+    /// handed the folder where one is kept.
+    pub fn builder(&mut self) -> wry::WebViewBuilder<'_> {
+        match self.0.as_mut() {
+            Some(context) => wry::WebViewBuilder::new_with_web_context(context),
+            None => wry::WebViewBuilder::new(),
+        }
+        .with_incognito(true)
     }
 }
 

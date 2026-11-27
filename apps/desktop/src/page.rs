@@ -22,7 +22,14 @@
 //!
 //! **Everything it links is the custom protocol's** ([`crate::assets`]), by a
 //! path relative to the document, so no address in it names a host or a
-//! scheme, and every path is one the protocol answers.
+//! scheme, and every path is one the protocol answers — **and nothing else
+//! is loaded at all** ([`POLICY`]): the first thing its head says is its
+//! content security policy, which lets the page load a script, a sheet, an
+//! image or a font from its own origin alone — an image written inline as
+//! well — and connect, frame, submit or set a base nowhere, so no script in
+//! the page, its own or one an injection put there, can fetch an address or
+//! send anything off the machine. Its two scripts are files the protocol
+//! serves, not text inside it, so the policy runs no inline script at all.
 //!
 //! **Its one script of its own** ([`SCRIPT`]) is the page's half of the
 //! window: what the page says through the webview's message channel, and the
@@ -69,6 +76,14 @@ use crate::footer::{TheFooter, View};
 use crate::sidebar::TheSidebar;
 use crate::theme::Theme;
 
+/// The document's content security policy: a script, a sheet and a font
+/// from its own origin alone, an image from it or written inline, and
+/// nothing to connect to, to frame, to submit to or to take as a base — every
+/// other kind of load refused by `default-src`.
+pub const POLICY: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
+     img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; \
+     base-uri 'none'; form-action 'none'";
+
 /// The word the document's script says once the document and every sheet it
 /// links have loaded, through the webview's message channel.
 pub const LOADED: &str = "loaded";
@@ -109,9 +124,10 @@ pub const DRAFT: &str = "draft";
 /// **`witness` answers what the page shows**, asked only for a test's install
 /// (`crate::host`), once every animation running that ends has ended — a
 /// drawer sliding open — or a second has passed: its size in CSS pixels;
-/// whether every element drawn stands
-/// inside the window sideways or inside something that clips it; whether
-/// every control drawn is at least `--noctua-target-min` each way; whether
+/// whether every element drawn stands inside the window, or inside something
+/// that clips it, each way; whether every line of the footer stands wholly
+/// inside the window and inside every box that clips it; whether every
+/// control drawn is at least `--noctua-target-min` each way; whether
 /// every seat's attribute changes how the element it is on is drawn, judged
 /// where the system's own seat is not in that state there; which part the
 /// system's own keyboard is in; which parts draw anything; and every seat's
@@ -124,9 +140,24 @@ pub const DRAFT: &str = "draft";
 /// is let go, the Leader going up; a key of the menu's table pressed alone on
 /// the leader menu; and Esc on the drawer or on a prompt that filters a list.
 /// Which modifiers are down is read off every key event, so a hold the window
-/// is told of after its modifiers were let go ends at once. Everything else is
-/// the page's: typing, the arrows and Enter of `option-list.js`, and the send
-/// of `prompt.js`, which the script says with the option the keyboard is on.
+/// is told of after its modifiers were let go ends at once — **and Super from
+/// its own key as well**, held from its going down to its going up, since
+/// `WebKitGTK` sets no Meta flag on any key while it is held. Everything else
+/// is the page's: typing, the arrows and Enter of `option-list.js`, and the
+/// send of `prompt.js`, which the script says with the option the keyboard is
+/// on.
+///
+/// **The keyboard is said wherever it goes**: onto the prompt line, the
+/// drawer, the sidebar, the info line or the modeline, as that part, and onto
+/// anything in the workspace area or given up to nothing in the page — a press
+/// on nothing, outside a draw — as the workspace area; a window that loses the
+/// keyboard to another keeps its place and says nothing. `focus` puts it on a
+/// part's own element, and gives it up to nothing for the workspace area.
+///
+/// **A draw leaves nothing pointing at an option that is gone**: once a part
+/// is brought to its markup and enhanced again, an `aria-activedescendant`
+/// naming no element of the page is taken off whatever holds it — the prompt
+/// that named a list a draw closed.
 pub const SCRIPT: &str = r"(() => {
   const say = (message) => window.ipc.postMessage(message);
   const scale = () => say('scale ' + Math.round(window.devicePixelRatio * 1000));
@@ -158,11 +189,23 @@ pub const SCRIPT: &str = r"(() => {
   document.addEventListener('nd-option-active', (event) => {
     if (event.detail.value !== null) say('active ' + event.detail.name + ' ' + event.detail.value);
   });
+  const regionOf = (element) => element.closest('#noctua-drawer') ? 'drawer'
+    : element.closest('#noctua-sidebar') ? 'sidebar'
+      : element.closest('footer .nd-footer-line[data-nd-kind=prompt]') ? 'prompt'
+        : element.closest('footer .nd-footer-line[data-nd-kind=info]') ? 'info'
+          : element.closest('footer .nd-footer-line[data-nd-kind=modeline]') ? 'modeline'
+            : element.closest('#noctua-workspace') ? 'workspace' : null;
+  let drawing = false;
   document.addEventListener('focusin', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target && target.matches('.nd-prompt-input')) say('focus prompt');
-    else if (target && target.closest('#noctua-drawer')) say('focus drawer');
-    else if (target && target.closest('#noctua-sidebar')) say('focus sidebar');
+    const region = event.target instanceof Element ? regionOf(event.target) : null;
+    if (region) say('focus ' + region);
+  });
+  document.addEventListener('focusout', () => {
+    if (drawing) return;
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body) say('focus workspace');
+    }, 0);
   });
   const TARGET = /^[A-Za-z0-9._:\/-]{1,64}$/;
   const targetOf = (element) => {
@@ -185,7 +228,9 @@ pub const SCRIPT: &str = r"(() => {
     : where === 'drawer' || where === 'sidebar'
       ? document.querySelector('#noctua-' + where + ' [role=listbox][tabindex]')
         || document.querySelector('#noctua-' + where + ' [role=toolbar] button')
-      : null;
+      : where === 'modeline' ? document.querySelector('footer .nd-footer-line[data-nd-kind=modeline] button')
+        : where === 'info' ? document.querySelector('footer .nd-footer-line[data-nd-kind=info] .nd-footer-line-toggle')
+          : null;
   const within = (where) => where === 'prompt'
     ? document.querySelector('footer')
     : where === 'drawer' || where === 'sidebar' ? document.getElementById('noctua-' + where) : null;
@@ -203,11 +248,14 @@ pub const SCRIPT: &str = r"(() => {
   let keys = null;
   let held = false;
   let downs = [false, false, false, false];
-  const flags = (event) => [event.ctrlKey, event.altKey, event.shiftKey, event.metaKey];
+  const SUPER = ['MetaLeft', 'MetaRight', 'OSLeft', 'OSRight'];
+  let superDown = false;
+  const flags = (event) => [event.ctrlKey, event.altKey, event.shiftKey, event.metaKey || superDown];
   const modifier = (code) => ['Control', 'Alt', 'Shift', 'Meta', 'OS'].some((name) => code.startsWith(name));
   const holds = () => keys.mods.every((on, at) => !on || downs[at]);
   const release = () => { if (held) { held = false; say('leader up'); } };
   window.addEventListener('keydown', (event) => {
+    if (SUPER.includes(event.code)) superDown = true;
     downs = flags(event);
     if (!keys || event.isComposing || event.keyCode === 229 || modifier(event.code)) return;
     if (event.code === keys.code && holds()) {
@@ -235,10 +283,11 @@ pub const SCRIPT: &str = r"(() => {
     }
   }, true);
   window.addEventListener('keyup', (event) => {
+    if (SUPER.includes(event.code)) superDown = false;
     downs = flags(event);
     if (held && !holds()) release();
   }, true);
-  window.addEventListener('blur', () => { downs = [false, false, false, false]; held = false; });
+  window.addEventListener('blur', () => { downs = [false, false, false, false]; superDown = false; held = false; });
   const drawn = new Map();
   const regions = () => [document.querySelector('footer'), document.getElementById('noctua-drawer'), document.getElementById('noctua-sidebar')];
   for (const region of regions()) if (region) drawn.set(region.id || region.localName, region.cloneNode(true));
@@ -280,10 +329,15 @@ pub const SCRIPT: &str = r"(() => {
       const key = next.id || next.localName;
       const region = next.id ? document.getElementById(next.id) : document.querySelector(next.localName);
       if (!region || !drawn.has(key)) return;
+      drawing = true;
       if (window.noctua.release) window.noctua.release(region);
       bring(region, drawn.get(key), next);
       drawn.set(key, next);
       if (window.noctua.enhance) window.noctua.enhance(region);
+      for (const holder of document.querySelectorAll('[aria-activedescendant]')) {
+        if (!document.getElementById(holder.getAttribute('aria-activedescendant'))) holder.removeAttribute('aria-activedescendant');
+      }
+      drawing = false;
     },
     draft(text) {
       const area = document.querySelector('footer .nd-prompt-input');
@@ -297,8 +351,13 @@ pub const SCRIPT: &str = r"(() => {
       else say('leader up');
     },
     focus(where) {
+      const active = document.activeElement;
+      if (where === 'workspace') {
+        if (active && active !== document.body && !active.closest('#noctua-workspace')) active.blur();
+        return;
+      }
       const element = partOf(where);
-      if (element && document.activeElement !== element) element.focus();
+      if (element && active !== element) element.focus();
     },
     seats(told) {
       const seat = window.noctua.seat;
@@ -333,19 +392,36 @@ pub const SCRIPT: &str = r"(() => {
           && !element.closest('[hidden], [inert], [aria-hidden=true]')
           && getComputedStyle(element).visibility !== 'hidden';
       };
-      const clipped = (element) => {
+      const clipped = (element, across) => {
         for (let at = element.parentElement; at && at !== root.parentElement; at = at.parentElement) {
-          if (getComputedStyle(at).overflowX !== 'visible') return true;
+          const style = getComputedStyle(at);
+          if ((across ? style.overflowX : style.overflowY) !== 'visible') return true;
         }
         return false;
       };
-      const width = window.innerWidth;
+      const viewport = window.visualViewport;
+      const width = viewport ? viewport.width : window.innerWidth;
+      const height = viewport ? viewport.height : window.innerHeight;
       let fits = true;
       for (const element of [root, ...root.querySelectorAll('*')]) {
         if (!rendered(element)) continue;
         const box = element.getBoundingClientRect();
-        if ((box.left < -0.5 || box.right > width + 0.5) && !clipped(element)) fits = false;
+        if ((box.left < -0.5 || box.right > width + 0.5) && !clipped(element, true)) fits = false;
+        if ((box.top < -0.5 || box.bottom > height + 0.5) && !clipped(element, false)) fits = false;
       }
+      const inside = (box, outer) => box.left >= outer.left - 0.5 && box.top >= outer.top - 0.5
+        && box.right <= outer.right + 0.5 && box.bottom <= outer.bottom + 0.5;
+      const whole = (element) => {
+        const box = element.getBoundingClientRect();
+        if (!inside(box, { left: 0, top: 0, right: width, bottom: height })) return false;
+        for (let at = element.parentElement; at && at !== document.documentElement; at = at.parentElement) {
+          const style = getComputedStyle(at);
+          if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
+          if (!inside(box, at.getBoundingClientRect())) return false;
+        }
+        return true;
+      };
+      const lines = Array.from(root.querySelectorAll('footer .nd-footer-line')).filter(rendered).every(whole);
       const least = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--noctua-target-min'));
       let reachable = least > 0;
       for (const control of root.querySelectorAll('button, textarea, input, select, a[href], [role=option], [role=tab], [role=button]')) {
@@ -353,11 +429,9 @@ pub const SCRIPT: &str = r"(() => {
         const box = control.getBoundingClientRect();
         if (box.width < least - 0.5 || box.height < least - 0.5) reachable = false;
       }
-      const regionOf = (element) => element.matches('.nd-prompt-input') ? 'prompt'
-        : element.closest('#noctua-drawer') ? 'drawer'
-          : element.closest('#noctua-sidebar') ? 'sidebar' : 'elsewhere';
+      const placeOf = (element) => regionOf(element) || 'elsewhere';
       const active = document.activeElement;
-      const keyboard = !active || active === document.body || active === document.documentElement ? '-' : regionOf(active);
+      const keyboard = !active || active === document.body || active === document.documentElement ? '-' : placeOf(active);
       const holds = (part) => part !== null && Array.from(part.querySelectorAll('*')).some(rendered);
       const shows = [['footer', document.querySelector('footer')], ['drawer', document.getElementById('noctua-drawer')],
         ['sidebar', document.getElementById('noctua-sidebar')], ['workspace', document.getElementById('noctua-workspace')]]
@@ -375,7 +449,7 @@ pub const SCRIPT: &str = r"(() => {
             const deeper = Array.from(element.querySelectorAll('[' + name + ']'))
               .some((inner) => inner.getAttribute(name).split(' ').includes(id));
             if (deeper) continue;
-            seen.push(id + ':' + state + ':' + (targetOf(element) || regionOf(element)));
+            seen.push(id + ':' + state + ':' + (targetOf(element) || placeOf(element)));
             if (NATIVE[state] === null || element.matches(NATIVE[state])) continue;
             const value = element.getAttribute(name);
             const still = [element, element.nextElementSibling, element.parentElement].filter(Boolean);
@@ -391,7 +465,7 @@ pub const SCRIPT: &str = r"(() => {
           }
         }
       }
-      say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(reachable), bit(styled), keyboard,
+      say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(lines), bit(reachable), bit(styled), keyboard,
         shows.length ? shows.join(',') : '-', ...seen].join(' '));
     },
   };
@@ -441,15 +515,19 @@ pub fn document(locale: nc_catalog::Locale, theme: Theme, footer: &View) -> Stri
     )
 }
 
-/// The document's markup: its head, linking `sheets` of the design system
-/// and then the interface's sheet, and the interface's root, filling the
-/// window in one column — a row holding the sidebar at its start and the
-/// workspace area, which holds nothing yet, then the footer and the drawer
-/// below it — then the page's script and the module that enhances the
-/// prompt. **The row and the workspace area take what the footer and the
+/// The document's markup: its head, saying its policy and linking `sheets`
+/// of the design system and then the interface's sheet, and the interface's
+/// root, filling the window in one column — a row holding the sidebar at its
+/// start and the workspace area, which holds nothing yet, then the footer and
+/// the drawer below it — then the page's script and the module that enhances
+/// the prompt. **The row and the workspace area take what the footer and the
 /// drawer leave**, and the row hides what overflows it, so a sidebar's list
 /// scrolls inside the sidebar rather than pushing the footer out of the
-/// window.
+/// window. **The body is the window, edge to edge**: its auto margins are
+/// used as none, since a block whose width is auto takes none (CSS 2,
+/// §10.3.3 and §10.6.3) — the one way the utilities alone take back the
+/// engine's own margin on the body, Tailwind's preflight not being imported
+/// and its spacing scale emitting nothing here.
 #[component]
 fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
     let linked = sheets
@@ -458,12 +536,13 @@ fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
     rsx! {
         head {
             meta { charset: "utf-8" }
+            meta { "http-equiv": "Content-Security-Policy", content: POLICY }
             for href in linked {
                 link { rel: "stylesheet", href }
             }
             link { rel: "stylesheet", href: crate::assets::SHEET }
         }
-        body { class: "h-screen overflow-hidden",
+        body { class: "m-auto h-screen overflow-hidden",
             main { id: "noctua", class: "flex h-full w-full flex-col",
                 div { class: "flex flex-1 overflow-hidden",
                     TheSidebar { view: crate::sidebar::View::hidden() }
@@ -472,8 +551,8 @@ fn Document(sheets: Vec<&'static str>, footer: View) -> Element {
                 TheFooter { view: footer }
                 TheDrawer { view: crate::drawer::View::hidden() }
             }
-            script { dangerous_inner_html: SCRIPT }
-            script { r#type: "module", dangerous_inner_html: ENHANCES }
+            script { src: crate::assets::SCRIPT }
+            script { r#type: "module", src: crate::assets::ENHANCES }
         }
     }
 }
@@ -484,7 +563,7 @@ pub(crate) mod tests {
     use nc_channel::Channel;
     use noctua_design::model::{Mode, Palette};
 
-    use super::{ACTION, DRAFT, ENHANCES, LOADED, SCALE, SCRIPT, document};
+    use super::{ACTION, DRAFT, ENHANCES, LOADED, POLICY, SCALE, SCRIPT, document};
     use crate::assets::{Answered, answer};
     use crate::footer::{Context, View, markup, view};
     use crate::theme::Theme;
@@ -536,21 +615,30 @@ pub(crate) mod tests {
                     "{written}"
                 );
                 assert_eq!(written.matches("<html").count(), 1, "{written}");
-                let script = written.find(SCRIPT).expect("the script is in it");
-                let module = written.find(ENHANCES).expect("the module is in it");
+                let script = written
+                    .find("<script src=\"noctua.js\"></script>")
+                    .expect("the script is in it");
+                let module = written
+                    .find("<script type=\"module\" src=\"enhances.js\"></script>")
+                    .expect("the module is in it");
                 let main = written.find("<main").expect("the root is in it");
                 assert!(
                     main < script && script < module,
                     "the scripts follow the root: {written}"
+                );
+                assert_eq!(
+                    written.matches("<script").count(),
+                    2,
+                    "no script is written inline: {written}"
                 );
                 assert!(written.ends_with("</body></html>"), "{written}");
             }
         }
     }
 
-    /// The head links the theme's sheets in their order, then the
-    /// interface's, and links nothing else: no other stylesheet, no script
-    /// and no sheet written inline.
+    /// The head says its policy first and links the theme's sheets in their
+    /// order, then the interface's, and links nothing else: no other
+    /// stylesheet, no script and no sheet written inline.
     #[test]
     fn the_head_links_the_themes_sheets_then_the_interfaces() {
         for theme in themes() {
@@ -559,6 +647,15 @@ pub(crate) mod tests {
                 .split_once("</head>")
                 .map(|(head, _)| head)
                 .expect("a head");
+            // The page reads `&#39;` as the quote it stands for.
+            assert!(
+                head.contains(&format!(
+                    "<head><meta charset=\"utf-8\"/><meta http-equiv=\"Content-Security-Policy\" \
+                     content=\"{}\"/><link ",
+                    POLICY.replace('\'', "&#39;")
+                )),
+                "the policy is said before anything is linked: {head}"
+            );
             let mut expected: Vec<String> = theme
                 .sheets()
                 .iter()
@@ -578,14 +675,14 @@ pub(crate) mod tests {
     }
 
     /// Every address the document writes — an attribute's, and a module's
-    /// it imports — is a path the custom protocol answers, relative to the
-    /// document: none names a scheme or a host, and none is a path the
-    /// protocol does not hold.
+    /// the module it loads imports — is a path the custom protocol answers,
+    /// relative to the document: none names a scheme or a host, and none is a
+    /// path the protocol does not hold.
     #[test]
     fn every_address_is_one_the_protocol_answers() {
         for theme in themes() {
             let written = document(Locale::En, theme, &footer(Locale::En));
-            let imported: Vec<&str> = written
+            let imported: Vec<&str> = ENHANCES
                 .split(" from \"")
                 .skip(1)
                 .filter_map(|rest| rest.split_once('"').map(|(address, _)| address))
@@ -612,6 +709,12 @@ pub(crate) mod tests {
                 )
                 .collect();
             assert!(addresses.len() > imported.len(), "{written}");
+            for address in [crate::assets::SCRIPT, crate::assets::ENHANCES] {
+                assert!(
+                    addresses.contains(&address),
+                    "{address} is not loaded: {written}"
+                );
+            }
             for address in addresses {
                 assert!(
                     !address.contains(':') && !address.starts_with('/'),
@@ -634,6 +737,39 @@ pub(crate) mod tests {
         }
     }
 
+    /// The policy lets the page load a script, a sheet and a font from its
+    /// own origin alone, an image from it or written inline, and nothing
+    /// anywhere else; it connects, frames, submits and takes a base nowhere,
+    /// and refuses every other kind of load by its default — so no inline
+    /// script runs, no `eval`, and no address off the protocol is reached.
+    #[test]
+    fn the_policy_refuses_every_load_off_the_protocol() {
+        let directives: Vec<(&str, Vec<&str>)> = POLICY
+            .split(';')
+            .map(|directive| {
+                let mut words = directive.split_whitespace();
+                (words.next().unwrap_or(""), words.collect())
+            })
+            .collect();
+        assert_eq!(
+            directives,
+            [
+                ("default-src", vec!["'none'"]),
+                ("script-src", vec!["'self'"]),
+                ("style-src", vec!["'self'"]),
+                ("img-src", vec!["'self'", "data:"]),
+                ("font-src", vec!["'self'"]),
+                ("connect-src", vec!["'none'"]),
+                ("frame-src", vec!["'none'"]),
+                ("base-uri", vec!["'none'"]),
+                ("form-action", vec!["'none'"]),
+            ]
+        );
+        for loose in ["unsafe", "*", "http", "blob:", "filesystem:"] {
+            assert!(!POLICY.contains(loose), "the policy admits {loose}");
+        }
+    }
+
     /// The first run shows the footer alone: the body holds a row of the
     /// sidebar's region, empty, and the workspace area, empty, then the
     /// footer — the first run's, as [`crate::footer::markup`] writes it —
@@ -644,7 +780,7 @@ pub(crate) mod tests {
             let first = footer(*locale);
             let written = document(*locale, themes()[0], &first);
             let body = written
-                .split_once("<body class=\"h-screen overflow-hidden\">")
+                .split_once("<body class=\"m-auto h-screen overflow-hidden\">")
                 .and_then(|(_, body)| body.split_once("<script"))
                 .map(|(body, _)| body)
                 .expect("a body");
@@ -683,9 +819,29 @@ pub(crate) mod tests {
             "say('choose ' + event.detail.name + ' ' + event.detail.value);".to_owned(),
             "say('active ' + event.detail.name + ' ' + event.detail.value);".to_owned(),
             "say(active === null ? 'send' : 'send ' + active);".to_owned(),
-            "say('focus prompt');".to_owned(),
-            "say('focus drawer');".to_owned(),
-            "say('focus sidebar');".to_owned(),
+            "if (region) say('focus ' + region);".to_owned(),
+            "if (!active || active === document.body) say('focus workspace');".to_owned(),
+            "if (drawing) return;".to_owned(),
+            "const regionOf = (element) => element.closest('#noctua-drawer') ? 'drawer'\n    \
+             : element.closest('#noctua-sidebar') ? 'sidebar'\n      \
+             : element.closest('footer .nd-footer-line[data-nd-kind=prompt]') ? 'prompt'\n        \
+             : element.closest('footer .nd-footer-line[data-nd-kind=info]') ? 'info'\n          \
+             : element.closest('footer .nd-footer-line[data-nd-kind=modeline]') ? 'modeline'\n            \
+             : element.closest('#noctua-workspace') ? 'workspace' : null;"
+                .to_owned(),
+            "if (where === 'workspace') {\n        \
+             if (active && active !== document.body && !active.closest('#noctua-workspace')) \
+             active.blur();"
+                .to_owned(),
+            "const flags = (event) => [event.ctrlKey, event.altKey, event.shiftKey, \
+             event.metaKey || superDown];"
+                .to_owned(),
+            "const SUPER = ['MetaLeft', 'MetaRight', 'OSLeft', 'OSRight'];".to_owned(),
+            "if (SUPER.includes(event.code)) superDown = true;\n    downs = flags(event);".to_owned(),
+            "if (SUPER.includes(event.code)) superDown = false;\n    downs = flags(event);".to_owned(),
+            "if (!document.getElementById(holder.getAttribute('aria-activedescendant'))) \
+             holder.removeAttribute('aria-activedescendant');"
+                .to_owned(),
             "say('choose pages ' + tab.getAttribute('data-nd-value'));".to_owned(),
             "window.addEventListener('keydown', (event) => {".to_owned(),
             "  }, true);\n  window.addEventListener('keyup'".to_owned(),
@@ -694,8 +850,14 @@ pub(crate) mod tests {
             "document.documentElement.addEventListener('pointerleave', () => hover(null));"
                 .to_owned(),
             "if (target === hovered) return;".to_owned(),
-            "say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(reachable), \
-             bit(styled), keyboard,"
+            "say(['seen', window.innerWidth, window.innerHeight, bit(fits), bit(lines), \
+             bit(reachable), bit(styled), keyboard,"
+                .to_owned(),
+            "if ((box.top < -0.5 || box.bottom > height + 0.5) && !clipped(element, false)) \
+             fits = false;"
+                .to_owned(),
+            "const lines = Array.from(root.querySelectorAll('footer .nd-footer-line'))\
+             .filter(rendered).every(whole);"
                 .to_owned(),
         ] {
             assert!(SCRIPT.contains(&said), "{said} is not in {SCRIPT}");

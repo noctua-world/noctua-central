@@ -55,10 +55,16 @@
 //! judged this user's alone, and sends nothing to what has not proven it holds
 //! it. A state of another shape drawn as one it is not: the mirror reads every
 //! field strictly, and keeps the state it held over one it cannot read. The
-//! webview loading what this build did not write, or a file of the machine's:
-//! everything it loads is answered from bytes compiled in, by a closed list
-//! of paths no request can step out of, it navigates nowhere else, and its
-//! message channel is read for a closed set of messages. A page asking the
+//! webview loading what this build did not write, a file of the machine's,
+//! or an address off it: everything its custom protocol answers is bytes
+//! compiled in, by a closed list of paths no request can step out of; the
+//! document's content security policy lets it load a script, a sheet, an
+//! image or a font from that protocol alone and connect, frame or submit
+//! nowhere ([`page::POLICY`]), so no script in the page can fetch an address
+//! or send what it holds off the machine; it navigates nowhere else, opens no
+//! window and starts no download; it keeps nothing of its own under the
+//! person's directories (`nc_platform::webview::Kept`); and its message
+//! channel is read for a closed set of messages. A page asking the
 //! window to run what it pleases: a control's word is run only when it is
 //! one of the footer's closed set of commands, none of which takes an
 //! argument, or one of the drawer's rail, whose arguments the window takes

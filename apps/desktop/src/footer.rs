@@ -32,6 +32,16 @@
 //! written back over a later keystroke, and a draft set from elsewhere — the
 //! CLI's `prompt.set`, a draft kept over a restart — is.
 //!
+//! **The footer's lines stay in every window** (§12.19): the footer gives up
+//! what the window has no room for — it hides what overflows it, so its least
+//! is nothing and the work above it gives way first — and of its three lines
+//! the info line alone gives way, down to its one line, its rows scrolling
+//! inside it past what it shows, so an info line expanded in the smallest
+//! window leaves the modeline and the prompt line where they are. Each is a
+//! layout utility on a design system's root or on an element of this
+//! module's own, the utilities weighing over the design system's rules
+//! (`xtask/src/tailwind.rs`).
+//!
 //! **Decided here, where `NOCTUA.md` is silent**: the message said on the
 //! info line takes the line while it is there, and a hover shows again once
 //! it is cleared; of a seat's two hands the one that moved last is shown, or
@@ -352,7 +362,7 @@ pub fn TheFooter(view: View) -> Element {
         controls,
     } = view;
     rsx! {
-        Footer { label: NAME, visibility: FooterVisibility::Always, shown,
+        Footer { class: "overflow-hidden", label: NAME, visibility: FooterVisibility::Always, shown,
             FooterCorner { side: FooterCornerSide::Start }
             FooterLine { kind: FooterLineKind::Modeline,
                 Button {
@@ -415,13 +425,14 @@ fn InfoLine(info: Info) -> Element {
     rsx! {
         FooterLine {
             kind: FooterLineKind::Info,
+            class: "shrink",
             expandable: true,
             expanded,
             expand_label: expand,
             collapse_label: collapse,
             action: action.command(),
             live: true,
-            div { class: "flex-1 overflow-hidden",
+            div { class: "max-h-full flex-1 overflow-x-hidden overflow-y-auto",
                 div {
                     Icon { icon: IconDrawing::INFO, size: IconSize::Small }
                     if let Some(row) = first {
@@ -692,17 +703,26 @@ impl Drawing {
         self.brought()
     }
 
-    /// The state shows the drawer `markup`: the scripts that bring the page
-    /// to it.
-    pub fn drawer(&mut self, markup: String) -> Vec<String> {
-        self.drawer_wanted = markup;
-        self.brought()
-    }
-
-    /// The state shows the sidebar `markup`: the scripts that bring the page
-    /// to it.
-    pub fn sidebar(&mut self, markup: String) -> Vec<String> {
-        self.sidebar_wanted = markup;
+    /// The state shows the drawer `drawer`, the sidebar `sidebar` and, where
+    /// the window holds a state, the footer and the prompt's draft `footer`:
+    /// the scripts that bring the page to all three at once — **the footer's
+    /// first**, so a list the drawer draws finds the prompt that names it in
+    /// `aria-controls` already naming it, and the design system's script
+    /// points the prompt at the list's active option as it enhances the list.
+    pub fn parts(
+        &mut self,
+        footer: Option<(String, &str)>,
+        drawer: String,
+        sidebar: String,
+    ) -> Vec<String> {
+        if let Some((markup, draft)) = footer {
+            self.wanted = markup;
+            if let Some(written) = self.typed.stated(draft) {
+                self.waiting = Some(written);
+            }
+        }
+        self.drawer_wanted = drawer;
+        self.sidebar_wanted = sidebar;
         self.brought()
     }
 
@@ -828,10 +848,14 @@ mod tests {
 
     /// The line of `kind` in `written`.
     fn line<'a>(written: &'a str, kind: &str) -> &'a str {
-        element(
-            written,
-            &format!("<div class=\"nd-footer-line\" data-nd-kind=\"{kind}\""),
-        )
+        let kind = format!("\" data-nd-kind=\"{kind}\"");
+        let at = written
+            .find(&kind)
+            .unwrap_or_else(|| panic!("no line {kind} in {written}"));
+        let start = written[..at]
+            .rfind("<div class=\"nd-footer-line")
+            .unwrap_or_else(|| panic!("the line {kind} is no footer line: {written}"));
+        element(&written[start..], "<div class=\"nd-footer-line")
     }
 
     /// The value of every `name="…"` in `written`, in order.
@@ -1133,10 +1157,45 @@ mod tests {
                 .map(|(_, content)| content)
                 .expect("a live content");
             assert!(
-                content.starts_with("<div class=\"flex-1 overflow-hidden\"><div><svg"),
+                content.starts_with(
+                    "<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\"><div><svg"
+                ),
                 "{content}"
             );
         }
+    }
+
+    /// The info line takes what the window leaves the footer and scrolls
+    /// what it cannot show, so the footer's lines stay inside the smallest
+    /// window however much the line holds expanded (§12.19): the footer gives
+    /// up what it does not fit — it hides what overflows it, so its least is
+    /// nothing — the info line alone of the three gives way, and its rows are
+    /// as tall as the line at most, scrolling past it.
+    #[test]
+    fn the_info_line_gives_way_and_scrolls_inside_the_footer() {
+        let mut expanded = first_run();
+        expanded.expanded = true;
+        expanded.message = Some("Saved.".to_owned());
+        let written = markup(&view(Some(&expanded), production(Locale::En)));
+        assert!(
+            written.starts_with("<footer class=\"nd-footer overflow-hidden\""),
+            "{written}"
+        );
+        assert!(
+            line(&written, "info").starts_with("<div class=\"nd-footer-line shrink\""),
+            "{written}"
+        );
+        for kind in ["modeline", "prompt"] {
+            assert!(
+                line(&written, kind).starts_with("<div class=\"nd-footer-line\""),
+                "the {kind} keeps its height: {written}"
+            );
+        }
+        assert!(
+            line(&written, "info")
+                .contains("<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\">"),
+            "{written}"
+        );
     }
 
     /// What the info line shows: the message said on it — over any hover
@@ -2476,11 +2535,43 @@ mod tests {
         drawing.shows(drawn(&everything(), production(Locale::En)), "");
         assert_ne!(drawing.digest(), held);
         let footer = drawing.digest();
-        drawing.drawer("<div id=\"noctua-drawer\">x</div>".to_owned());
+        let hidden = crate::sidebar::markup(&crate::sidebar::View::hidden());
+        drawing.parts(None, "<div id=\"noctua-drawer\">x</div>".to_owned(), hidden);
         assert_ne!(drawing.digest(), footer);
         let drawer = drawing.digest();
-        drawing.sidebar("<div id=\"noctua-sidebar\">x</div>".to_owned());
+        drawing.parts(
+            None,
+            "<div id=\"noctua-drawer\">x</div>".to_owned(),
+            "<div id=\"noctua-sidebar\">x</div>".to_owned(),
+        );
         assert_ne!(drawing.digest(), drawer);
+    }
+
+    /// The three parts are brought together and the footer first, so the
+    /// prompt names the list the drawer draws before the list is enhanced;
+    /// a part that did not change is not sent.
+    #[test]
+    fn the_footer_is_brought_before_the_drawer_it_names_a_list_of() {
+        let first = markup(&view(None, production(Locale::En)));
+        let mut drawing = Drawing::new(first.clone());
+        drawing.loaded();
+        let footer = drawn(&everything(), production(Locale::En));
+        let drawer = "<div id=\"noctua-drawer\">x</div>".to_owned();
+        let sidebar = "<div id=\"noctua-sidebar\">x</div>".to_owned();
+        assert_eq!(
+            drawing.parts(Some((footer.clone(), "")), drawer.clone(), sidebar.clone()),
+            [draw(&footer), draw(&drawer), draw(&sidebar)]
+        );
+        assert_eq!(
+            drawing.parts(Some((first.clone(), "")), drawer.clone(), sidebar.clone()),
+            [draw(&first)],
+            "only what changed"
+        );
+        assert_eq!(
+            drawing.parts(None, drawer, sidebar),
+            Vec::<String>::new(),
+            "no state, no footer"
+        );
     }
 
     /// The view of no state: the footer shown, nothing said and nothing

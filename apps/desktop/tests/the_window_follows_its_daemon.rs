@@ -21,12 +21,21 @@
 //! state, the page's scale, the registry or its place moved, one line of what
 //! the system says of the window — shown, decorated, where its corner is —
 //! and of what its page says it shows: its size in CSS pixels, whether
-//! everything drawn stands inside it sideways, whether every control is at
+//! everything drawn stands inside it either way, whether every line of the
+//! footer stands whole inside it, whether every control is at
 //! least `--noctua-target-min` each way, whether each seat's attribute
 //! changes how its element is drawn, where the system's own keyboard is,
 //! which parts draw anything, every seat's state by the element it is on, and
 //! a digest of the markup the page holds (`nc_desktop::host::witnessed_line`).
 //! A real install never prints it.
+//!
+//! **The window is handed a home of its own** (`Home`): `HOME` and every
+//! XDG base directory under the install's scratch root, so the suite holds
+//! that the window writes nothing in a person's own directories — its
+//! webview keeps nothing of its own, and the folder a system's webview keeps
+//! even so is the install's (`nc_platform::webview::Kept`) — and never
+//! touches the person's real ones. The GL driver's shader cache, which is the
+//! driver's and no webview's, is turned off for it.
 //!
 //! **Nothing here is not applicable on any system**: each step is the
 //! window's own, through `tao` and the system's webview, on the display a
@@ -82,6 +91,79 @@ impl Witnessed {
     }
 }
 
+/// The home a window is handed, under the install's scratch root: `HOME` and
+/// each XDG base directory, made empty before the window starts.
+struct Home {
+    /// Where it is.
+    root: std::path::PathBuf,
+}
+
+impl Home {
+    /// The variables a window is handed, each a directory of this home.
+    const VARIABLES: [&'static str; 5] = [
+        "HOME",
+        "XDG_DATA_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_STATE_HOME",
+    ];
+
+    /// A home under `scratch`, each of its directories made.
+    fn under(scratch: &Path) -> Self {
+        let root = scratch.join("home");
+        nc_platform::create_private_directory(&root).expect("a home");
+        let home = Self { root };
+        for variable in Self::VARIABLES.into_iter().skip(1) {
+            nc_platform::create_private_directory(&home.directory(variable))
+                .expect("a base directory");
+        }
+        home
+    }
+
+    /// The directory `variable` names.
+    fn directory(&self, variable: &str) -> std::path::PathBuf {
+        if variable == "HOME" {
+            self.root.clone()
+        } else {
+            self.root.join(variable.to_ascii_lowercase())
+        }
+    }
+
+    /// `command`, handed this home, and the GL driver's shader cache off.
+    fn handed_to<'a>(&self, command: &'a mut Command) -> &'a mut Command {
+        for variable in Self::VARIABLES {
+            command.env(variable, self.directory(variable));
+        }
+        command.env("MESA_SHADER_CACHE_DISABLE", "true")
+    }
+
+    /// Everything written in this home since it was made: every path in it
+    /// but its base directories, empty.
+    fn written(&self) -> Vec<std::path::PathBuf> {
+        let made: Vec<std::path::PathBuf> = Self::VARIABLES
+            .into_iter()
+            .map(|variable| self.directory(variable))
+            .collect();
+        let mut found = Vec::new();
+        let mut left = vec![self.root.clone()];
+        while let Some(directory) = left.pop() {
+            for entry in std::fs::read_dir(&directory)
+                .expect("the home is read")
+                .map_while(Result::ok)
+            {
+                let path = entry.path();
+                if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                    left.push(path.clone());
+                }
+                if !made.contains(&path) {
+                    found.push(path);
+                }
+            }
+        }
+        found
+    }
+}
+
 /// The desktop's binary running for the install, what it prints read line
 /// by line on a thread of its own; killed and waited for however the suite
 /// leaves.
@@ -102,8 +184,9 @@ impl Drop for Desktop {
 }
 
 impl Desktop {
-    /// `binary` started on `display`, its standard error piped.
-    fn start(binary: &Path, display: &nc_platform::testing::Display) -> Self {
+    /// `binary` started on `display`, handed `home`, its standard error
+    /// piped.
+    fn start(binary: &Path, display: &nc_platform::testing::Display, home: &Home) -> Self {
         nc_platform::process::keep_standard_handles_from_children()
             .expect("this process's standard handles are kept from its children");
         #[expect(
@@ -112,8 +195,7 @@ impl Desktop {
                       it writes reaches the gate's output"
         )]
         let mut command = Command::new(binary);
-        display
-            .handed_to(&mut command)
+        home.handed_to(display.handed_to(&mut command))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
@@ -227,7 +309,8 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
             .unwrap_or_else(|refusal| panic!("{command} was refused: {refusal:?}"))
     };
     let display = nc_platform::testing::Display::for_a_window().expect("a display");
-    let mut window = Desktop::start(&desktop, &display);
+    let home = Home::under(installed.root());
+    let mut window = Desktop::start(&desktop, &display, &home);
 
     // **The first run**: hidden and undecorated — what its page draws is
     // read once it is shown, since a webview a hidden window holds may not be
@@ -246,10 +329,11 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
             shown.get("decorated"),
             shown.get("shows"),
             shown.get("fits"),
+            shown.get("lines"),
             shown.get("reachable"),
             shown.seats(),
         ),
-        ("0", "footer", "1", "1", Vec::<&str>::new()),
+        ("0", "footer", "1", "1", "1", Vec::<&str>::new()),
         "{shown:?}"
     );
 
@@ -270,6 +354,23 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
         (opened.get("shows"), opened.get("keyboard")),
         ("footer", "prompt"),
         "{opened:?}"
+    );
+
+    // **The keyboard given up to the workspace area**, where a click on
+    // nothing in it gives it: the window gives its keyboard up to nothing,
+    // and a tap then puts it back on the prompt line rather than open the
+    // leader menu (§12.8, the first rule).
+    run(
+        "shell.focus",
+        Value::object([("region", Value::text("workspace"))]),
+    );
+    window.until("its keyboard on nothing", |seen| {
+        seen.get("keyboard") == "-" && seen.get("shows") == "footer"
+    });
+    run("leader.tap", none());
+    window.until(
+        "its keyboard back on the prompt, and no leader menu",
+        |seen| seen.get("keyboard") == "prompt" && seen.get("shows") == "footer",
     );
 
     // **The leader menu**, in the drawer, the keyboard on it.
@@ -331,12 +432,57 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     assert_eq!(
         (
             small.get("fits"),
+            small.get("lines"),
             small.get("reachable"),
             small.get("styled")
         ),
-        ("1", "1", "1"),
+        ("1", "1", "1", "1"),
         "{small:?}"
     );
+
+    // **The info line expanded in the smallest window**, over the drawer
+    // holding the leader menu: a message and every seat's row, more than the
+    // window holds, and the footer's lines still inside it, the info line
+    // scrolling what it cannot show. Expanded, its chevron runs
+    // `info.collapse`, so the second seat's pointer is over nothing.
+    run(
+        "info.say",
+        Value::object([(
+            "text",
+            Value::text(
+                "A message long enough to wrap onto several rows of the info line in the \
+                 smallest window the interface is ever drawn in, so that expanded, the line \
+                 holds more than the window has room for",
+            ),
+        )]),
+    );
+    run(
+        "shell.hover",
+        Value::object([
+            ("seat", Value::Integer(1)),
+            ("by", Value::text("pointer")),
+            ("target", Value::text("sidebar.cycle")),
+        ]),
+    );
+    run("info.expand", none());
+    let expanded = window.until("its info line expanded at the least size", |seen| {
+        seen.get("page") == least && seen.seats() == ["2:focus:prompt"]
+    });
+    assert_eq!(
+        (
+            expanded.get("fits"),
+            expanded.get("lines"),
+            expanded.get("reachable"),
+            expanded.get("keyboard"),
+        ),
+        ("1", "1", "1", "drawer"),
+        "the footer's lines stay inside the smallest window: {expanded:?}"
+    );
+    run("info.collapse", none());
+    run("info.clear", none());
+    window.until("its info line one line again", |seen| {
+        seen.get("page") == least && seen.seats() == ["2:hover:info.expand", "2:focus:prompt"]
+    });
 
     // **Moved by command**: its corner where the state puts it.
     run(
@@ -360,11 +506,13 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
         (
             kept.get("shown"),
             kept.get("fits"),
+            kept.get("lines"),
             kept.get("reachable"),
             kept.get("styled"),
             kept.seats(),
         ),
         (
+            "1",
             "1",
             "1",
             "1",
@@ -385,7 +533,7 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     );
 
     // **Started again**: it draws exactly what it drew, from the daemon.
-    let mut window = Desktop::start(&desktop, &display);
+    let mut window = Desktop::start(&desktop, &display, &home);
     window.until("exactly what it drew before it was killed", |seen| {
         *seen == kept
     });
@@ -396,4 +544,12 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     assert_eq!(hidden.get("decorated"), "0", "{hidden:?}");
     drop(window);
     drop(display);
+
+    // **Nothing written in the home it was handed**: its webview keeps
+    // nothing of its own.
+    assert_eq!(
+        home.written(),
+        Vec::<std::path::PathBuf>::new(),
+        "the window wrote in the home it was handed"
+    );
 }

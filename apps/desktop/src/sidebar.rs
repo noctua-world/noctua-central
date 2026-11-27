@@ -24,8 +24,11 @@
 //! the order they were opened, the one in front marked as the list's answer;
 //! a page is named and drawn as a tab of the drawer names and draws it
 //! ([`crate::drawer::page_title`]); the drawer's pages are its tabs rail's
-//! and not the sidebar's; the sidebar is named by `sidebar.show`'s display
-//! name until the interface's own texts exist in both locales; and the
+//! and not the sidebar's; the sidebar is named by the word the catalog files
+//! every command of its own under, its first tag in the window's locale
+//! (`crate::drawer::part_named`) — `sidebar`, `barra lateral` — and its list
+//! by `sidebar.show`'s display name, the command that opens it, until the
+//! interface's own texts exist in both locales; and the
 //! keyboard walking the list is said as the seat's selection on the page's
 //! number, which the info line shows as it was said until pages declare their
 //! titles.
@@ -40,7 +43,7 @@ use nc_canon::Value;
 use nc_catalog::Locale;
 use noctua_design::{Drawer, DrawerSide, IconDrawing, OptionGroup, OptionItem, OptionList};
 
-use crate::drawer::{List, focused, glyph_of, identifier, page_title};
+use crate::drawer::{List, focused, glyph_of, identifier, page_title, part_named};
 use crate::footer::title_of;
 use crate::mirror::{Place, Shell};
 
@@ -70,8 +73,10 @@ pub struct View {
     pub drawn: bool,
     /// Whether it is shown.
     pub shown: bool,
-    /// Its name, and its list's.
+    /// Its name.
     pub label: String,
+    /// Its list's name.
+    pub list: String,
     /// The workspaces, each its number and its pages.
     pub workspaces: Vec<(u32, Vec<Entry>)>,
 }
@@ -84,6 +89,7 @@ impl View {
             drawn: false,
             shown: false,
             label: String::new(),
+            list: String::new(),
             workspaces: Vec::new(),
         }
     }
@@ -120,7 +126,8 @@ pub fn view(
     View {
         drawn: true,
         shown: shell.sidebar,
-        label: title_of(List::Sidebar.named_by(), locale),
+        label: part_named(List::Sidebar.named_by(), locale),
+        list: title_of(List::Sidebar.named_by(), locale),
         workspaces: vec![(1, entries)],
     }
 }
@@ -164,13 +171,14 @@ pub fn TheSidebar(view: View) -> Element {
         drawn,
         shown,
         label,
+        list,
         workspaces,
     } = view;
     rsx! {
         div { id: ID, class: "contents",
             if drawn {
-                Drawer { name: ID, label: label.clone(), side: DrawerSide::Start, collapsed: !shown,
-                    OptionList { name: List::Sidebar.name(), label,
+                Drawer { name: ID, label, side: DrawerSide::Start, collapsed: !shown,
+                    OptionList { name: List::Sidebar.name(), label: list,
                         for (number, entries) in workspaces {
                             OptionGroup { label: number.to_string(),
                                 for entry in entries {
@@ -266,7 +274,12 @@ pub(crate) mod tests {
             let shell = with_pages(true);
             let shown = view(Some(&shell), Some(1), Some("4"), *locale);
             assert!(shown.drawn && shown.shown);
-            assert_eq!(shown.label, title_of("sidebar.show", *locale));
+            assert_eq!(shown.list, title_of("sidebar.show", *locale));
+            assert_eq!(
+                shown.label,
+                nc_catalog::tags("command.sidebar.show.tags", *locale).expect("tags")[0],
+                "the sidebar is named by the word its commands are filed under"
+            );
             let [(number, entries)] = shown.workspaces.as_slice() else {
                 panic!("one workspace: {shown:?}");
             };

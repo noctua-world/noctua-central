@@ -42,9 +42,15 @@
 //! **Decided here, where `NOCTUA.md` is silent**: a page in a tab is named by
 //! the display name of the command that opens its kind, and its topic after
 //! it, with a glyph for its kind, until pages declare their titles; the
-//! controls rail and the drawer are named by the product's name, a tabs rail
-//! by `page.focus`'s display name, a list by the display name of the command
-//! that opens it, until the interface's own texts exist in both locales.
+//! drawer is named by the word the catalog files every command of its own
+//! under, its first tag in the window's locale ([`part_named`]) — `drawer`,
+//! `gaveta` — the controls rail by what the drawer shows, the list's name or
+//! the page in focus's, a tabs rail by `page.focus`'s display name, a list by
+//! the display name of the command that opens it, until the interface's own
+//! texts exist in both locales; and **the content is a tab panel of each tab**
+//! while the tabs rail is there — the design system's `TabPanel`, the page in
+//! focus's holding what the drawer shows and every other's nothing — so every
+//! tab names a panel the page holds.
 //!
 //! **Not drawn yet**, and why: what a page other than a list shows in the
 //! drawer, which arrives with the pages; the sentence an empty list says,
@@ -59,8 +65,8 @@ use nc_canon::Value;
 use nc_catalog::Locale;
 use noctua_design::{
     Button, ButtonSize, ButtonTone, ButtonVariant, Drawer, DrawerRail, DrawerRailSide, DrawerSide,
-    IconDrawing, OptionItem, OptionList, OptionListLayout, Tab, Tabs, TabsAppearance, Toolbar,
-    ToolbarDensity, ToolbarGroup,
+    IconDrawing, OptionItem, OptionList, OptionListLayout, Tab, TabPanel, Tabs, TabsAppearance,
+    Toolbar, ToolbarDensity, ToolbarGroup,
 };
 
 use crate::commands::{Commands, offered};
@@ -74,6 +80,22 @@ pub const ID: &str = "noctua-drawer";
 /// The name of the tabs rail's strip, which its tabs repeat and the page says
 /// a tab chosen by.
 pub const TABS: &str = "pages";
+
+/// A command of the drawer's own, whose first tag is the word the drawer is
+/// named by ([`part_named`]).
+const ID_COMMAND: &str = "drawer.expand";
+
+/// The name a part of the window is given for a screen reader, of `command`,
+/// one of that part's own: the first of its tags in `locale` — the word the
+/// catalog files every command of the part under, `drawer` and `gaveta`,
+/// `sidebar` and `barra lateral` — and its display name where it has none.
+#[must_use]
+pub fn part_named(command: &str, locale: Locale) -> String {
+    nc_catalog::command(command)
+        .and_then(|entry| nc_catalog::tags(entry.tags_key, locale))
+        .and_then(|tags| tags.first())
+        .map_or_else(|| title_of(command, locale), |tag| (*tag).to_owned())
+}
 
 /// The window's own actions, which the `w` list holds (§12.2, §12.9).
 pub const ACTIONS: [&str; 4] = [
@@ -329,6 +351,9 @@ pub struct Toward {
 /// The controls rail.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rail {
+    /// Its name: what the drawer shows, the list's name or the page in
+    /// focus's.
+    pub label: String,
     /// `drawer.collapse`'s display name, collapse's.
     pub collapse: String,
     /// `page.close`'s display name, close's.
@@ -359,6 +384,8 @@ pub struct View {
     pub shown: bool,
     /// Whether it is collapsed.
     pub collapsed: bool,
+    /// Its name ([`part_named`]).
+    pub label: String,
     /// The list it shows, its name, and its rows.
     pub list: Option<(List, String, Vec<Row>)>,
     /// The controls rail, whenever the drawer is there.
@@ -375,6 +402,7 @@ impl View {
         Self {
             shown: false,
             collapsed: false,
+            label: String::new(),
             list: None,
             rail: None,
             tabs: None,
@@ -528,7 +556,18 @@ pub fn view(
         row.active = true;
     }
     let shown = !shell.drawer.pages.is_empty() || shell.asking.is_some();
+    let named = list.map(|list| title_of(list.named_by(), locale));
     let rail = shown.then(|| Rail {
+        label: named.clone().unwrap_or_else(|| {
+            shell
+                .drawer
+                .focused
+                .and_then(|id| shell.pages.get(&id))
+                .map_or_else(
+                    || part_named(ID_COMMAND, locale),
+                    |page| page_title(page, locale),
+                )
+        }),
         collapse: title_of(Control::Collapse.word(), locale),
         close: title_of(Control::Close.word(), locale),
         toward: (list == Some(List::Menu)).then(|| Toward {
@@ -551,7 +590,8 @@ pub fn view(
     View {
         shown,
         collapsed: shell.drawer.collapsed && shell.asking.is_none(),
-        list: list.map(|list| (list, title_of(list.named_by(), locale), rows)),
+        label: part_named(ID_COMMAND, locale),
+        list: list.zip(named).map(|(list, named)| (list, named, rows)),
         rail,
         tabs: (tabs.len() > 1).then(|| (title_of(List::Tabs.named_by(), locale), tabs)),
     }
@@ -576,32 +616,31 @@ pub fn TheDrawer(view: View) -> Element {
     let View {
         shown,
         collapsed,
+        label,
         list,
         rail,
         tabs,
     } = view;
+    let panels: Vec<(String, bool)> = tabs
+        .iter()
+        .flat_map(|(_, tabs)| tabs)
+        .map(|tab| (tab.page.to_string(), tab.selected))
+        .collect();
     rsx! {
         div { id: ID, class: "contents",
             if shown {
-                Drawer { name: ID, label: crate::footer::NAME, side: DrawerSide::Bottom, collapsed,
+                Drawer { name: ID, label, side: DrawerSide::Bottom, collapsed,
                     if let Some(rail) = rail {
                         ControlsRail { rail }
                     }
                     div {
-                        if let Some((list, label, rows)) = list {
-                            OptionList {
-                                name: list.name(),
-                                label,
-                                layout: if list == List::Menu { OptionListLayout::Columns } else { OptionListLayout::Rows },
-                                focusable: list != List::Commands,
-                                for row in rows {
-                                    OptionItem {
-                                        value: row.value,
-                                        label: row.label,
-                                        hits: row.hits,
-                                        detail: row.detail,
-                                        shortcut: row.shortcut,
-                                        active: row.active,
+                        if panels.is_empty() {
+                            Shown { list }
+                        } else {
+                            for (value, selected) in panels {
+                                TabPanel { name: TABS, value,
+                                    if selected {
+                                        Shown { list: list.clone() }
                                     }
                                 }
                             }
@@ -628,18 +667,44 @@ pub fn TheDrawer(view: View) -> Element {
     }
 }
 
+/// What the drawer shows: the list, where it shows one.
+#[component]
+fn Shown(list: Option<(List, String, Vec<Row>)>) -> Element {
+    rsx! {
+        if let Some((list, label, rows)) = list {
+            OptionList {
+                name: list.name(),
+                label,
+                layout: if list == List::Menu { OptionListLayout::Columns } else { OptionListLayout::Rows },
+                focusable: list != List::Commands,
+                for row in rows {
+                    OptionItem {
+                        value: row.value,
+                        label: row.label,
+                        hits: row.hits,
+                        detail: row.detail,
+                        shortcut: row.shortcut,
+                        active: row.active,
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The controls rail, down the drawer's left side: collapse and close, two to
 /// a row, then the controls of the page in focus.
 #[component]
 fn ControlsRail(rail: Rail) -> Element {
     let Rail {
+        label,
         collapse,
         close,
         toward,
     } = rail;
     rsx! {
         DrawerRail { side: DrawerRailSide::Start,
-            Toolbar { label: crate::footer::NAME, density: ToolbarDensity::Rail,
+            Toolbar { label, density: ToolbarDensity::Rail,
                 ToolbarGroup {
                     Button {
                         variant: ButtonVariant::Transparent,
@@ -1390,6 +1455,115 @@ pub(crate) mod tests {
                         "data-nd-value=\"{in_focus}\" data-nd-selected=\"true\""
                     )),
                     "{written}"
+                );
+            }
+        }
+    }
+
+    /// Every tab names a panel the drawer holds: with the tabs rail there,
+    /// the content is the design system's tab panel of each tab, by the
+    /// strip's name and the tab's page, the page in focus's holding what the
+    /// drawer shows and every other's nothing — so no tab's `aria-controls`
+    /// or address names an element the page does not hold. With one page
+    /// there is no rail and no panel.
+    #[test]
+    pub(crate) fn every_tab_names_a_panel_the_drawer_holds() {
+        let ids = |written: &str, name: &str| -> Vec<String> {
+            written
+                .split(&format!(" {name}=\""))
+                .skip(1)
+                .filter_map(|rest| rest.split_once('"').map(|(value, _)| value.to_owned()))
+                .collect()
+        };
+        let mut shell = holding(&[
+            (Kind::Settings, None),
+            (Kind::Help, None),
+            (Kind::Leader, None),
+        ]);
+        for in_focus in [5_u64, 3] {
+            shell.drawer.focused = Some(in_focus);
+            let written = markup(&of(&shell, Locale::En));
+            let held = ids(&written, "id");
+            let named = ids(&written, "aria-controls");
+            assert_eq!(named.len(), 3, "{written}");
+            for panel in &named {
+                assert!(
+                    held.contains(panel),
+                    "{panel} is not in the drawer: {written}"
+                );
+                assert!(
+                    written.contains(&format!("href=\"#{panel}\"")),
+                    "the tab's address is its panel: {written}"
+                );
+            }
+            let panels: Vec<&str> = written.split("class=\"nd-tab-panel\"").skip(1).collect();
+            assert_eq!(panels.len(), 3, "{written}");
+            for (panel, page) in panels.iter().zip([3_u64, 4, 5]) {
+                assert!(
+                    panel.starts_with(&format!(" id=\"nd-tabs-{TABS}-{page}-panel\"")),
+                    "{panel}"
+                );
+                let body = panel.split("class=\"nd-drawer-rail\"").next().unwrap_or("");
+                assert_eq!(
+                    body.contains("data-nd-option-list"),
+                    page == in_focus && in_focus == 5,
+                    "only the page in focus's panel holds what the drawer shows: {written}"
+                );
+            }
+        }
+        let single = markup(&of(&holding(&[(Kind::Leader, None)]), Locale::En));
+        assert!(
+            !single.contains("nd-tab-panel") && !single.contains("aria-controls"),
+            "{single}"
+        );
+    }
+
+    /// The drawer and its controls rail are named apart from each other and
+    /// from the footer: the drawer by the word the catalog files every
+    /// command of its own under — the first tag of each, the same word in
+    /// each locale — and the rail by what the drawer shows, the list's name
+    /// or the page in focus's.
+    #[test]
+    pub(crate) fn the_drawer_and_its_rail_are_named_apart_from_the_footer() {
+        for locale in Locale::ALL {
+            let noun = super::part_named("drawer.expand", *locale);
+            for command in nc_catalog::COMMANDS
+                .iter()
+                .filter(|command| command.name.starts_with("drawer."))
+            {
+                assert_eq!(
+                    nc_catalog::tags(command.tags_key, *locale)
+                        .and_then(|tags| tags.first())
+                        .copied(),
+                    Some(noun.as_str()),
+                    "{} is filed under the drawer's word",
+                    command.name
+                );
+            }
+            for (kind, rail) in [
+                (Kind::Leader, title_of(List::Menu.named_by(), *locale)),
+                (Kind::Settings, title_of("page.settings", *locale)),
+            ] {
+                let shown = of(&holding(&[(kind, None)]), *locale);
+                assert_eq!(shown.label, noun);
+                assert_eq!(
+                    shown.rail.as_ref().map(|rail| rail.label.clone()),
+                    Some(rail.clone())
+                );
+                let written = markup(&shown);
+                let labels = {
+                    let mut labels: Vec<&str> = written
+                        .split(" aria-label=\"")
+                        .skip(1)
+                        .filter_map(|rest| rest.split_once('"').map(|(label, _)| label))
+                        .collect();
+                    labels.truncate(2);
+                    labels
+                };
+                assert_eq!(labels, [noun.as_str(), rail.as_str()], "{written}");
+                assert!(
+                    !labels.contains(&crate::footer::NAME),
+                    "the footer's name is the footer's: {written}"
                 );
             }
         }

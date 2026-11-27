@@ -1351,6 +1351,7 @@ pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
     every_key_is_written_out(root, &mut findings);
     nothing_runs_what_github_reads(root, &mut findings);
     every_install_names_its_version(root, &mut findings);
+    every_package_names_its_version(root, &mut findings);
     let judged = every_action_is_a_commit(root, &mut findings);
     (findings, judged)
 }
@@ -1841,6 +1842,150 @@ fn every_install_names_its_version(root: &Path, findings: &mut Vec<Finding>) {
             }
         }
     }
+}
+
+/// Every `npm install` a file CI reaches runs installs one package globally
+/// at an exact version, `npm install -g name@X.Y.Z`, and nothing else on it
+/// ([`one_package_global_at_an_exact_version`]); and each package is installed
+/// at one version in every file and every job of them — pnpm, which installs
+/// and runs Tailwind inside the gate, in each of `ci.yml`'s three jobs and in
+/// `release.yml`'s.
+///
+/// **A package named with no version is whatever the registry holds on the
+/// day**, and its code runs in the job that installs it, inside the gate: a
+/// release of it published between two runs changes what CI runs with no line
+/// here changing, as an unpinned `cargo install` would
+/// ([`every_install_names_its_version`]). And a version moved in one job and
+/// not another is two gates where `§19.4` names one.
+///
+/// **Read as the other walks read a line** — each line joined to the lines a
+/// backslash continues, a comment and a step's `name:` passed over — and every
+/// word that is `npm`, or a path ending in it, is an invocation wherever it
+/// stands, so `sudo npm …` and `bash -c "npm …"` are read as the bare one.
+fn every_package_names_its_version(root: &Path, findings: &mut Vec<Finding>) {
+    // A walk that stopped is said by `every_action_is_a_commit`, which walks
+    // the same files.
+    let Ok((files, _)) = everything_ci_reaches(root) else {
+        return;
+    };
+    let mut installed: std::collections::BTreeMap<String, Vec<(String, usize, String)>> =
+        std::collections::BTreeMap::new();
+    for path in files {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative_to(root, &path);
+        let yaml = the_lines_github_reads_as_yaml(&relative, &text);
+        for (index, line) in joined_continuations(&text, &yaml) {
+            if line.starts_with('#') || (yaml.binary_search(&index).is_ok() && is_label(&line)) {
+                continue;
+            }
+            for words in npm_installs(&line) {
+                let borrowed: Vec<&str> = words.iter().map(String::as_str).collect();
+                if let Some((name, version)) = one_package_global_at_an_exact_version(&borrowed) {
+                    installed.entry(name.to_owned()).or_default().push((
+                        relative.clone(),
+                        index + 1,
+                        version.to_owned(),
+                    ));
+                    continue;
+                }
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: index + 1,
+                    what: format!(
+                        "`npm install {}` is not one package installed globally at an exact \
+                         version",
+                        words.join(" ")
+                    ),
+                    fix: "what npm installs runs in the job that installs it — pnpm installs and \
+                          runs Tailwind inside the gate — so each word of it is named: a package \
+                          with no version, or with a range, is whatever the registry holds on \
+                          the day, and a second package is one no version names. Install one \
+                          package a line, as `npm install -g name@X.Y.Z`, and move the version \
+                          in every place it is written at once"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+    for (name, places) in installed {
+        let versions: std::collections::BTreeSet<&str> = places
+            .iter()
+            .map(|(_, _, version)| version.as_str())
+            .collect();
+        if versions.len() < 2 {
+            continue;
+        }
+        for (file, line, version) in &places {
+            findings.push(Finding {
+                file: file.clone(),
+                line: *line,
+                what: format!(
+                    "`{name}` is installed at {version} here and at {versions:?} across the files \
+                     CI reaches"
+                ),
+                fix: "a package the gate runs is one tool at one version, so every job that runs \
+                      the gate — each of `ci.yml`'s and `release.yml`'s — installs it at the same \
+                      one: move the version in every place it is written at once"
+                    .to_owned(),
+            });
+        }
+    }
+}
+
+/// The words after the verb of each `npm install` `line` runs — `install`,
+/// `i` or `add` — up to the end of its command.
+fn npm_installs(line: &str) -> Vec<Vec<String>> {
+    let line = the_command_without_its_comment(line);
+    let line = with_the_separators_spaced(&line);
+    let words: Vec<&str> = line.split_whitespace().collect();
+    let mut found = Vec::new();
+    for (at, word) in words.iter().enumerate() {
+        let bare = word.trim_matches(['"', '\'', '(', ')', '`']);
+        if bare.rsplit('/').next() != Some("npm") {
+            continue;
+        }
+        let command: Vec<&str> = words
+            .get(at + 1..)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+            .take_while(|word| !separates_commands(word))
+            .collect();
+        if let Some((verb, rest)) = command.split_first()
+            && matches!(verb.trim_matches(['"', '\'']), "install" | "i" | "add")
+        {
+            found.push(rest.iter().map(|word| (*word).to_owned()).collect());
+        }
+    }
+    found
+}
+
+/// The package and the version the words of an `npm install` name, where
+/// they are `-g` and one package at an exact version, `name@X.Y.Z`, in either
+/// order, and nothing else; nothing otherwise.
+fn one_package_global_at_an_exact_version<'a>(words: &[&'a str]) -> Option<(&'a str, &'a str)> {
+    let (global, named): (Vec<&str>, Vec<&str>) = words
+        .iter()
+        .copied()
+        .partition(|word| matches!(*word, "-g" | "--global"));
+    let [named] = named.as_slice() else {
+        return None;
+    };
+    let (name, version) = named.trim_matches(['"', '\'']).rsplit_once('@')?;
+    (global.len() == 1 && !name.is_empty() && !name.starts_with('-') && is_x_y_z(version))
+        .then_some((name, version))
+}
+
+/// Whether `version` is three whole numbers joined by dots, `X.Y.Z`, and
+/// nothing else — never a range, a tag or a prerelease.
+fn is_x_y_z(version: &str) -> bool {
+    let parts: Vec<&str> = version.split('.').collect();
+    parts.len() == 3
+        && parts.iter().all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
 }
 
 /// Whether the words an install is handed are `--locked` and one crate at an
@@ -12204,6 +12349,114 @@ mod tests {
         for (about, to) in [
             ("quoted", format!("cargo install --locked \"{exact}\"")),
             ("locked-last", format!("cargo install {exact} --locked")),
+            (
+                "another-command-after-it",
+                format!("{pinned} && cargo xtask check"),
+            ),
+        ] {
+            let findings = bounded_after(about, WORKFLOW, |text| once(text, pinned, &to));
+            assert!(findings.is_empty(), "{about}: {findings:#?}");
+        }
+    }
+
+    /// Every `npm install` a file CI reaches installs one package globally at
+    /// an exact version, and each package at one version in every job of both
+    /// workflows; the install as shipped passes, and so does one written with
+    /// `--global` or a wrapper.
+    #[test]
+    fn every_package_is_installed_at_one_exact_version() {
+        let pinned = super::THE_RELEASE_STEPS
+            .iter()
+            .flat_map(|(_, steps)| steps.iter())
+            .find_map(|step| {
+                step.first()?
+                    .strip_prefix("run: ")
+                    .filter(|run| run.starts_with("npm install "))
+            })
+            .expect("the release's gate installs pnpm");
+        let exact = pinned
+            .rsplit(' ')
+            .next()
+            .expect("the install names its package last");
+        let name = exact.split('@').next().expect("a package's name");
+        let macos = format!(
+            "display the desktop's window opens in.\n      - name: pnpm\n        run: {pinned}"
+        );
+        let unpinned = |to: &str| {
+            format!("`npm install {to}` is not one package installed globally at an exact version")
+        };
+        for (about, file, from, to, said) in [
+            (
+                "no-version",
+                WORKFLOW,
+                pinned.to_owned(),
+                format!("npm install -g {name}"),
+                unpinned(&format!("-g {name}")),
+            ),
+            (
+                "no-version-on-macos",
+                WORKFLOW,
+                macos.clone(),
+                macos.replace(pinned, &format!("npm install -g {name}")),
+                unpinned(&format!("-g {name}")),
+            ),
+            (
+                "a-range",
+                WORKFLOW,
+                pinned.to_owned(),
+                format!("npm install -g {name}@^11.9.0"),
+                unpinned(&format!("-g {name}@^11.9.0")),
+            ),
+            (
+                "two-numbers",
+                super::RELEASE_WORKFLOW,
+                pinned.to_owned(),
+                format!("npm install -g {name}@11.9"),
+                unpinned(&format!("-g {name}@11.9")),
+            ),
+            (
+                "not-global",
+                WORKFLOW,
+                pinned.to_owned(),
+                format!("npm install {exact}"),
+                unpinned(exact),
+            ),
+            (
+                "a-second-package",
+                WORKFLOW,
+                pinned.to_owned(),
+                format!("{pinned} yarn"),
+                unpinned(&format!("-g {exact} yarn")),
+            ),
+            (
+                "by-a-wrapper",
+                WORKFLOW,
+                pinned.to_owned(),
+                format!("sudo npm i -g {name}"),
+                unpinned(&format!("-g {name}")),
+            ),
+            (
+                "another-version-in-another-job",
+                WORKFLOW,
+                macos.clone(),
+                macos.replace(exact, &format!("{name}@11.9.1")),
+                format!(
+                    "`{name}` is installed at 11.9.1 here and at {{\"11.9.0\", \"11.9.1\"}} across the files CI reaches"
+                ),
+            ),
+        ] {
+            let findings = bounded_after(about, file, |text| once(text, &from, &to));
+            assert!(
+                findings.iter().any(|finding| finding.what == said),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+        for (about, to) in [
+            (
+                "global-spelled-out",
+                format!("npm install --global {exact}"),
+            ),
+            ("global-last", format!("npm install {exact} -g")),
             (
                 "another-command-after-it",
                 format!("{pinned} && cargo xtask check"),

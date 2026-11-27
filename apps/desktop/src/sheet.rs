@@ -4,4 +4,4 @@
 //! `noctua-design-dist`, built by `xtask/src/tailwind.rs`, which says how.
 
 /// The interface's layout utilities, one minified sheet.
-pub const SHEET: &str = "/*! tailwindcss v4.3.5 | MIT License | https://tailwindcss.com */\n@layer theme,base,components;@layer utilities{.contents{display:contents}.flex{display:flex}.h-full{height:100%}.h-screen{height:100vh}.w-full{width:100%}.flex-1{flex:1}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}}";
+pub const SHEET: &str = "/*! tailwindcss v4.3.5 | MIT License | https://tailwindcss.com */\n.m-auto{margin:auto}.contents{display:contents}.flex{display:flex}.h-full{height:100%}.h-screen{height:100vh}.max-h-full{max-height:100%}.w-full{width:100%}.flex-1{flex:1}.shrink{flex-shrink:1}.flex-col{flex-direction:column}.flex-row{flex-direction:row}.flex-wrap{flex-wrap:wrap}.truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.overflow-hidden{overflow:hidden}.overflow-x-hidden{overflow-x:hidden}.overflow-y-auto{overflow-y:auto}";

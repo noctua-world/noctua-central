@@ -9,6 +9,8 @@
 //! |---|---|
 //! | `/` | the document ([`crate::page`]), built before the webview exists |
 //! | `/sheet.css` | the interface's sheet of layout utilities ([`crate::sheet`]) |
+//! | `/noctua.js` | the document's own script ([`crate::page::SCRIPT`]) |
+//! | `/enhances.js` | the module that hands the page to the design system's scripts ([`crate::page::ENHANCES`]) |
 //! | `/dist/<file>` | each file the design system ships, by the name `noctua-design-dist` gives it — its stylesheets, its behaviour modules, its palettes |
 //! | `/dioxus/interpreter.js` | Dioxus's interpreter, the module that applies a virtual DOM's edits |
 //!
@@ -25,8 +27,12 @@
 //! since nothing here opens a file — every answer is a constant compiled in,
 //! or the document this process built — so `..`, an escaped `%2e`, a doubled
 //! `/` or a drive letter is a path no row holds, answered 404 like any other.
-//! What the webview may load from anywhere else, and where it may navigate, is
-//! [`crate::host`]'s, which refuses every address outside this protocol's.
+//! **What the page may load from anywhere else is nothing**: the document's
+//! policy ([`crate::page::POLICY`]) lets it load a script, a sheet, an image
+//! or a font from this protocol alone and connect, frame or submit nowhere, so
+//! a script running in it can fetch no address and send nothing off the
+//! machine; and where it may navigate is [`crate::host`]'s, which refuses every
+//! address outside this protocol's, a new window and a download.
 
 use std::borrow::Cow;
 
@@ -42,6 +48,12 @@ pub const SHEET: &str = "sheet.css";
 
 /// Where Dioxus's interpreter is, under the root.
 pub const INTERPRETER: &str = "dioxus/interpreter.js";
+
+/// Where the document's own script is, under the root.
+pub const SCRIPT: &str = "noctua.js";
+
+/// Where the module that enhances the page is, under the root.
+pub const ENHANCES: &str = "enhances.js";
 
 /// The address of the root the protocol serves, as this system's webview
 /// loads it, ending in `/`.
@@ -114,6 +126,12 @@ fn embedded(path: &str) -> Option<(&'static str, &'static str)> {
             "text/javascript; charset=utf-8",
         ));
     }
+    if under == SCRIPT {
+        return Some((crate::page::SCRIPT, "text/javascript; charset=utf-8"));
+    }
+    if under == ENHANCES {
+        return Some((crate::page::ENHANCES, "text/javascript; charset=utf-8"));
+    }
     let name = under.strip_prefix(DIST)?;
     let (_, contents) = noctua_design_dist::FILES
         .iter()
@@ -168,7 +186,7 @@ pub fn response(answered: Answered) -> wry::http::Response<Cow<'static, [u8]>> {
 mod tests {
     use std::borrow::Cow;
 
-    use super::{Answered, DIST, INTERPRETER, SHEET, answer, response, type_of};
+    use super::{Answered, DIST, ENHANCES, INTERPRETER, SCRIPT, SHEET, answer, response, type_of};
 
     const DOCUMENT: &str = "<!doctype html><html></html>";
 
@@ -181,8 +199,9 @@ mod tests {
         }
     }
 
-    /// The root is the document, the sheet is the interface's, and the
-    /// interpreter is Dioxus's, each as the type it is.
+    /// The root is the document, the sheet is the interface's, the
+    /// interpreter is Dioxus's, and the two scripts are the document's own,
+    /// each as the type it is.
     #[test]
     fn the_root_the_sheet_and_the_interpreter_are_served() {
         assert_eq!(
@@ -203,6 +222,16 @@ mod tests {
                 dioxus_interpreter_js::INTERPRETER_JS.as_bytes().to_vec()
             )
         );
+        for (path, script) in [
+            (SCRIPT, crate::page::SCRIPT),
+            (ENHANCES, crate::page::ENHANCES),
+        ] {
+            assert_eq!(
+                found(&format!("/{path}")),
+                ("text/javascript; charset=utf-8", script.as_bytes().to_vec()),
+                "{path}"
+            );
+        }
     }
 
     /// Every file the design system ships is served under its own name,

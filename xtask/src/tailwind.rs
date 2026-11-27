@@ -11,36 +11,51 @@
 //! names its command line at an exact version and
 //! `xtask/tailwind/pnpm-lock.yaml` every package that brings, each with its
 //! integrity hash. Both are copied into `target/tailwind/`, where
-//! `pnpm install --frozen-lockfile --ignore-scripts` installs them — no
-//! package's install script runs, nothing the lockfile does not name is
-//! fetched, and `node_modules` never sits in a tree the gates walk.
+//! `pnpm install --frozen-lockfile --ignore-scripts` installs them
+//! ([`install_arguments`]) — no package's install script runs, nothing the
+//! lockfile does not name is fetched, and `node_modules` never sits in a tree
+//! the gates walk.
 //!
 //! **What it is handed is closed** ([`entry`]): Tailwind's utilities alone —
 //! no preflight, none of its theme, so its default palette and spacing emit
-//! nothing — the design system's bridge ([`BRIDGE`], of `noctua-design-dist`
+//! nothing — **in no cascade layer**, since the design system's sheets are in
+//! none either and a utility in a layer could never compose one of its roots:
+//! linked after them, a utility weighs as Tailwind's own order weighs its
+//! utilities above components, so `shrink` on a design system's line gives it
+//! a shrink its own rule withholds — the design system's bridge ([`BRIDGE`], of `noctua-design-dist`
 //! at the release the lockfile holds), which maps every `--color-*` utility
 //! onto a `--nc-color-*` token and declares no colour (`NOCTUA.md §8.5`), and the classes the markup writes, read here and
 //! passed as `@source inline(…)` under `source(none)`: Tailwind never scans
 //! the tree, where a Rust keyword such as `static` would become a rule.
 //!
 //! **Every class is held before Tailwind sees it** ([`judged`]), as lower-case
-//! words of letters and digits joined by `-`, with variants before a `:` and
-//! a fraction of two whole numbers at its end, and nothing else — so an
-//! arbitrary value (`w-[13px]`), a colour written out (`bg-[#f00]`), a
-//! custom property (`p-(--x)`), an opacity modifier — a colour, a `/` and a share — or an
-//! important flag never reaches the sheet; **and the sheet is held after**
-//! ([`what_it_lacks`]): every class has a rule — a class Tailwind does not
-//! know emits nothing, which would otherwise pass in silence — and no rule's
-//! selector holds an escaped bracket or parenthesis. **A class is written as
-//! a literal right after `class:`** ([`written`]), so a class this reader
-//! cannot see is a refusal, never a class the sheet lacks unseen.
+//! words of letters and digits joined by `-`, with variants before a `:` and,
+//! after a utility that takes one ([`FRACTIONAL`]), a fraction of two whole
+//! numbers at its end, and nothing else — so an arbitrary value (`w-[13px]`),
+//! a colour written out (`bg-[#f00]`), a custom property (`p-(--x)`), an
+//! opacity modifier — a colour, a `/` and a share, a palette step's colour
+//! whose name ends in a number among them — or an important flag never
+//! reaches the sheet; **and the sheet is held
+//! after** ([`what_it_lacks`]): every class has a rule — a class Tailwind does
+//! not know emits nothing, which would otherwise pass in silence — no rule's
+//! selector holds an escaped bracket or parenthesis, and no rule mixes a
+//! colour (`color-mix(`), which only a modifier asks of it and the design
+//! system's bridge declares none of. **A class is written as a literal right
+//! after `class:`** ([`written`]), so a class this reader cannot see is a
+//! refusal, never a class the sheet lacks unseen.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
-//! A colour or a size written past the design system's tokens (`§8.8`), and a
-//! package's install script running in the gate. **What it does not answer:**
-//! what the packages the lockfile names do when they run, which their
-//! integrity hashes hold to what was locked and nothing more.
+//! An arbitrary value — a colour or a size written out — a custom property, a
+//! colour mixed by an opacity modifier past the design system's tokens
+//! (`§8.8`) and an important flag, each in the markup or in the sheet; and a
+//! package's install script running in the gate, or a package the lockfile
+//! does not name fetched. **What it does not answer:** what the packages the
+//! lockfile names do when they run, which their integrity hashes hold to what
+//! was locked and nothing more; and a size a utility takes as a bare value,
+//! which Tailwind writes as a length of its own without its spacing scale —
+//! `border-8` as eight pixels, `w-px`, `h-screen`, `scale-150` — no token
+//! being asked for it.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -96,9 +111,36 @@ pub(crate) fn written(text: &str) -> Result<Vec<(usize, String)>, usize> {
     Ok(found)
 }
 
+/// The utilities a fraction may follow: each a size or a place Tailwind
+/// writes as that share of its box — a width of one half as half the width of
+/// the box around it — and none a colour, whose `/` is an opacity modifier.
+pub(crate) const FRACTIONAL: [&str; 20] = [
+    "w",
+    "h",
+    "size",
+    "min-w",
+    "max-w",
+    "min-h",
+    "max-h",
+    "basis",
+    "inset",
+    "inset-x",
+    "inset-y",
+    "top",
+    "right",
+    "bottom",
+    "left",
+    "start",
+    "end",
+    "translate-x",
+    "translate-y",
+    "aspect",
+];
+
 /// Whether `class` is a class the sheet may hold: lower-case words of letters
 /// and digits joined by `-`, variants before a `:`, and a fraction of two
-/// whole numbers at its end; the sentence saying what it is not, otherwise.
+/// whole numbers at its end after a utility of [`FRACTIONAL`]; the sentence
+/// saying what it is not, otherwise.
 pub(crate) fn judged(class: &str) -> Result<(), String> {
     let refused = |why: &str| Err(format!("`{class}` {why}"));
     let utility = class.rsplit(':').next().unwrap_or(class);
@@ -118,16 +160,15 @@ pub(crate) fn judged(class: &str) -> Result<(), String> {
     if !is_words(whole) {
         return refused(
             "is not lower-case words of letters and digits joined by `-`: an arbitrary value, \
-             a colour written out, a custom property and an important flag are refused, and a \
-             size or a colour is a token's",
+             a colour written out, a custom property and an important flag are refused",
         );
     }
     if let Some(fraction) = fraction {
-        let numerator = whole.rsplit('-').next().unwrap_or("");
-        if !is_number(numerator) || !is_number(fraction) {
+        let (root, numerator) = whole.rsplit_once('-').unwrap_or(("", whole));
+        if !is_number(numerator) || !is_number(fraction) || !FRACTIONAL.contains(&root) {
             return refused(
-                "has a `/` that is not a fraction of two whole numbers: an opacity modifier \
-                 mixes a colour the design system did not",
+                "has a `/` that is not a fraction of two whole numbers after a size or a place: \
+                 an opacity modifier mixes a colour the design system did not",
             );
         }
     }
@@ -194,20 +235,19 @@ pub(crate) fn classes(root: &Path) -> Result<BTreeSet<String>, Vec<String>> {
     }
 }
 
-/// The entry Tailwind reads, for `classes`: its utilities alone, the bridge
-/// beside it, and the classes, inline.
+/// The entry Tailwind reads, for `classes`: its utilities alone, in no
+/// cascade layer, the bridge beside it, and the classes, inline.
 pub(crate) fn entry(classes: &BTreeSet<String>) -> String {
     let inline = classes.iter().cloned().collect::<Vec<_>>().join(" ");
     format!(
-        "@layer theme, base, components, utilities;\n\
-         @import \"tailwindcss/utilities.css\" layer(utilities) source(none);\n\
+        "@import \"tailwindcss/utilities.css\" source(none);\n\
          @import \"./bridge.css\";\n\
          @source inline(\"{inline}\");\n"
     )
 }
 
-/// What `css` lacks for `classes`: each class with no rule, and each rule
-/// whose selector holds an escaped bracket or parenthesis.
+/// What `css` lacks for `classes`: each class with no rule, each rule whose
+/// selector holds an escaped bracket or parenthesis, and a colour mixed.
 pub(crate) fn what_it_lacks(css: &str, classes: &BTreeSet<String>) -> Vec<String> {
     let mut lacks = Vec::new();
     for class in classes {
@@ -233,6 +273,13 @@ pub(crate) fn what_it_lacks(css: &str, classes: &BTreeSet<String>) -> Vec<String
                 "the sheet holds a selector with `{escaped}`, which is an arbitrary value's"
             ));
         }
+    }
+    if css.contains("color-mix(") {
+        lacks.push(
+            "the sheet mixes a colour (`color-mix(`), which only an opacity modifier asks of it: \
+             a colour the design system did not define"
+                .to_owned(),
+        );
     }
     lacks
 }
@@ -305,6 +352,18 @@ fn written_if_changed(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .map_err(|error| format!("{} could not be written: {error}", path.display()))
 }
 
+/// What pnpm installs Tailwind with: the lockfile, frozen — a package it does
+/// not name is refused, never resolved — no package's install script run,
+/// and nothing fetched where `offline`.
+// allow-logging: `install_arguments` hands back pnpm's flags, each a literal written here, never text a caller gave
+pub(crate) fn install_arguments(offline: bool) -> Vec<&'static str> {
+    let frozen = ["install", "--frozen-lockfile", "--ignore-scripts"];
+    frozen
+        .into_iter()
+        .chain(offline.then_some("--offline"))
+        .collect()
+}
+
 /// The generated file for the markup under `root`, built in memory: Tailwind
 /// installed under `target/` and run there, `offline` asking pnpm to fetch
 /// nothing.
@@ -336,17 +395,7 @@ pub(crate) fn built(root: &Path, offline: bool) -> Result<(String, usize), Strin
         })?;
     written_if_changed(&out.join("bridge.css"), bridge.as_bytes())?;
     written_if_changed(&out.join("entry.css"), entry(&classes).as_bytes())?;
-    let install: &[&str] = if offline {
-        &[
-            "install",
-            "--frozen-lockfile",
-            "--ignore-scripts",
-            "--offline",
-        ]
-    } else {
-        &["install", "--frozen-lockfile", "--ignore-scripts"]
-    };
-    pnpm(&out, install)?;
+    pnpm(&out, &install_arguments(offline))?;
     let _ = std::fs::remove_file(out.join("sheet.css"));
     pnpm(
         &out,
@@ -424,7 +473,7 @@ pub(crate) fn check(root: &Path, offline: bool, failures: &mut Vec<String>) {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{as_rust, entry, judged, what_it_lacks, written};
+    use super::{as_rust, entry, install_arguments, judged, what_it_lacks, written};
 
     /// A class written as a literal after `class:` is read, each word one
     /// class, with its line; one written any other way is refused at its
@@ -464,6 +513,9 @@ mod tests {
             "dark:md:hidden",
             "w-1/2",
             "basis-11/12",
+            "max-h-1/3",
+            "translate-x-1/2",
+            "aspect-16/9",
             "bg-surface",
         ] {
             assert_eq!(judged(admitted), Ok(()), "{admitted}");
@@ -474,6 +526,10 @@ mod tests {
             "[mask-type:luminance]",
             "p-(--gap)",
             "bg-accent/50",
+            "bg-chart-1/50",
+            "text-chart-wide-3/25",
+            "border-gray-18/5",
+            "1/2",
             "w-1/x",
             "w-/2",
             "!flex",
@@ -500,11 +556,13 @@ mod tests {
         let classes: BTreeSet<String> =
             ["h-full", "flex"].iter().map(|c| (*c).to_owned()).collect();
         let written = entry(&classes);
-        assert!(
-            written
-                .contains("@import \"tailwindcss/utilities.css\" layer(utilities) source(none);")
-        );
+        assert!(written.contains("@import \"tailwindcss/utilities.css\" source(none);"));
         assert!(written.contains("@import \"./bridge.css\";"));
+        assert!(
+            !written.contains("layer"),
+            "the utilities are in no cascade layer, as the design system's sheets are not: \
+             {written}"
+        );
         assert!(written.contains("@source inline(\"flex h-full\");"));
         assert!(!written.contains("preflight") && !written.contains("theme.css"));
         assert!(
@@ -536,6 +594,34 @@ mod tests {
         let arbitrary =
             ".flex{display:flex}.w-\\[13px\\]{width:13px}.p-\\(--x\\){padding:var(--x)}";
         assert_eq!(what_it_lacks(arbitrary, &flex).len(), 2);
+        let mixed = ".flex{display:flex}@supports (color:color-mix(in lab, red, red)){.flex{color:\
+                     color-mix(in oklab, var(--nc-chart-1) 50%, transparent)}}";
+        assert_eq!(
+            what_it_lacks(mixed, &flex),
+            [
+                "the sheet mixes a colour (`color-mix(`), which only an opacity modifier asks of \
+                 it: a colour the design system did not define"
+            ]
+        );
+    }
+
+    /// Tailwind is installed from the lockfile alone, frozen, and runs no
+    /// package's install script, online or not; and fetches nothing offline.
+    #[test]
+    fn tailwind_is_installed_frozen_with_no_install_script() {
+        assert_eq!(
+            install_arguments(false),
+            ["install", "--frozen-lockfile", "--ignore-scripts"]
+        );
+        assert_eq!(
+            install_arguments(true),
+            [
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts",
+                "--offline"
+            ]
+        );
     }
 
     /// The generated file is the sheet as one string literal under its

@@ -96,6 +96,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         socket,
         daemon_err,
         desktop_err,
+        webview,
         cli,
         daemon,
         desktop,
@@ -140,6 +141,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("socket".to_owned(), socket),
         ("daemon_err".to_owned(), daemon_err),
         ("desktop_err".to_owned(), desktop_err),
+        ("webview".to_owned(), webview),
     ];
     if let Some(record) = checkout_record {
         paths.push(("checkout_record".to_owned(), record));
@@ -363,6 +365,7 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ("socket", state.join("run").join("s")),
         ("daemon_err", state.join("log").join("daemon.err")),
         ("desktop_err", state.join("log").join("desktop.err")),
+        ("webview", root.join("cache").join(leaf).join("webview")),
         ("checkout_record", state.join("bin").join("checkout.json")),
     ];
     assert_eq!(
@@ -454,7 +457,7 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
         };
         let (paths, _) = parts(&layout(&install, "1000"));
         let recorded = usize::from(matches!(channel, Channel::Development(_)));
-        assert_eq!(paths.len(), 22 + recorded);
+        assert_eq!(paths.len(), 23 + recorded);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),

@@ -3937,7 +3937,7 @@ fn the_excused_lines_are_counted(
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 74),
-    ("allow-logging:", 90),
+    ("allow-logging:", 92),
     ("allow-nondeterminism:", 24),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
@@ -3962,11 +3962,12 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 81] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 83] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     ("apps/daemon/src/testing.rs", "allow-logging:", 1),
     ("apps/desktop/src/assets.rs", "allow-logging:", 3),
+    ("apps/desktop/src/main.rs", "allow-logging:", 1),
     ("apps/desktop/src/theme.rs", "allow-logging:", 2),
     (
         "crates/nc-catalog-compiler/src/ledger.rs",
@@ -4096,6 +4097,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 81] = [
     ("xtask/src/references.rs", "nc:bounded:", 1),
     ("xtask/src/sections.rs", "allow-logging:", 1),
     ("xtask/src/sections.rs", "allow-reference:", 3),
+    ("xtask/src/tailwind.rs", "allow-logging:", 1),
     ("xtask/src/wall.rs", "allow-logging:", 39),
     ("xtask/src/wall.rs", "nc:narrows:", 1),
     ("xtask/src/workflow.rs", "allow-logging:", 3),
@@ -4126,11 +4128,12 @@ const EXCUSED_WHERE: [(&str, &str, usize); 81] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 54] = [
+const EXCUSED_IN: [(&str, usize); 56] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("apps/daemon/src/testing.rs", 1),
     ("apps/desktop/src/assets.rs", 3),
+    ("apps/desktop/src/main.rs", 1),
     ("apps/desktop/src/theme.rs", 2),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
     ("crates/nc-catalog-compiler/src/lib.rs", 8),
@@ -4180,6 +4183,7 @@ const EXCUSED_IN: [(&str, usize); 54] = [
     ("xtask/src/policy.rs", 1),
     ("xtask/src/references.rs", 26),
     ("xtask/src/sections.rs", 4),
+    ("xtask/src/tailwind.rs", 1),
     ("xtask/src/wall.rs", 40),
     ("xtask/src/workflow.rs", 16),
     ("xtask/tests/every_generated_value_is_compared.rs", 1),
@@ -8139,7 +8143,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1099] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1106] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8189,6 +8193,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1099] = [
     "the desktop's sheet could not be built",
     "the desktop's sheet is out of sync",
     "the sheet holds a selector with `{escaped}`, which is an arbitrary value's",
+    "the sheet mixes a colour (`color-mix(`), which only an opacity modifier asks of it: a colour the design system did not define",
     "{SHEET} could not be written: {error}",
     "{SHEET} is not what Tailwind builds for the classes the markup writes: run `cargo xtask build --sheet`, and commit what it writes",
     "{package} could not be read: {error}",
@@ -8225,6 +8230,8 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1099] = [
     "turns the release's gate off",
     "reads a variable",
     "`{}` is not one crate installed locked at an exact version",
+    "`npm install {}` is not one package installed globally at an exact version",
+    "`{name}` is installed at {version} here and at {versions:?} across the files CI reaches",
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -8573,6 +8580,13 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1099] = [
     "deny.toml cannot be read as cargo-deny reads it ({problem}), so which advisories it leaves out of the audit is unknown. Write it as TOML whose `[advisories] ignore` is a list of tables, each an `id` and a `reason`",
     "deny.toml leaves `{id}` out of the audit with no reason beside it. Give its entry a `reason` saying why the advisory does not reach this tree, and argue it above `ignore`",
     "deny.toml leaves {written:?} out of the audit and `THE_ADVISORIES_LEFT_OUT` in xtask/src/check.rs names {THE_ADVISORIES_LEFT_OUT:?}. An entry hides {hid}, so it is written in both lists or in neither, and leaves both in the change that moves the lock past it",
+    // And the precompiled files `[bans.build] bypass` lets through, read the
+    // same way: what a file it cannot read is, and a list that lets through
+    // other than the gate's own.
+    "`bans.build.bypass` is a value of type {}, not a list",
+    "`{name}` is a value of type {}, not a table",
+    "deny.toml cannot be read as cargo-deny reads it ({problem}), so which precompiled files it lets through the audit is unknown. Write `[bans.build] bypass` as a list of tables, each a `crate` and its `allow`, each file a `path` and a `checksum`",
+    "deny.toml lets {written:?} through `executables = \"deny\"` and `THE_EXECUTABLES_LET_THROUGH` in xtask/src/check.rs names {THE_EXECUTABLES_LET_THROUGH:?}. An entry lets through {hid}, so each is a file of one version of one crate, with its checksum, written in both lists or in neither",
     "deny.toml",
     "dependency audit",
     "dependency audit",
@@ -11445,7 +11459,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 815] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 819] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11466,14 +11480,16 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 815] = [
     "{SHEET} holds the rules of {classes} class(es), unchanged",
     "{SHEET} is what Tailwind builds for the {classes} class(es) the markup writes",
     "{SHEET} rewritten, with the rules of {classes} class(es)",
-    "has a `/` that is not a fraction of two whole numbers: an opacity modifier mixes a colour the design system did not",
+    "has a `/` that is not a fraction of two whole numbers after a size or a place: an opacity modifier mixes a colour the design system did not",
     "has a variant that is not lower-case words joined by `-`",
     "has an empty variant",
-    "is not lower-case words of letters and digits joined by `-`: an arbitrary value, a colour written out, a custom property and an important flag are refused, and a size or a colour is a token's",
+    "is not lower-case words of letters and digits joined by `-`: an arbitrary value, a colour written out, a custom property and an important flag are refused",
     "pnpm, which installs and runs Tailwind; what it prints is read, not printed",
-    "@layer theme, base, components, utilities;\n@import \"tailwindcss/utilities.css\" layer(utilities) source(none);\n@import \"./bridge.css\";\n@source inline(\"{inline}\");\n",
+    "@import \"tailwindcss/utilities.css\" source(none);\n@import \"./bridge.css\";\n@source inline(\"{inline}\");\n",
     "//! Generated by `cargo xtask build --sheet` from the classes `apps/desktop/src` writes — do not edit.\n//!\n//! Tailwind's utilities over the design system's Tailwind bridge, from\n//! `noctua-design-dist`, built by `xtask/src/tailwind.rs`, which says how.\n\n/// The interface's layout utilities, one minified sheet.\npub const SHEET: &str = ",
     "what an install installs runs in the job that installs it — in the release's gate as in every other — so each word of it is named: a crate with no version, or with a range, is whatever crates.io holds on the day, a second crate is one no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no version on crates.io describes it. Install one crate a line, as `cargo install --locked name@X.Y.Z`, which cargo installs exactly and builds with the lockfile it was published with, and move the version in every place it is written at once",
+    "what npm installs runs in the job that installs it — pnpm installs and runs Tailwind inside the gate — so each word of it is named: a package with no version, or with a range, is whatever the registry holds on the day, and a second package is one no version names. Install one package a line, as `npm install -g name@X.Y.Z`, and move the version in every place it is written at once",
+    "a package the gate runs is one tool at one version, so every job that runs the gate — each of `ci.yml`'s and `release.yml`'s — installs it at the same one: move the version in every place it is written at once",
     "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "each job of the release runs what `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, installs the toolchain and the auditor, brings the stack up and runs the gate; the release checks out, installs the toolchain, builds the release tool, then mints the App's token and releases. The release job holds the App's key and its token, so the tool is built before the token exists, and the gate is what judges the commit it releases. A step to add is a line there, which is a line in a diff",
     "every job in it runs on the push that releases a channel, and the rules here read `gate` and `release` alone; another is a job nothing holds to the steps, the environment or the token, and a name written twice is one YAML reads one way and a reader another. What it would do belongs in the gate",
@@ -11581,6 +11597,8 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 815] = [
     "whatever advisory is named in it, with `advisories ok` printed over it",
     "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
     "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason",
+    "every precompiled file it names, run or linked with `bans ok` printed over it",
+    "the files `THE_EXECUTABLES_LET_THROUGH` names, each by its crate, its path and its checksum",
     "the agent's finding permit reaches no other feature",
     "the agent's naming permit reaches no other feature",
     "whatever licence is named in it, one crate at a time and without moving `allow`",
@@ -12664,6 +12682,43 @@ const THE_ADVISORIES_LEFT_OUT: [&str; 4] = [
 const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
     "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason";
 
+/// The precompiled files `deny.toml`'s `[bans.build] bypass` lets through
+/// `executables = "deny"`: Microsoft's `WebView2` loader, which
+/// `webview2-com-sys` ships for each architecture, each by the one version of
+/// the crate, its path in the crate and the SHA-256 of its bytes as the
+/// registry serves them.
+///
+/// **Exactly these, in this order, and nothing else the list can say.** An
+/// entry is a decision that a binary in a crate is the one read, so another
+/// crate, another file, a glob (`allow-globs`), a build script let through
+/// whole (`build-script`) or a file named with no checksum is a narrowing of
+/// `executables = "deny"` with `bans ok` printed over it — the shape the gate
+/// refuses for `ignore` and `exceptions`. A release of the crate, or a byte
+/// changed in one, fails cargo-deny itself (`checksum-mismatch`, then
+/// `detected-executable`), so the change that moves the lock past it rewrites
+/// both lists.
+const THE_EXECUTABLES_LET_THROUGH: [(&str, &str, &str); 3] = [
+    (
+        "webview2-com-sys@0.38.2",
+        "arm64/WebView2Loader.dll",
+        "df5816669f5123595c475d97929240d7d0e04f0bdc7dbe18af1dda42348b73a6",
+    ),
+    (
+        "webview2-com-sys@0.38.2",
+        "x64/WebView2Loader.dll",
+        "8427b1fc58ec707813e5c0a51eb5d69397bb333250a7b891be4d3b123f1e0f1c",
+    ),
+    (
+        "webview2-com-sys@0.38.2",
+        "x86/WebView2Loader.dll",
+        "44ab92c2246ebfb5f98aa5726626fb44beb61543f2ef1803338af9fd295e63f0",
+    ),
+];
+
+/// What the `bypass` row of [`THE_AUDIT_IS_NOT_NARROWED`] needs.
+const ONLY_THE_EXECUTABLES_LET_THROUGH: &str =
+    "the files `THE_EXECUTABLES_LET_THROUGH` names, each by its crate, its path and its checksum";
+
 /// The `deny.toml` keys whose default silently narrows the audit.
 ///
 /// Each is the key, the value the audit needs, and what a narrower setting was
@@ -12679,7 +12734,7 @@ const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
 /// the direction that matters. These are the keys whose value or whose *default*
 /// silently shrinks what the audit decides, each measured hiding crates or
 /// warnings, and each written down in the file it governs.
-const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 14] = [
+const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 15] = [
     // **Three keys `deny.toml` argues for at length.** Measured with this row
     // gone: `yanked = "allow"` in the shipped file leaves every deny.toml test
     // green and `cargo deny check advisories` prints `advisories ok` with no
@@ -12766,6 +12821,15 @@ const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 14] = [
         "executables",
         "\"deny\"",
         "a precompiled binary shipped inside a crate and run from its build script",
+    ),
+    // **And the list that lets a binary through it.** `[bans.build] bypass`
+    // names what `executables = "deny"` lets through, and one more entry, a
+    // glob or a file with no checksum lets more through with `bans ok`
+    // printed over it, exactly as an entry of `ignore` does for an advisory.
+    (
+        "bypass",
+        ONLY_THE_EXECUTABLES_LET_THROUGH,
+        "every precompiled file it names, run or linked with `bans ok` printed over it",
     ),
     // **And the key that decides what the other six run over.** `[graph]`
     // builds the dependency graph the whole audit reads, so `exclude-dev = true`
@@ -12953,6 +13017,100 @@ fn the_advisories_left_out(text: &str) -> Result<Vec<(String, bool)>, String> {
         .collect()
 }
 
+/// Each file `deny.toml`'s `[bans.build] bypass` lets through, as its crate,
+/// its path and its checksum — and anything else the list says, which lets
+/// more through, as the entry itself with nothing beside it, so no list the
+/// gate writes equals it: an entry that is not a table, a key besides `crate`
+/// and `allow` (`allow-globs`, `build-script`, `required-features`), a file
+/// named with a key besides `path` and `checksum` or without either.
+///
+/// # Errors
+///
+/// What cargo-deny could not read either: a file that is not TOML, and a
+/// `bans`, a `build` or a `bypass` of another type.
+fn the_executables_let_through(text: &str) -> Result<Vec<(String, String, String)>, String> {
+    let document: toml::Table = text
+        .parse()
+        .map_err(|error: toml::de::Error| error.message().trim().to_owned())?;
+    let mut table = &document;
+    for name in ["bans", "build"] {
+        match table.get(name) {
+            None => return Ok(Vec::new()),
+            Some(toml::Value::Table(inner)) => table = inner,
+            Some(other) => {
+                return Err(format!(
+                    "`{name}` is a value of type {}, not a table",
+                    other.type_str()
+                ));
+            }
+        }
+    }
+    let Some(bypass) = table.get("bypass") else {
+        return Ok(Vec::new());
+    };
+    let Some(entries) = bypass.as_array() else {
+        return Err(format!(
+            "`bans.build.bypass` is a value of type {}, not a list",
+            bypass.type_str()
+        ));
+    };
+    let whole = |entry: &toml::Value| (entry.to_string(), String::new(), String::new());
+    let mut found = Vec::new();
+    for entry in entries {
+        let named = entry.as_table().and_then(|fields| {
+            let only = fields.keys().all(|key| key == "crate" || key == "allow");
+            let krate = fields.get("crate")?.as_str()?;
+            let allow = fields.get("allow")?.as_array()?;
+            only.then_some((krate, allow))
+        });
+        let Some((krate, allow)) = named else {
+            found.push(whole(entry));
+            continue;
+        };
+        for file in allow {
+            let read = file.as_table().and_then(|fields| {
+                let only = fields.keys().all(|key| key == "path" || key == "checksum");
+                let path = fields.get("path")?.as_str()?;
+                let checksum = fields.get("checksum")?.as_str()?;
+                only.then(|| (krate.to_owned(), path.to_owned(), checksum.to_owned()))
+            });
+            found.push(read.unwrap_or_else(|| whole(file)));
+        }
+    }
+    Ok(found)
+}
+
+/// Whether `deny.toml` lets through `executables = "deny"` exactly what
+/// [`THE_EXECUTABLES_LET_THROUGH`] names.
+fn the_executables_let_through_are_the_listed_ones(text: &str, hid: &str) -> bool {
+    let found = match the_executables_let_through(text) {
+        Ok(found) => found,
+        Err(problem) => {
+            ui::failure(&format!(
+                "deny.toml cannot be read as cargo-deny reads it ({problem}), so which \
+                 precompiled files it lets through the audit is unknown. Write `[bans.build] \
+                 bypass` as a list of tables, each a `crate` and its `allow`, each file a \
+                 `path` and a `checksum`"
+            ));
+            return false;
+        }
+    };
+    let written: Vec<(&str, &str, &str)> = found
+        .iter()
+        .map(|(krate, path, checksum)| (krate.as_str(), path.as_str(), checksum.as_str()))
+        .collect();
+    if written == THE_EXECUTABLES_LET_THROUGH {
+        return true;
+    }
+    ui::failure(&format!(
+        "deny.toml lets {written:?} through `executables = \"deny\"` and \
+         `THE_EXECUTABLES_LET_THROUGH` in xtask/src/check.rs names \
+         {THE_EXECUTABLES_LET_THROUGH:?}. An entry lets through {hid}, so each is a file of \
+         one version of one crate, with its checksum, written in both lists or in neither"
+    ));
+    false
+}
+
 /// Whether `deny.toml` leaves out what [`THE_ADVISORIES_LEFT_OUT`] names.
 ///
 /// Exactly those advisories, in its order, each with a reason beside it; each
@@ -13012,6 +13170,14 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
         // not mistaken for it.
         if needed == ONLY_THE_ADVISORIES_LEFT_OUT {
             if !the_advisories_left_out_are_the_listed_ones(&text, hid) {
+                narrowed = true;
+            }
+            continue;
+        }
+        // **And a list that lets through exactly what the gate's own list
+        // names**, read as the document cargo-deny reads, as `ignore` is.
+        if needed == ONLY_THE_EXECUTABLES_LET_THROUGH {
+            if !the_executables_let_through_are_the_listed_ones(&text, hid) {
                 narrowed = true;
             }
             continue;
@@ -19917,24 +20083,24 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
-        ("desktop/assets.rs", 19, 3),
+        ("desktop/assets.rs", 21, 3),
         ("desktop/client.rs", 13, 1),
         ("desktop/commands.rs", 35, 6),
-        ("desktop/drawer.rs", 57, 4),
+        ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 95, 4),
-        ("desktop/host.rs", 119, 11),
+        ("desktop/footer.rs", 96, 4),
+        ("desktop/host.rs", 123, 14),
         ("desktop/keys.rs", 29, 3),
         ("desktop/lib.rs", 0, 14),
-        ("desktop/main.rs", 22, 6),
+        ("desktop/main.rs", 23, 6),
         ("desktop/mirror.rs", 88, 18),
-        ("desktop/page.rs", 17, 1),
+        ("desktop/page.rs", 19, 1),
         ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
         ("desktop/surface.rs", 67, 19),
-        ("desktop/the_window_follows_its_daemon.rs", 12, 4),
-        ("desktop/the_window_opens_hidden.rs", 1, 0),
+        ("desktop/the_window_follows_its_daemon.rs", 18, 5),
+        ("desktop/the_window_opens_hidden.rs", 6, 3),
         ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
         ("kuchikiki/lib.rs", 0, 0),
@@ -20099,7 +20265,7 @@ mod the_frozen_path_rule {
         ("nc-platform/service.rs", 185, 21),
         ("nc-platform/testing.rs", 40, 7),
         ("nc-platform/unix.rs", 106, 4),
-        ("nc-platform/webview.rs", 3, 3),
+        ("nc-platform/webview.rs", 6, 4),
         ("nc-platform/windows.rs", 154, 15),
         ("nc-platform/x11.rs", 225, 39),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
@@ -20124,7 +20290,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 136, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 31, 6),
-        ("xtask/check.rs", 698, 58),
+        ("xtask/check.rs", 703, 58),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -20145,13 +20311,13 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 38, 10),
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
-        ("xtask/tailwind.rs", 25, 1),
+        ("xtask/tailwind.rs", 28, 1),
         ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
         ("xtask/the_registry_reaches_the_code.rs", 43, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 280, 23),
+        ("xtask/workflow.rs", 285, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -22934,8 +23100,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 932 scratches this tree
-    /// builds, 844 of the 932 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 937 scratches this tree
+    /// builds, 849 of the 937 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23001,7 +23167,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 74] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 76] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -23031,7 +23197,9 @@ mod the_frozen_path_rule {
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("daemon/the_stop_mark_silences_every_restorer.rs", 2, 1),
         ("desktop/following_the_daemon.rs", 3, 3),
+        ("desktop/host.rs", 2, 2),
         ("desktop/main.rs", 2, 2),
+        ("desktop/the_window_opens_hidden.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 274, 274),
         (
@@ -23069,7 +23237,7 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 9, 9),
-        ("xtask/check.rs", 43, 31),
+        ("xtask/check.rs", 44, 32),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -26108,7 +26276,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24902;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24968;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26127,7 +26295,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7817;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7863;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26144,7 +26312,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2678;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2693;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26161,7 +26329,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [228, 38, 63, 65, 107];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [249, 38, 64, 66, 109];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26178,7 +26346,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32395;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32534;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26196,7 +26364,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 773;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 799;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26232,8 +26400,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **773 of 32,395 are accepted by the first-line
-    /// rule alone, and 501 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **799 of 32,534 are accepted by the first-line
+    /// rule alone, and 526 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26254,8 +26422,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **228 ascending sorts, 38 descending, 63
-    /// swaps, 65 rotations and 107 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **249 ascending sorts, 38 descending, 64
+    /// swaps, 66 rotations and 109 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26265,7 +26433,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2678 of
+    /// this tree offers, **2693 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -28124,6 +28292,7 @@ mod the_frozen_path_rule {
             if needed.starts_with("not ")
                 || needed == "empty"
                 || needed == super::ONLY_THE_ADVISORIES_LEFT_OUT
+                || needed == super::ONLY_THE_EXECUTABLES_LET_THROUGH
             {
                 continue;
             }
@@ -28162,6 +28331,7 @@ mod the_frozen_path_rule {
             if needed.starts_with("not ")
                 || needed == "empty"
                 || needed == super::ONLY_THE_ADVISORIES_LEFT_OUT
+                || needed == super::ONLY_THE_EXECUTABLES_LET_THROUGH
             {
                 continue;
             }
@@ -28199,6 +28369,75 @@ mod the_frozen_path_rule {
         let mut failures = Vec::new();
         super::the_audit_is_not_narrowed(&scratch, &mut failures);
         assert_eq!(failures, vec!["deny.toml".to_owned()]);
+        drop(held);
+    }
+
+    /// A precompiled file is let through `executables = "deny"` only as the
+    /// gate's list names it — one version of one crate, the file's path and
+    /// its checksum — and a list that lets more through is refused: another
+    /// crate, a glob, a build script let through whole, a file with no
+    /// checksum; and so is one that names less, whose entries the list keeps.
+    #[test]
+    fn a_precompiled_file_is_let_through_only_as_the_gate_names_it() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        assert!(
+            !narrowed(&held.root, &shipped),
+            "the shipped bypass is the gate's list"
+        );
+        let first = "        { path = \"arm64/WebView2Loader.dll\", checksum = \
+                     \"df5816669f5123595c475d97929240d7d0e04f0bdc7dbe18af1dda42348b73a6\" },";
+        assert!(
+            shipped.contains(first),
+            "the shipped file writes the first loader so"
+        );
+        let entry = "    { crate = \"webview2-com-sys@0.38.2\", allow = [";
+        assert!(shipped.contains(entry), "and opens its entry so");
+        for (label, planted) in [
+            (
+                "another crate",
+                shipped.replace(
+                    "bypass = [\n",
+                    "bypass = [\n    { crate = \"ring\", allow = [{ path = \"x\", checksum = \"00\" }] },\n",
+                ),
+            ),
+            (
+                "a glob",
+                shipped.replace(
+                    entry,
+                    "    { crate = \"webview2-com-sys@0.38.2\", allow-globs = [\"*\"], allow = [",
+                ),
+            ),
+            (
+                "a build script let through",
+                shipped.replace(
+                    entry,
+                    "    { crate = \"webview2-com-sys@0.38.2\", build-script = \"00\", allow = [",
+                ),
+            ),
+            (
+                "a file with no checksum",
+                shipped.replace(first, "        { path = \"arm64/WebView2Loader.dll\" },"),
+            ),
+            (
+                "a file with another key",
+                shipped.replace(first, &first.replace(" },", ", glob = \"*\" },")),
+            ),
+            (
+                "another file",
+                shipped.replace(
+                    first,
+                    &format!("{first}\n        {{ path = \"x64/Other.dll\", checksum = \"00\" }},"),
+                ),
+            ),
+            ("one file fewer", shipped.replace(&format!("{first}\n"), "")),
+        ] {
+            assert_ne!(planted, shipped, "{label}: nothing was planted");
+            assert!(narrowed(&held.root, &planted), "{label} was not refused");
+        }
         drop(held);
     }
 
@@ -28816,7 +29055,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 815;
+    const THE_REST_IT_SAYS: usize = 819;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28964,7 +29203,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    static WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 524] = [
+    static WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 526] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -29965,6 +30204,14 @@ mod the_frozen_path_rule {
             "the test-target documentation walk is short",
         ),
         ("—", "documentation of {documented} test target(s)"),
+        (
+            "Err(problem) =>",
+            "deny.toml cannot be read as cargo-deny reads it ({problem}), so which precompiled files it lets through the audit is unknown. Write `[bans.build] bypass` as a list of tables, each a `crate` and its `allow`, each file a `path` and a `checksum`",
+        ),
+        (
+            "—",
+            "deny.toml lets {written:?} through `executables = \"deny\"` and `THE_EXECUTABLES_LET_THROUGH` in xtask/src/check.rs names {THE_EXECUTABLES_LET_THROUGH:?}. An entry lets through {hid}, so each is a file of one version of one crate, with its checksum, written in both lists or in neither",
+        ),
         (
             "Err(problem) =>",
             "deny.toml cannot be read as cargo-deny reads it ({problem}), so which advisories it leaves out of the audit is unknown. Write it as TOML whose `[advisories] ignore` is a list of tables, each an `id` and a `reason`",
@@ -31224,7 +31471,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 152] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 154] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -31704,6 +31951,16 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "`{}` is not one crate installed locked",
             "what an install installs runs in the",
+        ),
+        (
+            "workflow.rs",
+            "`npm install {}` is not one package",
+            "what npm installs runs in the job",
+        ),
+        (
+            "workflow.rs",
+            "`{name}` is installed at {version} here and",
+            "a package the gate runs is one",
         ),
         (
             "workflow.rs",
@@ -35194,11 +35451,17 @@ mod the_meta_gate {
         ),
         (
             "crates/nc-platform/src/webview.rs",
-            "run by a spawned binary alone: the desktop's suite \
-             `the_window_opens_hidden.rs` opens a real window through it in a \
-             process of its own. It puts a webview in a window the one way each \
-             system builds one, behind the `webview` feature only the desktop turns \
-             on, and decides nothing beside that call",
+            "run by a spawned binary alone, behind the `webview` feature only the \
+             desktop turns on: three things each system does its own way — `into`, \
+             the call that puts a webview in a window; `origin`, the address a custom \
+             protocol's pages are at, `<scheme>://localhost/` or, on Windows, \
+             `http://<scheme>.localhost/`; and `Kept`, a webview's store kept in \
+             private and a folder handed to Windows' alone — each exercised on every \
+             system by the desktop's suites in a process of their own: \
+             `the_window_opens_hidden.rs` loads the document from `origin` through \
+             `into` and `Kept`, so another system's address answers nothing and the \
+             probe fails, and it and `the_window_follows_its_daemon.rs` hand the \
+             window a home of its own and refuse anything written in it",
         ),
         (
             "stand-ins/dirs/src/lib.rs",
@@ -38637,7 +38900,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3344] = [
+    static OPERATORS: [(&str, &str, &str); 3378] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -53285,7 +53548,7 @@ Options:
         ),
         (
             "desktop_drawer",
-            "TheDrawer",
+            "Shown",
             "the leader menu fills the drawer in columns",
         ),
         (
@@ -53705,6 +53968,152 @@ Options:
             "desktop_page",
             "ENHANCES",
             "the design system's seat calls are handed to the page",
+        ),
+        ("tailwind", "judged", "a fraction follows a size or a place"),
+        (
+            "tailwind",
+            "what_it_lacks",
+            "a colour mixed in the sheet is refused",
+        ),
+        (
+            "tailwind",
+            "install_arguments",
+            "Tailwind is installed from the lockfile, frozen",
+        ),
+        (
+            "tailwind",
+            "install_arguments",
+            "no package's install script runs in the gate",
+        ),
+        (
+            "tailwind",
+            "install_arguments",
+            "an offline build fetches nothing",
+        ),
+        (
+            "workflow",
+            "one_package_global_at_an_exact_version",
+            "a package names its version",
+        ),
+        (
+            "workflow",
+            "one_package_global_at_an_exact_version",
+            "a package is installed globally",
+        ),
+        ("workflow", "is_x_y_z", "a version is three numbers"),
+        ("workflow", "is_x_y_z", "a version's parts are digits"),
+        (
+            "workflow",
+            "every_package_names_its_version",
+            "a package at two versions is a finding",
+        ),
+        ("workflow", "npm_installs", "`npm i` is an install"),
+        (
+            "check",
+            "the_audit_is_not_narrowed",
+            "a bypass the gate does not list narrows the audit",
+        ),
+        (
+            "check",
+            "the_executables_let_through",
+            "a bypass entry holding another key lets more through",
+        ),
+        (
+            "check",
+            "the_executables_let_through",
+            "a file named with another key lets more through",
+        ),
+        (
+            "check",
+            "the_executables_let_through_are_the_listed_ones",
+            "the bypass is the gate's list exactly",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the keyboard given up to nothing is said",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the keyboard on the info line is said",
+        ),
+        ("desktop_page", "SCRIPT", "Super is held from its own key"),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "a draw leaves nothing pointing at an option gone",
+        ),
+        (
+            "desktop_page",
+            "Document",
+            "the policy is said before anything is linked",
+        ),
+        ("desktop_page", "POLICY", "the policy connects nowhere"),
+        (
+            "desktop_page",
+            "Document",
+            "the body is the window, edge to edge",
+        ),
+        (
+            "desktop_page",
+            "SCRIPT",
+            "the witness holds every element inside the window downward",
+        ),
+        (
+            "desktop_footer",
+            "TheFooter",
+            "the footer gives up what the window has no room for",
+        ),
+        (
+            "desktop_footer",
+            "InfoLine",
+            "the info line alone gives way",
+        ),
+        (
+            "desktop_footer",
+            "brought",
+            "the footer is brought before the drawer",
+        ),
+        (
+            "desktop_drawer",
+            "TheDrawer",
+            "every tab names a panel the drawer holds",
+        ),
+        (
+            "desktop_drawer",
+            "TheDrawer",
+            "the drawer is named apart from the footer",
+        ),
+        (
+            "desktop_drawer",
+            "part_named",
+            "a part is named by the word its commands are filed under",
+        ),
+        (
+            "desktop_sidebar",
+            "view",
+            "the sidebar is named by the word its commands are filed under",
+        ),
+        (
+            "desktop_host",
+            "said",
+            "the keyboard given up to nothing is read",
+        ),
+        (
+            "desktop_host",
+            "witnessed",
+            "a witness says whether the footer's lines stay",
+        ),
+        (
+            "desktop_assets",
+            "embedded",
+            "the document's own script is served",
+        ),
+        (
+            "channel",
+            "layout",
+            "the webview keeps its own under the install's cache",
         ),
     ];
 

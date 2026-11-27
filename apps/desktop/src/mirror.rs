@@ -144,8 +144,11 @@ impl Region {
         (Self::Modeline, "modeline"),
     ];
 
-    /// The word a fact writes it as: its row of [`Region::WORDS`].
-    const fn word(self) -> &'static str {
+    /// The word a fact writes it as: its row of `Region::WORDS`, which is
+    /// also the word the page says the keyboard going to it with, and the one
+    /// `window.noctua.focus` puts the keyboard there by (`crate::page`).
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         match self {
             Self::Workspace => "workspace",
             Self::Drawer => "drawer",

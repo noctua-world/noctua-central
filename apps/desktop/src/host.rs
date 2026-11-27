@@ -13,9 +13,12 @@
 //! system gives it, and the document stamped with it.
 //!
 //! **Everything the webview loads is the custom protocol's**
-//! ([`crate::assets`]): the document is loaded from its root, a navigation
-//! to any address outside it is refused, a new window is never opened, and
-//! a download never starts.
+//! ([`crate::assets`]): the document is loaded from its root, and its policy
+//! ([`crate::page::POLICY`]) refuses every load from anywhere else; a
+//! navigation to any address outside it is refused, a new window is never
+//! opened, and a download never starts. **And it keeps nothing of its own**:
+//! its store is ephemeral, and where a system's webview keeps a folder even
+//! so, it is the install's `webview` directory (`nc_platform::webview::Kept`).
 //!
 //! **It is shown and hidden by the interface's state alone, and shown only
 //! once its document has loaded** ([`Showing`]): the daemon's first window,
@@ -78,8 +81,9 @@
 //!
 //! The webview's message channel carries a closed set of messages
 //! ([`said`]) and anything else is read as nothing; the webview loads the
-//! one document this build wrote, from bytes this build embeds, and is let
-//! to navigate nowhere else. What the page says it shows ([`Witnessed`]) is
+//! one document this build wrote, from bytes this build embeds, loads and
+//! connects to nothing else (`crate::page::POLICY`), is let to navigate
+//! nowhere else, and writes nothing under the person's own directories. What the page says it shows ([`Witnessed`]) is
 //! of a closed shape as well, runs nothing, and is printed for a test's
 //! install alone. **What it does not answer:** a process running
 //! as the same user, which can drive the interface through the CLI as the
@@ -136,10 +140,10 @@ pub enum Said {
     /// `draft <text>`: an edit changed the prompt's text, which is
     /// everything after the word and its one space.
     Draft(String),
-    /// `exercised <enhanced> <kept> <written> <rails> <capped>`, each `1` or
-    /// `0`: what a probe's exercise of the footer and the drawer found
-    /// (`EXERCISE`) — said by a probe's exercise alone.
-    Exercised([bool; 5]),
+    /// `exercised <enhanced> <kept> <written> <rails> <capped> <pointed>
+    /// <refused>`, each `1` or `0`: what a probe's exercise of the footer and
+    /// the drawer found (`EXERCISE`) — said by a probe's exercise alone.
+    Exercised([bool; 7]),
     /// `leader down`: the page saw the Leader's chord go down.
     LeaderDown,
     /// `leader up`: one of the Leader's modifiers was let go while it was
@@ -159,8 +163,9 @@ pub enum Said {
     Send(Option<String>),
     /// `active <list> <value>`: the keyboard moved to an option of a list.
     Active(List, String),
-    /// `focus <region>`: the keyboard went to the prompt, to the drawer or to
-    /// the sidebar.
+    /// `focus <region>`: the keyboard went to a part of the window — the
+    /// prompt, the drawer, the sidebar, the info line or the modeline — or,
+    /// given up to nothing, to the workspace area.
     Focus(Region),
     /// `escape`: Esc on the drawer, or on a prompt that filters a list.
     Escape,
@@ -175,12 +180,20 @@ pub enum Said {
 /// What a page says it shows when the window asks it (`window.noctua.witness`
 /// in [`crate::page::SCRIPT`]): asked, and printed, only for a test's install.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "four facts a witness says of a page, each independent of the others: there is \
+              no state they move through, so no machine to write"
+)]
 pub struct Witnessed {
     /// Its width and height in CSS pixels.
     pub page: (u32, u32),
-    /// Whether every element drawn stands inside the window sideways, or
-    /// inside something that clips it.
+    /// Whether every element drawn stands inside the window, or inside
+    /// something that clips it, each way.
     pub fits: bool,
+    /// Whether every line of the footer stands wholly inside the window and
+    /// inside every box that clips it: the footer's lines stay (§12.19).
+    pub lines: bool,
     /// Whether every control drawn is at least `--noctua-target-min` each
     /// way.
     pub reachable: bool,
@@ -188,7 +201,8 @@ pub struct Witnessed {
     /// drawn, where the system's own seat is not in that state there.
     pub styled: bool,
     /// The part the system's own keyboard is in: `prompt`, `drawer`,
-    /// `sidebar`, `elsewhere`, or `-` for none.
+    /// `sidebar`, `info`, `modeline`, `workspace`, `elsewhere`, or `-` for
+    /// none.
     pub keyboard: String,
     /// The parts that draw anything, of `footer`, `drawer`, `sidebar` and
     /// `workspace`, in that order.
@@ -203,12 +217,21 @@ pub struct Witnessed {
 const PARTS: [&str; 4] = ["footer", "drawer", "sidebar", "workspace"];
 
 /// The parts the system's own keyboard may be said to be in.
-const KEYBOARDS: [&str; 5] = ["prompt", "drawer", "sidebar", "elsewhere", "-"];
+const KEYBOARDS: [&str; 8] = [
+    "prompt",
+    "drawer",
+    "sidebar",
+    "info",
+    "modeline",
+    "workspace",
+    "elsewhere",
+    "-",
+];
 
 /// The states a seat may be said to be in.
 const STATES: [&str; 4] = ["hover", "focus", "active", "drag"];
 
-/// What a witness's words say, where they are what one says: its size, three
+/// What a witness's words say, where they are what one says: its size, four
 /// bits, the keyboard, the parts and at most four states of each seat the
 /// kernel allows, each word of its closed shape.
 fn witnessed(words: &[&str]) -> Option<Witnessed> {
@@ -216,6 +239,7 @@ fn witnessed(words: &[&str]) -> Option<Witnessed> {
         width,
         height,
         fits,
+        lines,
         reachable,
         styled,
         keyboard,
@@ -254,6 +278,7 @@ fn witnessed(words: &[&str]) -> Option<Witnessed> {
             Some(Witnessed {
                 page: (number(width)?, number(height)?),
                 fits: bit(fits)?,
+                lines: bit(lines)?,
                 reachable: bit(reachable)?,
                 styled: bit(styled)?,
                 keyboard: (*keyboard).to_owned(),
@@ -295,12 +320,13 @@ pub fn witnessed_line(window: Windowed, drawn: u64, seen: &Witnessed) -> String 
         .map_or_else(|| "-".to_owned(), |(x, y)| format!("{x},{y}"));
     format!(
         "witnessed shown={} decorated={} at={at} drawn={drawn:016x} page={}x{} fits={} \
-         reachable={} styled={} keyboard={} shows={} seats={}",
+         lines={} reachable={} styled={} keyboard={} shows={} seats={}",
         bit(window.shown),
         bit(window.decorated),
         seen.page.0,
         seen.page.1,
         bit(seen.fits),
+        bit(seen.lines),
         bit(seen.reachable),
         bit(seen.styled),
         seen.keyboard,
@@ -385,12 +411,23 @@ pub fn said(message: &str) -> Option<Said> {
         ["first-frame", rest @ ..] => channels(rest).map(Said::FirstFrame),
         ["settled", rest @ ..] => channels(rest).map(Said::Settled),
         ["viewport", width, height] => Some(Said::Viewport(number(width)?, number(height)?)),
-        ["exercised", enhanced, kept, written, rails, capped] => Some(Said::Exercised([
+        [
+            "exercised",
+            enhanced,
+            kept,
+            written,
+            rails,
+            capped,
+            pointed,
+            refused,
+        ] => Some(Said::Exercised([
             bit(enhanced)?,
             bit(kept)?,
             bit(written)?,
             bit(rails)?,
             bit(capped)?,
+            bit(pointed)?,
+            bit(refused)?,
         ])),
         ["send"] => Some(Said::Send(None)),
         ["escape"] => Some(Said::Escape),
@@ -401,6 +438,9 @@ pub fn said(message: &str) -> Option<Said> {
         ["focus", "prompt"] => Some(Said::Focus(Region::Prompt)),
         ["focus", "drawer"] => Some(Said::Focus(Region::Drawer)),
         ["focus", "sidebar"] => Some(Said::Focus(Region::Sidebar)),
+        ["focus", "info"] => Some(Said::Focus(Region::Info)),
+        ["focus", "modeline"] => Some(Said::Focus(Region::Modeline)),
+        ["focus", "workspace"] => Some(Said::Focus(Region::Workspace)),
         ["hover"] => Some(Said::Hover(None)),
         ["hover", target] => is_target(target).then(|| Said::Hover(Some((*target).to_owned()))),
         ["seen", rest @ ..] => witnessed(rest).map(Said::Seen),
@@ -440,6 +480,8 @@ pub enum Unopened {
     Webview(nc_platform::webview::Unbuilt),
     /// A thread a connection to the daemon runs on was not started.
     Thread(std::io::Error),
+    /// The folder a probe's webview keeps its own in was not made.
+    Profile(std::io::Error),
 }
 
 impl core::fmt::Display for Unopened {
@@ -450,6 +492,10 @@ impl core::fmt::Display for Unopened {
             Self::Thread(error) => write!(
                 formatter,
                 "a thread a connection to the daemon runs on was not started: {error}"
+            ),
+            Self::Profile(error) => write!(
+                formatter,
+                "the folder a probe's webview keeps its own in was not made: {error}"
             ),
         }
     }
@@ -505,6 +551,9 @@ pub struct Opened {
     pub window: Window,
     /// The webview, which lives as long as the window shows it.
     webview: wry::WebView,
+    /// What the webview keeps of its own (`nc_platform::webview::Kept`),
+    /// held as long as the webview and dropped after it.
+    kept: nc_platform::webview::Kept,
     /// The theme it was opened in.
     pub theme: Theme,
     /// The least the window is, in logical pixels: the catalog's least,
@@ -596,6 +645,7 @@ impl core::fmt::Debug for Opened {
             .debug_struct("Opened")
             .field("window", &self.window.id())
             .field("webview", &self.webview.id())
+            .field("kept", &self.kept)
             .field("theme", &self.theme)
             .field("least", &self.least)
             .field("thousandths", &self.thousandths)
@@ -608,8 +658,12 @@ impl core::fmt::Debug for Opened {
 /// What a probe's observer says, from the first moment of the document: the
 /// page's background at its first frame and once settled, each painted into
 /// a canvas of one pixel and read back (`NOCTUA.md §9.6`, lesson 5), and the
-/// page's size whenever it changes.
+/// page's size whenever it changes; and every load the document's policy
+/// refuses, kept for the exercise (`EXERCISE`) to read.
 const OBSERVES: &str = "(() => {\
+    const refused = [];\
+    window.noctuaRefused = refused;\
+    document.addEventListener('securitypolicyviolation', (event) => refused.push(event.blockedURI));\
     const background = () => getComputedStyle(document.documentElement).backgroundColor;\
     const say = (word, colour) => {\
         const canvas = document.createElement('canvas');\
@@ -633,6 +687,13 @@ const OBSERVES: &str = "(() => {\
 /// for `context`; what the document says reaches the loop through `proxy`,
 /// tagged `index`, and a probe's observer watches it when `observed`.
 ///
+/// **The webview keeps nothing of its own** (`NOCTUA.md §12.1`): its store is
+/// ephemeral, since what the page shows is the daemon's, and where a system's
+/// webview needs a folder even so — `WebView2`'s user data folder — it is
+/// `profile`, the install's `webview` directory (`nc_channel::Layout`) or one a
+/// probe makes and removes, never one the webview would name under the
+/// user's own directories after the executable.
+///
 /// # Errors
 ///
 /// [`Unopened::Window`] for a window the system refused, and
@@ -640,7 +701,7 @@ const OBSERVES: &str = "(() => {\
 pub fn open(
     target: &EventLoopWindowTarget<Arrived>,
     proxy: EventLoopProxy<Arrived>,
-    context: Context,
+    (context, profile): (Context, &std::path::Path),
     mode: Mode,
     (index, observed): (usize, bool),
 ) -> Result<Opened, Unopened> {
@@ -666,7 +727,9 @@ pub fn open(
     let document = crate::page::document(context.locale, theme, &footer);
     let origin = crate::assets::origin();
     let allowed = origin.clone();
-    let mut builder = wry::WebViewBuilder::new()
+    let mut kept = nc_platform::webview::Kept::in_folder(profile);
+    let mut builder = kept
+        .builder()
         .with_custom_protocol(crate::assets::SCHEME.to_owned(), move |_, request| {
             crate::assets::response(crate::assets::answer(
                 request.method().as_str(),
@@ -697,6 +760,7 @@ pub fn open(
     Ok(Opened {
         window,
         webview,
+        kept,
         theme,
         least: least(),
         thousandths: None,
@@ -782,8 +846,8 @@ pub struct Seen {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "ten facts a probe observes, each independent of the others: there is no state \
-              they move through, so no machine to write"
+    reason = "fourteen facts a probe observes, each independent of the others: there is no \
+              state they move through, so no machine to write"
 )]
 pub struct Exercised {
     /// The design system's script enhanced the prompt: it is marked so, and
@@ -812,6 +876,21 @@ pub struct Exercised {
     pub tabbed: bool,
     /// Pressing the controls rail's collapse said its command.
     pub collapsed: bool,
+    /// The prompt pointed at the active option of the list the drawer drew
+    /// once it named that list, and once both were drawn closed no element
+    /// pointed at an option that is gone.
+    pub pointed: bool,
+    /// The two loads the page asked of an address off the protocol — a
+    /// fetch and an image — were refused by the document's policy, and
+    /// nothing of its own was.
+    pub refused: bool,
+    /// The keyboard taking the info line's chevron was said as on the info
+    /// line, and given up to nothing as on the workspace area.
+    pub placed: bool,
+    /// A Leader holding Super, its keys reported as `WebKitGTK` reports
+    /// them — Super's own key going down and up, and no Meta flag on any key
+    /// — was said going down, a key pressed with it held, and going up.
+    pub held: bool,
 }
 
 /// The text a probe's exercise types into the prompt.
@@ -829,8 +908,11 @@ const PROBED_TAB: u64 = 3;
 
 /// A probe's exercise of the footer and the drawer, in the page once it has
 /// settled, its `{draw}` the call that brings the footer to markup with a
-/// message on the info line, expanded, and its `{drawer}` the one that brings
-/// the drawer to the command list over two pages: whether the design
+/// message on the info line, expanded, its prompt naming the command list,
+/// its `{drawer}` the one that brings the drawer to the command list over two
+/// pages, and its `{closed}` the two that bring both back to no list: two
+/// loads asked of an address off the protocol, which the document's policy
+/// refuses; whether the design
 /// system's script enhanced the prompt; a touch's pointer moving onto the
 /// info line's chevron, which the page says as what the system's own pointer
 /// is over; typing into the prompt, and activating the
@@ -839,10 +921,19 @@ const PROBED_TAB: u64 = 3;
 /// shown, the prompt still holds what was typed and is still enhanced; a
 /// draft written; the drawer drawn, after which the design system's scripts
 /// took it and its tabs rail, and it stands below the footer inside the
-/// window with its content scrolling; and a tab and collapse pressed. It says
-/// what it found as [`Said::Exercised`], after the draft, the action, the
-/// tab and the control the page's own script said.
+/// window with its content scrolling, and every tab names a tab panel; the
+/// prompt pointing at the list's active option; a tab and collapse pressed; a
+/// Leader holding Super pressed as `WebKitGTK` reports its keys (`{keys}`);
+/// both drawn closed, after which nothing points at an option that is gone;
+/// and the keyboard given up to nothing. It says what it found as
+/// [`Said::Exercised`] once the policy has refused both loads, or a second
+/// has passed, after the draft, the action, the tab, the control, the keys
+/// and the keyboard's places the page's own script said.
 const EXERCISE: &str = "(() => {
+  const refused = window.noctuaRefused || [];
+  fetch('http://127.0.0.1:9/probed').catch(() => null);
+  const image = new Image();
+  image.src = 'http://127.0.0.1:9/probed.png';
   const footer = document.querySelector('footer');
   const prompt = footer.querySelector('[data-nd-prompt]');
   const area = footer.querySelector('.nd-prompt-input');
@@ -869,7 +960,15 @@ const EXERCISE: &str = "(() => {
   const content = drawer ? drawer.querySelector('.nd-drawer-panel > :not(.nd-drawer-rail)') : null;
   const strip = region.querySelector('[data-nd-tabs]');
   const rails = drawer !== null && drawer.getAttribute('data-nd-enhanced') === 'drawer'
-    && strip !== null && strip.getAttribute('role') === 'tablist';
+    && strip !== null && strip.getAttribute('role') === 'tablist'
+    && Array.from(strip.querySelectorAll('.nd-tab')).every((tab) => {
+      const panel = document.getElementById(tab.getAttribute('aria-controls'));
+      return panel !== null && panel.getAttribute('role') === 'tabpanel';
+    });
+  const listed = document.getElementById(area.getAttribute('aria-controls') || '');
+  const option = listed ? listed.querySelector('[data-nd-active=true]') : null;
+  const pointedOpen = option !== null && option.id !== ''
+    && area.getAttribute('aria-activedescendant') === option.id;
   const whole = document.getElementById('noctua').getBoundingClientRect();
   const lines = footer.getBoundingClientRect();
   const box = drawer ? drawer.getBoundingClientRect() : null;
@@ -880,9 +979,33 @@ const EXERCISE: &str = "(() => {
   if (other) other.click();
   const collapse = region.querySelector('[data-nd-action=\"drawer.collapse\"]');
   if (collapse) collapse.click();
+  window.noctua.keys({keys});
+  const key = (type, code, alt) => window.dispatchEvent(new KeyboardEvent(type,
+    { code, key: code, altKey: alt, metaKey: false, bubbles: true, cancelable: true }));
+  key('keydown', 'AltLeft', true);
+  key('keydown', 'MetaLeft', true);
+  key('keydown', 'Space', true);
+  key('keydown', 'KeyQ', true);
+  key('keyup', 'KeyQ', true);
+  key('keyup', 'MetaLeft', true);
+  key('keyup', 'AltLeft', false);
+  window.noctua.keys(null);
+  {closed}
+  const pointed = pointedOpen && Array.from(document.querySelectorAll('[aria-activedescendant]'))
+    .every((holder) => document.getElementById(holder.getAttribute('aria-activedescendant')) !== null);
+  if (document.activeElement) document.activeElement.blur();
+  const off = (address) => address.startsWith('http://127.0.0.1:9');
   const bit = (held) => (held ? '1' : '0');
-  window.ipc.postMessage('exercised ' + bit(wasEnhanced) + ' ' + bit(kept) + ' ' + bit(written)
-    + ' ' + bit(rails) + ' ' + bit(capped));
+  const finish = (left) => {
+    if (left > 0 && refused.filter(off).length < 2) {
+      setTimeout(() => finish(left - 1), 25);
+      return;
+    }
+    const turned = refused.filter(off).length === 2 && refused.every(off);
+    window.ipc.postMessage('exercised ' + bit(wasEnhanced) + ' ' + bit(kept) + ' ' + bit(written)
+      + ' ' + bit(rails) + ' ' + bit(capped) + ' ' + bit(pointed) + ' ' + bit(turned));
+  };
+  setTimeout(() => finish(40), 0);
 })();";
 
 /// The drawer a probe's exercise draws: the command list over the leader
@@ -944,22 +1067,59 @@ fn probed_drawer(locale: nc_catalog::Locale) -> crate::drawer::View {
 /// The exercise of the footer and the drawer a window opened for `context`
 /// is put through (`EXERCISE`).
 fn exercise(context: Context) -> String {
+    let drawer = probed_drawer(context.locale);
     let mut view = crate::footer::view(None, context);
     view.info.expanded = true;
     view.info.rows = vec![crate::footer::Row::Message(PROBED_MESSAGE.to_owned())];
+    let closed = crate::footer::View {
+        controls: None,
+        ..view.clone()
+    };
+    view.controls = drawer.controls();
     EXERCISE
         .replace("{typed}", PROBED_DRAFT)
         .replace("{message}", PROBED_MESSAGE)
         .replace("{written}", PROBED_WRITTEN)
         .replace("{tab}", &PROBED_TAB.to_string())
+        .replace("{keys}", &probed_keys().to_canonical())
         .replace(
             "{draw}",
             &crate::footer::draw(&crate::footer::markup(&view)),
         )
         .replace(
             "{drawer}",
-            &crate::footer::draw(&crate::drawer::markup(&probed_drawer(context.locale))),
+            &crate::footer::draw(&crate::drawer::markup(&drawer)),
         )
+        .replace(
+            "{closed}",
+            &[
+                crate::footer::draw(&crate::footer::markup(&closed)),
+                crate::footer::draw(&crate::drawer::markup(&crate::drawer::View::hidden())),
+            ]
+            .concat(),
+        )
+}
+
+/// The keys a probe's exercise tells the page: a Leader holding Super — the
+/// development channel's default, Alt+Super+Space — whose keys it then
+/// presses as `WebKitGTK` reports them, Super's own key going down and up and
+/// no Meta flag on any key; nothing where the grammar refused that chord.
+fn probed_keys() -> nc_canon::Value {
+    use nc_schema::keys::{Chord, Leader, LeaderPart, Modifier, Modifiers, Tables};
+    Leader::of(Chord::new(
+        Modifiers::of(&[Modifier::Alt, Modifier::Super]),
+        Key::Space,
+    ))
+    .map_or(nc_canon::Value::Null, |leader| {
+        Keymap::new(
+            LeaderPart {
+                leader,
+                chord: Modifier::Shift,
+            },
+            Tables::default(),
+        )
+        .told()
+    })
 }
 
 /// What [`probe`] saw, in each mode.
@@ -991,8 +1151,15 @@ struct Watched {
     /// The page's size it had last said when the window was asked.
     before: Option<(u32, u32)>,
     /// What the page's own script said while the footer and the drawer were
-    /// exercised: a draft, an action, a tab and a control.
+    /// exercised: a draft, an action, a tab, a control, the keys held and the
+    /// keyboard's places.
     exercised: Exercised,
+    /// How far the keys of a Leader holding Super were said, in order: going
+    /// down, a key held with it, going up.
+    held: u8,
+    /// How far the keyboard's places were said, in order: the info line,
+    /// then the workspace area.
+    placed: u8,
     /// What the window was opened for.
     context: Context,
     /// When the probe stops waiting for it.
@@ -1005,7 +1172,7 @@ impl Watched {
     fn open(
         target: &EventLoopWindowTarget<Arrived>,
         proxy: EventLoopProxy<Arrived>,
-        index: usize,
+        (index, profile): (usize, &std::path::Path),
         within: Duration,
     ) -> Result<Self, Unopened> {
         let mode = PROBED.get(index).copied().unwrap_or(Mode::Light);
@@ -1013,7 +1180,7 @@ impl Watched {
             locale: nc_catalog::Locale::En,
             channel: nc_channel::Channel::Production,
         };
-        let opened = open(target, proxy, context, mode, (index, true))?;
+        let opened = open(target, proxy, (context, profile), mode, (index, true))?;
         let mut showing = Showing::default();
         showing.want(true);
         apply(&opened.window, showing);
@@ -1030,6 +1197,8 @@ impl Watched {
             shrunk: false,
             before: None,
             exercised: Exercised::default(),
+            held: 0,
+            placed: 0,
             context,
             deadline: Instant::now() + within,
         })
@@ -1077,19 +1246,28 @@ impl Watched {
             Said::Hover(ref target) => {
                 self.exercised.hovered |= target.as_deref() == Some(Action::ExpandInfo.command());
             }
-            Said::Exercised([enhanced, kept, written, rails, capped]) => {
+            Said::Exercised([enhanced, kept, written, rails, capped, pointed, refused]) => {
                 self.seen.footer = Some(Exercised {
                     enhanced,
                     kept,
                     written,
                     rails,
                     capped,
+                    pointed,
+                    refused,
+                    held: self.held == 3,
+                    placed: self.placed == 2,
                     ..self.exercised
                 });
                 return self.seen.least.is_some();
             }
-            Said::LeaderDown
-            | Said::LeaderUp
+            // Each step counts only after the one before it.
+            Said::LeaderDown => self.held = u8::from(self.held == 0),
+            Said::Held(Key::KeyQ, false) if self.held == 1 => self.held = 2,
+            Said::LeaderUp if self.held == 2 => self.held = 3,
+            Said::Focus(Region::Info) if self.placed == 0 => self.placed = 1,
+            Said::Focus(Region::Workspace) if self.placed == 1 => self.placed = 2,
+            Said::LeaderUp
             | Said::Held(..)
             | Said::InMenu(_)
             | Said::Choose(..)
@@ -1103,18 +1281,54 @@ impl Watched {
     }
 }
 
+/// The folder a probe's webviews keep their own in, where a system's webview
+/// keeps anything: a scratch made new and private under the system's
+/// temporary one, `nc-desktop-probe-` and a nonce, and removed with
+/// everything in it however the probe ends.
+struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    /// A folder no other has named, made private.
+    fn new() -> std::io::Result<Self> {
+        let mut nonce = [0_u8; 8];
+        nc_platform::random(&mut nonce)?;
+        let folder = std::env::temp_dir().join(format!(
+            "nc-desktop-probe-{:016x}",
+            u64::from_le_bytes(nonce)
+        ));
+        nc_platform::create_private_directory(&folder)?;
+        Ok(Self(folder))
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        // A folder that could not be removed is the system's temporary one's
+        // to clear, and no reason to fail what the probe found.
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// Opens a window as the interface does in each of the light and the dark,
 /// one after the other, each asked to show from the moment it is opened,
 /// watched for `within` at most and closed: whether this system can host the
-/// interface, asked with no daemon.
+/// interface, asked with no daemon. **What its webviews keep of their own is
+/// kept in a folder the probe makes and removes**, a scratch of its own.
 ///
 /// # Errors
 ///
-/// [`Unopened`], as [`open`] refuses.
+/// [`Unopened`], as [`open`] refuses, and [`Unopened::Profile`] where that
+/// folder could not be made.
 pub fn probe(within: Duration) -> Result<Probed, Unopened> {
+    let profile = Scratch::new().map_err(Unopened::Profile)?;
     let mut event_loop = EventLoopBuilder::<Arrived>::with_user_event().build();
     let proxy = event_loop.create_proxy();
-    let mut watched = Some(Watched::open(&event_loop, proxy.clone(), 0, within)?);
+    let mut watched = Some(Watched::open(
+        &event_loop,
+        proxy.clone(),
+        (0, &profile.0),
+        within,
+    )?);
     let mut seen = [Seen::default(); PROBED.len()];
     let mut at = 0;
     let mut failed = None;
@@ -1143,7 +1357,7 @@ pub fn probe(within: Duration) -> Result<Probed, Unopened> {
         watched = None;
         at += 1;
         if at < PROBED.len() {
-            match Watched::open(target, proxy.clone(), at, within) {
+            match Watched::open(target, proxy.clone(), (at, &profile.0), within) {
                 Ok(next) => {
                     *flow = ControlFlow::WaitUntil(next.deadline);
                     watched = Some(next);
@@ -1158,6 +1372,7 @@ pub fn probe(within: Duration) -> Result<Probed, Unopened> {
         }
     });
     drop(watched);
+    drop(profile);
     if let Some(unopened) = failed {
         return Err(unopened);
     }
@@ -1784,17 +1999,16 @@ impl Running<'_> {
             self.context.locale,
         );
         let sidebar = crate::sidebar::view(shell, window, selected.as_deref(), self.context.locale);
-        let mut scripts = opened.drawing.drawer(crate::drawer::markup(&drawer));
-        scripts.extend(opened.drawing.sidebar(crate::sidebar::markup(&sidebar)));
-        if let Some(shell) = shell {
+        let footer = shell.map(|shell| {
             let mut footer = crate::footer::view(Some(shell), self.context);
             footer.controls = drawer.controls();
-            scripts.extend(
-                opened
-                    .drawing
-                    .shows(crate::footer::markup(&footer), &shell.draft),
-            );
-        }
+            (crate::footer::markup(&footer), shell.draft.as_str())
+        });
+        let mut scripts = opened.drawing.parts(
+            footer,
+            crate::drawer::markup(&drawer),
+            crate::sidebar::markup(&sidebar),
+        );
         let told = match (shell, window) {
             (Some(shell), Some(window)) => crate::seat::script(&crate::seat::told(shell, window)),
             _ => crate::seat::NONE.to_owned(),
@@ -1807,7 +2021,10 @@ impl Running<'_> {
 
     /// Seat 1's keyboard put where the state says, once the document has
     /// loaded and been drawn — a place put before then would be lost with
-    /// the page that could not take it — and only when the state moved it.
+    /// the page that could not take it — and only when the state moved it
+    /// from where the window last put it or the page last said it went: on a
+    /// part's own element, or given up to nothing for the workspace area,
+    /// which holds nothing a keyboard is on yet.
     fn keyboard(&mut self, opened: &Opened) {
         if !self.showing.is_loaded() {
             return;
@@ -1818,8 +2035,8 @@ impl Running<'_> {
             .map(|focus| focus.region);
         if region != self.placed {
             self.placed = region;
-            if let Some(word) = region.and_then(crate::seat::part_of) {
-                opened.send(vec![format!("window.noctua.focus('{word}');")]);
+            if let Some(region) = region {
+                opened.send(vec![format!("window.noctua.focus('{}');", region.word())]);
             }
         }
     }
@@ -2127,7 +2344,7 @@ pub fn run(found: Found, said: &mut dyn FnMut(&str)) -> Result<(), Unopened> {
     let mut opened = open(
         &event_loop,
         event_loop.create_proxy(),
-        context,
+        (context, &found.layout.webview),
         Mode::DEFAULT,
         (0, false),
     )?;
@@ -2289,14 +2506,6 @@ pub(crate) mod tests {
                 Some(Said::Control(control))
             );
         }
-        assert_eq!(
-            said("exercised 1 0 1 0 1"),
-            Some(Said::Exercised([true, false, true, false, true]))
-        );
-        assert_eq!(
-            said("exercised 0 1 0 1 0"),
-            Some(Said::Exercised([false, true, false, true, false]))
-        );
         for (message, text) in [
             ("draft ", ""),
             ("draft a", "a"),
@@ -2354,14 +2563,38 @@ pub(crate) mod tests {
             "action drawer.expand ",
             "action drawer.back",
             "action page.focus",
+        ] {
+            assert_eq!(said(other), None, "{other:?}");
+        }
+    }
+
+    /// What a probe's exercise found is read as its seven bits, in their
+    /// order, each `1` or `0`, and nothing else is.
+    #[test]
+    fn an_exercise_is_read_as_its_seven_bits() {
+        assert_eq!(
+            said("exercised 1 0 1 0 1 0 1"),
+            Some(Said::Exercised([
+                true, false, true, false, true, false, true
+            ]))
+        );
+        assert_eq!(
+            said("exercised 0 1 0 1 0 1 0"),
+            Some(Said::Exercised([
+                false, true, false, true, false, true, false
+            ]))
+        );
+        for other in [
             "exercised",
             "exercised 1 1",
             "exercised 1 1 1",
             "exercised 1 1 1 1",
+            "exercised 1 1 1 1 1",
             "exercised 1 1 1 1 1 1",
-            "exercised 1 1 2 1 1",
-            "exercised true 1 1 1 1",
-            "exercised 1  1 1 1 1",
+            "exercised 1 1 1 1 1 1 1 1",
+            "exercised 1 1 2 1 1 1 1",
+            "exercised true 1 1 1 1 1 1",
+            "exercised 1  1 1 1 1 1 1",
         ] {
             assert_eq!(said(other), None, "{other:?}");
         }
@@ -2381,14 +2614,15 @@ pub(crate) mod tests {
         );
         assert_eq!(said("hover 4"), Some(Said::Hover(Some("4".to_owned()))));
         let seen = said(
-            "seen 320 240 1 0 1 drawer footer,drawer,sidebar 2:hover:info.expand 2:focus:prompt \
-             12:drag:a:b",
+            "seen 320 240 1 0 0 1 drawer footer,drawer,sidebar 2:hover:info.expand \
+             2:focus:prompt 12:drag:a:b",
         );
         assert_eq!(
             seen,
             Some(Said::Seen(Witnessed {
                 page: (320, 240),
                 fits: true,
+                lines: false,
                 reachable: false,
                 styled: true,
                 keyboard: "drawer".to_owned(),
@@ -2405,10 +2639,11 @@ pub(crate) mod tests {
             }))
         );
         assert_eq!(
-            said("seen 800 600 0 1 0 - -"),
+            said("seen 800 600 0 1 1 0 - -"),
             Some(Said::Seen(Witnessed {
                 page: (800, 600),
                 fits: false,
+                lines: true,
                 reachable: true,
                 styled: false,
                 keyboard: "-".to_owned(),
@@ -2418,7 +2653,7 @@ pub(crate) mod tests {
         );
         let most = usize::try_from(nc_catalog::KERNEL.shell_seats_max).expect("small") * 4;
         let seats = |count: usize| vec!["2:hover:x"; count].join(" ");
-        assert!(said(&format!("seen 1 1 1 1 1 - footer {}", seats(most))).is_some());
+        assert!(said(&format!("seen 1 1 1 1 1 1 - footer {}", seats(most))).is_some());
         for other in [
             "hover ".to_owned(),
             "hover a b".to_owned(),
@@ -2426,19 +2661,21 @@ pub(crate) mod tests {
             format!("hover {}", "a".repeat(65)),
             "Hover a".to_owned(),
             "seen".to_owned(),
-            "seen 320 240 1 1 1 prompt".to_owned(),
-            "seen 320 240 1 1 2 prompt footer".to_owned(),
-            "seen 320 240 1 1 1 window footer".to_owned(),
-            "seen 320 240 1 1 1 prompt drawer,footer".to_owned(),
-            "seen 320 240 1 1 1 prompt footer,footer".to_owned(),
-            "seen 320 240 1 1 1 prompt footer,page".to_owned(),
-            "seen 320 240 1 1 1 prompt ".to_owned(),
-            "seen 320 240 1 1 1 prompt footer 2:press:x".to_owned(),
-            "seen 320 240 1 1 1 prompt footer two:hover:x".to_owned(),
-            "seen 320 240 1 1 1 prompt footer 2:hover".to_owned(),
-            "seen 320 240 1 1 1 prompt footer 2:hover:a,b".to_owned(),
-            "seen -1 240 1 1 1 prompt footer".to_owned(),
-            format!("seen 1 1 1 1 1 - footer {}", seats(most + 1)),
+            "seen 320 240 1 1 1 1 prompt".to_owned(),
+            "seen 320 240 1 1 1 prompt footer".to_owned(),
+            "seen 320 240 1 2 1 1 prompt footer".to_owned(),
+            "seen 320 240 1 1 1 2 prompt footer".to_owned(),
+            "seen 320 240 1 1 1 1 window footer".to_owned(),
+            "seen 320 240 1 1 1 1 prompt drawer,footer".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer,footer".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer,page".to_owned(),
+            "seen 320 240 1 1 1 1 prompt ".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer 2:press:x".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer two:hover:x".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer 2:hover".to_owned(),
+            "seen 320 240 1 1 1 1 prompt footer 2:hover:a,b".to_owned(),
+            "seen -1 240 1 1 1 1 prompt footer".to_owned(),
+            format!("seen 1 1 1 1 1 1 - footer {}", seats(most + 1)),
         ] {
             assert_eq!(said(&other), None, "{other:?}");
         }
@@ -2451,6 +2688,7 @@ pub(crate) mod tests {
         let seen = Witnessed {
             page: (320, 240),
             fits: true,
+            lines: true,
             reachable: true,
             styled: false,
             keyboard: "prompt".to_owned(),
@@ -2468,11 +2706,12 @@ pub(crate) mod tests {
         assert_eq!(
             witnessed_line(window, 0xab, &seen),
             "witnessed shown=1 decorated=0 at=-4,60 drawn=00000000000000ab page=320x240 fits=1 \
-             reachable=1 styled=0 keyboard=prompt shows=footer,drawer \
+             lines=1 reachable=1 styled=0 keyboard=prompt shows=footer,drawer \
              seats=2:hover:info.expand,2:focus:prompt"
         );
         let none = Witnessed {
             fits: false,
+            lines: false,
             reachable: false,
             styled: true,
             shows: Vec::new(),
@@ -2487,7 +2726,7 @@ pub(crate) mod tests {
         assert_eq!(
             witnessed_line(window, u64::MAX, &none),
             "witnessed shown=0 decorated=1 at=- drawn=ffffffffffffffff page=320x240 fits=0 \
-             reachable=0 styled=1 keyboard=prompt shows=- seats=-"
+             lines=0 reachable=0 styled=1 keyboard=prompt shows=- seats=-"
         );
         assert_eq!(super::rounded(59.6), 60);
         assert_eq!(super::rounded(-4.4), -4);
@@ -2610,8 +2849,8 @@ pub(crate) mod tests {
             "send ",
             "send\n",
             "focus",
-            "focus workspace",
-            "focus info",
+            "focus window",
+            "focus Info",
             "focus prompt ",
             "escape ",
             "Escape",
@@ -2646,6 +2885,9 @@ pub(crate) mod tests {
             ("focus prompt", Said::Focus(Region::Prompt)),
             ("focus drawer", Said::Focus(Region::Drawer)),
             ("focus sidebar", Said::Focus(Region::Sidebar)),
+            ("focus info", Said::Focus(Region::Info)),
+            ("focus modeline", Said::Focus(Region::Modeline)),
+            ("focus workspace", Said::Focus(Region::Workspace)),
             ("choose pages 4", Said::Choose(List::Tabs, "4".to_owned())),
             (
                 "choose sidebar 3",

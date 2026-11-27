@@ -16,9 +16,68 @@
 //! when exercised. **On a display the test is handed**
 //! (`nc_platform::testing::Display`): on Linux an `Xvfb` of its own, so no
 //! window reaches a person's session, and the session's own on macOS and
-//! Windows. It spawns a process, so no mutation command runs it.
+//! Windows. **It is handed a home and a temporary directory of its own**,
+//! under a scratch root the suite removes, so it holds that the probe writes
+//! nothing in a person's own directories — its webviews keep nothing of their
+//! own — and removes the folder it made for what a system's webview keeps
+//! even so. It spawns a process, so no mutation command runs it.
 
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// A scratch root of the suite's own, removed however it leaves.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    /// A private directory under the temporary one, named for this process.
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!("nc-prb-{}", std::process::id()));
+        let _ = nc_platform::testing::make_private(&root);
+        let _ = std::fs::remove_dir_all(&root);
+        nc_platform::create_private_directory(&root).expect("a scratch root");
+        Self(root)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = nc_platform::testing::make_private(&self.0);
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The variables the probe is handed a home by, each a directory of it.
+const HOME: [&str; 5] = [
+    "HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_STATE_HOME",
+];
+
+/// The variables the system's temporary directory is read from.
+const TEMPORARY: [&str; 3] = ["TMPDIR", "TMP", "TEMP"];
+
+/// Every path under `root`, but those in `made`.
+fn written(root: &Path, made: &[PathBuf]) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut left = vec![root.to_path_buf()];
+    while let Some(directory) = left.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .expect("a scratch directory is read")
+            .map_while(Result::ok)
+        {
+            let path = entry.path();
+            if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                left.push(path.clone());
+            }
+            if !made.contains(&path) {
+                found.push(path);
+            }
+        }
+    }
+    found
+}
 
 /// The probe opens a window in each mode, each hidden and undecorated, kept
 /// hidden until its document loaded, painting at its first frame what its
@@ -33,6 +92,27 @@ fn the_window_opens_hidden_paints_its_theme_first_and_closes() {
                   reaches the gate's output"
     )]
     let mut probe = Command::new(env!("CARGO_BIN_EXE_noctua-desktop"));
+    let scratch = Scratch::new();
+    let home = scratch.0.join("home");
+    let temporary = scratch.0.join("tmp");
+    let mut made = vec![home.clone(), temporary.clone()];
+    nc_platform::create_private_directory(&home).expect("a home");
+    nc_platform::create_private_directory(&temporary).expect("a temporary directory");
+    for variable in HOME {
+        let directory = if variable == "HOME" {
+            home.clone()
+        } else {
+            let directory = home.join(variable.to_ascii_lowercase());
+            nc_platform::create_private_directory(&directory).expect("a base directory");
+            made.push(directory.clone());
+            directory
+        };
+        probe.env(variable, directory);
+    }
+    for variable in TEMPORARY {
+        probe.env(variable, &temporary);
+    }
+    probe.env("MESA_SHADER_CACHE_DISABLE", "true");
     let display = nc_platform::testing::Display::for_a_window().expect("a display");
     let ran = display
         .handed_to(&mut probe)
@@ -60,5 +140,22 @@ fn the_window_opens_hidden_paints_its_theme_first_and_closes() {
     assert!(
         ran.stdout.is_empty(),
         "the probe writes nothing on standard output"
+    );
+    assert_eq!(
+        written(&home, &made),
+        Vec::<PathBuf>::new(),
+        "the probe wrote in the home it was handed"
+    );
+    let kept: Vec<PathBuf> = written(&temporary, &made)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("nc-desktop-probe-"))
+        })
+        .collect();
+    assert_eq!(
+        kept,
+        Vec::<PathBuf>::new(),
+        "the probe left the folder its webviews kept their own in"
     );
 }
