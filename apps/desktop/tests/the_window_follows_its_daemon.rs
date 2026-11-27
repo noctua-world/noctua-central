@@ -51,13 +51,22 @@ use std::io::BufRead as _;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nc_canon::Value;
 use nc_daemon::testing::{Installed, PATIENCE};
 
 /// What tells a child of this binary to serve the install it names.
 const SERVES: &str = "NC_DESKTOP_WINDOW_SERVES";
+
+/// How long a window prints nothing before what it printed last is taken
+/// as what it settled on.
+///
+/// A note the window says once it drew a state reaches the daemon and comes
+/// back as the next state within a round trip of the channel, milliseconds
+/// on a runner; this is three orders of magnitude above that and two below
+/// [`PATIENCE`].
+const QUIET: Duration = Duration::from_secs(2);
 
 /// The one test, by the name the harness filters it with.
 const NAME: &str = "the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat";
@@ -237,6 +246,42 @@ impl Desktop {
                 Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
                     panic!(
                         "the window never showed {what} within {PATIENCE:?}; it printed:\n{}",
+                        self.heard.join("\n")
+                    )
+                }
+            }
+        }
+    }
+
+    /// The last line it prints from `latest` on, once it has printed nothing
+    /// for [`QUIET`], within [`PATIENCE`]; the suite fails with everything it
+    /// printed otherwise.
+    ///
+    /// **The first line a step waits for is not always the last the window
+    /// draws for that step.** The window prints a line for each state it
+    /// draws, and a note it says of itself once it drew one moves the state
+    /// again: the system's keyboard put on a list is said as seat 1's
+    /// selection, and a part the page cannot take the keyboard on is answered
+    /// with where the keyboard is. So the line a step waited for can be
+    /// followed by the one the window settles on, and a window started again
+    /// is handed only that last state.
+    fn settled(&mut self, latest: Witnessed) -> Witnessed {
+        let deadline = Instant::now() + PATIENCE;
+        let mut latest = latest;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            let quiet = left >= QUIET;
+            match self.lines.recv_timeout(if quiet { QUIET } else { left }) {
+                Ok(line) => {
+                    if let Some(seen) = Witnessed::read(&line) {
+                        latest = seen;
+                    }
+                    self.heard.push(line);
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) if quiet => return latest,
+                Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
+                    panic!(
+                        "the window never stopped printing within {PATIENCE:?}; it printed:\n{}",
                         self.heard.join("\n")
                     )
                 }
@@ -617,13 +662,19 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     // smallest window as well.
     run("sidebar.cycle", none());
     run("sidebar.cycle", none());
-    let kept = window.until("the sidebar with the keyboard on it", |seen| {
+    let sidebar = window.until("the sidebar with the keyboard on it", |seen| {
         seen.get("shows") == "footer,drawer,sidebar"
             && seen.get("keyboard") == "sidebar"
             && seen.get("page") == least
     });
+    // **What it settles on**, which is what it must draw again, and of which
+    // everything waited for above still holds.
+    let kept = window.settled(sidebar);
     assert_eq!(
         (
+            kept.get("shows"),
+            kept.get("keyboard"),
+            kept.get("page"),
             kept.get("shown"),
             kept.get("fits"),
             kept.get("lines"),
@@ -632,6 +683,9 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
             kept.seats(),
         ),
         (
+            "footer,drawer,sidebar",
+            "sidebar",
+            least.as_str(),
             "1",
             "1",
             "1",
@@ -654,9 +708,8 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
 
     // **Started again**: it draws exactly what it drew, from the daemon.
     let mut window = Desktop::start(&desktop, &display, &home);
-    window.until("exactly what it drew before it was killed", |seen| {
-        *seen == kept
-    });
+    let drew = format!("exactly what it drew before it was killed, {kept:?}");
+    window.until(&drew, |seen| *seen == kept);
 
     // **Hidden by the state**.
     run("window.hide", none());
