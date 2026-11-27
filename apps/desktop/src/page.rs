@@ -578,7 +578,7 @@ pub fn document(locale: nc_catalog::Locale, theme: Theme, footer: &View) -> Stri
 /// scrolls inside the sidebar rather than pushing the footer out of the
 /// window. **The body is the window, edge to edge**: its auto margins are
 /// used as none, since a block whose width is auto takes none (CSS 2,
-/// §10.3.3 and §10.6.3) — the one way the utilities alone take back the
+/// sections 10.3.3 and 10.6.3) — the one way the utilities alone take back the
 /// engine's own margin on the body, Tailwind's preflight not being imported
 /// and its spacing scale emitting nothing here.
 #[component]
