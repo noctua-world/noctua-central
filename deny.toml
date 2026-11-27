@@ -78,7 +78,28 @@ unused-ignored-advisory = "warn"
 # text. A defect found in `chrono` is an advisory of its own id, which this entry
 # does not hide, so the audit still fails on one. The entry leaves when
 # `cedar-policy-core` moves off `chrono`, and the warning above says when.
+#
+# **RUSTSEC-2024-0429 does not reach this tree, and only that advisory is left
+# out.** It is unsoundness in `glib`'s `VariantStrIter`, which reads a string
+# out of a `GVariant` array through a pointer a C call writes and Rust was
+# told it may not — undefined behaviour since `glib` 0.15. `glib` 0.18 is
+# under the desktop interface's window and webview on Linux (`wry`'s
+# WebKitGTK, `tao`'s GTK), whose GTK 3 bindings stop at the 0.18 line, and the
+# fix is 0.20. The iterator is made by one function, `Variant::array_iter_str`,
+# which no crate of this tree's Linux graph calls — `glib`'s own tests aside,
+# measured by a search of every one of their sources — so the unsound code is
+# linked and never run. The entry leaves when `wry` moves off GTK 3's bindings,
+# and the warning above says when.
+#
+# **RUSTSEC-2024-0370 says `proc-macro-error` is unmaintained, and names no
+# defect.** It is how `glib-macros` and `gtk3-macros`, the same bindings'
+# procedural macros, report a mistake while this tree compiles: it runs inside
+# the compiler, on this tree's own sources, and nothing of it is linked into
+# what ships. A defect found in it is an advisory of its own id, which this
+# entry does not hide. The entry leaves with the one above.
 ignore = [
+    { id = "RUSTSEC-2024-0370", reason = "An unmaintained notice names no defect, and proc-macro-error runs only inside the compiler for GTK 3's bindings' macros, linked into nothing that ships; removed when wry moves off GTK 3's bindings" },
+    { id = "RUSTSEC-2024-0429", reason = "glib 0.18's unsound VariantStrIter is made only by Variant::array_iter_str, which no crate of this tree's Linux graph calls; removed when wry moves off GTK 3's bindings, whose glib stops at 0.18" },
     { id = "RUSTSEC-2026-0459", reason = "Every database the shipped code and the gate open is judged or made this user's own, its -wal included, before SQLite reads it, so no less trusted party writes the pair this needs; removed when sqlx's SQLite driver accepts libsqlite3-sys 0.39" },
     { id = "RUSTSEC-2026-0543", reason = "An unmaintained notice names no defect, chrono parses only the datetimes this tree's packs and clock give Cedar, and a defect found in it is an advisory of its own id this entry does not hide; removed when cedar-policy-core moves off chrono" },
 ]
@@ -230,6 +251,47 @@ skip = [
     "r-efi",
     "rand",
     "rand_core",
+    # **The desktop interface's window and webview are a second generation of
+    # several crates at once** (`apps/desktop`, the root manifest's `wry` and
+    # `tao`). GTK's Rust bindings, 0.18 — the line WebKitGTK's crate is built
+    # against — generate their code with `heck` 0.4 and find their `-sys`
+    # crates' libraries with `system-deps` 6, which reads TOML through `toml`
+    # 0.8, `toml_datetime` 0.6, `serde_spanned` 0.6, `toml_edit` 0.19 and 0.20
+    # and `winnow` 0.5, and a target through `cfg-expr`'s `target-lexicon`
+    # 0.12; their macros find a crate through `proc-macro-crate` 1 and 2, and
+    # Android's windowing crate, which `tao` names, through 3 and `toml_edit`
+    # 0.25. `cairo-rs` and `gio` error through `thiserror` 1, and
+    # `javascriptcore-rs` and `glib` hold `bitflags` 1. Dioxus's elements
+    # derive an enum set through `darling` 0.21, one major behind `wasmtime`'s.
+    # `tao` takes `windows` 0.61, which brings `windows-link` 0.1 beside the 0.2
+    # the rest of the tree has, and Android's JNI the 0.42 line of
+    # `windows-targets` and its seven import crates, beside the 0.52 `ring`'s
+    # `windows-sys` takes. None is named by a manifest of ours; they unify when
+    # GTK's bindings and `tao` move, and `cargo tree --locked -i <crate>@<version>
+    # --target all -e all` says who brings each.
+    "bitflags",
+    "darling",
+    "darling_core",
+    "darling_macro",
+    "heck",
+    "proc-macro-crate",
+    "serde_spanned",
+    "target-lexicon",
+    "thiserror",
+    "thiserror-impl",
+    "toml",
+    "toml_datetime",
+    "toml_edit",
+    "winnow",
+    "windows-link",
+    "windows-targets",
+    "windows_aarch64_gnullvm",
+    "windows_aarch64_msvc",
+    "windows_i686_gnu",
+    "windows_i686_msvc",
+    "windows_x86_64_gnu",
+    "windows_x86_64_gnullvm",
+    "windows_x86_64_msvc",
 ]
 # A wildcard version is a dependency on whatever the registry has today. Path
 # dependencies inside this workspace carry no version at all and read the same
@@ -276,5 +338,26 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # generated that assembly, which cargo-deny lists as notes; its build script
 # runs them only when `RING_PREGENERATE_ASM` asks it to, which no build here
 # does.
+#
+# **And Microsoft's WebView2 loader ships prebuilt in `webview2-com-sys`,
+# under `wry` on Windows, and is let through by name, path and checksum.**
+# WebView2 is the system's own webview on Windows (`NOCTUA.md §4`), and a
+# program reaches it through Microsoft's loader, which the crate ships for each
+# architecture as `WebView2Loader.dll` beside two libraries, and which its
+# build script copies beside the build. A build for an MSVC target — every
+# Windows build here — links the static library, which cargo-deny does not
+# open, as for `wit-bindgen`'s above; the three DLLs are what it does see. Each
+# is admitted for this version of the crate alone and only while its bytes are
+# the ones measured, so a release of the crate, or a byte changed in one, is
+# refused again until it is read here: the loader is Microsoft's, from the
+# WebView2 SDK, and the sums are `sha256sum` of each file in the crate as the
+# registry serves it.
 [bans.build]
 executables = "deny"
+bypass = [
+    { crate = "webview2-com-sys@0.38.2", allow = [
+        { path = "arm64/WebView2Loader.dll", checksum = "df5816669f5123595c475d97929240d7d0e04f0bdc7dbe18af1dda42348b73a6" },
+        { path = "x64/WebView2Loader.dll", checksum = "8427b1fc58ec707813e5c0a51eb5d69397bb333250a7b891be4d3b123f1e0f1c" },
+        { path = "x86/WebView2Loader.dll", checksum = "44ab92c2246ebfb5f98aa5726626fb44beb61543f2ef1803338af9fd295e63f0" },
+    ] },
+]

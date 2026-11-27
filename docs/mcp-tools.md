@@ -96,13 +96,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"drawer_back","description":"Leave a sub-page of the drawer's page, or close that page if it has none.\n\nDoes what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"drawer_back","description":"Leave a sub-page of the drawer's page, or close that page if it has none.\n\nDoes what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer; a seat whose keyboard was on a drawer left showing nothing goes back to the prompt line.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"drawer_back","description":"Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.\n\nFaz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"drawer_back","description":"Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.\n\nFaz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta; um assento cujo teclado estava numa gaveta que fica sem mostrar nada volta para a linha do prompt.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `drawer.collapse`
@@ -371,6 +371,20 @@ In `pt-BR`:
 {"name":"naming_read","description":"Ler um nome de arquivo: identificador, assinatura, título e palavras-chave.\n\nLê um nome escrito no esquema de nomes de arquivo do Noctua e responde o que ele contém: o identificador, a assinatura, o título, as palavras-chave e a extensão. Também diz se o nome já está escrito exatamente como o Noctua escreve, e dá a grafia que o Noctua usaria. Não muda nada.","inputSchema":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255}},"required":["name"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `page.actions`
+
+In `en`:
+
+```json
+{"name":"page_actions","description":"Open the actions on the window and the page in focus, in the drawer.\n\nOpens, in the drawer, the list of what can be done to the window — hide it, close it, move it, resize it — as Leader w does. Choosing one runs it, asking for what it needs on the prompt line.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"page_actions","description":"Abrir na gaveta as ações sobre a janela e a página em foco.\n\nAbre, na gaveta, a lista do que se pode fazer com a janela — escondê-la, fechá-la, movê-la, redimensioná-la — como Leader w faz. Escolher uma a executa, pedindo na linha de comando o que ela precisar.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `page.back`
 
 In `en`:
@@ -399,6 +413,20 @@ In `pt-BR`:
 {"name":"page_close","description":"Fechar uma página da interface, num lugar ou em todos os lugares onde aparece.\n\nFecha a página em foco na área de trabalho de uma janela ou na gaveta, ou a página que você indicar — do lugar que você disser, ou de todos os lugares onde aparece. Uma página que nada mais mostra é fechada de vez; o que ela começou continua rodando.","inputSchema":{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `page.dev`
+
+In `en`:
+
+```json
+{"name":"page_dev","description":"Open the pages for developing and running Noctua.\n\nOpens the list of dev pages, as Leader d does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Each dev page is authorized as any command is.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"page_dev","description":"Abrir as páginas para desenvolver e operar o Noctua.\n\nAbre a lista de páginas de dev, como Leader d faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Cada página de dev é autorizada como qualquer comando.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `page.focus`
 
 In `en`:
@@ -411,6 +439,20 @@ In `pt-BR`:
 
 ```json
 {"name":"page_focus","description":"Mostrar uma página aberta, na área de trabalho ou na gaveta.\n\nTraz para a frente uma página que já está aberta, no lugar que a mostra: a área de trabalho de uma janela, ou a gaveta, que é expandida se estava recolhida.","inputSchema":{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["page"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `page.help`
+
+In `en`:
+
+```json
+{"name":"page_help","description":"Open the help pages, where the leader menu's direction says.\n\nOpens the list of help pages, as Leader h does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Help already open is shown again there.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"page_help","description":"Abrir as páginas de ajuda, onde a direção do menu do Leader indicar.\n\nAbre a lista de páginas de ajuda, como Leader h faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se a ajuda já está aberta, aparece de novo ali.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `page.into`
@@ -481,6 +523,34 @@ In `pt-BR`:
 
 ```json
 {"name":"page_scroll","description":"Definir até onde uma página está rolada, para que reabra onde estava.\n\nDefine até onde uma página está rolada para baixo, em pixels CSS — a página em foco, a menos que você indique outra — para que todas as janelas a mostrem ali e reabri-la leve você de volta ao mesmo ponto.","inputSchema":{"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1},"to":{"type":"integer","minimum":0,"maximum":4294967295}},"required":["to"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `page.settings`
+
+In `en`:
+
+```json
+{"name":"page_settings","description":"Open the settings, where the leader menu's direction says.\n\nOpens the list of settings, as Leader s does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Settings already open is shown again there.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"page_settings","description":"Abrir as configurações, onde a direção do menu do Leader indicar.\n\nAbre a lista de configurações, como Leader s faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se as configurações já estão abertas, aparecem de novo ali.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `page.shortcuts`
+
+In `en`:
+
+```json
+{"name":"page_shortcuts","description":"Open the shortcuts of the page in focus, in the drawer.\n\nOpens, in the drawer, the list of the shortcuts the page in focus keeps for itself, as Leader / does. A page keeps its own shortcuts there rather than in the global bindings.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"page_shortcuts","description":"Abrir na gaveta os atalhos da página em foco.\n\nAbre, na gaveta, a lista dos atalhos que a página em foco guarda para si, como Leader / faz. Uma página guarda ali os seus próprios atalhos, e não nos atalhos globais.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `prompt.ask`
@@ -572,13 +642,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"shell_focus","description":"Give a seat's keyboard to a part of an interface window.\n\nMoves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"shell_focus","description":"Give a seat's keyboard to a part of an interface window.\n\nMoves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it. A keyboard on a drawer that shows nothing open goes back to the prompt line, whichever command left the drawer so.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"shell_focus","description":"Levar o teclado de um assento para uma parte de uma janela da interface.\n\nMove o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"shell_focus","description":"Levar o teclado de um assento para uma parte de uma janela da interface.\n\nMove o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham. Um teclado numa gaveta que não mostra nada aberto volta para a linha do prompt, seja qual for o comando que a deixou assim.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `shell.hover`

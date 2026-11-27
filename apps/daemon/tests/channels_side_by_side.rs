@@ -200,6 +200,8 @@ fn installed(
             install,
             cli: &cli,
             daemon: Path::new(BINARY),
+            // The CLI stands in for the desktop interface: copied, never run.
+            desktop: &cli,
             world: &world,
             plugins: Vec::new(),
             restorer: false,

@@ -2176,8 +2176,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.drawer.back.paragraph",
         [
-            "Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.",
-            "Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.",
+            "Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer; a seat whose keyboard was on a drawer left showing nothing goes back to the prompt line.",
+            "Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta; um assento cujo teclado estava numa gaveta que fica sem mostrar nada volta para a linha do prompt.",
         ],
     ),
     (
@@ -2527,6 +2527,24 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Read a file name", "Ler um nome de arquivo"],
     ),
     (
+        "command.page.actions.description",
+        [
+            "Open the actions on the window and the page in focus, in the drawer.",
+            "Abrir na gaveta as ações sobre a janela e a página em foco.",
+        ],
+    ),
+    (
+        "command.page.actions.paragraph",
+        [
+            "Opens, in the drawer, the list of what can be done to the window — hide it, close it, move it, resize it — as Leader w does. Choosing one runs it, asking for what it needs on the prompt line.",
+            "Abre, na gaveta, a lista do que se pode fazer com a janela — escondê-la, fechá-la, movê-la, redimensioná-la — como Leader w faz. Escolher uma a executa, pedindo na linha de comando o que ela precisar.",
+        ],
+    ),
+    (
+        "command.page.actions.title",
+        ["Open the window's actions", "Abrir as ações da janela"],
+    ),
+    (
         "command.page.back.description",
         [
             "Return from a sub-page to the page it was opened from.",
@@ -2563,6 +2581,24 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Close a page", "Fechar uma página"],
     ),
     (
+        "command.page.dev.description",
+        [
+            "Open the pages for developing and running Noctua.",
+            "Abrir as páginas para desenvolver e operar o Noctua.",
+        ],
+    ),
+    (
+        "command.page.dev.paragraph",
+        [
+            "Opens the list of dev pages, as Leader d does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Each dev page is authorized as any command is.",
+            "Abre a lista de páginas de dev, como Leader d faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Cada página de dev é autorizada como qualquer comando.",
+        ],
+    ),
+    (
+        "command.page.dev.title",
+        ["Open the dev pages", "Abrir as páginas de dev"],
+    ),
+    (
         "command.page.focus.description",
         [
             "Show a page that is open, in the workspace area or in the drawer.",
@@ -2583,6 +2619,21 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
             "Trazer uma página para a frente",
         ],
     ),
+    (
+        "command.page.help.description",
+        [
+            "Open the help pages, where the leader menu's direction says.",
+            "Abrir as páginas de ajuda, onde a direção do menu do Leader indicar.",
+        ],
+    ),
+    (
+        "command.page.help.paragraph",
+        [
+            "Opens the list of help pages, as Leader h does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Help already open is shown again there.",
+            "Abre a lista de páginas de ajuda, como Leader h faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se a ajuda já está aberta, aparece de novo ali.",
+        ],
+    ),
+    ("command.page.help.title", ["Open help", "Abrir a ajuda"]),
     (
         "command.page.into.description",
         [
@@ -2672,6 +2723,42 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.page.scroll.title",
         ["Scroll a page", "Rolar uma página"],
+    ),
+    (
+        "command.page.settings.description",
+        [
+            "Open the settings, where the leader menu's direction says.",
+            "Abrir as configurações, onde a direção do menu do Leader indicar.",
+        ],
+    ),
+    (
+        "command.page.settings.paragraph",
+        [
+            "Opens the list of settings, as Leader s does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Settings already open is shown again there.",
+            "Abre a lista de configurações, como Leader s faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se as configurações já estão abertas, aparecem de novo ali.",
+        ],
+    ),
+    (
+        "command.page.settings.title",
+        ["Open settings", "Abrir as configurações"],
+    ),
+    (
+        "command.page.shortcuts.description",
+        [
+            "Open the shortcuts of the page in focus, in the drawer.",
+            "Abrir na gaveta os atalhos da página em foco.",
+        ],
+    ),
+    (
+        "command.page.shortcuts.paragraph",
+        [
+            "Opens, in the drawer, the list of the shortcuts the page in focus keeps for itself, as Leader / does. A page keeps its own shortcuts there rather than in the global bindings.",
+            "Abre, na gaveta, a lista dos atalhos que a página em foco guarda para si, como Leader / faz. Uma página guarda ali os seus próprios atalhos, e não nos atalhos globais.",
+        ],
+    ),
+    (
+        "command.page.shortcuts.title",
+        ["Open the page's shortcuts", "Abrir os atalhos da página"],
     ),
     (
         "command.prompt.ask.description",
@@ -2794,8 +2881,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.shell.focus.paragraph",
         [
-            "Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.",
-            "Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.",
+            "Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it. A keyboard on a drawer that shows nothing open goes back to the prompt line, whichever command left the drawer so.",
+            "Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham. Um teclado numa gaveta que não mostra nada aberto volta para a linha do prompt, seja qual for o comando que a deixou assim.",
         ],
     ),
     (
@@ -4920,15 +5007,24 @@ pub const KEYS: &[&str] = &[
     "command.naming.read.description",
     "command.naming.read.paragraph",
     "command.naming.read.title",
+    "command.page.actions.description",
+    "command.page.actions.paragraph",
+    "command.page.actions.title",
     "command.page.back.description",
     "command.page.back.paragraph",
     "command.page.back.title",
     "command.page.close.description",
     "command.page.close.paragraph",
     "command.page.close.title",
+    "command.page.dev.description",
+    "command.page.dev.paragraph",
+    "command.page.dev.title",
     "command.page.focus.description",
     "command.page.focus.paragraph",
     "command.page.focus.title",
+    "command.page.help.description",
+    "command.page.help.paragraph",
+    "command.page.help.title",
     "command.page.into.description",
     "command.page.into.paragraph",
     "command.page.into.title",
@@ -4944,6 +5040,12 @@ pub const KEYS: &[&str] = &[
     "command.page.scroll.description",
     "command.page.scroll.paragraph",
     "command.page.scroll.title",
+    "command.page.settings.description",
+    "command.page.settings.paragraph",
+    "command.page.settings.title",
+    "command.page.shortcuts.description",
+    "command.page.shortcuts.paragraph",
+    "command.page.shortcuts.title",
     "command.prompt.ask.description",
     "command.prompt.ask.paragraph",
     "command.prompt.ask.title",
@@ -5651,6 +5753,27 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.page.actions.tags",
+        [
+            &[
+                "window",
+                "actions",
+                "container",
+                "open",
+                "leader w",
+                "interface",
+            ],
+            &[
+                "janela",
+                "ações",
+                "contêiner",
+                "abrir",
+                "leader w",
+                "interface",
+            ],
+        ],
+    ),
+    (
         "command.page.back.tags",
         [
             &["back", "sub-page", "navigate", "return", "interface"],
@@ -5665,10 +5788,54 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.page.dev.tags",
+        [
+            &[
+                "dev",
+                "developer",
+                "logs",
+                "registries",
+                "open",
+                "leader d",
+                "interface",
+            ],
+            &[
+                "dev",
+                "desenvolvimento",
+                "logs",
+                "registros",
+                "abrir",
+                "leader d",
+                "interface",
+            ],
+        ],
+    ),
+    (
         "command.page.focus.tags",
         [
             &["page", "focus", "switch", "show", "interface"],
             &["página", "foco", "alternar", "mostrar", "interface"],
+        ],
+    ),
+    (
+        "command.page.help.tags",
+        [
+            &[
+                "help",
+                "manual",
+                "documentation",
+                "open",
+                "leader h",
+                "interface",
+            ],
+            &[
+                "ajuda",
+                "manual",
+                "documentação",
+                "abrir",
+                "leader h",
+                "interface",
+            ],
         ],
     ),
     (
@@ -5711,6 +5878,40 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         [
             &["scroll", "page", "position", "interface"],
             &["rolar", "página", "posição", "interface"],
+        ],
+    ),
+    (
+        "command.page.settings.tags",
+        [
+            &["settings", "preferences", "open", "leader s", "interface"],
+            &[
+                "configurações",
+                "preferências",
+                "abrir",
+                "leader s",
+                "interface",
+            ],
+        ],
+    ),
+    (
+        "command.page.shortcuts.tags",
+        [
+            &[
+                "shortcuts",
+                "page",
+                "keys",
+                "open",
+                "leader slash",
+                "interface",
+            ],
+            &[
+                "atalhos",
+                "página",
+                "teclas",
+                "abrir",
+                "leader barra",
+                "interface",
+            ],
         ],
     ),
     (

@@ -920,6 +920,13 @@ pub struct Layout {
     /// The desktop interface its daemon starts writes its standard error
     /// here, `<log>/desktop.err`.
     pub desktop_err: PathBuf,
+    /// What the desktop interface's webview keeps of its own, where a system's
+    /// webview keeps anything at all: `<cache>/webview`. The interface's page
+    /// keeps nothing — what it shows is the daemon's — so the webview's store
+    /// is ephemeral on every system, and this is where one that needs a folder
+    /// even so writes it (`WebView2`'s user data folder), never under the
+    /// user's own directories by the executable's name.
+    pub webview: PathBuf,
     /// The CLI's name on `PATH`, without a system's executable suffix.
     pub cli: String,
     /// The daemon's executable, without a system's executable suffix.
@@ -1006,6 +1013,7 @@ pub fn layout(install: &Install, user: &str) -> Layout {
         socket: runtime.join("s"),
         daemon_err: log.join("daemon.err"),
         desktop_err: log.join("desktop.err"),
+        webview: cache.join("webview"),
         cli: leaf.clone(),
         daemon: format!("{leaf}-daemon"),
         desktop: format!("{leaf}-desktop"),

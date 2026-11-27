@@ -576,6 +576,11 @@ pub(crate) enum Verb {
     WindowResize,
     LeaderTap,
     PageOpen,
+    PageSettings,
+    PageHelp,
+    PageDev,
+    PageShortcuts,
+    PageActions,
     PageClose,
     PageFocus,
     PageNext,
@@ -604,7 +609,7 @@ pub(crate) enum Verb {
 
 impl Verb {
     /// Every one: the only place one is made.
-    pub(crate) const ALL: [Self; 36] = [
+    pub(crate) const ALL: [Self; 41] = [
         Self::ShellRead,
         Self::ShellFocus,
         Self::ShellHover,
@@ -617,6 +622,11 @@ impl Verb {
         Self::WindowResize,
         Self::LeaderTap,
         Self::PageOpen,
+        Self::PageSettings,
+        Self::PageHelp,
+        Self::PageDev,
+        Self::PageShortcuts,
+        Self::PageActions,
         Self::PageClose,
         Self::PageFocus,
         Self::PageNext,
@@ -658,6 +668,11 @@ impl Verb {
             Self::WindowResize => "window.resize",
             Self::LeaderTap => "leader.tap",
             Self::PageOpen => "page.open",
+            Self::PageSettings => "page.settings",
+            Self::PageHelp => "page.help",
+            Self::PageDev => "page.dev",
+            Self::PageShortcuts => "page.shortcuts",
+            Self::PageActions => "page.actions",
             Self::PageClose => "page.close",
             Self::PageFocus => "page.focus",
             Self::PageNext => "page.next",
@@ -691,6 +706,11 @@ impl Verb {
         match self {
             Self::ShellRead
             | Self::WindowOpen
+            | Self::PageSettings
+            | Self::PageHelp
+            | Self::PageDev
+            | Self::PageShortcuts
+            | Self::PageActions
             | Self::DrawerCollapse
             | Self::DrawerExpand
             | Self::DrawerBack
@@ -969,6 +989,11 @@ fn the_read<E: Environment>(shared: &Shared<E>, held: Option<&Held>) -> Value {
 /// What `verb` with `args` makes of `state`, judged against what `known`
 /// says of the kernel.
 ///
+/// **No keyboard is left on a drawer that shows nothing open**: whatever the
+/// command, a seat's keyboard on the drawer once it is emptied or collapsed
+/// goes back to its window's prompt line ([`State::drawer_shut`]), so a
+/// window never holds a keyboard on a part it does not draw.
+///
 /// # Errors
 ///
 /// As [`ran`] says; `state` is left as it was.
@@ -985,6 +1010,7 @@ pub(crate) fn changed(
         known,
     }
     .made(verb)?;
+    next.drawer_shut();
     *state = next;
     Ok(())
 }
@@ -1016,6 +1042,11 @@ impl Change<'_> {
             Verb::WindowResize => self.window_resize(),
             Verb::LeaderTap => self.leader_tap(),
             Verb::PageOpen => self.page_open(),
+            Verb::PageSettings => self.page_of_kind(Kind::Settings),
+            Verb::PageHelp => self.page_of_kind(Kind::Help),
+            Verb::PageDev => self.page_of_kind(Kind::Dev),
+            Verb::PageShortcuts => self.page_of_kind(Kind::Shortcuts),
+            Verb::PageActions => self.page_of_kind(Kind::Actions),
             Verb::PageClose => self.page_close(),
             Verb::PageFocus => self.page_focus(),
             Verb::PageNext | Verb::PagePrevious => {
@@ -1424,6 +1455,24 @@ impl Change<'_> {
         };
         let window = self.window()?;
         self.state.opened(kind, topic, place, window)
+    }
+
+    /// `page.settings`, `page.help`, `page.dev`, `page.shortcuts` and
+    /// `page.actions`: the page of `kind` on no topic, opened as `page.open`
+    /// opens it when it names that kind alone — where the drawer's direction
+    /// says, or in the drawer for a kind that opens there alone.
+    ///
+    /// **A command for each entry of the leader menu that opens a page**
+    /// (§12.9): a binding names a command and carries no argument (§12.8), so
+    /// the menu's `s`, `h`, `d`, `/` and `w` each need one that takes none.
+    fn page_of_kind(&mut self, kind: Kind) -> Result<(), Refusal> {
+        let place = if kind.drawer_only() {
+            Place::Drawer
+        } else {
+            self.state.direction()
+        };
+        let window = self.window()?;
+        self.state.opened(kind, None, place, window)
     }
 
     /// Whether `topic` names what a page of `kind` can show.
@@ -1849,6 +1898,30 @@ impl State {
         self.pages.retain(|id, _| shown.contains(id));
         if !self.pages.values().any(|page| page.kind == Kind::Leader) {
             self.drawer.flipped = false;
+        }
+    }
+
+    /// Whether the drawer shows anything a keyboard can be on: what the prompt
+    /// asks for, which it lists collapsed or not, or a page, while it is not
+    /// collapsed.
+    fn drawer_open(&self) -> bool {
+        self.asking.is_some() || (!self.drawer.pages.is_empty() && !self.drawer.collapsed)
+    }
+
+    /// Every seat whose keyboard is on a drawer that shows nothing open —
+    /// emptied, or collapsed — gone back to its window's prompt line: where
+    /// the leader menu's keyboard came from (§12.8, the second rule), and
+    /// where what is typed next goes.
+    fn drawer_shut(&mut self) {
+        if self.drawer_open() {
+            return;
+        }
+        for seat in self.seats.values_mut() {
+            if let Some(focus) = &mut seat.focus
+                && focus.region == Region::Drawer
+            {
+                focus.region = Region::Prompt;
+            }
         }
     }
 
@@ -2397,6 +2470,15 @@ impl State {
                     seat.focus.is_none_or(|focus| {
                         self.windows.iter().any(|window| window.id == focus.window)
                     })
+                }),
+            ),
+            (
+                "a seat's keyboard is on the drawer only while it shows something open",
+                seats(&|seat| {
+                    self.drawer_open()
+                        || seat
+                            .focus
+                            .is_none_or(|focus| focus.region != Region::Drawer)
                 }),
             ),
             (
@@ -3133,6 +3215,48 @@ mod tests {
         );
     }
 
+    /// Each command of a leader menu's entry that opens a page leaves the
+    /// state `page.open` naming its kind alone leaves — from the first run,
+    /// with the drawer's direction turned, with the menu open and its next
+    /// target flipped, and with the page open already — and reads no
+    /// argument.
+    #[test]
+    fn each_entry_of_the_leader_menu_opens_its_page_as_page_open_does() {
+        let first = State::default();
+        let toward = ran(&first, Verb::DrawerToward, &json!({"region": "drawer"}));
+        let tapped = ran(
+            &ran(
+                &ran(&first, Verb::LeaderTap, &json!({})),
+                Verb::LeaderTap,
+                &json!({}),
+            ),
+            Verb::LeaderTap,
+            &json!({}),
+        );
+        assert!(
+            tapped.drawer.flipped,
+            "the menu is open and its target flipped"
+        );
+        let opened = ran(&first, Verb::PageOpen, &json!({"kind": "help"}));
+        for (verb, kind) in [
+            (Verb::PageSettings, "settings"),
+            (Verb::PageHelp, "help"),
+            (Verb::PageDev, "dev"),
+            (Verb::PageShortcuts, "shortcuts"),
+            (Verb::PageActions, "actions"),
+        ] {
+            assert!(verb.reads().is_empty(), "{}", verb.name());
+            for state in [&first, &toward, &tapped, &opened] {
+                assert_eq!(
+                    ran(state, verb, &json!({})),
+                    ran(state, Verb::PageOpen, &json!({"kind": kind})),
+                    "{}",
+                    verb.name()
+                );
+            }
+        }
+    }
+
     /// A page opens where it is asked for or where the drawer's direction
     /// says, once for its kind and topic, and the drawer's lists open in the
     /// drawer alone.
@@ -3542,6 +3666,103 @@ mod tests {
         assert_eq!(shared.drawer.share, 49);
     }
 
+    /// A keyboard on a drawer that comes to show nothing open goes back to
+    /// its window's prompt line, where the leader menu's came from, so no
+    /// seat's keyboard is left on a part a window does not draw.
+    ///
+    /// **Every way the drawer shuts, the keyboard on it each time**: Esc on
+    /// the leader menu, its one page; the menu closed by `page.close`; closed
+    /// by the page an entry of it opens in the workspace area; the drawer
+    /// collapsed; and the command list closed, by `prompt.clear` and by
+    /// typing past the `;`, with the keyboard on its list — and a keyboard
+    /// put on a drawer that shows nothing goes to the prompt line at once. A
+    /// drawer that still shows a page keeps the keyboard; a seat whose
+    /// keyboard is elsewhere stays there; and each seat goes to the prompt
+    /// line of its own window.
+    #[test]
+    fn a_keyboard_on_a_drawer_that_shuts_goes_back_to_the_prompt_line() {
+        let on = |state: &State, seat: u64| state.seats.get(&seat).and_then(|held| held.focus);
+        let prompt = |window: u64| {
+            Some(Focus {
+                window,
+                region: Region::Prompt,
+            })
+        };
+        let shown = ran(&State::default(), Verb::LeaderTap, &json!({}));
+        let menu = ran(&shown, Verb::LeaderTap, &json!({}));
+        assert_eq!(on(&menu, 1).map(|focus| focus.region), Some(Region::Drawer));
+        let leader = page_of(&menu, Kind::Leader);
+        let listing = ran(
+            &ran(&shown, Verb::PromptSet, &json!({"text": ";"})),
+            Verb::ShellFocus,
+            &json!({"region": "drawer"}),
+        );
+        assert_eq!(
+            on(&listing, 1).map(|focus| focus.region),
+            Some(Region::Drawer),
+            "the command list holds a keyboard"
+        );
+        for (how, shut) in [
+            ("Esc", ran(&menu, Verb::DrawerBack, &json!({}))),
+            (
+                "page.close",
+                ran(&menu, Verb::PageClose, &json!({"page": leader})),
+            ),
+            ("an entry", ran(&menu, Verb::PageSettings, &json!({}))),
+            ("collapse", ran(&menu, Verb::DrawerCollapse, &json!({}))),
+            ("prompt.clear", ran(&listing, Verb::PromptClear, &json!({}))),
+            (
+                "typing",
+                ran(&listing, Verb::PromptSet, &json!({"text": "x"})),
+            ),
+            (
+                "put there",
+                ran(&shown, Verb::ShellFocus, &json!({"region": "drawer"})),
+            ),
+        ] {
+            assert_eq!(on(&shut, 1), prompt(1), "{how}: {shut:?}");
+        }
+        let beside = ran(
+            &ran(
+                &shown,
+                Verb::PageOpen,
+                &json!({"kind": "help", "in": "drawer"}),
+            ),
+            Verb::LeaderTap,
+            &json!({}),
+        );
+        let kept = ran(&beside, Verb::DrawerBack, &json!({}));
+        assert_eq!(kept.drawer.pages, [page_of(&kept, Kind::Help)]);
+        assert_eq!(
+            on(&kept, 1).map(|focus| focus.region),
+            Some(Region::Drawer),
+            "a drawer showing a page keeps the keyboard"
+        );
+        let two = ran(&menu, Verb::WindowOpen, &json!({}));
+        let second = two.windows[1].id;
+        let seated = ran(
+            &ran(
+                &two,
+                Verb::ShellFocus,
+                &json!({"seat": 2, "window": second, "region": "drawer"}),
+            ),
+            Verb::ShellFocus,
+            &json!({"seat": 3, "region": "sidebar"}),
+        );
+        let shut = ran(&seated, Verb::DrawerBack, &json!({}));
+        assert_eq!(
+            (on(&shut, 1), on(&shut, 2), on(&shut, 3)),
+            (
+                prompt(1),
+                prompt(second),
+                Some(Focus {
+                    window: 1,
+                    region: Region::Sidebar
+                })
+            )
+        );
+    }
+
     /// A window opens shown, and closes with the pages only it showed — the
     /// last one hidden instead — and every seat in it loses its focus.
     #[test]
@@ -3777,8 +3998,10 @@ mod tests {
     /// menu, opened by a second tap and flipped by a third; the drawer
     /// collapsed, sent toward itself and resized; the sidebar shown and the
     /// footer hidden; a message expanded; the prompt asking for a parameter
-    /// with a draft no ASCII writes; and seat 1's pointer and seat 3's
-    /// keyboard each on something, seat 3 dragging.
+    /// with a draft no ASCII writes; seat 1's keyboard on the drawer the menu
+    /// opened in, which the prompt's asking keeps open though collapsed; and
+    /// seat 1's pointer and seat 3's keyboard each on something, seat 3
+    /// dragging.
     fn varied() -> State {
         let mut state = State::default();
         for (verb, args) in [
@@ -3980,8 +4203,9 @@ mod tests {
     /// with nothing in it, its share at half or at nothing; a draft or a
     /// message past its bytes, a message empty or holding what no reader
     /// sees, a command that is no name and a parameter that is no word; and a
-    /// seat past the bound or numbered zero, its focus on no window, and what
-    /// it hovers, selects or drags no word.
+    /// seat past the bound or numbered zero, its focus on no window, its
+    /// keyboard on a drawer that shows nothing open, and what it hovers,
+    /// selects or drags no word.
     #[expect(
         clippy::too_many_lines,
         reason = "one table, a row for each clause of the rules: split, a clause could lose \
@@ -4290,6 +4514,13 @@ mod tests {
                         region: Region::Prompt,
                     });
                 }),
+            ),
+            (
+                "a seat's keyboard is on the drawer only while it shows something open",
+                // The drawer is collapsed, so with the prompt asking for
+                // nothing it shows nothing open, and seat 1's keyboard is on
+                // it.
+                Box::new(|state: &mut State| state.asking = None),
             ),
             (
                 "what a seat hovers, selects or drags is a word",

@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 26] = [
+const COVERED: [&str; 28] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -86,7 +86,11 @@ const COVERED: [&str; 26] = [
     // The binaries a person's machine runs, each a library and a thin binary.
     "apps/daemon/src",
     "apps/cli/src",
+    "apps/desktop/src",
     "xtask/src",
+    // The two stand-ins `[patch.crates-io]` builds in place of `wry`'s
+    // dependencies: code of this tree's, which every gate reads.
+    "stand-ins",
     "catalog",
     "policy",
     // The plugins, which are members and ship as the components the kernel
@@ -1241,7 +1245,7 @@ pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 18] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 19] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
@@ -1260,6 +1264,7 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 18] = [
     "plugins/reference/",
     "apps/daemon/",
     "apps/cli/",
+    "apps/desktop/",
 ];
 
 /// The directories `§15.1` does not judge, named rather than patterned.
@@ -1270,11 +1275,15 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 18] = [
 /// subtracting a directory the scope never held can saturate a floor to zero,
 /// and then it stops being a floor at all. `xtask/` is a workspace member, and
 /// the census that holds every member to one of these two lists reads it here.
-pub(crate) const OUTSIDE_THE_ERROR_CODE_SCOPE: [&str; 5] = [
+pub(crate) const OUTSIDE_THE_ERROR_CODE_SCOPE: [&str; 7] = [
     "catalog/",
     "crates/nc-catalog/",
     "crates/nc-catalog-compiler/",
     "docs/",
+    // The two stand-ins `[patch.crates-io]` builds in place of `wry`'s
+    // dependencies, which raise nothing and hold no code of the platform's.
+    "stand-ins/dirs/",
+    "stand-ins/kuchikiki/",
     "xtask/",
 ];
 
@@ -10738,7 +10747,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 21] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 22] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -10759,6 +10768,7 @@ mod tests {
         "plugins/reference",
         "apps/daemon",
         "apps/cli",
+        "apps/desktop",
         "xtask",
     ];
 
@@ -10771,7 +10781,7 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 18] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 19] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
@@ -10790,6 +10800,7 @@ mod tests {
         "plugins/reference/",
         "apps/daemon/",
         "apps/cli/",
+        "apps/desktop/",
     ];
 
     /// The determinism walk reaches a clock in each of `EMITS`, not one of three.
@@ -13330,7 +13341,9 @@ mod tests {
                 "crates/nc-schema/src",
                 "apps/daemon/src",
                 "apps/cli/src",
+                "apps/desktop/src",
                 "xtask/src",
+                "stand-ins",
                 "catalog",
                 "policy",
                 "plugins",

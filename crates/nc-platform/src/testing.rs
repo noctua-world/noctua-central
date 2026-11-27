@@ -378,3 +378,123 @@ pub fn judge_what_stands_at(
 ) -> Result<(), crate::ipc::Refused> {
     imp::judge_what_stands_at(endpoint, &user.0)
 }
+
+/// Whether a window a test opens is shown on an X server the test starts:
+/// on Linux, where the session may be the person's own and a runner has
+/// none; never elsewhere, where the runner's interactive session, or the
+/// person's, is where a window opens.
+const ON_AN_X_SERVER_OF_ITS_OWN: bool = cfg!(target_os = "linux");
+
+/// A display a test opens a window on, for as long as this lives: what a
+/// child it starts is handed so its window opens there.
+///
+/// **On Linux an `Xvfb` of the test's own**, reached by its abstract socket
+/// alone — no socket in `/tmp`, no network — so no window a test opens reaches
+/// the person's session: the child is handed `DISPLAY` naming it and no
+/// `WAYLAND_DISPLAY`, which GTK would choose over it, and a session bus
+/// `disabled:`, so a webview's start never waits out D-Bus's timeout on a bus
+/// that does not answer — measured on a runner, 25 s at every start. **On
+/// macOS and Windows the session's own**, which the child keeps. It never
+/// stands aside: a Linux machine with no `Xvfb` on `PATH` fails the test that
+/// asked, told how to get one, since a skip would read as a pass nobody saw
+/// not run.
+#[derive(Debug)]
+pub struct Display {
+    /// The X server, where one was started; killed and waited for when this
+    /// is dropped.
+    server: Option<std::process::Child>,
+    /// Each variable a child is handed, or has taken away where it is none.
+    environment: Vec<(&'static str, Option<String>)>,
+}
+
+impl Display {
+    /// A display for a window: an X server of the test's own on Linux, and
+    /// the session's own elsewhere.
+    ///
+    /// # Errors
+    ///
+    /// [`io::Error`] when `Xvfb` is not on `PATH`, does not start, or names
+    /// no display.
+    pub fn for_a_window() -> io::Result<Self> {
+        if !ON_AN_X_SERVER_OF_ITS_OWN {
+            return Ok(Self {
+                server: None,
+                environment: Vec::new(),
+            });
+        }
+        let (server, number) = an_x_server()?;
+        Ok(Self {
+            server: Some(server),
+            environment: vec![
+                ("DISPLAY", Some(format!(":{number}"))),
+                ("WAYLAND_DISPLAY", None),
+                ("DBUS_SESSION_BUS_ADDRESS", Some("disabled:".to_owned())),
+            ],
+        })
+    }
+
+    /// `command`, handed this display: each variable set, or taken away.
+    pub fn handed_to<'a>(
+        &self,
+        command: &'a mut std::process::Command,
+    ) -> &'a mut std::process::Command {
+        for (name, value) in &self.environment {
+            match value {
+                Some(value) => command.env(name, value),
+                None => command.env_remove(name),
+            };
+        }
+        command
+    }
+}
+
+impl Drop for Display {
+    fn drop(&mut self) {
+        if let Some(server) = &mut self.server {
+            let _ = server.kill();
+            let _ = server.wait();
+        }
+    }
+}
+
+/// An `Xvfb` started from `PATH` with no socket in `/tmp` and no network,
+/// and the number of the display it chose.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the child is the X server, its input and errors null and its output a pipe \
+              this reads its display's number from"
+)]
+fn an_x_server() -> io::Result<(std::process::Child, String)> {
+    use std::io::BufRead as _;
+    let xvfb = std::env::var_os("PATH")
+        .and_then(|path| {
+            std::env::split_paths(&path)
+                .map(|directory| directory.join("Xvfb"))
+                .find(|program| program.is_file())
+        })
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "no `Xvfb` on `PATH`, so there is no display to open a window on: install it \
+                 (Debian's and Ubuntu's `xvfb`), or run under the nix shell `AGENTS.md` names",
+            )
+        })?;
+    let mut server = std::process::Command::new(xvfb)
+        .args(["-displayfd", "1", "-nolisten", "tcp", "-nolisten", "unix"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    let mut number = String::new();
+    let said = server
+        .stdout
+        .take()
+        .map(|out| std::io::BufReader::new(out).read_line(&mut number));
+    let number = number.trim().to_owned();
+    if !matches!(said, Some(Ok(_))) || number.is_empty() {
+        let _ = server.kill();
+        let _ = server.wait();
+        return Err(io::Error::other("`Xvfb` started and named no display"));
+    }
+    Ok((server, number))
+}

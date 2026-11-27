@@ -315,7 +315,7 @@ In `en`:
 drawer.back — Go back in the drawer
 Leave a sub-page of the drawer's page, or close that page if it has none.
 
-Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.
+Does what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer; a seat whose keyboard was on a drawer left showing nothing goes back to the prompt line.
 
 Categories: none
 Tags: drawer, back, escape, close, interface
@@ -334,7 +334,7 @@ In `pt-BR`:
 drawer.back — Voltar na gaveta
 Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.
 
-Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.
+Faz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta; um assento cujo teclado estava numa gaveta que fica sem mostrar nada volta para a linha do prompt.
 
 Categories: none
 Tags: gaveta, voltar, esc, fechar, interface
@@ -1119,6 +1119,46 @@ Arguments:
   --name <text, from 1 to 255 characters>  required
 ```
 
+## `page.actions`
+
+In `en`:
+
+```text
+page.actions — Open the window's actions
+Open the actions on the window and the page in focus, in the drawer.
+
+Opens, in the drawer, the list of what can be done to the window — hide it, close it, move it, resize it — as Leader w does. Choosing one runs it, asking for what it needs on the prompt line.
+
+Categories: none
+Tags: window, actions, container, open, leader w, interface
+
+Usage:
+  noctua page.actions [arguments]
+  noctua page.actions -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.actions — Abrir as ações da janela
+Abrir na gaveta as ações sobre a janela e a página em foco.
+
+Abre, na gaveta, a lista do que se pode fazer com a janela — escondê-la, fechá-la, movê-la, redimensioná-la — como Leader w faz. Escolher uma a executa, pedindo na linha de comando o que ela precisar.
+
+Categories: none
+Tags: janela, ações, contêiner, abrir, leader w, interface
+
+Usage:
+  noctua page.actions [arguments]
+  noctua page.actions -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `page.back`
 
 In `en`:
@@ -1207,6 +1247,46 @@ Arguments:
   --window <whole number, at least 1>
 ```
 
+## `page.dev`
+
+In `en`:
+
+```text
+page.dev — Open the dev pages
+Open the pages for developing and running Noctua.
+
+Opens the list of dev pages, as Leader d does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Each dev page is authorized as any command is.
+
+Categories: none
+Tags: dev, developer, logs, registries, open, leader d, interface
+
+Usage:
+  noctua page.dev [arguments]
+  noctua page.dev -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.dev — Abrir as páginas de dev
+Abrir as páginas para desenvolver e operar o Noctua.
+
+Abre a lista de páginas de dev, como Leader d faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Cada página de dev é autorizada como qualquer comando.
+
+Categories: none
+Tags: dev, desenvolvimento, logs, registros, abrir, leader d, interface
+
+Usage:
+  noctua page.dev [arguments]
+  noctua page.dev -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `page.focus`
 
 In `en`:
@@ -1249,6 +1329,46 @@ Arguments:
   --page <whole number, at least 1>  required
   --in <one of: workspace, drawer>
   --window <whole number, at least 1>
+```
+
+## `page.help`
+
+In `en`:
+
+```text
+page.help — Open help
+Open the help pages, where the leader menu's direction says.
+
+Opens the list of help pages, as Leader h does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Help already open is shown again there.
+
+Categories: none
+Tags: help, manual, documentation, open, leader h, interface
+
+Usage:
+  noctua page.help [arguments]
+  noctua page.help -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.help — Abrir a ajuda
+Abrir as páginas de ajuda, onde a direção do menu do Leader indicar.
+
+Abre a lista de páginas de ajuda, como Leader h faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se a ajuda já está aberta, aparece de novo ali.
+
+Categories: none
+Tags: ajuda, manual, documentação, abrir, leader h, interface
+
+Usage:
+  noctua page.help [arguments]
+  noctua page.help -- '<one JSON object>'
+
+Arguments:
+  none
 ```
 
 ## `page.into`
@@ -1467,6 +1587,86 @@ Arguments:
   --in <one of: workspace, drawer>
   --window <whole number, at least 1>
   --to <whole number, from 0 to 4294967295>  required
+```
+
+## `page.settings`
+
+In `en`:
+
+```text
+page.settings — Open settings
+Open the settings, where the leader menu's direction says.
+
+Opens the list of settings, as Leader s does: in the workspace area, or in the drawer when the leader menu's direction points there or a Leader tap flipped it for this page. Settings already open is shown again there.
+
+Categories: none
+Tags: settings, preferences, open, leader s, interface
+
+Usage:
+  noctua page.settings [arguments]
+  noctua page.settings -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.settings — Abrir as configurações
+Abrir as configurações, onde a direção do menu do Leader indicar.
+
+Abre a lista de configurações, como Leader s faz: na área de trabalho, ou na gaveta quando a direção do menu do Leader aponta para lá ou um toque no Leader a inverteu para esta página. Se as configurações já estão abertas, aparecem de novo ali.
+
+Categories: none
+Tags: configurações, preferências, abrir, leader s, interface
+
+Usage:
+  noctua page.settings [arguments]
+  noctua page.settings -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `page.shortcuts`
+
+In `en`:
+
+```text
+page.shortcuts — Open the page's shortcuts
+Open the shortcuts of the page in focus, in the drawer.
+
+Opens, in the drawer, the list of the shortcuts the page in focus keeps for itself, as Leader / does. A page keeps its own shortcuts there rather than in the global bindings.
+
+Categories: none
+Tags: shortcuts, page, keys, open, leader slash, interface
+
+Usage:
+  noctua page.shortcuts [arguments]
+  noctua page.shortcuts -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+page.shortcuts — Abrir os atalhos da página
+Abrir na gaveta os atalhos da página em foco.
+
+Abre, na gaveta, a lista dos atalhos que a página em foco guarda para si, como Leader / faz. Uma página guarda ali os seus próprios atalhos, e não nos atalhos globais.
+
+Categories: none
+Tags: atalhos, página, teclas, abrir, leader barra, interface
+
+Usage:
+  noctua page.shortcuts [arguments]
+  noctua page.shortcuts -- '<one JSON object>'
+
+Arguments:
+  none
 ```
 
 ## `prompt.ask`
@@ -1721,7 +1921,7 @@ In `en`:
 shell.focus — Move a seat's focus
 Give a seat's keyboard to a part of an interface window.
 
-Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.
+Moves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it. A keyboard on a drawer that shows nothing open goes back to the prompt line, whichever command left the drawer so.
 
 Categories: none
 Tags: focus, keyboard, seat, interface, move focus
@@ -1742,7 +1942,7 @@ In `pt-BR`:
 shell.focus — Mover o foco de um assento
 Levar o teclado de um assento para uma parte de uma janela da interface.
 
-Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.
+Move o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham. Um teclado numa gaveta que não mostra nada aberto volta para a linha do prompt, seja qual for o comando que a deixou assim.
 
 Categories: none
 Tags: foco, teclado, assento, interface, mudar o foco

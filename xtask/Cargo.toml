@@ -99,6 +99,12 @@ wit-parser.workspace = true
 # resolution rules, and re-deriving them is writing a second cargo. `cargo
 # metadata` answers in JSON; this is the deserialiser the tree already uses.
 serde_json.workspace = true
+# **The design system's Tailwind bridge, for the desktop's sheet**: the one
+# file of it the sheet is built against, read from `FILES` by name
+# (`xtask/src/tailwind.rs`), at the release the lockfile holds, so no copy of
+# it sits in this tree. The root manifest says why the design system is taken
+# from crates.io.
+noctua-design-dist.workspace = true
 
 [dev-dependencies]
 # **A link, made the way this system makes one**, for the tests that drive the

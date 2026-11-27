@@ -201,10 +201,28 @@ jobs:
       - name: cargo xtask dev
         run: cargo xtask dev
 
+      # **The webview the desktop interface is drawn in, which the image does
+      # not ship.** `wry` builds WebKitGTK through its `-dev` package, which
+      # brings GTK and libsoup's beside it; nothing else of the desktop's tree
+      # links a system library here.
+      - name: the webview's libraries
+        run: sudo apt-get update -q
+      - name: the webview's development package
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev
+
+      # **pnpm at one exact version**, the same in every job that runs the gate
+      # and in `release.yml`'s: the gate installs Tailwind with it from
+      # `xtask/tailwind/pnpm-lock.yaml` and builds the desktop's sheet
+      # (`xtask/src/tailwind.rs`). No runner ships it; npm does.
+      - name: pnpm
+        run: npm install -g pnpm@11.9.0
+
       # **The whole gate, and nothing else.** Formatting, lints, the catalog, the
       # policy pack, drift, determinism, the tests and the dependency audit are
       # all steps of this one command, so there is exactly one thing to run and
-      # exactly one thing that can pass.
+      # exactly one thing that can pass. The desktop interface's suite opens its
+      # window on an `Xvfb` of its own, as `nc-platform`'s presses the Leader on
+      # one, and the image ships `Xvfb`.
       - name: cargo xtask check
         run: cargo xtask check
 
@@ -228,6 +246,10 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
         run: cargo install --locked cargo-deny@0.20.2
+      # pnpm, as the `linux` job installs it; the runner's own session is the
+      # display the desktop's window opens in.
+      - name: pnpm
+        run: npm install -g pnpm@11.9.0
       - name: cargo xtask check
         run: cargo xtask check
 
@@ -251,6 +273,10 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
         run: cargo install --locked cargo-deny@0.20.2
+      # pnpm, as the `linux` job installs it; the runner's interactive session,
+      # with WebView2 installed, is where the desktop's window opens.
+      - name: pnpm
+        run: npm install -g pnpm@11.9.0
       - name: cargo xtask check
         run: cargo xtask check
 

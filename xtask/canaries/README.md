@@ -619,6 +619,11 @@ and `run.rs`, its process control, `control.rs`, its installer, `install.rs`,
 `noctua-dev`, `chosen.rs`, its launcher, `launcher.rs`, and the `checkouts` verb,
 `checkouts.rs`, with its picker, `picker.rs`, and that picker's terminal, `terminal.rs`,
 the MCP server `noctua mcp` serves a client with, `mcp.rs`,
+the desktop interface's `main.rs`, `mirror.rs`, `page.rs`, its footer, `footer.rs`, its
+theme, `theme.rs`, the paths its protocol answers, `assets.rs`, `host.rs` and `client.rs`,
+its keys, `keys.rs`, its command list, `commands.rs`, its drawer, `drawer.rs`, its
+sidebar, `sidebar.rs`, the surfaces it draws, `surface.rs`, and its seats, `seat.rs`,
+the desktop's sheet, `tailwind.rs`,
 `nc-prune`'s `sqlite.rs`,
 `local.rs`, which builds that database's schema from its migrations, and the fuzzy
 core's `lib.rs`, `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, and restores **all of them** before each mutation: its first multi-file version

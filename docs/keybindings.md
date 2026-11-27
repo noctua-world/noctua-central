@@ -113,7 +113,20 @@ Each Leader held with its channel's chord modifier, which a binding's `Chord` na
 
 ## Bindings
 
-No command in the catalog declares a binding: they arrive with the layer that binds them (`NOCTUA.md §15.2`).
+| Binding | Command | Display name (en) | Display name (pt-BR) |
+|---|---|---|---|
+| `Leader KeyD` | `page.dev` | Open the dev pages | Abrir as páginas de dev |
+| `Leader KeyH` | `page.help` | Open help | Abrir a ajuda |
+| `Leader KeyQ` | `page.close` | Close a page | Fechar uma página |
+| `Leader KeyS` | `page.settings` | Open settings | Abrir as configurações |
+| `Leader KeyW` | `page.actions` | Open the window's actions | Abrir as ações da janela |
+| `Leader Slash` | `page.shortcuts` | Open the page's shortcuts | Abrir os atalhos da página |
+| `Leader Space` | `sidebar.cycle` | Show, focus or hide the sidebar | Mostrar, focar ou esconder a barra |
+| `Leader+KeyQ` | `page.close` | Close a page | Fechar uma página |
+| `Leader+ArrowUp` | `page.previous` | Show the previous page | Mostrar a página anterior |
+| `Leader+ArrowDown` | `page.next` | Show the next page | Mostrar a próxima página |
+| `Leader+ArrowLeft` | `page.previous` | Show the previous page | Mostrar a página anterior |
+| `Leader+ArrowRight` | `page.next` | Show the next page | Mostrar a próxima página |
 
 ## System shortcuts
 

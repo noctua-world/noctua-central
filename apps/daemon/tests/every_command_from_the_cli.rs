@@ -236,6 +236,11 @@ const ROWS: &[Row] = &[
     ran("page.next", &[]),
     ran("page.previous", &[]),
     ran("page.focus", &["--page", "3", "--in", "workspace"]),
+    ran("page.settings", &[]),
+    ran("page.help", &[]),
+    ran("page.dev", &[]),
+    ran("page.shortcuts", &[]),
+    ran("page.actions", &[]),
     ran("drawer.toward", &["--region", "drawer"]),
     ran("prompt.set", &["--text", ";win"]),
     ran(

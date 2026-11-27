@@ -45,10 +45,13 @@
 # for one pressed with the chord modifier held as well, the key named as
 # `KeyboardEvent.code` names it — `Leader+Chord+KeyQ`. Any other spelling fails
 # the build, and so does one key of one table bound twice; the same key in two
-# tables is two bindings. None is written here: the catalog's bindings arrive
-# with the layer that binds them (`§15.2`). They are the defaults: a person's
-# own configuration replaces a command's list in their channel, and
-# `nc_channel::keys` judges it by the same grammar.
+# tables is two bindings. They arrived with the layer that binds them, the
+# desktop interface (`§15.2`): the leader menu's entries — Space, `s`, `h`,
+# `d`, `q`, `/` and `w` — and, with the Leader held, `q` and the arrows; a
+# binding carries no argument, so each names a command that takes none. The
+# workspaces' and the layout's keys arrive with them (Stage 17). They are the
+# defaults: a person's own configuration replaces a command's list in their
+# channel, and `nc_channel::keys` judges it by the same grammar.
 #
 # Four fields are required and none of them is optional at `activate`
 # (`§11.7`, `reference/identity-and-authorization.md §2`):
@@ -555,6 +558,76 @@ args_schema = """
 {"type":"object","properties":{"kind":{"type":"string","enum":["home","settings","help","dev","surface","leader","commands","shortcuts","actions"]},"topic":{"type":"string","minLength":1,"maxLength":64},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"required":["kind"],"additionalProperties":false}"""
 
 [[command]]
+name = "page.settings"
+title = "command.page.settings.title"
+description = "command.page.settings.description"
+paragraph = "command.page.settings.paragraph"
+tags = "command.page.settings.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+keybindings = ["Leader KeyS"]
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "page.help"
+title = "command.page.help.title"
+description = "command.page.help.description"
+paragraph = "command.page.help.paragraph"
+tags = "command.page.help.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+keybindings = ["Leader KeyH"]
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "page.dev"
+title = "command.page.dev.title"
+description = "command.page.dev.description"
+paragraph = "command.page.dev.paragraph"
+tags = "command.page.dev.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+keybindings = ["Leader KeyD"]
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "page.shortcuts"
+title = "command.page.shortcuts.title"
+description = "command.page.shortcuts.description"
+paragraph = "command.page.shortcuts.paragraph"
+tags = "command.page.shortcuts.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+keybindings = ["Leader Slash"]
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "page.actions"
+title = "command.page.actions.title"
+description = "command.page.actions.description"
+paragraph = "command.page.actions.paragraph"
+tags = "command.page.actions.tags"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+keybindings = ["Leader KeyW"]
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
 name = "page.close"
 title = "command.page.close.title"
 description = "command.page.close.description"
@@ -564,6 +637,7 @@ action = "Write"
 resource_selector = "feature:interface"
 reversibility = "read"
 mutating = false
+keybindings = ["Leader KeyQ", "Leader+KeyQ"]
 args_schema = """
 {"type":"object","properties":{"page":{"type":"integer","minimum":1},"in":{"type":"string","enum":["workspace","drawer"]},"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
 
@@ -590,6 +664,7 @@ action = "Write"
 resource_selector = "feature:interface"
 reversibility = "read"
 mutating = false
+keybindings = ["Leader+ArrowRight", "Leader+ArrowDown"]
 args_schema = """
 {"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
 
@@ -603,6 +678,7 @@ action = "Write"
 resource_selector = "feature:interface"
 reversibility = "read"
 mutating = false
+keybindings = ["Leader+ArrowLeft", "Leader+ArrowUp"]
 args_schema = """
 {"type":"object","properties":{"window":{"type":"integer","minimum":1}},"additionalProperties":false}"""
 
@@ -746,6 +822,7 @@ action = "Write"
 resource_selector = "feature:interface"
 reversibility = "read"
 mutating = false
+keybindings = ["Leader Space"]
 args_schema = """
 {"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4}},"additionalProperties":false}"""
 

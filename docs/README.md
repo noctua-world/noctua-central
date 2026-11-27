@@ -45,9 +45,18 @@ detects it and says so.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
 - **Xvfb**, on Linux only, on `PATH`: the gate starts one, with no socket in `/tmp`, and
-  presses the Leader on it, and fails without it rather than passing that test unrun. It
-  is the `xvfb` package on Debian and Ubuntu (`sudo apt-get install xvfb`), and with Nix
-  nothing is installed: `nix shell nixpkgs#xvfb --command cargo xtask check`.
+  presses the Leader on it and opens the desktop interface's window on it, and fails
+  without it rather than passing those tests unrun. It is the `xvfb` package on Debian and
+  Ubuntu (`sudo apt-get install xvfb`).
+- **The webview's libraries**, on Linux only, for building the desktop interface:
+  `pkg-config` and WebKitGTK 4.1's development package, which brings GTK 3's and
+  libsoup 3's (`sudo apt-get install libwebkit2gtk-4.1-dev` on Debian and Ubuntu). macOS
+  and Windows ship their webview.
+- **pnpm**, at the version `xtask/tailwind/package.json` was locked with
+  (`npm install -g pnpm@11.9.0`), with Node.js: the gate installs Tailwind with it, under
+  `target/`, and builds the desktop's sheet. With Nix nothing above is installed, and
+  this is the gate: `nix-shell -p pkg-config gtk3 webkitgtk_4_1 libsoup_3 xvfb nodejs pnpm
+  --run 'cargo xtask check'`.
 
 ## Quick start
 
@@ -56,6 +65,7 @@ cargo xtask dev      # PostgreSQL and the central log store, on loopback
 cargo xtask dev --install   # this checkout as its development channel
 cargo xtask build    # compile the catalog into the crate that carries it
 cargo xtask build --plugins   # every plugin, built for wasm32 as a component
+cargo xtask build --sheet     # the desktop's sheet, built by Tailwind from its markup's classes
 cargo xtask check    # the whole gate. CI runs this, `cargo xtask dev` for the
                      # stack it needs, the install for cargo-deny, and one more
                      # job that builds twice and diffs — the only
@@ -81,8 +91,8 @@ listening there, or one below 1024, which a user without the privilege may not b
 
 **This checkout as a channel you run.** `cargo xtask dev --install` installs the
 checkout as its development channel, on Linux, macOS and Windows alike, stack or no
-stack: it builds the CLI, the daemon and the plugins, copies the CLI and the daemon out of
-the target directory cargo built them in — `target/`, or wherever `CARGO_TARGET_DIR` or
+stack: it builds the CLI, the daemon, the desktop interface and the plugins, copies the
+three binaries out of the target directory cargo built them in — `target/`, or wherever `CARGO_TARGET_DIR` or
 `build.target-dir` puts it — and the plugins out of the checkout's own `target/`, from its
 `plugins` folder, where the plugin build writes them whatever the environment says, into
 the install under your base directories — the XDG ones on Linux, the home's Library on macOS,

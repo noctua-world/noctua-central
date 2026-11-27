@@ -39,6 +39,10 @@
 //! decision of the three — which key, which modifiers, what a refusal means —
 //! is made in [`leader`], compiled on every system.
 //!
+//! **And the webview the desktop interface is drawn in** (`webview`, behind
+//! the feature of that name): the one call that puts it into a window, which
+//! Linux makes through GTK and macOS and Windows on the window's handle.
+//!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
 //! definition written in the format the manager reads, and the manager's tool
@@ -144,6 +148,10 @@ pub mod ipc;
 /// Which process this is, as the system says: its boot, its start and its
 /// executable.
 pub mod process;
+/// The one call that puts a webview into a window, behind the feature only the
+/// desktop interface turns on, so nothing else links a webview: the condition
+/// is the module's own first line.
+pub mod webview;
 
 #[cfg(unix)]
 use unix as imp;

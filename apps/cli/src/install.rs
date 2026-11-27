@@ -218,6 +218,10 @@ pub struct Plan<'a> {
     pub cli: &'a Path,
     /// The daemon's executable, as a build left it.
     pub daemon: &'a Path,
+    /// The desktop interface's executable, as a build left it: installed
+    /// beside the CLI and the daemon, under the name the layout gives it
+    /// (`nc_channel::Layout::desktop`).
+    pub desktop: &'a Path,
     /// The world file's text, copied into the profile.
     pub world: &'a str,
     /// The plugins installed in the profile.
@@ -233,8 +237,8 @@ pub struct Plan<'a> {
 /// The plan of a development install, with its restorer.
 ///
 /// **The one `cargo xtask dev --install` makes**, and the suite that proves
-/// the restorer installs: `install` made from the binaries `cli` and `daemon`
-/// a build left, the world `world` and the `plugins`, its daemon registered
+/// the restorer installs: `install` made from the binaries `cli`, `daemon`
+/// and `desktop` a build left, the world `world` and the `plugins`, its daemon registered
 /// with this system's service manager, and `noctua-dev` pointed where `chosen`
 /// says, when it says.
 #[must_use]
@@ -242,6 +246,7 @@ pub const fn development_plan<'a>(
     install: Install,
     cli: &'a Path,
     daemon: &'a Path,
+    desktop: &'a Path,
     world: &'a str,
     plugins: Vec<Plugin<'a>>,
     chosen: Option<Chosen>,
@@ -250,6 +255,7 @@ pub const fn development_plan<'a>(
         install,
         cli,
         daemon,
+        desktop,
         world,
         plugins,
         restorer: true,
@@ -434,6 +440,11 @@ fn install_restored_by<R: Restoring>(
         layout.daemon,
         nc_platform::EXECUTABLE_SUFFIX
     ));
+    let desktop = layout.install.join(format!(
+        "{}{}",
+        layout.desktop,
+        nc_platform::EXECUTABLE_SUFFIX
+    ));
     // **What stands at `noctua-dev` judged before anything is stopped**, with
     // its directory: a name this install did not make refuses it whole.
     let link = plan
@@ -459,6 +470,7 @@ fn install_restored_by<R: Restoring>(
     }
     replaced(&cli, &read_whole(plan.cli)?, &user, true)?;
     replaced(&daemon, &read_whole(plan.daemon)?, &user, true)?;
+    replaced(&desktop, &read_whole(plan.desktop)?, &user, true)?;
     replaced(
         &layout.manifest,
         plan.install.to_canonical().as_bytes(),
@@ -915,9 +927,15 @@ fn uninstall_restored_by<R: Restoring>(
         layout.daemon,
         nc_platform::EXECUTABLE_SUFFIX
     ));
+    let desktop = layout.install.join(format!(
+        "{}{}",
+        layout.desktop,
+        nc_platform::EXECUTABLE_SUFFIX
+    ));
     let files = [
         Some(&cli),
         Some(&daemon),
+        Some(&desktop),
         Some(&layout.manifest),
         layout.checkout_record.as_ref(),
     ];
@@ -1261,9 +1279,10 @@ mod tests {
     #[test]
     fn an_install_is_its_binaries_its_manifest_its_world_and_its_plugins() {
         let scratch = Scratch::new("made");
-        let (cli, daemon) = (
+        let (cli, daemon, desktop) = (
             scratch.file("noctua", "cli"),
             scratch.file("noctua-daemon", "dmn"),
+            scratch.file("noctua-desktop", "dsk"),
         );
         let source = scratch.0.join("plugin");
         for directory in [source.clone(), source.join(nc_channel::PLUGIN_TEXTS)] {
@@ -1288,6 +1307,7 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &desktop,
             world: "{\"world\":1}",
             plugins: vec![Plugin {
                 name: "x",
@@ -1314,6 +1334,10 @@ mod tests {
             (
                 layout.install.join(format!("{}{suffix}", layout.daemon)),
                 "dmn",
+            ),
+            (
+                layout.install.join(format!("{}{suffix}", layout.desktop)),
+                "dsk",
             ),
             (
                 layout.plugins.join("x").join(nc_channel::PLUGIN_COMPONENT),
@@ -1387,6 +1411,7 @@ mod tests {
             install: install.clone(),
             cli: &this,
             daemon: &this,
+            desktop: &this,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
@@ -1402,6 +1427,17 @@ mod tests {
         assert!(runs(&installed.cli), "the CLI was copied and does not run");
         nc_platform::judge(&installed.cli, nc_platform::Kind::File, &user)
             .expect("its owner's alone");
+        let layout = nc_channel::layout(&install, &user.to_string());
+        let desktop = layout.install.join(format!(
+            "{}{}",
+            layout.desktop,
+            nc_platform::EXECUTABLE_SUFFIX
+        ));
+        assert!(
+            runs(&desktop),
+            "the desktop interface was copied and does not run"
+        );
+        nc_platform::judge(&desktop, nc_platform::Kind::File, &user).expect("its owner's alone");
     }
 
     /// An install made again replaces every file, stops what the earlier one
@@ -1418,6 +1454,7 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &daemon,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
@@ -1457,9 +1494,10 @@ mod tests {
     #[test]
     fn an_uninstall_removes_the_binaries_and_leaves_the_profile() {
         let scratch = Scratch::new("removed");
-        let (cli, daemon) = (
+        let (cli, daemon, desktop) = (
             scratch.file("noctua", "c"),
             scratch.file("noctua-daemon", "d"),
+            scratch.file("noctua-desktop", "k"),
         );
         let install = scratch.install("ti3");
         assert!(super::uninstall(&install).expect("nothing").is_none());
@@ -1470,12 +1508,19 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &desktop,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
             chosen: None,
         };
         super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
+        let copied = layout.install.join(format!(
+            "{}{}",
+            layout.desktop,
+            nc_platform::EXECUTABLE_SUFFIX
+        ));
+        assert!(copied.is_file(), "the desktop interface was installed");
         let removed = super::uninstall(&install)
             .expect("removed")
             .expect("there was one");
@@ -1508,6 +1553,7 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &daemon,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
@@ -1571,6 +1617,7 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &daemon,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
@@ -1690,14 +1737,26 @@ mod tests {
     #[test]
     fn a_development_plan_registers_its_restorer() {
         let scratch = Scratch::new("plan");
-        let (cli, daemon) = (scratch.0.join("noctua"), scratch.0.join("noctua-daemon"));
+        let (cli, daemon, desktop) = (
+            scratch.0.join("noctua"),
+            scratch.0.join("noctua-daemon"),
+            scratch.0.join("noctua-desktop"),
+        );
         let install = scratch.install("tp1");
-        let plan = super::development_plan(install.clone(), &cli, &daemon, "{}", Vec::new(), None);
+        let plan = super::development_plan(
+            install.clone(),
+            &cli,
+            &daemon,
+            &desktop,
+            "{}",
+            Vec::new(),
+            None,
+        );
         assert!(plan.restorer, "a development install registers no restorer");
         assert_eq!(plan.install, install);
         assert_eq!(
-            (plan.cli, plan.daemon, plan.world),
-            (cli.as_path(), daemon.as_path(), "{}")
+            (plan.cli, plan.daemon, plan.desktop, plan.world),
+            (cli.as_path(), daemon.as_path(), desktop.as_path(), "{}")
         );
         assert!(plan.plugins.is_empty());
     }
@@ -1811,7 +1870,15 @@ mod tests {
             }
         };
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
+        let first = super::development_plan(
+            install.clone(),
+            &one,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         super::install_restored_by(&first, initialize_as_the_daemon(&layout, &kept), restorer())
             .expect("made");
         assert_eq!(
@@ -1822,7 +1889,15 @@ mod tests {
                 "registered, marked false"
             ]
         );
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
+        let again = super::development_plan(
+            install.clone(),
+            &two,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         let installed = super::install_restored_by(&again, |_: &Path, _: &Path| Ok(()), restorer())
             .expect("made again");
         assert!(
@@ -1887,7 +1962,15 @@ mod tests {
             }
         };
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
+        let first = super::development_plan(
+            install.clone(),
+            &one,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         super::install_restored_by(&first, initialize_as_the_daemon(&layout, &kept), restorer())
             .expect("made");
         drop(seen.take());
@@ -1899,7 +1982,15 @@ mod tests {
             .expect("written again")
             .write_all(later.as_bytes())
             .expect("written");
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
+        let again = super::development_plan(
+            install.clone(),
+            &two,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         let refused = super::install_restored_by(&again, |_: &Path, _: &Path| Ok(()), restorer())
             .expect_err("an earlier install this build cannot read");
         assert!(
@@ -1944,14 +2035,30 @@ mod tests {
         let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let earlier = recorded(&layout, &seen);
         let kept = std::cell::RefCell::new(None);
-        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new(), None);
+        let first = super::development_plan(
+            install.clone(),
+            &one,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         super::install_restored_by(
             &first,
             initialize_as_the_daemon(&layout, &kept),
             |_: &nc_channel::Install, _: &nc_channel::Layout, _: &nc_platform::User| Ok(earlier),
         )
         .expect("made");
-        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new(), None);
+        let again = super::development_plan(
+            install.clone(),
+            &two,
+            &daemon,
+            &daemon,
+            "{}",
+            Vec::new(),
+            None,
+        );
         let unfound = super::install_restored_by(
             &again,
             |_: &Path, _: &Path| Ok(()),
@@ -2011,6 +2118,7 @@ mod tests {
             install: install.clone(),
             cli: &cli,
             daemon: &daemon,
+            desktop: &daemon,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,
@@ -2164,6 +2272,7 @@ mod tests {
             install: install.clone(),
             cli,
             daemon,
+            desktop: daemon,
             world: "{}",
             plugins: Vec::new(),
             restorer: false,

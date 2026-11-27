@@ -1,0 +1,91 @@
+[package]
+name = "nc-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The desktop interface: a window and its webview, a view of the interface's state the daemon holds, which it mirrors and changes only by commands and notes."
+
+# **A library and a thin binary, and the library holds no kernel.** What the
+# interface does is the library's — follow the daemon's state, draw it, send
+# what a person does as a command or a note — and `noctua-desktop` reads its
+# arguments and prints. No `nc-kernel` and no `nc-daemon`, here or under them:
+# the interface reaches a kernel only through the daemon's endpoint, as the CLI
+# does (`NOCTUA.md §12.1`).
+[[bin]]
+name = "noctua-desktop"
+path = "src/main.rs"
+
+[dependencies]
+# The codes every refusal carries (`NOCTUA.md §15.1`), and the bounds the
+# daemon holds a watch and a heartbeat to, which this reads and takes from no
+# caller (`DAEMON`), a window's least size and a draft's (`KERNEL`), and the
+# commands' display names and lines in each locale, which name the footer's
+# controls and say what a seat is on (`§20.4`).
+nc-catalog.workspace = true
+# The interface's state as the daemon sends it, read by the mirror, a
+# command's arguments and a note's facts written as the one canonical form,
+# and a text handed to the page's script written as a string literal it reads.
+nc-canon.workspace = true
+# The install beside the executable, which names the daemon this window is a
+# view of and the channel its modeline names where it is not production
+# (`§17.1`, `§12.5`).
+nc-channel.workspace = true
+# The protocol, and the one client every program asks a daemon through
+# (`nc_ipc::client`): the handshake that proves both ends, a watch and a note.
+nc-ipc.workspace = true
+# The Leader's grammar: the keys a binding names, by `KeyboardEvent.code`,
+# the three tables and the bindings in force (`NOCTUA.md §12.8`).
+nc-schema.workspace = true
+# The one fuzzy core the command list is filtered by, as `kernel.find`
+# filters (`§12.4`): never a second matcher.
+nc-fuzzy.workspace = true
+# **The one call that puts the webview into the window**, which each system
+# makes its own way, behind the feature only this crate turns on
+# (`nc_platform::webview`, `§2.7`).
+nc-platform = { workspace = true, features = ["webview"] }
+# The window, its event loop, and the system's webview in it. The root
+# manifest says why each is taken directly, and pinned.
+tao.workspace = true
+wry.workspace = true
+# The interface's markup, written as `rsx!` (`NOCTUA.md §4`), the first
+# frame of it rendered into the document the webview is handed, before the
+# window is ever shown, and the footer rendered again from each state the
+# daemon answers, which the page is brought to.
+dioxus.workspace = true
+dioxus-ssr.workspace = true
+# **The design system** (`NOCTUA.md §9`): its components — the footer, its
+# lines and its corners (`§12.3`), the prompt, the buttons, the glyphs and the
+# runs of text in them — and its theme model, the palette and the mode the
+# document's root is stamped with before the first paint (`§9.6`).
+noctua-design.workspace = true
+# **What the design system ships to a page, embedded**: its stylesheets, its
+# behaviour modules and its palettes' values, every one served by name through
+# the interface's custom protocol, and the order its sheets are linked in read
+# from its own list, its `base.html`.
+noctua-design-dist.workspace = true
+# The script Dioxus applies a virtual DOM's edits with, served beside them.
+dioxus-interpreter-js.workspace = true
+# The runtime the two connections to the daemon run on, one thread each
+# (`rt`), the endpoint's socket or pipe (`net`), and the protocol's bounds and
+# the wait between two tries (`time`). Already in the graph with each; never
+# `process` or `signal`.
+tokio = { workspace = true, features = ["rt", "net", "time"] }
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests**, as every crate with a `tests/` suite does.
+nc-desktop = { path = "." }
+# The doors a test stages a scratch directory through.
+nc-platform = { workspace = true, features = ["test-support", "webview"] }
+# The scratch install and the scripted daemon this crate's tests connect to,
+# so none of them starts a daemon process.
+nc-ipc = { workspace = true, features = ["test-support"] }
+# A real daemon in a scratch install (`nc_daemon::testing`), which the suite
+# that opens the shipped window over it runs as a child of its own binary,
+# told to serve (`nc_daemon::run::serve`): never in the library or the binary,
+# which reach a kernel only through the daemon's endpoint.
+nc-daemon = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

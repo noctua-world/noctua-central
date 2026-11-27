@@ -1,0 +1,16 @@
+# **A stand-in for `dirs` 6, in `wry`'s tree on Linux and macOS**, put in its
+# place by the root manifest's `[patch.crates-io]`, which says why. The version
+# is the one `wry` requires; nothing else of this tree takes it.
+[package]
+name = "dirs"
+version = "6.0.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+description = "A stand-in for the one function of `dirs` that `wry` calls: the download directory, which it answers with nothing."
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

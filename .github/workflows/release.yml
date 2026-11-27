@@ -84,6 +84,12 @@ jobs:
       # it up before its own.
       - name: cargo xtask dev
         run: cargo xtask dev
+      - name: the webview's libraries
+        run: sudo apt-get update -q
+      - name: the webview's development package
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev
+      - name: pnpm
+        run: npm install -g pnpm@11.9.0
       - name: cargo xtask check
         run: cargo xtask check
 
