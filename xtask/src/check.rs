@@ -20089,7 +20089,7 @@ mod the_frozen_path_rule {
         ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
         ("desktop/footer.rs", 97, 4),
-        ("desktop/host.rs", 123, 14),
+        ("desktop/host.rs", 124, 14),
         ("desktop/keys.rs", 29, 3),
         ("desktop/lib.rs", 0, 14),
         ("desktop/main.rs", 23, 6),
@@ -26276,7 +26276,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24988;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24990;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26346,7 +26346,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32579;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32584;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26400,7 +26400,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **799 of 32,579 are accepted by the first-line
+    /// rules the gates apply: **799 of 32,584 are accepted by the first-line
     /// rule alone, and 526 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph

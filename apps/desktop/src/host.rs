@@ -1285,6 +1285,14 @@ impl Watched {
     }
 }
 
+/// How long a probe tries to remove the folder its webviews kept their own
+/// in before it leaves that folder to the system.
+///
+/// `WebView2`'s browser process holds files in that folder until it ends, a
+/// moment after the last webview using it closed. This bounds the wait for
+/// that end, so that a process that never ends cannot hold the probe.
+const LETTING_GO: Duration = Duration::from_secs(20);
+
 /// The folder a probe's webviews keep their own in, where a system's webview
 /// keeps anything: a scratch made new and private under the system's
 /// temporary one, `nc-desktop-probe-` and a nonce, and removed with
@@ -1307,9 +1315,20 @@ impl Scratch {
 
 impl Drop for Scratch {
     fn drop(&mut self) {
-        // A folder that could not be removed is the system's temporary one's
-        // to clear, and no reason to fail what the probe found.
-        let _ = std::fs::remove_dir_all(&self.0);
+        // **Tried again until the webviews' own processes let go of it.** On
+        // Windows this is WebView2's user data folder, which its browser
+        // process holds until it ends, after the probe's last webview closed.
+        // After a single try, a Windows runner found the folder still there.
+        // A folder still not removed once `LETTING_GO` has passed is left to
+        // the system's temporary folder to clear, and is no reason to fail
+        // what the probe found.
+        let deadline = Instant::now() + LETTING_GO;
+        while std::fs::remove_dir_all(&self.0).is_err()
+            && self.0.exists()
+            && Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 }
 
