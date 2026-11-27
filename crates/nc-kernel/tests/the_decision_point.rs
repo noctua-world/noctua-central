@@ -8495,6 +8495,393 @@ async fn neither_a_frozen_account_nor_a_device_reads_or_switches_mcp(
     }
 }
 
+/// A keeper of a channel's keys a test hands the kernel: it holds the keys in
+/// memory, says each call it was made, and refuses what a test tells it to.
+#[derive(Debug)]
+struct KeptInMemory {
+    /// The keys in force.
+    keys: Mutex<nc_kernel::Keys>,
+    /// Every call made of it, in order: `proposed` or `written`, and the
+    /// shortcut.
+    calls: Mutex<Vec<String>>,
+    /// The code it refuses every proposal with, while a test says one.
+    refuses: Mutex<Option<ErrorCode>>,
+    /// Whether it refuses every write, as a disk that does not answer would.
+    unwritable: Mutex<bool>,
+}
+
+impl KeptInMemory {
+    /// One holding the production channel's Leader, Shift and no binding.
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            keys: Mutex::new(nc_kernel::Keys {
+                leader: nc_schema::keys::Leader::of(
+                    nc_schema::keys::Chord::parse("Alt+Space").expect("a chord"),
+                )
+                .expect("a Leader"),
+                chord: nc_schema::keys::Modifier::Shift,
+                tables: nc_schema::keys::Tables::default(),
+            }),
+            calls: Mutex::default(),
+            refuses: Mutex::default(),
+            unwritable: Mutex::default(),
+        })
+    }
+
+    /// Every call made of it since the last time this was asked.
+    fn calls(&self) -> Vec<String> {
+        std::mem::take(&mut *self.calls.lock().expect("nothing panics holding it"))
+    }
+
+    /// The refusal it makes with `code`.
+    fn refusal(code: ErrorCode) -> Refusal {
+        Refusal::new(RefusalKind::Conflict, code, "the keeper refused".to_owned())
+    }
+}
+
+impl nc_kernel::Shortcuts for KeptInMemory {
+    fn read(&self) -> Result<nc_kernel::Keys, Refusal> {
+        Ok(self.keys.lock().expect("nothing panics holding it").clone())
+    }
+
+    fn proposed(&self, shortcut: &nc_kernel::Shortcut) -> Result<(), Refusal> {
+        self.calls
+            .lock()
+            .expect("nothing panics holding it")
+            .push(format!("proposed {shortcut:?}"));
+        match *self.refuses.lock().expect("nothing panics holding it") {
+            Some(code) => Err(Self::refusal(code)),
+            None => Ok(()),
+        }
+    }
+
+    fn written(&self, shortcut: &nc_kernel::Shortcut) -> Result<nc_kernel::Keys, Refusal> {
+        use nc_schema::keys::{Binding, Table};
+        self.calls
+            .lock()
+            .expect("nothing panics holding it")
+            .push(format!("written {shortcut:?}"));
+        if *self.unwritable.lock().expect("nothing panics holding it") {
+            return Err(Self::refusal(ErrorCode::ChannelShortcutsUnsaved));
+        }
+        let mut keys = self.keys.lock().expect("nothing panics holding it");
+        let bound = |bindings: Vec<(&str, Binding)>| {
+            let each: Vec<(&str, Vec<Binding>)> = bindings
+                .into_iter()
+                .map(|(command, binding)| (command, vec![binding]))
+                .collect();
+            nc_schema::keys::tables(&[], &each).expect("a test binds no key twice")
+        };
+        match shortcut {
+            nc_kernel::Shortcut::Leader(leader) => {
+                keys.leader = nc_schema::keys::Leader::of(*leader).expect("a Leader");
+            }
+            nc_kernel::Shortcut::Chord(chord) => keys.chord = *chord,
+            nc_kernel::Shortcut::Menu(menu) => {
+                keys.tables = bound(
+                    menu.iter()
+                        .map(|(command, key)| {
+                            (
+                                command.as_str(),
+                                Binding {
+                                    table: Table::Menu,
+                                    key: *key,
+                                },
+                            )
+                        })
+                        .collect(),
+                );
+            }
+            nc_kernel::Shortcut::Held(held) => {
+                keys.tables = bound(
+                    held.iter()
+                        .map(|(command, key, chord)| {
+                            let table = if *chord {
+                                Table::HeldWithChord
+                            } else {
+                                Table::Held
+                            };
+                            (command.as_str(), Binding { table, key: *key })
+                        })
+                        .collect(),
+                );
+            }
+        }
+        Ok(keys.clone())
+    }
+}
+
+/// The four shortcut settings: each one's read, its set, what it answers
+/// before any is set, what a test sets it to, and the shortcut that is.
+const SHORTCUTS: [(&str, &str, &str, &str, &str); 4] = [
+    (
+        "settings.leader.read",
+        "settings.leader.set",
+        r#"{"leader":"Alt+Space"}"#,
+        r#"{"leader":"Control+Alt+KeyK"}"#,
+        "Leader(Chord { modifiers: Modifiers(3), key: KeyK })",
+    ),
+    (
+        "settings.chord.read",
+        "settings.chord.set",
+        r#"{"chord":"Shift"}"#,
+        r#"{"chord":"Super"}"#,
+        "Chord(Super)",
+    ),
+    (
+        "settings.menu-keys.read",
+        "settings.menu-keys.set",
+        r#"{"keys":[]}"#,
+        r#"{"keys":[{"command":"page.help","key":"KeyH"}]}"#,
+        r#"Menu([("page.help", KeyH)])"#,
+    ),
+    (
+        "settings.chords.read",
+        "settings.chords.set",
+        r#"{"chords":[]}"#,
+        r#"{"chords":[{"chord":true,"command":"page.close","key":"KeyQ"}]}"#,
+        r#"Held([("page.close", KeyQ, true)])"#,
+    ),
+];
+
+/// A shortcut setting is read and set by a person alone, decided on the
+/// interface's feature, and written only once its entry has landed.
+///
+/// **Over the real pack and world, with a keeper a test holds**
+/// (`NOCTUA.md §12.15`): a kernel told of no keeper refuses all eight
+/// commands with `[NC-CHAN-0027]`; told of one, each read answers the keys
+/// the keeper holds and each set is proposed to it, journaled as allowed on
+/// `Feature::"interface"` under the permit that gives every person their
+/// interface, written by it, and answered as the setting then stands — in a
+/// unit of its own that notes it as having left the machine, so the person's
+/// undo stops at it. **Nothing is written that was not journaled first**: a
+/// choice the keeper refuses is journaled as failed and never written, a
+/// journal that refuses the set's entry withholds the answer and the keeper
+/// is asked to write nothing, and a write the keeper then refuses is the
+/// answer's refusal.
+#[tokio::test]
+async fn a_shortcut_setting_is_read_and_set_by_a_person_alone_and_written_once_journaled() {
+    let (fixture, told) = reference().await;
+    for (read, set, _, to, _) in SHORTCUTS {
+        for (command, args) in [(read, "{}"), (set, to)] {
+            let refused = fixture.as_("ana", command, args).await;
+            assert!(
+                is(
+                    &refused,
+                    RefusalKind::Unavailable,
+                    ErrorCode::ChannelShortcutsUnsaved
+                ),
+                "{command} of a kernel told of no keeper: {refused:?}"
+            );
+        }
+    }
+    let kept = KeptInMemory::new();
+    fixture.kernel.keep_shortcuts(Arc::clone(&kept) as Arc<_>);
+    for setting in SHORTCUTS {
+        a_setting_set_each_way(&fixture, &told, &kept, setting).await;
+    }
+}
+
+/// One shortcut setting taken through every way its set ends, by a child of
+/// the house: refused by the keeper, withheld by the journal, refused at the
+/// write, and made — then read back, journaled as decided, and a step undo
+/// stops at.
+async fn a_setting_set_each_way(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    told: &Arc<Mutex<Told>>,
+    kept: &KeptInMemory,
+    (read, set, before, to, shortcut): (&str, &str, &str, &str, &str),
+) {
+    assert_eq!(
+        fixture.as_("bruno", read, "{}").await.as_deref(),
+        Ok(before)
+    );
+    assert_eq!(kept.calls(), [] as [&str; 0], "{read} asked for a write");
+    // Refused by the keeper: journaled as failed, and never written.
+    *kept.refuses.lock().expect("nothing panics holding it") =
+        Some(ErrorCode::ChannelShortcutKeyBoundTwice);
+    let refused = fixture.as_("bruno", set, to).await;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Conflict,
+            ErrorCode::ChannelShortcutKeyBoundTwice
+        ),
+        "{set}: {refused:?}"
+    );
+    *kept.refuses.lock().expect("nothing panics holding it") = None;
+    assert_eq!(kept.calls(), [format!("proposed {shortcut}")], "{set}");
+    let entries = fixture.entries().await;
+    let entry = dispatched(&entries).pop().expect("journaled");
+    assert_eq!(
+        (command_of(entry).as_deref(), entry.record.result),
+        (Some(set), Outcome::Failed),
+        "{entry:?}"
+    );
+    // A journal that does not take the set's entry: nothing is written.
+    told.lock().expect("nothing panics holding it").refuses =
+        Some(|entry: &Entry| entry.record.action == "Write");
+    let withheld = fixture.as_("bruno", set, to).await;
+    told.lock().expect("nothing panics holding it").refuses = None;
+    assert!(
+        is(
+            &withheld,
+            RefusalKind::Unavailable,
+            ErrorCode::JournalUnavailable
+        ),
+        "{set}: {withheld:?}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [format!("proposed {shortcut}")],
+        "{set} was written with no entry of it journaled"
+    );
+    assert_eq!(
+        fixture.as_("bruno", read, "{}").await.as_deref(),
+        Ok(before)
+    );
+    // A write the keeper refuses is the answer's refusal.
+    *kept.unwritable.lock().expect("nothing panics holding it") = true;
+    let unwritten = fixture.as_("bruno", set, to).await;
+    *kept.unwritable.lock().expect("nothing panics holding it") = false;
+    assert!(
+        is(
+            &unwritten,
+            RefusalKind::Conflict,
+            ErrorCode::ChannelShortcutsUnsaved
+        ),
+        "{set}: {unwritten:?}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [
+            format!("proposed {shortcut}"),
+            format!("written {shortcut}")
+        ]
+    );
+    a_setting_set_and_read_back(fixture, kept, (read, set, to, shortcut)).await;
+}
+
+/// One shortcut setting set by a child of the house as by anyone: proposed
+/// and written once, answered and read back as it stands, journaled as
+/// decided on the interface's feature, and a step undo stops at.
+async fn a_setting_set_and_read_back(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    kept: &KeptInMemory,
+    (read, set, to, shortcut): (&str, &str, &str, &str),
+) {
+    let feature = Some(r#"{"id":"interface","type":"Feature"}"#);
+    let before_it = fixture.entries().await.len();
+    assert_eq!(
+        fixture.as_("bruno", set, to).await.as_deref(),
+        Ok(to),
+        "{set}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [
+            format!("proposed {shortcut}"),
+            format!("written {shortcut}")
+        ]
+    );
+    assert_eq!(fixture.as_("bruno", read, "{}").await.as_deref(), Ok(to));
+    let entries = fixture.entries().await;
+    let ours = dispatched(&entries[before_it..]);
+    assert_eq!(ours.len(), 2, "{ours:#?}");
+    for (entry, command, action) in [(ours[0], set, "Write"), (ours[1], read, "Read")] {
+        assert_eq!(
+            (
+                command_of(entry).as_deref(),
+                entry.record.result,
+                entry.record.action.as_str(),
+                deciding(entry),
+                entity_of(entry).as_deref()
+            ),
+            (
+                Some(command),
+                Outcome::Allowed,
+                action,
+                Some(DRIVES_THE_INTERFACE),
+                feature
+            ),
+            "{entry:?}"
+        );
+    }
+    assert!(ours[0].record.work_unit.is_some(), "{set} ran in no unit");
+    assert_eq!(ours[1].record.work_unit, None, "{read} opened a unit");
+    let undone = fixture.as_("bruno", "kernel.undo", "{}").await;
+    assert!(
+        is(&undone, RefusalKind::Denied, ErrorCode::KernelUndoBarrier),
+        "the file a set wrote is outside every unit, so undo stops at it: {undone:?}"
+    );
+    assert_eq!(fixture.as_("bruno", read, "{}").await.as_deref(), Ok(to));
+}
+
+/// A frozen account and a device are each refused every shortcut setting's
+/// read and set with the code alone, the journal naming what decided it, and
+/// the keeper hears of neither.
+///
+/// **Each holding a grant in the realm, so only the pack refuses them**: the
+/// frozen account by the floor, and the device by the permit's `principal is
+/// User`, which no permit on the interface's feature lets it past.
+#[tokio::test]
+async fn neither_a_frozen_account_nor_a_device_reads_or_sets_a_shortcut() {
+    let (kernel, world) = naming(None).await;
+    let kept = KeptInMemory::new();
+    kernel.keep_shortcuts(Arc::clone(&kept) as Arc<_>);
+    let feature = Some(r#"{"id":"interface","type":"Feature"}"#);
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        for (read, set, _, to, _) in SHORTCUTS {
+            for (command, args) in [(read, "{}"), (set, to)] {
+                let refused = kernel.dispatch(&caller, command, args).await;
+                assert!(
+                    is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                    "{id}: {command}: {refused:?}"
+                );
+                let entries = kernel.journal_for_tests().await.expect("the journal reads");
+                let entry = entries.last().expect("the denial was journaled");
+                assert_eq!(
+                    (
+                        entry.record.principal.as_str(),
+                        entry.record.result,
+                        command_of(entry).as_deref(),
+                        deciding(entry),
+                        entity_of(entry).as_deref()
+                    ),
+                    (id, Outcome::Denied, Some(command), Some(decided), feature),
+                    "{id}: {command}"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        kept.calls(),
+        [] as [&str; 0],
+        "the keeper heard of a call refused"
+    );
+    let ana = Caller::new(world.principal(PrincipalKind::User, "ana").expect("ana"));
+    assert_eq!(
+        kernel
+            .dispatch(&ana, "settings.leader.read", "{}")
+            .await
+            .as_deref(),
+        Ok(r#"{"leader":"Alt+Space"}"#),
+        "a person of the same world is answered"
+    );
+}
+
 /// An undo or a redo that would switch MCP on waits for the person's
 /// confirmation, and one that switches it off does not.
 ///
@@ -10068,8 +10455,16 @@ const FITTING: &[(&str, &str)] = &[
     ("prompt.ask", r#"{"command":"a.b"}"#),
     ("prompt.clear", "{}"),
     ("prompt.set", r#"{"text":""}"#),
+    ("settings.chord.read", "{}"),
+    ("settings.chord.set", r#"{"chord":"Shift"}"#),
+    ("settings.chords.read", "{}"),
+    ("settings.chords.set", r#"{"chords":[]}"#),
+    ("settings.leader.read", "{}"),
+    ("settings.leader.set", r#"{"leader":"Alt+Space"}"#),
     ("settings.mcp.read", "{}"),
     ("settings.mcp.set", r#"{"on":true}"#),
+    ("settings.menu-keys.read", "{}"),
+    ("settings.menu-keys.set", r#"{"keys":[]}"#),
     ("shell.drag", "{}"),
     ("shell.focus", r#"{"region":"prompt"}"#),
     ("shell.hover", r#"{"by":"pointer"}"#),

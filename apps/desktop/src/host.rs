@@ -1616,6 +1616,15 @@ pub const fn asks(relocated: bool, listener: nc_ipc::leader::Listener) -> bool {
     matches!(listener, nc_ipc::leader::Listener::Desktop) && !relocated
 }
 
+/// Whether the keys in force are read again: the daemon's count of the writes
+/// of the keybinding configuration, `said`, is another number than the one
+/// they were `read` at — larger or smaller, since the count turns to zero as
+/// a revision does and a daemon started again begins at none.
+#[must_use]
+pub const fn reads_the_keys_again(read: u64, said: u64) -> bool {
+    read != said
+}
+
 /// What the info line says where a compositor's binding delivers the Leader:
 /// the code a session that registers no global key is told by, its message
 /// in `locale`, and the binding to make — the Leader, as a Linux keyboard
@@ -1910,6 +1919,18 @@ struct Running<'said> {
     placed: Option<Region>,
     /// What the info line is to say of the Leader, where it is not heard.
     unheard: Option<String>,
+    /// The install whose keys these are, read again when a setting wrote
+    /// them.
+    found: Found,
+    /// What a press of the Leader, and a registration lost, reach the loop
+    /// through.
+    proxy: EventLoopProxy<Arrived>,
+    /// The Leader this window asked the system for, held on this thread, the
+    /// event loop's, until the loop has ended or a setting changed it.
+    held: Option<nc_platform::leader::Held>,
+    /// The count of writes of the keybinding configuration the keys in force
+    /// were read at (`Mirror::keys`).
+    keys_read: u64,
     /// The asking thread.
     asks: std::sync::mpsc::Sender<Ask>,
     /// The size the state asked last that the window applied.
@@ -2241,6 +2262,28 @@ impl Running<'_> {
         }
     }
 
+    /// Reads the keys in force again, once a shortcut setting wrote the
+    /// channel's keybinding configuration (§12.15): the page is told them,
+    /// and a Leader that changed is asked of the system — **the new chord
+    /// first, and the old one let go once it was asked for** — with what came
+    /// of asking said on the info line as it is when the window opens.
+    fn rebound(&mut self, opened: &mut Opened) {
+        let keymap = Keymap::of(&nc_channel::keys::effective(&self.found));
+        if keymap.part().leader != self.keymap.part().leader {
+            let (held, unheard) = listened(&self.found, &keymap, &self.proxy, self.context.locale);
+            drop(std::mem::replace(&mut self.held, held));
+            if let Some(said) = &unheard {
+                self.run("info.say", say_on_the_info_line(said), false);
+            }
+            self.unheard = unheard;
+        }
+        self.keymap = keymap;
+        opened.send(vec![format!(
+            "window.noctua.keys({});",
+            self.keymap.told().to_canonical()
+        )]);
+    }
+
     /// Takes what reached the event loop: the page's words, the daemon's
     /// state, a press of the Leader, the registry, and the window's own
     /// events.
@@ -2291,6 +2334,10 @@ impl Running<'_> {
             Event::UserEvent(Arrived::Heard(Heard::Changed(changed))) => {
                 // A state this build does not read leaves the one held drawn.
                 if self.mirror.watched(changed).is_ok() {
+                    if reads_the_keys_again(self.keys_read, self.mirror.keys()) {
+                        self.keys_read = self.mirror.keys();
+                        self.rebound(opened);
+                    }
                     self.redraw(opened);
                     self.arranged(opened);
                     if let Some(shown) = shown(&self.mirror) {
@@ -2379,7 +2426,7 @@ pub fn run(found: Found, said: &mut dyn FnMut(&str)) -> Result<(), Unopened> {
     let (held, unheard) = listened(&found, &keymap, &event_loop.create_proxy(), context.locale);
     let witness = found.install.namespace.is_some().then_some(said);
     following(found.clone(), event_loop.create_proxy()).map_err(Unopened::Thread)?;
-    let asks = asking(found, event_loop.create_proxy()).map_err(Unopened::Thread)?;
+    let asks = asking(found.clone(), event_loop.create_proxy()).map_err(Unopened::Thread)?;
     let mut running = Running {
         context,
         mirror: Mirror::new(),
@@ -2390,6 +2437,10 @@ pub fn run(found: Found, said: &mut dyn FnMut(&str)) -> Result<(), Unopened> {
         focused: false,
         placed: None,
         unheard,
+        found,
+        proxy: event_loop.create_proxy(),
+        held,
+        keys_read: 0,
         asks,
         sized: None,
         moved: None,
@@ -2401,7 +2452,7 @@ pub fn run(found: Found, said: &mut dyn FnMut(&str)) -> Result<(), Unopened> {
         running.on(&mut opened, event);
     });
     drop(opened);
-    drop(held);
+    drop(running.held.take());
     Ok(())
 }
 
@@ -2454,6 +2505,19 @@ pub(crate) mod tests {
             let shell = mirror.shell().expect("a state is held");
             assert_eq!(this_window(shell).map(|window| window.id), Some(1));
         }
+    }
+
+    /// The keys in force are read again when the daemon's count of the
+    /// writes of the keybinding configuration is another number than the one
+    /// they were read at, whichever way it moved, and not while it is the
+    /// same.
+    #[test]
+    fn the_keys_are_read_again_when_the_count_of_their_writes_is_another() {
+        assert!(!super::reads_the_keys_again(0, 0));
+        assert!(!super::reads_the_keys_again(4, 4));
+        assert!(super::reads_the_keys_again(0, 1));
+        assert!(super::reads_the_keys_again(4, 5));
+        assert!(super::reads_the_keys_again(4, 0), "a daemon started again");
     }
 
     /// A window is shown only while the state wants it shown and once its

@@ -1791,6 +1791,246 @@ Arguments:
   --text <text, at most 4096 characters>  required
 ```
 
+## `settings.chord.read`
+
+In `en`:
+
+```text
+settings.chord.read — Read the added key
+Show the key held with the Leader for more shortcuts.
+
+Answers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: chord, added key, modifier, shift, shortcut, keyboard, settings
+
+Usage:
+  noctua settings.chord.read [arguments]
+  noctua settings.chord.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.chord.read — Ver a tecla acrescentada
+Mostrar a tecla pressionada com o Leader para mais atalhos.
+
+Responde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada.
+
+Categories: noctua.settings
+Tags: tecla acrescentada, modificador, shift, atalho, teclado, configurações
+
+Usage:
+  noctua settings.chord.read [arguments]
+  noctua settings.chord.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.chord.set`
+
+In `en`:
+
+```text
+settings.chord.set — Change the added key
+Choose the key held with the Leader for more shortcuts.
+
+Changes the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had.
+
+Categories: noctua.settings
+Tags: chord, added key, modifier, shift, shortcut, keyboard, settings, change
+
+Usage:
+  noctua settings.chord.set [arguments]
+  noctua settings.chord.set -- '<one JSON object>'
+
+Arguments:
+  --chord <text, from 1 to 16 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.chord.set — Mudar a tecla acrescentada
+Escolher a tecla pressionada com o Leader para mais atalhos.
+
+Muda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha.
+
+Categories: noctua.settings
+Tags: tecla acrescentada, modificador, shift, atalho, teclado, configurações, mudar
+
+Usage:
+  noctua settings.chord.set [arguments]
+  noctua settings.chord.set -- '<one JSON object>'
+
+Arguments:
+  --chord <text, from 1 to 16 characters>  required
+```
+
+## `settings.chords.read`
+
+In `en`:
+
+```text
+settings.chords.read — Read the chords
+Show each key pressed with the Leader held and what it runs.
+
+Answers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing.
+
+Categories: noctua.settings
+Tags: chords, held, shortcuts, keys, keyboard, settings
+
+Usage:
+  noctua settings.chords.read [arguments]
+  noctua settings.chords.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.chords.read — Ver as combinações
+Mostrar cada tecla pressionada com o Leader e o que ela executa.
+
+Responde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.
+
+Categories: noctua.settings
+Tags: combinações, pressionado, atalhos, teclas, teclado, configurações
+
+Usage:
+  noctua settings.chords.read [arguments]
+  noctua settings.chords.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.chords.set`
+
+In `en`:
+
+```text
+settings.chords.set — Change the chords
+Choose each key pressed with the Leader held and what it runs.
+
+Replaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.
+
+Categories: noctua.settings
+Tags: chords, held, shortcuts, keys, keyboard, settings, change, rebind
+
+Usage:
+  noctua settings.chords.set [arguments]
+  noctua settings.chords.set -- '<one JSON object>'
+
+Arguments:
+  --chords <a JSON object>  (repeated, once for each item, at most 146 items)  required
+```
+
+In `pt-BR`:
+
+```text
+settings.chords.set — Mudar as combinações
+Escolher cada tecla pressionada com o Leader e o que ela executa.
+
+Substitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.
+
+Categories: noctua.settings
+Tags: combinações, pressionado, atalhos, teclas, teclado, configurações, mudar, reatribuir
+
+Usage:
+  noctua settings.chords.set [arguments]
+  noctua settings.chords.set -- '<one JSON object>'
+
+Arguments:
+  --chords <a JSON object>  (repeated, once for each item, at most 146 items)  required
+```
+
+## `settings.leader.read`
+
+In `en`:
+
+```text
+settings.leader.read — Read the Leader
+Show the keys that reach Noctua from anywhere.
+
+Answers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing.
+
+Categories: noctua.settings
+Tags: leader, shortcut, keys, keyboard, settings, hotkey
+
+Usage:
+  noctua settings.leader.read [arguments]
+  noctua settings.leader.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.leader.read — Ver o Leader
+Mostrar as teclas que chamam o Noctua de qualquer lugar.
+
+Responde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada.
+
+Categories: noctua.settings
+Tags: leader, atalho, teclas, teclado, configurações, tecla de atalho
+
+Usage:
+  noctua settings.leader.read [arguments]
+  noctua settings.leader.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.leader.set`
+
+In `en`:
+
+```text
+settings.leader.set — Change the Leader
+Choose the keys that reach Noctua from anywhere.
+
+Changes the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had.
+
+Categories: noctua.settings
+Tags: leader, shortcut, keys, keyboard, settings, hotkey, change
+
+Usage:
+  noctua settings.leader.set [arguments]
+  noctua settings.leader.set -- '<one JSON object>'
+
+Arguments:
+  --leader <text, from 1 to 64 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.leader.set — Mudar o Leader
+Escolher as teclas que chamam o Noctua de qualquer lugar.
+
+Muda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha.
+
+Categories: noctua.settings
+Tags: leader, atalho, teclas, teclado, configurações, tecla de atalho, mudar
+
+Usage:
+  noctua settings.leader.set [arguments]
+  noctua settings.leader.set -- '<one JSON object>'
+
+Arguments:
+  --leader <text, from 1 to 64 characters>  required
+```
+
 ## `settings.mcp.read`
 
 In `en`:
@@ -1869,6 +2109,86 @@ Usage:
 
 Arguments:
   --on  (a boolean: true when given alone, `=false` says false)  required
+```
+
+## `settings.menu-keys.read`
+
+In `en`:
+
+```text
+settings.menu-keys.read — Read the leader menu's keys
+Show each key of the leader menu and what it runs.
+
+Answers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing.
+
+Categories: noctua.settings
+Tags: leader menu, keys, shortcuts, keyboard, settings, menu
+
+Usage:
+  noctua settings.menu-keys.read [arguments]
+  noctua settings.menu-keys.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.menu-keys.read — Ver as teclas do menu do Leader
+Mostrar cada tecla do menu do Leader e o que ela executa.
+
+Responde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.
+
+Categories: noctua.settings
+Tags: menu do leader, teclas, atalhos, teclado, configurações, menu
+
+Usage:
+  noctua settings.menu-keys.read [arguments]
+  noctua settings.menu-keys.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.menu-keys.set`
+
+In `en`:
+
+```text
+settings.menu-keys.set — Change the leader menu's keys
+Choose each key of the leader menu and what it runs.
+
+Replaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.
+
+Categories: noctua.settings
+Tags: leader menu, keys, shortcuts, keyboard, settings, menu, change, rebind
+
+Usage:
+  noctua settings.menu-keys.set [arguments]
+  noctua settings.menu-keys.set -- '<one JSON object>'
+
+Arguments:
+  --keys <a JSON object>  (repeated, once for each item, at most 73 items)  required
+```
+
+In `pt-BR`:
+
+```text
+settings.menu-keys.set — Mudar as teclas do menu do Leader
+Escolher cada tecla do menu do Leader e o que ela executa.
+
+Substitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.
+
+Categories: noctua.settings
+Tags: menu do leader, teclas, atalhos, teclado, configurações, menu, mudar, reatribuir
+
+Usage:
+  noctua settings.menu-keys.set [arguments]
+  noctua settings.menu-keys.set -- '<one JSON object>'
+
+Arguments:
+  --keys <a JSON object>  (repeated, once for each item, at most 73 items)  required
 ```
 
 ## `shell.drag`

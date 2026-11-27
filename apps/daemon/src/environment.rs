@@ -17,6 +17,16 @@
 //! database holding rows the directory would never have written is refused,
 //! and the daemon does not start over it.
 //!
+//! **The channel's choice of keys is its keybinding configuration**
+//! (`NOCTUA.md §12.8`, §12.15), `Layout.keybindings`: [`Keybindings`] is what the kernel's shortcut
+//! settings read and write, through `nc_channel::keys` and nothing else — the
+//! keys in force as `effective` reads them, and a choice judged by `proposed`
+//! and written by `written` only when every part of it would be in force.
+//! Where the daemon is the process that asks the system for the Leader, a
+//! Leader the choice changes is asked for before the file is written
+//! (`crate::leader::Asking`), so one the system refuses refuses the setting,
+//! and each write is told to the server, whose watched state counts them.
+//!
 //! **The central log is the manifest's**, and the daemon writes its own events
 //! to the same sink the kernel writes to. An install naming no store has its
 //! lines written to the daemon's standard error alone, and a store that does
@@ -49,6 +59,131 @@ impl nc_kernel::Environment for Daemon {
 
 /// The central log, shared by the kernel and the daemon's own events.
 pub type Sink = Arc<Mutex<nc_log::Log>>;
+
+/// Where the daemon's kernel keeps its channel's choice of keys: the
+/// install's keybinding configuration (`Layout.keybindings`), read and
+/// written through `nc_channel::keys`.
+///
+/// **Nothing is written that its reader would refuse any part of**
+/// (`nc_channel::keys::proposed`), and nothing at all by a set that is
+/// refused. **A Leader the system refuses is never written**: where this
+/// daemon asks the system for the Leader, the chord the choice puts in force
+/// is asked for first, with the Leader held still held, and kept in its place
+/// only once the file is written — a write that fails gives it back.
+#[derive(Debug)]
+pub struct Keybindings {
+    /// The install whose configuration this is.
+    found: nc_channel::found::Found,
+    /// The server that is told of each write, and asked for the thread that
+    /// holds the Leader: weak, since the server holds the kernel that holds
+    /// this.
+    server: std::sync::Weak<crate::server::Server>,
+}
+
+impl Keybindings {
+    /// The keeper of `found`'s install's keybinding configuration, which
+    /// tells `server` of each write.
+    #[must_use]
+    pub const fn new(
+        found: nc_channel::found::Found,
+        server: std::sync::Weak<crate::server::Server>,
+    ) -> Self {
+        Self { found, server }
+    }
+
+    /// What `shortcut` would put in force, judged over the file as it stands
+    /// and written nowhere.
+    fn judged(
+        &self,
+        shortcut: &nc_kernel::Shortcut,
+    ) -> Result<nc_channel::keys::Proposed, nc_kernel::Refusal> {
+        use nc_channel::keys::Change;
+        let change = match shortcut {
+            nc_kernel::Shortcut::Leader(leader) => Change::Leader(*leader),
+            nc_kernel::Shortcut::Chord(chord) => Change::Chord(*chord),
+            nc_kernel::Shortcut::Menu(keys) => Change::Menu(keys.clone()),
+            nc_kernel::Shortcut::Held(keys) => Change::Held(keys.clone()),
+        };
+        let catalog = nc_channel::keys::catalog_bindings();
+        nc_channel::keys::proposed(&self.found, &change, &catalog).map_err(|refused| {
+            let code = refused.code_of_a_choice();
+            let kind = if code == nc_catalog::ErrorCode::ChannelShortcutsUnsaved {
+                nc_kernel::RefusalKind::Unavailable
+            } else {
+                nc_kernel::RefusalKind::Conflict
+            };
+            nc_kernel::Refusal::new(kind, code, refused.of_a_choice())
+        })
+    }
+}
+
+/// The keys `effective` puts in force, as the kernel's settings answer them.
+fn in_force(effective: &nc_channel::keys::Effective) -> nc_kernel::Keys {
+    nc_kernel::Keys {
+        leader: effective.leader,
+        chord: effective.chord,
+        tables: effective.tables.clone(),
+    }
+}
+
+impl nc_kernel::Shortcuts for Keybindings {
+    fn read(&self) -> Result<nc_kernel::Keys, nc_kernel::Refusal> {
+        Ok(in_force(&nc_channel::keys::effective(&self.found)))
+    }
+
+    fn proposed(&self, shortcut: &nc_kernel::Shortcut) -> Result<(), nc_kernel::Refusal> {
+        self.judged(shortcut).map(drop)
+    }
+
+    fn written(
+        &self,
+        shortcut: &nc_kernel::Shortcut,
+    ) -> Result<nc_kernel::Keys, nc_kernel::Refusal> {
+        let proposed = self.judged(shortcut)?;
+        let server = self.server.upgrade();
+        let asking = server.as_ref().and_then(|server| server.leader_asking());
+        let leader = proposed.effective().leader;
+        if let Some(asking) = &asking {
+            asking.tried(leader).map_err(|refused| {
+                nc_kernel::Refusal::new(
+                    match refused.kind {
+                        nc_ipc::RefusalKind::Conflict => nc_kernel::RefusalKind::Conflict,
+                        _ => nc_kernel::RefusalKind::Unavailable,
+                    },
+                    nc_catalog::ErrorCode::ChannelShortcutLeaderUndelivered,
+                    format!(
+                        "the system did not grant the Leader `{}`: {} [{}], so nothing was \
+                         written and the Leader in force is still the one registered",
+                        leader.written(),
+                        refused.sentence,
+                        refused.code.code()
+                    ),
+                )
+            })?;
+        }
+        match nc_channel::keys::written(&self.found, &proposed) {
+            Ok(()) => {
+                if let Some(asking) = &asking {
+                    asking.kept();
+                }
+                if let Some(server) = &server {
+                    server.keys_written();
+                }
+                Ok(in_force(proposed.effective()))
+            }
+            Err(unwritten) => {
+                if let Some(asking) = &asking {
+                    asking.dropped();
+                }
+                Err(nc_kernel::Refusal::new(
+                    nc_kernel::RefusalKind::Unavailable,
+                    unwritten.code(),
+                    unwritten.to_string(),
+                ))
+            }
+        }
+    }
+}
 
 /// Where the daemon's directory keeps the agents a person makes: the
 /// profile's own database (`nc_local::LocalAgents`).

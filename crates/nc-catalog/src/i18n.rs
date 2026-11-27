@@ -2818,6 +2818,114 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Type into the prompt line", "Digitar na linha do prompt"],
     ),
     (
+        "command.settings.chord.read.description",
+        [
+            "Show the key held with the Leader for more shortcuts.",
+            "Mostrar a tecla pressionada com o Leader para mais atalhos.",
+        ],
+    ),
+    (
+        "command.settings.chord.read.paragraph",
+        [
+            "Answers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing.",
+            "Responde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.chord.read.title",
+        ["Read the added key", "Ver a tecla acrescentada"],
+    ),
+    (
+        "command.settings.chord.set.description",
+        [
+            "Choose the key held with the Leader for more shortcuts.",
+            "Escolher a tecla pressionada com o Leader para mais atalhos.",
+        ],
+    ),
+    (
+        "command.settings.chord.set.paragraph",
+        [
+            "Changes the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had.",
+            "Muda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.chord.set.title",
+        ["Change the added key", "Mudar a tecla acrescentada"],
+    ),
+    (
+        "command.settings.chords.read.description",
+        [
+            "Show each key pressed with the Leader held and what it runs.",
+            "Mostrar cada tecla pressionada com o Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.chords.read.paragraph",
+        [
+            "Answers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing.",
+            "Responde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.chords.read.title",
+        ["Read the chords", "Ver as combinações"],
+    ),
+    (
+        "command.settings.chords.set.description",
+        [
+            "Choose each key pressed with the Leader held and what it runs.",
+            "Escolher cada tecla pressionada com o Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.chords.set.paragraph",
+        [
+            "Replaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.",
+            "Substitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.chords.set.title",
+        ["Change the chords", "Mudar as combinações"],
+    ),
+    (
+        "command.settings.leader.read.description",
+        [
+            "Show the keys that reach Noctua from anywhere.",
+            "Mostrar as teclas que chamam o Noctua de qualquer lugar.",
+        ],
+    ),
+    (
+        "command.settings.leader.read.paragraph",
+        [
+            "Answers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing.",
+            "Responde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.leader.read.title",
+        ["Read the Leader", "Ver o Leader"],
+    ),
+    (
+        "command.settings.leader.set.description",
+        [
+            "Choose the keys that reach Noctua from anywhere.",
+            "Escolher as teclas que chamam o Noctua de qualquer lugar.",
+        ],
+    ),
+    (
+        "command.settings.leader.set.paragraph",
+        [
+            "Changes the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had.",
+            "Muda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.leader.set.title",
+        ["Change the Leader", "Mudar o Leader"],
+    ),
+    (
         "command.settings.mcp.read.description",
         [
             "Show whether this installation of Noctua lets MCP clients in.",
@@ -2852,6 +2960,48 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.mcp.set.title",
         ["Switch MCP on or off", "Ligar ou desligar o MCP"],
+    ),
+    (
+        "command.settings.menu-keys.read.description",
+        [
+            "Show each key of the leader menu and what it runs.",
+            "Mostrar cada tecla do menu do Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.paragraph",
+        [
+            "Answers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing.",
+            "Responde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.title",
+        [
+            "Read the leader menu's keys",
+            "Ver as teclas do menu do Leader",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.description",
+        [
+            "Choose each key of the leader menu and what it runs.",
+            "Escolher cada tecla do menu do Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.paragraph",
+        [
+            "Replaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.",
+            "Substitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.title",
+        [
+            "Change the leader menu's keys",
+            "Mudar as teclas do menu do Leader",
+        ],
     ),
     (
         "command.shell.drag.description",
@@ -3383,6 +3533,41 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "This copy of Noctua has no file saying which installation it is, so it stopped before doing anything. Install Noctua again.",
             "Esta cópia do Noctua não tem o arquivo que diz qual instalação ela é, então parou antes de fazer qualquer coisa. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-key-bound-twice",
+        [
+            "Two of the shortcuts you chose use the same key in the same list, so nothing was changed. Give each one a key of its own.",
+            "Dois dos atalhos que você escolheu usam a mesma tecla na mesma lista, então nada foi alterado. Dê a cada um uma tecla própria.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-key-reserved",
+        [
+            "A key you chose cannot be part of a shortcut, so nothing was changed. Choose a letter, a digit, a punctuation key, Space, Tab, Enter, Backspace, an arrow, one of the six keys above the arrows or F1 to F12.",
+            "Uma tecla que você escolheu não pode fazer parte de um atalho, então nada foi alterado. Escolha uma letra, um dígito, uma tecla de pontuação, Espaço, Tab, Enter, Backspace, uma seta, uma das seis teclas acima das setas ou de F1 a F12.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-leader-collides",
+        [
+            "The Leader and the key added to it, as you chose them, clash with each other or with another installation of Noctua, so nothing was changed. Choose another Leader or another added key.",
+            "O Leader e a tecla acrescentada a ele, como você os escolheu, conflitam entre si ou com outra instalação do Noctua, então nada foi alterado. Escolha outro Leader ou outra tecla acrescentada.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-leader-undelivered",
+        [
+            "The system did not give Noctua the Leader you chose, because another program already uses those keys or the system could not be asked, so nothing was changed and the Leader you had still works. Free the keys in that program, or choose another Leader.",
+            "O sistema não entregou ao Noctua o Leader que você escolheu, porque outro programa já usa essas teclas ou o sistema não pôde ser consultado, então nada foi alterado e o Leader que você tinha continua funcionando. Libere as teclas nesse programa ou escolha outro Leader.",
+        ],
+    ),
+    (
+        "error.channel.shortcuts-unsaved",
+        [
+            "Noctua could not save your keyboard shortcut settings, so nothing was changed. Check that the disk has room and is connected, then try again.",
+            "O Noctua não conseguiu salvar suas configurações de atalhos de teclado, então nada foi alterado. Veja se o disco tem espaço e está conectado e tente de novo.",
         ],
     ),
     (
@@ -5055,12 +5240,36 @@ pub const KEYS: &[&str] = &[
     "command.prompt.set.description",
     "command.prompt.set.paragraph",
     "command.prompt.set.title",
+    "command.settings.chord.read.description",
+    "command.settings.chord.read.paragraph",
+    "command.settings.chord.read.title",
+    "command.settings.chord.set.description",
+    "command.settings.chord.set.paragraph",
+    "command.settings.chord.set.title",
+    "command.settings.chords.read.description",
+    "command.settings.chords.read.paragraph",
+    "command.settings.chords.read.title",
+    "command.settings.chords.set.description",
+    "command.settings.chords.set.paragraph",
+    "command.settings.chords.set.title",
+    "command.settings.leader.read.description",
+    "command.settings.leader.read.paragraph",
+    "command.settings.leader.read.title",
+    "command.settings.leader.set.description",
+    "command.settings.leader.set.paragraph",
+    "command.settings.leader.set.title",
     "command.settings.mcp.read.description",
     "command.settings.mcp.read.paragraph",
     "command.settings.mcp.read.title",
     "command.settings.mcp.set.description",
     "command.settings.mcp.set.paragraph",
     "command.settings.mcp.set.title",
+    "command.settings.menu-keys.read.description",
+    "command.settings.menu-keys.read.paragraph",
+    "command.settings.menu-keys.read.title",
+    "command.settings.menu-keys.set.description",
+    "command.settings.menu-keys.set.paragraph",
+    "command.settings.menu-keys.set.title",
     "command.shell.drag.description",
     "command.shell.drag.paragraph",
     "command.shell.drag.title",
@@ -5143,6 +5352,11 @@ pub const KEYS: &[&str] = &[
     "error.channel.manifest-unreadable",
     "error.channel.namespace-malformed",
     "error.channel.no-manifest",
+    "error.channel.shortcut-key-bound-twice",
+    "error.channel.shortcut-key-reserved",
+    "error.channel.shortcut-leader-collides",
+    "error.channel.shortcut-leader-undelivered",
+    "error.channel.shortcuts-unsaved",
     "error.channel.unknown",
     "error.cli.answer-unreadable",
     "error.cli.checkout-unknown",
@@ -5942,6 +6156,131 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.settings.chord.read.tags",
+        [
+            &[
+                "chord",
+                "added key",
+                "modifier",
+                "shift",
+                "shortcut",
+                "keyboard",
+                "settings",
+            ],
+            &[
+                "tecla acrescentada",
+                "modificador",
+                "shift",
+                "atalho",
+                "teclado",
+                "configurações",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chord.set.tags",
+        [
+            &[
+                "chord",
+                "added key",
+                "modifier",
+                "shift",
+                "shortcut",
+                "keyboard",
+                "settings",
+                "change",
+            ],
+            &[
+                "tecla acrescentada",
+                "modificador",
+                "shift",
+                "atalho",
+                "teclado",
+                "configurações",
+                "mudar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chords.read.tags",
+        [
+            &[
+                "chords",
+                "held",
+                "shortcuts",
+                "keys",
+                "keyboard",
+                "settings",
+            ],
+            &[
+                "combinações",
+                "pressionado",
+                "atalhos",
+                "teclas",
+                "teclado",
+                "configurações",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chords.set.tags",
+        [
+            &[
+                "chords",
+                "held",
+                "shortcuts",
+                "keys",
+                "keyboard",
+                "settings",
+                "change",
+                "rebind",
+            ],
+            &[
+                "combinações",
+                "pressionado",
+                "atalhos",
+                "teclas",
+                "teclado",
+                "configurações",
+                "mudar",
+                "reatribuir",
+            ],
+        ],
+    ),
+    (
+        "command.settings.leader.read.tags",
+        [
+            &[
+                "leader", "shortcut", "keys", "keyboard", "settings", "hotkey",
+            ],
+            &[
+                "leader",
+                "atalho",
+                "teclas",
+                "teclado",
+                "configurações",
+                "tecla de atalho",
+            ],
+        ],
+    ),
+    (
+        "command.settings.leader.set.tags",
+        [
+            &[
+                "leader", "shortcut", "keys", "keyboard", "settings", "hotkey", "change",
+            ],
+            &[
+                "leader",
+                "atalho",
+                "teclas",
+                "teclado",
+                "configurações",
+                "tecla de atalho",
+                "mudar",
+            ],
+        ],
+    ),
+    (
         "command.settings.mcp.read.tags",
         [
             &[
@@ -5980,6 +6319,52 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "desligar",
                 "ferramentas de ia",
                 "protocolo de contexto",
+            ],
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.tags",
+        [
+            &[
+                "leader menu",
+                "keys",
+                "shortcuts",
+                "keyboard",
+                "settings",
+                "menu",
+            ],
+            &[
+                "menu do leader",
+                "teclas",
+                "atalhos",
+                "teclado",
+                "configurações",
+                "menu",
+            ],
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.tags",
+        [
+            &[
+                "leader menu",
+                "keys",
+                "shortcuts",
+                "keyboard",
+                "settings",
+                "menu",
+                "change",
+                "rebind",
+            ],
+            &[
+                "menu do leader",
+                "teclas",
+                "atalhos",
+                "teclado",
+                "configurações",
+                "menu",
+                "mudar",
+                "reatribuir",
             ],
         ],
     ),

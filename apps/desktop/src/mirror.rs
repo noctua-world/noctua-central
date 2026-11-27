@@ -5,8 +5,9 @@
 //! **The daemon's state is the authority, and this is a copy of it.** Each
 //! watch answers the whole state at a revision (`nc_ipc::client::Changed`) —
 //! the `shell` of the one object a daemon answers a watch with, beside the
-//! graphical environment a connection announced and what came of the
-//! daemon's asking for the Leader ([`watched_shell`]) — and
+//! graphical environment a connection announced, what came of the
+//! daemon's asking for the Leader and how many times a shortcut setting wrote
+//! the keybinding configuration ([`watched_shell`], [`watched_keys`]) — and
 //! [`Mirror::watched`] reads it strictly — every field the kernel writes
 //! taken, of the type it writes it in, every word one of the closed set the
 //! kernel writes, and any other field refused — so a state of another shape is
@@ -717,9 +718,37 @@ pub fn watched_shell(value: &Value) -> Result<Option<Shell>, Unread> {
         }
         asked.done()?;
     }
+    if let Some(keys) = top.optional("keys")
+        && !matches!(keys, Value::Integer(count) if *count > 0)
+    {
+        return Err(Unread(
+            "how many times the keybinding configuration was written is not a whole number \
+             above zero"
+                .to_owned(),
+        ));
+    }
     let shell = top.optional("shell").map(Shell::read).transpose()?;
     top.done()?;
     Ok(shell)
+}
+
+/// How many times a shortcut setting wrote the channel's keybinding
+/// configuration since the daemon started, as the object a watch is answered
+/// with says it — `keys`, which the daemon writes only once there is one, so
+/// none is zero.
+///
+/// **Compared for being another number, never for being later**: the count
+/// turns to zero as a revision does, and is one daemon's. Whoever holds the
+/// keys in force reads the file again when it is another.
+#[must_use]
+pub fn watched_keys(value: &Value) -> u64 {
+    match value {
+        Value::Object(fields) => match fields.get("keys") {
+            Some(Value::Integer(count)) => u64::try_from(*count).unwrap_or(0),
+            _ => 0,
+        },
+        _ => 0,
+    }
 }
 
 /// A fact this window says at the rate it draws, as the arguments of the
@@ -864,9 +893,21 @@ pub struct Mirror {
     shell: Option<Shell>,
     /// The facts said, each by what it is about, with where it is.
     said: BTreeMap<About, (Fact, Stage)>,
+    /// How many times the daemon said the keybinding configuration was
+    /// written, as the last state read said it.
+    keys: u64,
 }
 
 impl Mirror {
+    /// How many times a shortcut setting wrote the channel's keybinding
+    /// configuration, as the last state the daemon answered says it
+    /// ([`watched_keys`]): another number than the one last seen is the
+    /// file to read again.
+    #[must_use]
+    pub const fn keys(&self) -> u64 {
+        self.keys
+    }
+
     /// A mirror holding nothing: what a window holds before the daemon
     /// answered its first watch.
     #[must_use]
@@ -903,6 +944,7 @@ impl Mirror {
             return Ok(Moved::Unchanged);
         };
         let shell = watched_shell(&state)?;
+        self.keys = watched_keys(&state);
         self.revision = Some(changed.revision);
         if let Some(shell) = shell {
             self.shell = Some(shell);
@@ -1479,6 +1521,68 @@ pub(crate) mod tests {
     /// `state`, as the one object a daemon answers a watch with holds it.
     pub(crate) fn as_watched(state: Value) -> Value {
         Value::object([("shell", state)])
+    }
+
+    /// A watch's count of the writes of the keybinding configuration is read
+    /// as the daemon writes it — a whole number above zero, or no field at
+    /// all, which is none — and is the mirror's from the state read last.
+    ///
+    /// **Another shape refuses the state whole**, the copy held and its count
+    /// kept: zero, which the daemon never writes, a negative number and a
+    /// text.
+    #[test]
+    fn a_watchs_count_of_the_keys_written_is_read_as_the_daemon_writes_it() {
+        let with = |keys: Value| Value::object([("shell", first_run()), ("keys", keys)]);
+        assert_eq!(super::watched_keys(&with(Value::Integer(3))), 3);
+        assert_eq!(super::watched_keys(&as_watched(first_run())), 0);
+        assert_eq!(super::watched_keys(&Value::Null), 0);
+        let mut mirror = Mirror::new();
+        assert_eq!(mirror.keys(), 0);
+        mirror.watched(changed(1, Some(first_run()))).expect("read");
+        assert_eq!(mirror.keys(), 0, "a state that names no count");
+        assert_eq!(
+            mirror.watched(Changed {
+                revision: 2,
+                state: Some(with(Value::Integer(3))),
+            }),
+            Ok(Moved::To(2))
+        );
+        assert_eq!(mirror.keys(), 3);
+        assert_eq!(mirror.shell(), Some(&read(&first_run())));
+        for keys in [
+            Value::Integer(0),
+            Value::Integer(-1),
+            Value::text("1"),
+            Value::Null,
+        ] {
+            let refused = mirror
+                .watched(Changed {
+                    revision: 3,
+                    state: Some(with(keys.clone())),
+                })
+                .expect_err("refused");
+            assert!(
+                refused
+                    .to_string()
+                    .contains("not a whole number above zero"),
+                "{keys:?}: {refused}"
+            );
+            assert_eq!((mirror.keys(), mirror.revision()), (3, Some(2)), "{keys:?}");
+        }
+        mirror
+            .watched(Changed {
+                revision: 4,
+                state: Some(Value::object([(
+                    "display",
+                    Value::object(Vec::<(&str, Value)>::new()),
+                )])),
+            })
+            .expect("read");
+        assert_eq!(
+            mirror.keys(),
+            0,
+            "a daemon that says no count has written none"
+        );
     }
 
     /// The object a watch is answered with holds the interface's state as

@@ -193,6 +193,11 @@ pub(crate) enum Builtin {
     McpRead,
     /// `settings.mcp.set`: MCP switched on or off (`crate::settings`).
     McpSet,
+    /// A shortcut setting's read: the keys in force (`crate::settings`).
+    ShortcutRead(crate::settings::Which),
+    /// A shortcut setting's set: the channel's choice of keys changed
+    /// (`crate::settings`).
+    ShortcutSet(crate::settings::Which),
     /// `agents.create`: an agent made (`crate::agents`).
     AgentsCreate,
     /// `agents.list`: the asker's agents (`crate::agents`).
@@ -227,8 +232,8 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 19 + crate::shell::Verb::ALL.len()] = {
-        let mut all = [Self::Verify; 19 + crate::shell::Verb::ALL.len()];
+    const ALL: [Self; 27 + crate::shell::Verb::ALL.len()] = {
+        let mut all = [Self::Verify; 27 + crate::shell::Verb::ALL.len()];
         let mut at = 0;
         while at < Self::OWN.len() {
             all[at] = Self::OWN[at];
@@ -243,7 +248,7 @@ impl Builtin {
     };
 
     /// The kernel's own, which [`Builtin::ALL`] begins with.
-    const OWN: [Self; 19] = [
+    const OWN: [Self; 27] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -253,6 +258,14 @@ impl Builtin {
         Self::Find,
         Self::McpRead,
         Self::McpSet,
+        Self::ShortcutRead(crate::settings::Which::Leader),
+        Self::ShortcutSet(crate::settings::Which::Leader),
+        Self::ShortcutRead(crate::settings::Which::Chord),
+        Self::ShortcutSet(crate::settings::Which::Chord),
+        Self::ShortcutRead(crate::settings::Which::MenuKeys),
+        Self::ShortcutSet(crate::settings::Which::MenuKeys),
+        Self::ShortcutRead(crate::settings::Which::Chords),
+        Self::ShortcutSet(crate::settings::Which::Chords),
         Self::AgentsCreate,
         Self::AgentsList,
         Self::AgentsGrant,
@@ -277,6 +290,8 @@ impl Builtin {
             Self::Find => crate::find::FIND,
             Self::McpRead => crate::settings::MCP_READ,
             Self::McpSet => crate::settings::MCP_SET,
+            Self::ShortcutRead(which) => which.read(),
+            Self::ShortcutSet(which) => which.set(),
             Self::AgentsCreate => crate::agents::CREATE,
             Self::AgentsList => crate::agents::LIST,
             Self::AgentsGrant => crate::agents::GRANT,

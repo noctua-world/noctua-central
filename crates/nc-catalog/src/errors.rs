@@ -123,6 +123,16 @@ pub enum ErrorCode {
     ChannelLeaderNoSession,
     /// NC-CHAN-0022 — The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered
     ChannelLeaderUnregistered,
+    /// NC-CHAN-0023 — The Leader or the chord modifier a shortcut setting was asked for breaks a rule of the Leader's, or could not be judged against another channel's, so nothing was written and the keys in force stand
+    ChannelShortcutLeaderCollides,
+    /// NC-CHAN-0024 — The keys a shortcut setting was asked for bind one key of one table twice, so nothing was written and the keys in force stand
+    ChannelShortcutKeyBoundTwice,
+    /// NC-CHAN-0025 — A shortcut setting was asked for a key, a chord, a modifier or a command's name the keybinding grammar does not write — a key it keeps out of every shortcut among them — so nothing was written and the keys in force stand
+    ChannelShortcutKeyReserved,
+    /// NC-CHAN-0026 — The system did not grant the Leader a shortcut setting was asked for — another program holds it, or the system could not be asked — so nothing was written and the Leader in force is still the one registered
+    ChannelShortcutLeaderUndelivered,
+    /// NC-CHAN-0027 — A shortcut setting could not be read or saved: the keybinding configuration as it stands is not one that is written over, the choice is past the file's bound, the disk did not answer, or no configuration is kept where it was asked; nothing was changed
+    ChannelShortcutsUnsaved,
     /// NC-CLI-0001 — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object
     CliCommandLineUnreadable,
     /// NC-CLI-0002 — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent
@@ -469,6 +479,11 @@ impl ErrorCode {
         Self::ChannelLeaderTaken,
         Self::ChannelLeaderNoSession,
         Self::ChannelLeaderUnregistered,
+        Self::ChannelShortcutLeaderCollides,
+        Self::ChannelShortcutKeyBoundTwice,
+        Self::ChannelShortcutKeyReserved,
+        Self::ChannelShortcutLeaderUndelivered,
+        Self::ChannelShortcutsUnsaved,
         Self::CliCommandLineUnreadable,
         Self::CliTokenNotPrivate,
         Self::CliTokenUnreadable,
@@ -662,6 +677,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => "NC-CHAN-0020",
             Self::ChannelLeaderNoSession => "NC-CHAN-0021",
             Self::ChannelLeaderUnregistered => "NC-CHAN-0022",
+            Self::ChannelShortcutLeaderCollides => "NC-CHAN-0023",
+            Self::ChannelShortcutKeyBoundTwice => "NC-CHAN-0024",
+            Self::ChannelShortcutKeyReserved => "NC-CHAN-0025",
+            Self::ChannelShortcutLeaderUndelivered => "NC-CHAN-0026",
+            Self::ChannelShortcutsUnsaved => "NC-CHAN-0027",
             Self::CliCommandLineUnreadable => "NC-CLI-0001",
             Self::CliTokenNotPrivate => "NC-CLI-0002",
             Self::CliTokenUnreadable => "NC-CLI-0003",
@@ -856,6 +876,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => "CHAN",
             Self::ChannelLeaderNoSession => "CHAN",
             Self::ChannelLeaderUnregistered => "CHAN",
+            Self::ChannelShortcutLeaderCollides => "CHAN",
+            Self::ChannelShortcutKeyBoundTwice => "CHAN",
+            Self::ChannelShortcutKeyReserved => "CHAN",
+            Self::ChannelShortcutLeaderUndelivered => "CHAN",
+            Self::ChannelShortcutsUnsaved => "CHAN",
             Self::CliCommandLineUnreadable => "CLI",
             Self::CliTokenNotPrivate => "CLI",
             Self::CliTokenUnreadable => "CLI",
@@ -1099,6 +1124,21 @@ impl ErrorCode {
             }
             Self::ChannelLeaderUnregistered => {
                 "The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
+            }
+            Self::ChannelShortcutLeaderCollides => {
+                "The Leader or the chord modifier a shortcut setting was asked for breaks a rule of the Leader's, or could not be judged against another channel's, so nothing was written and the keys in force stand"
+            }
+            Self::ChannelShortcutKeyBoundTwice => {
+                "The keys a shortcut setting was asked for bind one key of one table twice, so nothing was written and the keys in force stand"
+            }
+            Self::ChannelShortcutKeyReserved => {
+                "A shortcut setting was asked for a key, a chord, a modifier or a command's name the keybinding grammar does not write — a key it keeps out of every shortcut among them — so nothing was written and the keys in force stand"
+            }
+            Self::ChannelShortcutLeaderUndelivered => {
+                "The system did not grant the Leader a shortcut setting was asked for — another program holds it, or the system could not be asked — so nothing was written and the Leader in force is still the one registered"
+            }
+            Self::ChannelShortcutsUnsaved => {
+                "A shortcut setting could not be read or saved: the keybinding configuration as it stands is not one that is written over, the choice is past the file's bound, the disk did not answer, or no configuration is kept where it was asked; nothing was changed"
             }
             Self::CliCommandLineUnreadable => {
                 "A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
@@ -1550,6 +1590,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => "error.channel.leader-taken",
             Self::ChannelLeaderNoSession => "error.channel.leader-no-session",
             Self::ChannelLeaderUnregistered => "error.channel.leader-unregistered",
+            Self::ChannelShortcutLeaderCollides => "error.channel.shortcut-leader-collides",
+            Self::ChannelShortcutKeyBoundTwice => "error.channel.shortcut-key-bound-twice",
+            Self::ChannelShortcutKeyReserved => "error.channel.shortcut-key-reserved",
+            Self::ChannelShortcutLeaderUndelivered => "error.channel.shortcut-leader-undelivered",
+            Self::ChannelShortcutsUnsaved => "error.channel.shortcuts-unsaved",
             Self::CliCommandLineUnreadable => "error.cli.command-line-unreadable",
             Self::CliTokenNotPrivate => "error.cli.token-not-private",
             Self::CliTokenUnreadable => "error.cli.token-unreadable",
@@ -1744,6 +1789,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => Severity::Warning,
             Self::ChannelLeaderNoSession => Severity::Warning,
             Self::ChannelLeaderUnregistered => Severity::Error,
+            Self::ChannelShortcutLeaderCollides => Severity::Error,
+            Self::ChannelShortcutKeyBoundTwice => Severity::Error,
+            Self::ChannelShortcutKeyReserved => Severity::Error,
+            Self::ChannelShortcutLeaderUndelivered => Severity::Error,
+            Self::ChannelShortcutsUnsaved => Severity::Error,
             Self::CliCommandLineUnreadable => Severity::Warning,
             Self::CliTokenNotPrivate => Severity::Critical,
             Self::CliTokenUnreadable => Severity::Error,
@@ -1938,6 +1988,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => true,
             Self::ChannelLeaderNoSession => false,
             Self::ChannelLeaderUnregistered => true,
+            Self::ChannelShortcutLeaderCollides => false,
+            Self::ChannelShortcutKeyBoundTwice => false,
+            Self::ChannelShortcutKeyReserved => false,
+            Self::ChannelShortcutLeaderUndelivered => true,
+            Self::ChannelShortcutsUnsaved => true,
             Self::CliCommandLineUnreadable => false,
             Self::CliTokenNotPrivate => false,
             Self::CliTokenUnreadable => true,
@@ -2132,6 +2187,11 @@ impl ErrorCode {
             Self::ChannelLeaderTaken => &[],
             Self::ChannelLeaderNoSession => &[],
             Self::ChannelLeaderUnregistered => &[],
+            Self::ChannelShortcutLeaderCollides => &[],
+            Self::ChannelShortcutKeyBoundTwice => &[],
+            Self::ChannelShortcutKeyReserved => &[],
+            Self::ChannelShortcutLeaderUndelivered => &[],
+            Self::ChannelShortcutsUnsaved => &[],
             Self::CliCommandLineUnreadable => &[],
             Self::CliTokenNotPrivate => &[],
             Self::CliTokenUnreadable => &[],

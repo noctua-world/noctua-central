@@ -881,6 +881,138 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false}
 ```
 
+## `settings.chord.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F02B` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the added key | Ver a tecla acrescentada |
+| Line description | Show the key held with the Leader for more shortcuts. | Mostrar a tecla pressionada com o Leader para mais atalhos. |
+| Paragraph | Answers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing. | Responde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada. |
+| Tags | chord, added key, modifier, shift, shortcut, keyboard, settings | tecla acrescentada, modificador, shift, atalho, teclado, configurações |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.chord.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F02C` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the added key | Mudar a tecla acrescentada |
+| Line description | Choose the key held with the Leader for more shortcuts. | Escolher a tecla pressionada com o Leader para mais atalhos. |
+| Paragraph | Changes the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had. | Muda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha. |
+| Tags | chord, added key, modifier, shift, shortcut, keyboard, settings, change | tecla acrescentada, modificador, shift, atalho, teclado, configurações, mudar |
+
+```json
+{"type":"object","properties":{"chord":{"type":"string","minLength":1,"maxLength":16}},"required":["chord"],"additionalProperties":false}
+```
+
+## `settings.chords.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0CA` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the chords | Ver as combinações |
+| Line description | Show each key pressed with the Leader held and what it runs. | Mostrar cada tecla pressionada com o Leader e o que ela executa. |
+| Paragraph | Answers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing. | Responde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada. |
+| Tags | chords, held, shortcuts, keys, keyboard, settings | combinações, pressionado, atalhos, teclas, teclado, configurações |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.chords.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0CB` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the chords | Mudar as combinações |
+| Line description | Choose each key pressed with the Leader held and what it runs. | Escolher cada tecla pressionada com o Leader e o que ela executa. |
+| Paragraph | Replaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had. | Substitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha. |
+| Tags | chords, held, shortcuts, keys, keyboard, settings, change, rebind | combinações, pressionado, atalhos, teclas, teclado, configurações, mudar, reatribuir |
+
+```json
+{"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false}
+```
+
+## `settings.leader.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F11C` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the Leader | Ver o Leader |
+| Line description | Show the keys that reach Noctua from anywhere. | Mostrar as teclas que chamam o Noctua de qualquer lugar. |
+| Paragraph | Answers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing. | Responde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada. |
+| Tags | leader, shortcut, keys, keyboard, settings, hotkey | leader, atalho, teclas, teclado, configurações, tecla de atalho |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.leader.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0AD` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the Leader | Mudar o Leader |
+| Line description | Choose the keys that reach Noctua from anywhere. | Escolher as teclas que chamam o Noctua de qualquer lugar. |
+| Paragraph | Changes the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had. | Muda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha. |
+| Tags | leader, shortcut, keys, keyboard, settings, hotkey, change | leader, atalho, teclas, teclado, configurações, tecla de atalho, mudar |
+
+```json
+{"type":"object","properties":{"leader":{"type":"string","minLength":1,"maxLength":64}},"required":["leader"],"additionalProperties":false}
+```
+
 ## `settings.mcp.read`
 
 | | |
@@ -923,6 +1055,50 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}
+```
+
+## `settings.menu-keys.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0C9` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the leader menu's keys | Ver as teclas do menu do Leader |
+| Line description | Show each key of the leader menu and what it runs. | Mostrar cada tecla do menu do Leader e o que ela executa. |
+| Paragraph | Answers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing. | Responde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada. |
+| Tags | leader menu, keys, shortcuts, keyboard, settings, menu | menu do leader, teclas, atalhos, teclado, configurações, menu |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.menu-keys.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | yes |
+| Can it be undone | no — a step that ran it is one undo stops at (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F03A` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the leader menu's keys | Mudar as teclas do menu do Leader |
+| Line description | Choose each key of the leader menu and what it runs. | Escolher cada tecla do menu do Leader e o que ela executa. |
+| Paragraph | Replaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had. | Substitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha. |
+| Tags | leader menu, keys, shortcuts, keyboard, settings, menu, change, rebind | menu do leader, teclas, atalhos, teclado, configurações, menu, mudar, reatribuir |
+
+```json
+{"type":"object","properties":{"keys":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16}},"required":["command","key"],"additionalProperties":false},"maxItems":73}},"required":["keys"],"additionalProperties":false}
 ```
 
 ## `shell.drag`

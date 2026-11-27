@@ -1122,6 +1122,10 @@ mod tests {
         };
         for name in [
             "settings.mcp.set",
+            "settings.leader.set",
+            "settings.chord.set",
+            "settings.menu-keys.set",
+            "settings.chords.set",
             "agents.create",
             "agents.grant",
             "agents.revoke",
@@ -1130,6 +1134,10 @@ mod tests {
         }
         for name in [
             "settings.mcp.read",
+            "settings.leader.read",
+            "settings.chord.read",
+            "settings.menu-keys.read",
+            "settings.chords.read",
             "agents.list",
             "kernel.undo",
             "kernel.redo",

@@ -2971,6 +2971,10 @@ async fn builtin<E: Environment>(
         }
         Some(Builtin::McpRead) => crate::settings::mcp_read(shared).await,
         Some(Builtin::McpSet) => crate::settings::mcp_set(shared, tree, &asked.json).await,
+        Some(Builtin::ShortcutRead(which)) => crate::settings::shortcut_read(shared, which),
+        Some(Builtin::ShortcutSet(which)) => {
+            return written_once_journaled(shared, tree, asked, authorized, which).await;
+        }
         Some(Builtin::AgentsCreate | Builtin::AgentsGrant | Builtin::AgentsRevoke) => {
             return changed_once_journaled(shared, tree, asked, authorized).await;
         }
@@ -3022,6 +3026,36 @@ async fn pruned_once_journaled<E: Environment>(
             let entered = Ok(String::new());
             match journaled(shared, tree, asked, authorized, entered, BTreeMap::new()).await {
                 Ok(_) => Executed::Entered(crate::builtin::deleted(target, run).await),
+                Err(refused) => Executed::Withheld(refused),
+            }
+        }
+    }
+}
+
+/// A shortcut setting's set, which writes nothing until its entry has landed.
+///
+/// **What no unit can hold is journaled before it is done**, as a prune is:
+/// the channel's keybinding configuration is a file outside every unit, so the
+/// choice is read and judged first (`crate::settings::shortcut_proposed`) — a
+/// refusal there journaled as failed, nothing written — then journaled as
+/// allowed, and written only then. A journal that does not take that entry
+/// leaves the file as it was, the answer withheld; a write the keeper then
+/// refuses is what the unit's close says did not finish.
+async fn written_once_journaled<E: Environment>(
+    shared: &Arc<Shared<E>>,
+    tree: &Arc<Mutex<CallTree>>,
+    asked: &Asked,
+    authorized: &Authorized,
+    which: crate::settings::Which,
+) -> Executed {
+    match crate::settings::shortcut_proposed(shared, which, &asked.json) {
+        Err(failure) => Executed::Ran(Err(failure)),
+        Ok(shortcut) => {
+            let entered = Ok(String::new());
+            match journaled(shared, tree, asked, authorized, entered, BTreeMap::new()).await {
+                Ok(_) => {
+                    Executed::Entered(crate::settings::shortcut_written(shared, which, &shortcut))
+                }
                 Err(refused) => Executed::Withheld(refused),
             }
         }

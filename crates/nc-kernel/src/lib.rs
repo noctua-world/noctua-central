@@ -132,7 +132,7 @@ pub use dispatch::{Approval, Asker, Caller, Confirmation, Refusal, RefusalKind};
 pub use host::log::{LogLevel, LogLine, PluginLog};
 pub use pump::Pumped;
 pub use session::Session;
-pub use settings::Settings;
+pub use settings::{Keys, Settings, Shortcut, Shortcuts};
 pub use supervisor::{Kill, PluginStatus};
 pub use ui::{Renderer, Surface, SurfaceKind};
 
@@ -258,6 +258,10 @@ pub(crate) struct Shared<E: Environment> {
     /// The revision the interface's state is at, told each time it moves, so
     /// whoever watches it waits for no poll (`crate::shell::released`).
     pub(crate) shell_moves: tokio::sync::watch::Sender<u64>,
+    /// Where the channel's choice of keys is kept, once the kernel's host
+    /// says where ([`Kernel::keep_shortcuts`]): what the shortcut settings
+    /// read and write (`crate::settings`).
+    pub(crate) shortcuts: Mutex<Option<Arc<dyn settings::Shortcuts>>>,
     /// Every unit this kernel left committed in the store and open in the
     /// journal — its close not taken, its reversal refused — until a prune
     /// reverts it first (`crate::units::reverted_again`): what the pruner may
@@ -374,6 +378,7 @@ impl<E: Environment> Kernel<E> {
                 surfaces: Mutex::new(ui::Surfaces::default()),
                 shell: Mutex::new(shell::Cell::default()),
                 shell_moves: tokio::sync::watch::Sender::new(0),
+                shortcuts: Mutex::new(None),
                 left_committed: Mutex::new(BTreeSet::new()),
                 ticker,
             }),
@@ -470,6 +475,17 @@ impl<E: Environment> Kernel<E> {
     /// never read as on or as off.
     pub async fn settings(&self) -> Result<Settings, Refusal> {
         settings::read(&*self.shared.store, &self.shared.realm).await
+    }
+
+    /// Says where this kernel's channel keeps its person's choice of keys:
+    /// what `settings.leader`, `settings.chord`, `settings.menu-keys` and
+    /// `settings.chords` read and write from then on (`crate::settings`).
+    ///
+    /// **The keeper said last stands**, in place of any said before. A
+    /// kernel told of none refuses those eight commands with
+    /// `[NC-CHAN-0027]`, and runs every other as ever.
+    pub fn keep_shortcuts(&self, shortcuts: Arc<dyn Shortcuts>) {
+        *dispatch::lock(&self.shared.shortcuts) = Some(shortcuts);
     }
 
     /// Dispatches the command `name` with `args` for `asker`, as the top of a

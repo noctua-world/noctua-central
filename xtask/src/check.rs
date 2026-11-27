@@ -20064,11 +20064,11 @@ mod the_frozen_path_rule {
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/desktop.rs", 36, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 25, 18),
-        ("daemon/every_command_from_the_cli.rs", 45, 2),
+        ("daemon/environment.rs", 29, 23),
+        ("daemon/every_command_from_the_cli.rs", 47, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
-        ("daemon/leader.rs", 8, 2),
+        ("daemon/leader.rs", 14, 3),
         ("daemon/lib.rs", 7, 16),
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
@@ -20077,7 +20077,7 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 149, 30),
+        ("daemon/server.rs", 169, 32),
         ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
@@ -20089,11 +20089,11 @@ mod the_frozen_path_rule {
         ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
         ("desktop/footer.rs", 97, 4),
-        ("desktop/host.rs", 124, 14),
+        ("desktop/host.rs", 127, 14),
         ("desktop/keys.rs", 29, 3),
         ("desktop/lib.rs", 0, 14),
         ("desktop/main.rs", 23, 6),
-        ("desktop/mirror.rs", 88, 18),
+        ("desktop/mirror.rs", 91, 18),
         ("desktop/page.rs", 20, 1),
         ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
@@ -20144,12 +20144,12 @@ mod the_frozen_path_rule {
         ("nc-catalog/wiki.rs", 6, 2),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            42,
+            50,
             3,
         ),
         ("nc-channel/checkouts.rs", 41, 11),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 40, 11),
+        ("nc-channel/keys.rs", 56, 20),
         ("nc-channel/lib.rs", 61, 17),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/stopped.rs", 4, 6),
@@ -20203,7 +20203,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
         ("nc-kernel/confirmations.rs", 19, 2),
-        ("nc-kernel/dispatch.rs", 153, 32),
+        ("nc-kernel/dispatch.rs", 154, 32),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -20220,7 +20220,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 69, 60),
+        ("nc-kernel/lib.rs", 70, 60),
         ("nc-kernel/limits.rs", 18, 19),
         ("nc-kernel/logging.rs", 11, 10),
         ("nc-kernel/manifest.rs", 32, 19),
@@ -20230,10 +20230,10 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 10, 2),
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
-        ("nc-kernel/settings.rs", 27, 1),
+        ("nc-kernel/settings.rs", 55, 2),
         ("nc-kernel/shell.rs", 212, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 316, 87),
+        ("nc-kernel/the_decision_point.rs", 325, 92),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
         ("nc-kernel/timers.rs", 18, 5),
@@ -23100,8 +23100,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 937 scratches this tree
-    /// builds, 849 of the 937 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 943 scratches this tree
+    /// builds, 855 of the 943 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23209,8 +23209,8 @@ mod the_frozen_path_rule {
         ),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            21,
-            21,
+            27,
+            27,
         ),
         ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
@@ -26276,7 +26276,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24990;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25189;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26295,7 +26295,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7862;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7988;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26312,7 +26312,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2694;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2735;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26329,7 +26329,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [249, 38, 64, 66, 109];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [263, 38, 67, 69, 113];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26346,7 +26346,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32584;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32872;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26364,7 +26364,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 799;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 826;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26400,8 +26400,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **799 of 32,584 are accepted by the first-line
-    /// rule alone, and 526 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **826 of 32,872 are accepted by the first-line
+    /// rule alone, and 550 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26422,8 +26422,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **249 ascending sorts, 38 descending, 64
-    /// swaps, 66 rotations and 109 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **263 ascending sorts, 38 descending, 67
+    /// swaps, 69 rotations and 113 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26433,7 +26433,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2694 of
+    /// this tree offers, **2735 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38900,7 +38900,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3378] = [
+    static OPERATORS: [(&str, &str, &str); 3417] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -50625,6 +50625,197 @@ Options:
         (
             "daemon_leader",
             "listening",
+            "a Leader tried is asked for with the one held still held",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "the Leader held already is asked of nobody",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader refused at the start is asked for again",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader tried and never settled is given back as the next is tried",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader kept takes the place of the one held",
+        ),
+        ("daemon_leader", "listening", "a Leader kept is said held"),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader dropped is given back",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a file its reader refuses is never written over",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "the channel's own Leader is written as no choice",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "the channel's own chord modifier is written as no choice",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a choice is held to the file's bound before it is written",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a choice any part of which is refused is not one to write",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "a change replaces its own tables and no other",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "a command bound as the catalog binds it is left out of the file",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "what the file binds a command to stands over the catalog's",
+        ),
+        (
+            "channel_keys",
+            "bound",
+            "a chord says which of a held Leader's two tables it is in",
+        ),
+        (
+            "channel_keys",
+            "written",
+            "a choice is written only into a directory judged this user's alone",
+        ),
+        (
+            "channel_keys",
+            "written",
+            "what a cut write left is judged before it is removed",
+        ),
+        (
+            "channel_keys",
+            "code_of_a_choice",
+            "a key bound twice refuses a choice with a code of its own",
+        ),
+        (
+            "channel_keys",
+            "of_a_choice",
+            "a refused choice says the keys in force stand and never a default",
+        ),
+        (
+            "kernel_settings",
+            "answered",
+            "the menu's keys are the menu's table and the chords the other two",
+        ),
+        (
+            "kernel_settings",
+            "answered",
+            "a chord says whether the chord modifier is held as well",
+        ),
+        (
+            "kernel_settings",
+            "asked_shortcut",
+            "a shortcut names a command by a name a command can have",
+        ),
+        (
+            "kernel_settings",
+            "asked_shortcut",
+            "what a refusal repeats of a shortcut is escaped and cut",
+        ),
+        (
+            "kernel_settings",
+            "shortcut_proposed",
+            "a choice is judged by its keeper before it is journaled",
+        ),
+        (
+            "kernel_builtin",
+            "name",
+            "a shortcut setting's read is not its set",
+        ),
+        (
+            "kernel_dispatch",
+            "written_once_journaled",
+            "a shortcut is written only once its entry has landed",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader a setting changes is asked of the system before it is written",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader granted is kept once the file is written",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a write that failed gives the Leader granted back",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "each write of the configuration is told to the server",
+        ),
+        (
+            "daemon_environment",
+            "judged",
+            "a choice that collides is a conflict and one unsaved is not",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader the system refuses has a code of its own",
+        ),
+        (
+            "daemon_server",
+            "keys_written",
+            "a write of the configuration moves the watched revision",
+        ),
+        (
+            "daemon_server",
+            "keys_written",
+            "a write of the configuration is counted",
+        ),
+        (
+            "daemon_server",
+            "keys_said",
+            "the count of the keys written is answered only once there is one",
+        ),
+        (
+            "desktop_mirror",
+            "watched_shell",
+            "a count of the keys written that is not above zero refuses the state",
+        ),
+        (
+            "desktop_mirror",
+            "watched",
+            "the mirror's count of the keys written is the state's read last",
+        ),
+        (
+            "desktop_host",
+            "reads_the_keys_again",
+            "the keys are read again when the count is another, whichever way it moved",
+        ),
+        (
+            "daemon_leader",
+            "listening",
             "a registration lost is told as a refusal",
         ),
         ("daemon_leader", "listening", "a press heard is tapped"),
@@ -50635,7 +50826,7 @@ Options:
         ),
         (
             "daemon_server",
-            "moved",
+            "next",
             "a revision turns to zero after the wire's largest integer",
         ),
         (

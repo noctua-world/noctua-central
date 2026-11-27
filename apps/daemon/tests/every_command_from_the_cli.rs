@@ -68,6 +68,9 @@ const HASH: &str = "<hash>";
 /// The text the blob a row makes holds, written once.
 const BLOB: &str = "said";
 
+/// The Leader a row sets: no channel's default.
+const THE_LEADER_SET: &str = "Control+Alt+KeyK";
+
 /// How a command's own entry in the journal ended.
 #[derive(Debug, Clone, Copy)]
 enum Journaled {
@@ -188,6 +191,27 @@ const ROWS: &[Row] = &[
         Journaled::Denied("kernel.mcp_on_needs_confirmation"),
     ),
     ran("kernel.history", &[]),
+    // **The shortcut settings write the install's own keybinding
+    // configuration**,
+    // a file outside every unit, so each set is a step undo stops at and
+    // comes after `kernel.undo` and `kernel.redo`.
+    ran("settings.leader.read", &[]),
+    ran("settings.leader.set", &["--leader", THE_LEADER_SET]),
+    ran("settings.chord.read", &[]),
+    ran("settings.chord.set", &["--chord", "Super"]),
+    ran("settings.menu-keys.read", &[]),
+    ran(
+        "settings.menu-keys.set",
+        &["--keys", r#"{"command":"page.help","key":"KeyH"}"#],
+    ),
+    ran("settings.chords.read", &[]),
+    ran(
+        "settings.chords.set",
+        &[
+            "--chords",
+            r#"{"chord":true,"command":"page.close","key":"KeyQ"}"#,
+        ],
+    ),
     ran("agents.create", &["--label", "assistant", "--budget", "10"]),
     ran("agents.list", &[]),
     // **No agent is held under the identifier named**: the schema takes it,
@@ -1467,5 +1491,110 @@ fn an_agent_is_named_to_the_cli_by_its_identifier_and_never_by_its_label() {
             "an entry holds what the person typed: {written}"
         );
     }
+    serving.stopped();
+}
+
+/// A shortcut set through the CLI is the file its reader reads, a set that is
+/// refused writes nothing, and each write moves what a watch is answered.
+///
+/// **Against a real daemon, whose kernel was told of its install's keeper**
+/// (`NOCTUA.md §12.15`): the Leader read is the channel's default; set, the
+/// install's keybinding configuration is private, holds the choice alone, and is
+/// what `nc_channel::keys::effective` then puts in force, and a watch is
+/// answered `keys` at one — where it was answered none before. A Leader the
+/// judge refuses, one the grammar does not write and a key it keeps out of
+/// every shortcut each end the CLI with their own code, leave the file as it
+/// was and move no count; and the default set again leaves the format alone.
+#[test]
+fn a_shortcut_set_through_the_cli_is_the_file_its_reader_reads() {
+    let mut serving = Serving::new();
+    let file = serving.found.layout.keybindings.clone();
+    let default = serving.found.install.channel.leader().written();
+    let leader =
+        |serving: &Serving| text_of(&answered_to(serving, &["settings.leader.read"]), "leader");
+    let keys = |serving: &mut Serving| {
+        let watch = Request::Watch {
+            seen: None,
+            wait_ms: 0,
+        };
+        match serving.runtime.block_on(asked(&mut serving.client, watch)) {
+            Answer::Changed {
+                state: Some(state), ..
+            } => state.into_object().expect("an object").remove("keys"),
+            other => panic!("a watch was answered with {other:?}"),
+        }
+    };
+    assert_eq!(leader(&serving), default);
+    assert!(!file.exists(), "a read wrote the configuration");
+    assert_eq!(keys(&mut serving), None, "nothing was written yet");
+    let set = answered_to(
+        &serving,
+        &["settings.leader.set", "--leader", THE_LEADER_SET],
+    );
+    assert_eq!(text_of(&set, "leader"), THE_LEADER_SET);
+    let written = format!(r#"{{"format":1,"leader":"{THE_LEADER_SET}"}}"#);
+    assert_eq!(std::fs::read_to_string(&file).expect("the file"), written);
+    assert!(nc_platform::testing::is_private(&file));
+    let effective = nc_channel::keys::effective(&serving.found);
+    assert!(effective.refused.is_empty(), "{:?}", effective.refused);
+    assert_eq!(effective.leader.written(), THE_LEADER_SET);
+    assert_eq!(leader(&serving), THE_LEADER_SET);
+    assert_eq!(keys(&mut serving), Some(Value::Integer(1)));
+    for (words, exit, code) in [
+        (
+            &["settings.leader.set", "--leader", "Alt+Shift+KeyK"][..],
+            Exit::Conflict,
+            ErrorCode::ChannelShortcutLeaderCollides,
+        ),
+        (
+            &["settings.leader.set", "--leader", "Hyper+Space"][..],
+            Exit::Invalid,
+            ErrorCode::ChannelShortcutKeyReserved,
+        ),
+        (
+            &[
+                "settings.menu-keys.set",
+                "--keys",
+                r#"{"command":"page.help","key":"Escape"}"#,
+            ][..],
+            Exit::Invalid,
+            ErrorCode::ChannelShortcutKeyReserved,
+        ),
+        (
+            &[
+                "settings.menu-keys.set",
+                "--keys",
+                r#"{"command":"page.help","key":"KeyH"}"#,
+                "--keys",
+                r#"{"command":"page.dev","key":"KeyH"}"#,
+            ][..],
+            Exit::Conflict,
+            ErrorCode::ChannelShortcutKeyBoundTwice,
+        ),
+    ] {
+        let argv: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
+        let outcome = serving.run(&argv, &english());
+        assert_eq!(outcome.exit, exit, "{words:?}: {outcome:?}");
+        assert!(
+            outcome
+                .stderr
+                .starts_with(&format!("error[{}]", code.code())),
+            "{words:?}: {}",
+            outcome.stderr
+        );
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("the file"),
+            written,
+            "{words:?} changed the configuration"
+        );
+        assert_eq!(keys(&mut serving), Some(Value::Integer(1)), "{words:?}");
+    }
+    let back = answered_to(&serving, &["settings.leader.set", "--leader", &default]);
+    assert_eq!(text_of(&back, "leader"), default);
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the file"),
+        r#"{"format":1}"#
+    );
+    assert_eq!(keys(&mut serving), Some(Value::Integer(2)));
     serving.stopped();
 }
