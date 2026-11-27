@@ -3228,12 +3228,13 @@ mod tests {
         let mut wrong = Vec::new();
         for (code, expected) in MACHINE_PATHS {
             let scratch = Scratch::new();
-            // The places the emitter writes from. Three are directories and
+            // The places the emitter writes from. Four are directories and
             // the rest are files, and the gate refuses a root where any is
             // missing — which is itself the floor that says it inspected
             // something.
             scratch.write("crates/nc-catalog-compiler/src/lib.rs", code);
             scratch.write("crates/nc-canon/src/lib.rs", "");
+            scratch.write("crates/nc-markdown/src/lib.rs", "");
             scratch.write("crates/nc-schema/src/lib.rs", "");
             for file in crate::determinism::EMITS.iter().filter(|named| {
                 std::path::Path::new(named)

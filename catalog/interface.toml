@@ -1,0 +1,193 @@
+# Every text the interface itself says (`NOCTUA.md §12`, `§15.2`).
+#
+# A sentence, a word or a control's name the desktop interface shows that is no
+# command's and no error's: the daemon alert line, the confirmation surface,
+# the prompt's send control, the words of the modeline, the names its parts
+# are read out by. What a command is called is its entry in `commands.toml`,
+# and what a refusal says is its message in `errors.toml`; neither is repeated
+# here.
+#
+# Same contract as `notifications.toml`: a text not declared here does not
+# exist, the interface shows one by a generated handle
+# (`nc_catalog::interface::Text`), and its key resolves in both locales.
+#
+# * `id` is two or more lower-case words joined by dots, and names the handle.
+# * `text` is the message key, always `interface.` and the id.
+# * `params` is checked against the placeholders in the sentence. A sentence is
+#   one key: a count that reads differently for one and for many is two texts.
+# * `shown` says, in one English sentence, where the interface shows it — what
+#   a translator and a reviewer place it by, published in `docs/interface.md`.
+
+[[text]]
+id = "alert.not-running"
+text = "interface.alert.not-running"
+params = []
+shown = "The daemon alert line, once the interface lost its daemon and no stop was asked for."
+
+[[text]]
+id = "alert.stopped"
+text = "interface.alert.stopped"
+params = []
+shown = "The daemon alert line, once the interface lost a daemon a person stopped on purpose."
+
+[[text]]
+id = "alert.restore-now"
+text = "interface.alert.restore-now"
+params = []
+shown = "The daemon alert line's control while it counts down, which starts the daemon at once."
+
+[[text]]
+id = "alert.start"
+text = "interface.alert.start"
+params = []
+shown = "The daemon alert line's control after a stop made on purpose, which starts the daemon."
+
+[[text]]
+id = "alert.countdown-one"
+text = "interface.alert.countdown-one"
+params = ["count"]
+shown = "The daemon alert line's countdown, with one second left."
+
+[[text]]
+id = "alert.countdown-other"
+text = "interface.alert.countdown-other"
+params = ["count"]
+shown = "The daemon alert line's countdown, with any other number of seconds left."
+
+[[text]]
+id = "confirm.confirm"
+text = "interface.confirm.confirm"
+params = []
+shown = "The confirmation surface's control that confirms the call it asks about."
+
+[[text]]
+id = "confirm.decline"
+text = "interface.confirm.decline"
+params = []
+shown = "The confirmation surface's control that declines the call it asks about."
+
+[[text]]
+id = "confirm.irreversible"
+text = "interface.confirm.irreversible"
+params = []
+shown = "The confirmation surface, under a call whose command cannot be undone."
+
+[[text]]
+id = "confirm.asked-by-agent"
+text = "interface.confirm.asked-by-agent"
+params = ["agent"]
+shown = "The confirmation surface, under a call an agent made for the person."
+
+[[text]]
+id = "confirm.asked-by-you"
+text = "interface.confirm.asked-by-you"
+params = []
+shown = "The confirmation surface, under a call the person made from the command line."
+
+[[text]]
+id = "history.undo-takes-back"
+text = "interface.history.undo-takes-back"
+params = ["step"]
+shown = "The info line, naming the step the next undo takes back before it is undone."
+
+[[text]]
+id = "history.undo-of-an-agent"
+text = "interface.history.undo-of-an-agent"
+params = ["step", "agent"]
+shown = "The info line, naming a step the next undo takes back that an agent made."
+
+[[text]]
+id = "history.nothing-to-undo"
+text = "interface.history.nothing-to-undo"
+params = []
+shown = "The info line, when the person's history holds no step an undo could take back."
+
+[[text]]
+id = "prompt.send"
+text = "interface.prompt.send"
+params = []
+shown = "The prompt line's send control, which does what Enter does."
+
+[[text]]
+id = "prompt.nothing-handles"
+text = "interface.prompt.nothing-handles"
+params = []
+shown = "The info line, after text was sent from a prompt that nothing was reading."
+
+[[text]]
+id = "connection.online"
+text = "interface.connection.online"
+params = []
+shown = "The modeline's connection state, spoken for its glyph, while the realm's server is reached."
+
+[[text]]
+id = "connection.offline"
+text = "interface.connection.offline"
+params = []
+shown = "The modeline's connection state, spoken for its glyph, while no realm's server is reached."
+
+[[text]]
+id = "channel.staging"
+text = "interface.channel.staging"
+params = []
+shown = "The modeline, in a window of the staging channel."
+
+[[text]]
+id = "channel.development"
+text = "interface.channel.development"
+params = []
+shown = "The modeline, in a window of the development channel."
+
+[[text]]
+id = "seat.numbered"
+text = "interface.seat.numbered"
+params = ["seat"]
+shown = "Wherever a seat other than the system's own is named."
+
+[[text]]
+id = "leader.bind"
+text = "interface.leader.bind"
+params = ["chord", "command"]
+shown = "The info line, where a Wayland compositor's own binding delivers the Leader."
+
+[[text]]
+id = "part.footer"
+text = "interface.part.footer"
+params = []
+shown = "The footer's name, for a screen reader."
+
+[[text]]
+id = "settings.language.system"
+text = "interface.settings.language.system"
+params = []
+shown = "The language setting's page, for the choice that follows the system's language."
+
+[[text]]
+id = "settings.footer.always"
+text = "interface.settings.footer.always"
+params = []
+shown = "The footer setting's page, for the choice that always shows the footer."
+
+[[text]]
+id = "settings.footer.hidden"
+text = "interface.settings.footer.hidden"
+params = []
+shown = "The footer setting's page, for the choice that hides the footer until it is asked for."
+
+[[text]]
+id = "settings.appearance.system"
+text = "interface.settings.appearance.system"
+params = []
+shown = "The appearance setting's page, for the choice that follows the system's light or dark mode."
+
+[[text]]
+id = "settings.appearance.light"
+text = "interface.settings.appearance.light"
+params = []
+shown = "The appearance setting's page, for the light mode."
+
+[[text]]
+id = "settings.appearance.dark"
+text = "interface.settings.appearance.dark"
+params = []
+shown = "The appearance setting's page, for the dark mode."

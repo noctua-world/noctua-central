@@ -38,6 +38,7 @@ pub mod errors;
 pub mod events;
 pub mod external_identifiers;
 pub mod i18n;
+pub mod interface;
 pub mod limits;
 pub mod notifications;
 pub mod wiki;

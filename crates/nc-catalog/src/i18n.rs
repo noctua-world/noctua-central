@@ -2947,6 +2947,42 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Type into the prompt line", "Digitar na linha do prompt"],
     ),
     (
+        "command.settings.appearance.read.description",
+        [
+            "Show whether the Noctua window is light or dark.",
+            "Mostrar se a janela do Noctua é clara ou escura.",
+        ],
+    ),
+    (
+        "command.settings.appearance.read.paragraph",
+        [
+            "Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.",
+            "Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.appearance.read.title",
+        ["Read the appearance", "Ler a aparência"],
+    ),
+    (
+        "command.settings.appearance.set.description",
+        [
+            "Draw the Noctua window light, dark, or as your system does.",
+            "Desenhar a janela do Noctua clara, escura, ou como o seu sistema.",
+        ],
+    ),
+    (
+        "command.settings.appearance.set.paragraph",
+        [
+            "Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.appearance.set.title",
+        ["Change the appearance", "Alterar a aparência"],
+    ),
+    (
         "command.settings.chord.read.description",
         [
             "Show the key held with the Leader for more shortcuts.",
@@ -3017,6 +3053,84 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.chords.set.title",
         ["Change the chords", "Mudar as combinações"],
+    ),
+    (
+        "command.settings.footer.read.description",
+        [
+            "Show whether the footer is always shown.",
+            "Mostrar se o rodapé fica sempre visível.",
+        ],
+    ),
+    (
+        "command.settings.footer.read.paragraph",
+        [
+            "Answers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.",
+            "Responde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.footer.read.title",
+        [
+            "Read the footer's visibility",
+            "Ler a visibilidade do rodapé",
+        ],
+    ),
+    (
+        "command.settings.footer.set.description",
+        [
+            "Keep the footer always shown, or hidden until needed.",
+            "Manter o rodapé sempre visível, ou oculto até ser necessário.",
+        ],
+    ),
+    (
+        "command.settings.footer.set.paragraph",
+        [
+            "Chooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.footer.set.title",
+        [
+            "Change the footer's visibility",
+            "Alterar a visibilidade do rodapé",
+        ],
+    ),
+    (
+        "command.settings.language.read.description",
+        [
+            "Show the language the Noctua window speaks.",
+            "Mostrar o idioma em que a janela do Noctua fala.",
+        ],
+    ),
+    (
+        "command.settings.language.read.paragraph",
+        [
+            "Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.",
+            "Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.language.read.title",
+        ["Read the language", "Ler o idioma"],
+    ),
+    (
+        "command.settings.language.set.description",
+        [
+            "Choose the language the Noctua window speaks.",
+            "Escolher o idioma em que a janela do Noctua fala.",
+        ],
+    ),
+    (
+        "command.settings.language.set.paragraph",
+        [
+            "Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.language.set.title",
+        ["Change the language", "Alterar o idioma"],
     ),
     (
         "command.settings.leader.read.description",
@@ -4812,6 +4926,113 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Google Chrome", "Google Chrome"],
     ),
     (
+        "interface.alert.countdown-one",
+        [
+            "Restoring in {count} second",
+            "Restaurando em {count} segundo",
+        ],
+    ),
+    (
+        "interface.alert.countdown-other",
+        [
+            "Restoring in {count} seconds",
+            "Restaurando em {count} segundos",
+        ],
+    ),
+    (
+        "interface.alert.not-running",
+        [
+            "The local server is not running",
+            "O servidor local não está em execução",
+        ],
+    ),
+    (
+        "interface.alert.restore-now",
+        ["Restore now", "Restaurar agora"],
+    ),
+    ("interface.alert.start", ["Start", "Iniciar"]),
+    (
+        "interface.alert.stopped",
+        [
+            "The local server is stopped",
+            "O servidor local está parado",
+        ],
+    ),
+    (
+        "interface.channel.development",
+        ["Development", "Desenvolvimento"],
+    ),
+    ("interface.channel.staging", ["Staging", "Homologação"]),
+    (
+        "interface.confirm.asked-by-agent",
+        ["Asked by the agent {agent}", "Pedido pelo agente {agent}"],
+    ),
+    (
+        "interface.confirm.asked-by-you",
+        [
+            "Asked by you, from outside this window",
+            "Pedido por você, de fora desta janela",
+        ],
+    ),
+    ("interface.confirm.confirm", ["Confirm", "Confirmar"]),
+    ("interface.confirm.decline", ["Decline", "Recusar"]),
+    (
+        "interface.confirm.irreversible",
+        ["This cannot be undone", "Isto não pode ser desfeito"],
+    ),
+    ("interface.connection.offline", ["Offline", "Sem conexão"]),
+    ("interface.connection.online", ["Online", "Conectado"]),
+    (
+        "interface.history.nothing-to-undo",
+        ["There is nothing to undo", "Não há nada para desfazer"],
+    ),
+    (
+        "interface.history.undo-of-an-agent",
+        [
+            "Undo takes back: {step} (made by the agent {agent})",
+            "Desfazer reverte: {step} (feito pelo agente {agent})",
+        ],
+    ),
+    (
+        "interface.history.undo-takes-back",
+        ["Undo takes back: {step}", "Desfazer reverte: {step}"],
+    ),
+    (
+        "interface.leader.bind",
+        [
+            "Bind {chord} in your compositor to run: {command}",
+            "Associe {chord} no seu compositor para executar: {command}",
+        ],
+    ),
+    ("interface.part.footer", ["Footer", "Rodapé"]),
+    (
+        "interface.prompt.nothing-handles",
+        [
+            "Nothing handles this text here. Press the Leader to list what you can do.",
+            "Nada trata este texto aqui. Pressione a tecla Leader para listar o que você pode fazer.",
+        ],
+    ),
+    ("interface.prompt.send", ["Send", "Enviar"]),
+    ("interface.seat.numbered", ["Seat {seat}", "Posto {seat}"]),
+    ("interface.settings.appearance.dark", ["Dark", "Escuro"]),
+    ("interface.settings.appearance.light", ["Light", "Claro"]),
+    (
+        "interface.settings.appearance.system",
+        ["The system's mode", "O modo do sistema"],
+    ),
+    (
+        "interface.settings.footer.always",
+        ["Always shown", "Sempre visível"],
+    ),
+    (
+        "interface.settings.footer.hidden",
+        ["Hidden until needed", "Oculto até ser necessário"],
+    ),
+    (
+        "interface.settings.language.system",
+        ["The system's language", "O idioma do sistema"],
+    ),
+    (
         "notification.catalog.mechanism.body",
         [
             "Hello {name}. This message exists so that Noctua can check its own notifications reach you correctly.",
@@ -5390,6 +5611,12 @@ pub const KEYS: &[&str] = &[
     "command.prompt.set.description",
     "command.prompt.set.paragraph",
     "command.prompt.set.title",
+    "command.settings.appearance.read.description",
+    "command.settings.appearance.read.paragraph",
+    "command.settings.appearance.read.title",
+    "command.settings.appearance.set.description",
+    "command.settings.appearance.set.paragraph",
+    "command.settings.appearance.set.title",
     "command.settings.chord.read.description",
     "command.settings.chord.read.paragraph",
     "command.settings.chord.read.title",
@@ -5402,6 +5629,18 @@ pub const KEYS: &[&str] = &[
     "command.settings.chords.set.description",
     "command.settings.chords.set.paragraph",
     "command.settings.chords.set.title",
+    "command.settings.footer.read.description",
+    "command.settings.footer.read.paragraph",
+    "command.settings.footer.read.title",
+    "command.settings.footer.set.description",
+    "command.settings.footer.set.paragraph",
+    "command.settings.footer.set.title",
+    "command.settings.language.read.description",
+    "command.settings.language.read.paragraph",
+    "command.settings.language.read.title",
+    "command.settings.language.set.description",
+    "command.settings.language.set.paragraph",
+    "command.settings.language.set.title",
     "command.settings.leader.read.description",
     "command.settings.leader.read.paragraph",
     "command.settings.leader.read.title",
@@ -5668,6 +5907,35 @@ pub const KEYS: &[&str] = &[
     "external-identifier.google-chrome.description",
     "external-identifier.google-chrome.paragraph",
     "external-identifier.google-chrome.title",
+    "interface.alert.countdown-one",
+    "interface.alert.countdown-other",
+    "interface.alert.not-running",
+    "interface.alert.restore-now",
+    "interface.alert.start",
+    "interface.alert.stopped",
+    "interface.channel.development",
+    "interface.channel.staging",
+    "interface.confirm.asked-by-agent",
+    "interface.confirm.asked-by-you",
+    "interface.confirm.confirm",
+    "interface.confirm.decline",
+    "interface.confirm.irreversible",
+    "interface.connection.offline",
+    "interface.connection.online",
+    "interface.history.nothing-to-undo",
+    "interface.history.undo-of-an-agent",
+    "interface.history.undo-takes-back",
+    "interface.leader.bind",
+    "interface.part.footer",
+    "interface.prompt.nothing-handles",
+    "interface.prompt.send",
+    "interface.seat.numbered",
+    "interface.settings.appearance.dark",
+    "interface.settings.appearance.light",
+    "interface.settings.appearance.system",
+    "interface.settings.footer.always",
+    "interface.settings.footer.hidden",
+    "interface.settings.language.system",
     "notification.catalog.mechanism.body",
     "notification.catalog.mechanism.title",
 ];
@@ -6422,6 +6690,52 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.settings.appearance.read.tags",
+        [
+            &[
+                "appearance",
+                "theme",
+                "dark mode",
+                "light mode",
+                "interface",
+                "settings",
+            ],
+            &[
+                "aparência",
+                "tema",
+                "modo escuro",
+                "modo claro",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.appearance.set.tags",
+        [
+            &[
+                "appearance",
+                "theme",
+                "dark mode",
+                "light mode",
+                "colours",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "aparência",
+                "tema",
+                "modo escuro",
+                "modo claro",
+                "cores",
+                "interface",
+                "ajustes",
+                "alterar",
+            ],
+        ],
+    ),
+    (
         "command.settings.chord.read.tags",
         [
             &[
@@ -6510,6 +6824,94 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "configurações",
                 "mudar",
                 "reatribuir",
+            ],
+        ],
+    ),
+    (
+        "command.settings.footer.read.tags",
+        [
+            &[
+                "footer",
+                "visibility",
+                "hide the footer",
+                "interface",
+                "settings",
+            ],
+            &[
+                "rodapé",
+                "visibilidade",
+                "ocultar o rodapé",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.footer.set.tags",
+        [
+            &[
+                "footer",
+                "visibility",
+                "hide the footer",
+                "show the footer",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "rodapé",
+                "visibilidade",
+                "ocultar o rodapé",
+                "mostrar o rodapé",
+                "interface",
+                "ajustes",
+                "alterar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.language.read.tags",
+        [
+            &[
+                "language",
+                "locale",
+                "english",
+                "portuguese",
+                "interface",
+                "settings",
+            ],
+            &[
+                "idioma",
+                "língua",
+                "inglês",
+                "português",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.language.set.tags",
+        [
+            &[
+                "language",
+                "locale",
+                "english",
+                "portuguese",
+                "translate",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "idioma",
+                "língua",
+                "inglês",
+                "português",
+                "traduzir",
+                "interface",
+                "ajustes",
+                "alterar",
             ],
         ],
     ),

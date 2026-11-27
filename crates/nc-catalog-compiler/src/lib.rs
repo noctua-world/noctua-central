@@ -25,7 +25,7 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 mod docs;
-pub use docs::cell_for_tests;
+pub use docs::{cell_for_tests, words_for_tests};
 pub mod ledger;
 pub mod load;
 mod metadata;
@@ -244,6 +244,13 @@ pub fn compile(
     // determinism for the documentation as well. A verb that wrote Markdown its
     // own way would be a second generation pipeline with none of them.
     files.extend(docs::all(&catalog, surfaces));
+    // **Every page is read back by the one reader the interface draws with**:
+    // a page outside its subset is a defect of the function that wrote it, and
+    // nothing is written while one stands.
+    let unread = docs::pages_outside_the_subset(&files);
+    if !unread.is_empty() {
+        return Err(unread);
+    }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(Compiled {
         catalog,

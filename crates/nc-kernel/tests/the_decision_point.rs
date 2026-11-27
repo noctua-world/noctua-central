@@ -10500,10 +10500,16 @@ const FITTING: &[(&str, &str)] = &[
     ("prompt.ask", r#"{"command":"a.b"}"#),
     ("prompt.clear", "{}"),
     ("prompt.set", r#"{"text":""}"#),
+    ("settings.appearance.read", "{}"),
+    ("settings.appearance.set", r#"{"mode":"system"}"#),
     ("settings.chord.read", "{}"),
     ("settings.chord.set", r#"{"chord":"Shift"}"#),
     ("settings.chords.read", "{}"),
     ("settings.chords.set", r#"{"chords":[]}"#),
+    ("settings.footer.read", "{}"),
+    ("settings.footer.set", r#"{"visibility":"always"}"#),
+    ("settings.language.read", "{}"),
+    ("settings.language.set", r#"{"language":"system"}"#),
     ("settings.leader.read", "{}"),
     ("settings.leader.set", r#"{"leader":"Alt+Space"}"#),
     ("settings.mcp.read", "{}"),
@@ -11733,6 +11739,119 @@ async fn the_interface_is_driven_by_a_person_alone_decided_on_its_feature() {
     assert_eq!(
         interface(&fixture),
         (1, shell),
+        "nothing refused moved the state"
+    );
+}
+
+/// A setting of how the interface is shown is set and read by a person alone,
+/// decided on the interface's feature, and is a part of the state every
+/// window follows.
+///
+/// **Over the real pack and world** (`NOCTUA.md §12.15`): each of the three
+/// answers its default until it is set, a set answers the one object it took
+/// and every person's read answers it after, `shell.read` holds all three
+/// under `settings` at a revision each set moved, and a word outside a
+/// setting's list is refused by its schema and moves nothing. Each is decided
+/// by the permit that gives every person the interface — `Read` for the read,
+/// `Write` for the set — journaled once and in no unit, since a setting of
+/// this kind is no step; and a frozen account and a device are refused both.
+#[tokio::test]
+async fn a_setting_of_the_interface_is_set_and_read_by_a_person_alone_in_no_unit() {
+    let (fixture, _) = with(&[], "").await;
+    let settings = [
+        (
+            "settings.footer.read",
+            "settings.footer.set",
+            r#"{"visibility":"always"}"#,
+            r#"{"visibility":"hidden"}"#,
+            r#"{"visibility":"Hidden"}"#,
+        ),
+        (
+            "settings.language.read",
+            "settings.language.set",
+            r#"{"language":"system"}"#,
+            r#"{"language":"pt-BR"}"#,
+            r#"{"language":"fr"}"#,
+        ),
+        (
+            "settings.appearance.read",
+            "settings.appearance.set",
+            r#"{"mode":"system"}"#,
+            r#"{"mode":"dark"}"#,
+            r#"{"mode":"dim"}"#,
+        ),
+    ];
+    for (at, (read, set, first, asked, outside)) in settings.into_iter().enumerate() {
+        assert_eq!(
+            fixture.as_("carla", read, "{}").await.expect("read"),
+            first,
+            "{read}: the default"
+        );
+        assert_eq!(fixture.as_("ana", set, asked).await.expect("set"), asked);
+        assert_eq!(
+            fixture.as_("bruno", read, "{}").await.expect("read"),
+            asked,
+            "{read}: every person's window follows one state"
+        );
+        let refused = fixture.as_("ana", set, outside).await;
+        assert!(
+            matches!(&refused, Err(refusal) if refusal.kind() == RefusalKind::Invalid),
+            "{set}: {refused:?}"
+        );
+        assert_eq!(fixture.as_("ana", read, "{}").await.expect("read"), asked);
+        let (revision, _) = interface(&fixture);
+        assert_eq!(
+            revision,
+            u64::try_from(at).expect("three") + 1,
+            "{set}: one set, one move"
+        );
+    }
+    let read = fixture.as_("ana", "shell.read", "{}").await.expect("read");
+    assert!(
+        read.contains(r#""settings":{"language":"pt-BR","mode":"dark","visibility":"hidden"}"#),
+        "{read}"
+    );
+    let entries = fixture.entries().await;
+    for entry in dispatched(&entries) {
+        let command = command_of(entry).unwrap_or_default();
+        if entry.record.result != Outcome::Allowed {
+            continue;
+        }
+        assert_eq!(deciding(entry), Some(DRIVES_THE_INTERFACE), "{entry:?}");
+        assert_eq!(
+            entity_of(entry).as_deref(),
+            Some(ON_THE_INTERFACE),
+            "{entry:?}"
+        );
+        assert_eq!(entry.record.work_unit, None, "`{command}` ran in a unit");
+        let reads = command == "shell.read" || settings.iter().any(|(read, ..)| *read == command);
+        let action = if reads { "Read" } else { "Write" };
+        assert_eq!(entry.record.action, action, "{entry:?}");
+    }
+    assert_eq!(
+        brackets(&entries),
+        [] as [(&str, Outcome); 0],
+        "no unit was opened"
+    );
+    let before = interface(&fixture);
+    for (kind, id) in [
+        (PrincipalKind::User, "dora"),
+        (PrincipalKind::Device, "ana-laptop"),
+    ] {
+        let caller = Caller::new(fixture.world.principal(kind, id).expect("in the world"));
+        for (read, set, first, _, _) in settings {
+            for (command, args) in [(read, "{}"), (set, first)] {
+                let refused = fixture.kernel.dispatch(&caller, command, args).await;
+                assert!(
+                    is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                    "{id}: {command}: {refused:?}"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        interface(&fixture),
+        before,
         "nothing refused moved the state"
     );
 }

@@ -811,6 +811,7 @@ pub(crate) mod tests {
             draft: String::new(),
             asking: None,
             seats: BTreeMap::new(),
+            settings: crate::mirror::Settings::default(),
             next: 4,
         }
     }
@@ -1562,7 +1563,10 @@ pub(crate) mod tests {
                 };
                 assert_eq!(labels, [noun.as_str(), rail.as_str()], "{written}");
                 assert!(
-                    !labels.contains(&crate::footer::NAME),
+                    !labels.contains(
+                        &crate::text::said(nc_catalog::interface::Text::PartFooter, *locale)
+                            .as_str()
+                    ),
                     "the footer's name is the footer's: {written}"
                 );
             }

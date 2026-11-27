@@ -30,8 +30,9 @@ use serde::de::DeserializeOwned;
 
 use crate::model::{
     Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, DaemonLimits,
-    Email, EmailFile, ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile,
-    Notification, NotificationFile, Reversibility, Strategy, Table, UngatedEntry,
+    Email, EmailFile, ErrorFile, EventEntry, EventFile, InterfaceFile, InterfaceText, KernelLimits,
+    Limits, Locale, LocaleFile, Notification, NotificationFile, Reversibility, Strategy, Table,
+    UngatedEntry,
 };
 use crate::problem::{Problem, line_of};
 
@@ -138,6 +139,7 @@ pub fn load(root: &Path) -> (Option<Catalog>, Vec<Problem>) {
         errors: error_file.errors,
         notifications: notification_file.notifications,
         emails: email_file.emails,
+        interface: Vec::new(),
         limits,
         commands: command_file.commands,
         events: event_file.events,
@@ -170,6 +172,7 @@ fn across_the_registries(
     problems: &mut Vec<Problem>,
 ) {
     catalog.wiki = crate::metadata::wiki(root, catalog, problems);
+    catalog.interface = interface_texts(root, problems);
     check_one_owner_per_key(catalog, problems);
     crate::messages::check(root, catalog, problems);
     let registries = crate::metadata::Registries {
@@ -774,6 +777,111 @@ fn check_emails(entries: &[Email], text: &str, problems: &mut Vec<Problem>) {
                 "one id is one email; the generated handle would name whichever \
                  declaration the compiler read last",
                 "duplicate-email",
+            );
+        }
+        names.claim(&entry.id, &crate::camel(&entry.id), problems);
+    }
+}
+
+// --- interface.toml ---
+
+/// The registry of the interface's own texts.
+const INTERFACE: &str = "catalog/interface.toml";
+
+/// The namespace every interface text's key is in: the key is this and the
+/// text's id.
+pub(crate) const INTERFACE_KEYS: &str = "interface.";
+
+/// Whether `id` is a name an interface text may have: two or more words
+/// joined by dots, each of lower-case letters and digits in parts joined by
+/// single hyphens, opening with a letter.
+fn names_an_interface_text(id: &str) -> bool {
+    let part = |part: &str| {
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+    };
+    let word = |word: &str| {
+        word.starts_with(|first: char| first.is_ascii_lowercase()) && word.split('-').all(part)
+    };
+    id.contains('.') && id.split('.').all(word)
+}
+
+/// The interface's own texts, read from their registry and checked: none
+/// where the file could not be read as one, which is a problem already.
+fn interface_texts(root: &Path, problems: &mut Vec<Problem>) -> Vec<InterfaceText> {
+    let Some(text) = read(root, INTERFACE, problems) else {
+        return Vec::new();
+    };
+    let Some(file) = parse::<InterfaceFile>(INTERFACE, &text, problems) else {
+        return Vec::new();
+    };
+    check_interface(&file.texts, &text, problems);
+    file.texts
+}
+
+/// Every interface text is named once, by a name that becomes its handle,
+/// keyed as its name writes, and says where it is shown.
+fn check_interface(entries: &[InterfaceText], text: &str, problems: &mut Vec<Problem>) {
+    floor(entries.len(), INTERFACE, "interface texts", problems);
+    let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut names = Names::new(INTERFACE, "id", text);
+    for entry in entries {
+        let anchor = format!("id = \"{}\"", entry.id);
+        let count = seen.entry(entry.id.as_str()).or_default();
+        *count += 1;
+        let line = line_of(text, &anchor, *count);
+        if *count > 1 {
+            push(
+                problems,
+                INTERFACE,
+                line,
+                format!("`{}` is declared twice", entry.id),
+                "one id is one text; the generated handle would name whichever \
+                 declaration the compiler read last",
+                "duplicate-interface-text",
+            );
+        }
+        if !names_an_interface_text(&entry.id) {
+            push(
+                problems,
+                INTERFACE,
+                line,
+                format!("`{}` is not a name an interface text can have", entry.id),
+                "the id becomes the name of a generated handle and the end of a message \
+                 key: write two or more words joined by dots, each lower-case letters and \
+                 digits in parts joined by single hyphens, opening with a letter — \
+                 `alert.not-running`",
+                "interface-text-name",
+            );
+            continue;
+        }
+        if entry.text != format!("{INTERFACE_KEYS}{}", entry.id) {
+            push(
+                problems,
+                INTERFACE,
+                line,
+                format!(
+                    "`{}` is keyed \"{}\", which is not `{INTERFACE_KEYS}` and its id",
+                    entry.id, entry.text
+                ),
+                "a text of the interface's own is found in the locale files by its id \
+                 alone, so no key says less or more than the entry it belongs to: write \
+                 `text = \"interface.<id>\"`",
+                "interface-text-key",
+            );
+        }
+        if says_nothing(&entry.shown) {
+            push(
+                problems,
+                INTERFACE,
+                line,
+                format!("`{}` does not say where it is shown", entry.id),
+                "a text nobody can place is one a translator translates blind and a \
+                 reviewer cannot find: write `shown` as one sentence naming the part of \
+                 the interface that says it",
+                "interface-text-unplaced",
             );
         }
         names.claim(&entry.id, &crate::camel(&entry.id), problems);
@@ -3214,6 +3322,10 @@ pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<Claim>>
         claim(&entry.subject, owner.clone(), "subject", Table::Message);
         claim(&entry.body, owner, "body", Table::Message);
     }
+    for entry in &catalog.interface {
+        let owner = format!("interface text {}", entry.id);
+        claim(&entry.text, owner, "text", Table::Message);
+    }
     for entry in &catalog.commands {
         let owner = format!("command {}", entry.name);
         claim(&entry.title, owner.clone(), "display name", Table::Message);
@@ -3343,6 +3455,13 @@ pub(crate) fn declared_params(catalog: &Catalog) -> Vec<Declaration> {
             owner: format!("email {}", entry.id),
             declared: entry.params.iter().cloned().collect(),
             keys: vec![entry.subject.clone(), entry.body.clone()],
+        });
+    }
+    for entry in &catalog.interface {
+        declared.push(Declaration {
+            owner: format!("interface text {}", entry.id),
+            declared: entry.params.iter().cloned().collect(),
+            keys: vec![entry.text.clone()],
         });
     }
     // **A command's three sentences take no parameters, and that is checked

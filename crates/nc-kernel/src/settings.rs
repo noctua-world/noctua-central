@@ -1,6 +1,10 @@
 //! The channel's settings: MCP's switch, `settings.mcp.read` and
 //! `settings.mcp.set`, and the four shortcut settings (`NOCTUA.md §12.15`).
 //!
+//! Three more settings — the footer's visibility, the language and the
+//! appearance — are how the interface is shown, held with the interface's
+//! state and implemented beside it (`crate::shell::Setting`).
+//!
 //! **A setting is two commands of the kernel's own, and its value is the
 //! kernel's entry in the channel's store.** `settings.<setting>.read` answers
 //! the setting as the one object `settings.<setting>.set` takes whole. Both are
@@ -949,6 +953,12 @@ mod tests {
             .iter()
             .map(|command| command.name)
             .filter(|name| name.starts_with("settings.") && ![MCP_READ, MCP_SET].contains(name))
+            // The three settings of how the interface is shown are a part of
+            // its state, and `crate::shell`'s to implement.
+            .filter(|name| {
+                crate::builtin::Builtin::named(name)
+                    .is_none_or(|builtin| !matches!(builtin, crate::builtin::Builtin::Shell(_)))
+            })
             .collect();
         assert_eq!(ours, declared);
         assert_eq!(

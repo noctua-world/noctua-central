@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 28] = [
+const COVERED: [&str; 30] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -79,6 +79,8 @@ const COVERED: [&str; 28] = [
     "crates/nc-kernel/src",
     "crates/nc-local/src",
     "crates/nc-log/src",
+    "crates/nc-markdown/src",
+    "crates/nc-pages/src",
     "crates/nc-platform/src",
     "crates/nc-policy/src",
     "crates/nc-prune/src",
@@ -1245,7 +1247,7 @@ pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 19] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 21] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
@@ -1257,6 +1259,8 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 19] = [
     "crates/nc-kernel/",
     "crates/nc-local/",
     "crates/nc-log/",
+    "crates/nc-markdown/",
+    "crates/nc-pages/",
     "crates/nc-platform/",
     "crates/nc-policy/",
     "crates/nc-prune/",
@@ -10363,6 +10367,7 @@ mod tests {
             "// nothing here",
         );
         std::fs::create_dir_all(root.join("crates/nc-canon/src")).expect("a writable scratch");
+        std::fs::create_dir_all(root.join("crates/nc-markdown/src")).expect("a writable scratch");
         std::fs::create_dir_all(root.join("crates/nc-schema/src")).expect("a writable scratch");
         std::fs::create_dir_all(root.join("xtask/src")).expect("a writable scratch");
         // `EMITS` names a directory that must exist for the walk to run at all;
@@ -10749,7 +10754,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 22] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 24] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -10763,6 +10768,8 @@ mod tests {
         "crates/nc-kernel",
         "crates/nc-local",
         "crates/nc-log",
+        "crates/nc-markdown",
+        "crates/nc-pages",
         "crates/nc-platform",
         "crates/nc-policy",
         "crates/nc-prune",
@@ -10783,7 +10790,7 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 19] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 21] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
@@ -10795,6 +10802,8 @@ mod tests {
         "crates/nc-kernel/",
         "crates/nc-local/",
         "crates/nc-log/",
+        "crates/nc-markdown/",
+        "crates/nc-pages/",
         "crates/nc-platform/",
         "crates/nc-policy/",
         "crates/nc-prune/",
@@ -13337,6 +13346,8 @@ mod tests {
                 "crates/nc-kernel/src",
                 "crates/nc-local/src",
                 "crates/nc-log/src",
+                "crates/nc-markdown/src",
+                "crates/nc-pages/src",
                 "crates/nc-platform/src",
                 "crates/nc-policy/src",
                 "crates/nc-prune/src",

@@ -7909,7 +7909,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 58] = [
+const SUITES: [(&str, &str); 59] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -8014,6 +8014,9 @@ const SUITES: [(&str, &str); 58] = [
     // other line tests drive `Log::line` against hand-written events declared
     // inside `lib.rs`, so they construct none of the generated event structs.
     ("nc-log", "every_event_reaches_the_store.rs"),
+    // The Markdown subset's corpus replayed row by row, every rule held to a
+    // row that refuses by it: it touches no disk and spawns nothing.
+    ("nc-markdown", "the_corpus_is_the_subset.rs"),
     ("nc-policy", "an_entity_type_is_a_name_cedar_parses.rs"),
     ("nc-policy", "the_denial_gate_fires.rs"),
     ("nc-prune", "in_postgres.rs"),
@@ -13685,7 +13688,7 @@ fn a_step_that_did_not_run(opened: &[String]) -> Result<(), String> {
 /// twice. What a census of a private surface is for is telling a
 /// reviewer that the surface grew, and a phantom entry in it is an entry nobody
 /// can go and read.
-const DOORS: usize = 23;
+const DOORS: usize = 24;
 
 /// Whether a count taken from the tree disagrees with the number written down.
 ///
@@ -17780,7 +17783,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 24);
+        assert_eq!(members_of(root()), 26);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17969,7 +17972,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 24] = [
+    const SOURCE_ROOTS: [(&str, usize); 26] = [
         // The two stand-ins `[patch.crates-io]` puts in place of `wry`'s
         // dependencies, each one library.
         ("dirs", 1),
@@ -17990,6 +17993,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-kernel", 11),
         ("nc-local", 4),
         ("nc-log", 2),
+        // The one reader of Markdown, with the suite of its corpus; and the
+        // pages an install carries, one library.
+        ("nc-markdown", 2),
+        ("nc-pages", 1),
         ("nc-platform", 1),
         ("nc-plugin-reference", 1),
         ("nc-policy", 3),
@@ -20035,7 +20042,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 271] = [
+    const DOCUMENTED: [(&str, usize, usize); 276] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -20088,17 +20095,18 @@ mod the_frozen_path_rule {
         ("desktop/commands.rs", 35, 6),
         ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 97, 4),
+        ("desktop/footer.rs", 96, 4),
         ("desktop/host.rs", 127, 14),
         ("desktop/keys.rs", 29, 3),
-        ("desktop/lib.rs", 0, 14),
+        ("desktop/lib.rs", 0, 15),
         ("desktop/main.rs", 23, 6),
-        ("desktop/mirror.rs", 91, 18),
+        ("desktop/mirror.rs", 101, 22),
         ("desktop/page.rs", 20, 1),
         ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
         ("desktop/surface.rs", 67, 19),
+        ("desktop/text.rs", 4, 1),
         ("desktop/the_window_follows_its_daemon.rs", 22, 5),
         ("desktop/the_window_opens_hidden.rs", 6, 3),
         ("desktop/theme.rs", 21, 2),
@@ -20112,18 +20120,18 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 40, 15),
-        ("nc-catalog-compiler/emit.rs", 37, 15),
+        ("nc-catalog-compiler/docs.rs", 44, 15),
+        ("nc-catalog-compiler/emit.rs", 38, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
-        ("nc-catalog-compiler/load.rs", 64, 18),
+        ("nc-catalog-compiler/load.rs", 69, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 25, 2),
-        ("nc-catalog-compiler/model.rs", 64, 20),
+        ("nc-catalog-compiler/model.rs", 66, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 127, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 132, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -20137,7 +20145,8 @@ mod the_frozen_path_rule {
         ("nc-catalog/events.rs", 6, 3),
         ("nc-catalog/external_identifiers.rs", 7, 1),
         ("nc-catalog/i18n.rs", 16, 1),
-        ("nc-catalog/lib.rs", 0, 11),
+        ("nc-catalog/interface.rs", 6, 1),
+        ("nc-catalog/lib.rs", 0, 12),
         ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
@@ -20232,9 +20241,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 55, 2),
-        ("nc-kernel/shell.rs", 212, 35),
+        ("nc-kernel/shell.rs", 236, 39),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 351, 96),
+        ("nc-kernel/the_decision_point.rs", 352, 96),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 77, 65),
         ("nc-kernel/timers.rs", 18, 5),
@@ -20257,6 +20266,9 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
+        ("nc-markdown/lib.rs", 58, 8),
+        ("nc-markdown/the_corpus_is_the_subset.rs", 13, 0),
+        ("nc-pages/lib.rs", 13, 2),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/leader.rs", 52, 8),
@@ -20313,8 +20325,8 @@ mod the_frozen_path_rule {
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
         ("xtask/tailwind.rs", 28, 1),
-        ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 43, 22),
+        ("xtask/the_pages_reach_the_catalog.rs", 63, 20),
+        ("xtask/the_registry_reaches_the_code.rs", 45, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -23101,8 +23113,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 944 scratches this tree
-    /// builds, 856 of the 944 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 951 scratches this tree
+    /// builds, 863 of the 951 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23202,7 +23214,7 @@ mod the_frozen_path_rule {
         ("desktop/main.rs", 2, 2),
         ("desktop/the_window_opens_hidden.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 274, 274),
+        ("nc-catalog-compiler/the_gates_fire.rs", 281, 281),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -26277,7 +26289,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25372;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25718;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26296,7 +26308,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8089;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8234;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26313,7 +26325,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2768;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2820;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26330,7 +26342,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [267, 42, 71, 73, 114];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [268, 43, 72, 74, 117];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26347,7 +26359,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33113;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33321;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26365,7 +26377,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 845;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 857;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26401,8 +26413,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **845 of 33,113 are accepted by the first-line
-    /// rule alone, and 567 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **857 of 33,321 are accepted by the first-line
+    /// rule alone, and 574 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26423,8 +26435,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **267 ascending sorts, 42 descending, 71
-    /// swaps, 73 rotations and 114 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **268 ascending sorts, 43 descending, 72
+    /// swaps, 74 rotations and 117 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26434,7 +26446,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2768 of
+    /// this tree offers, **2820 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33897,7 +33909,7 @@ mod the_frozen_path_rule {
     /// a registry and an entry, in a format, or the build fails with
     /// `wiki-misplaced`, `wiki-orphan` or `wiki-format-unknown`. What is
     /// asserted below is that `i18n` holds nothing but files.
-    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 12] = [
+    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 13] = [
         // The registries the compiler reads.
         "capabilities.toml",
         "categories.toml",
@@ -33905,6 +33917,7 @@ mod the_frozen_path_rule {
         "emails.toml",
         "errors.toml",
         "external-identifiers.toml",
+        "interface.toml",
         "limits.toml",
         "log-events.toml",
         "notifications.toml",
@@ -33959,7 +33972,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 21] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 22] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -33972,10 +33985,16 @@ mod the_frozen_path_rule {
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
         // The tables `crates/` holds, each a corpus a suite beside it replays:
-        // what Denote returned, and the fuzzy core's rule — the second by its
-        // path, so a copy of the rule anywhere else is refused.
+        // what Denote returned, the fuzzy core's rule and the Markdown subset —
+        // the last two by their paths, so a copy of either rule anywhere else
+        // is refused.
         ("crates", "tsv", "denote-corpus.tsv"),
         ("crates", "tsv", "crates/nc-fuzzy/tests/fuzzy-corpus.tsv"),
+        (
+            "crates",
+            "tsv",
+            "crates/nc-markdown/tests/markdown-corpus.tsv",
+        ),
         // The kernel's copy of the reference world, which is the one WIT file
         // this repository holds: a second one is a second world a plugin could
         // be generated from. **By its path, not its name**, which is what a row
@@ -34759,6 +34778,7 @@ mod every_report_wire {
                     "fn f() { let x = SystemTime(); }\n",
                 ),
                 ("crates/nc-canon/src/", ""),
+                ("crates/nc-markdown/src/", ""),
                 ("crates/nc-schema/src/", ""),
                 ("xtask/src/build.rs", "//! nothing.\n"),
                 ("apps/cli/src/args.rs", "//! nothing.\n"),
@@ -35225,7 +35245,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 71] = [
+    const NOT_MUTATED: [(&str, &str); 72] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -35599,6 +35619,15 @@ mod the_meta_gate {
              case file both of the rule's implementations are held to, and a \
              weakening of this reader would remove evidence rather than uncover \
              an undecided clause",
+        ),
+        (
+            "crates/nc-markdown/tests/the_corpus_is_the_subset.rs",
+            "a suite: the subset's corpus beside it replayed row by row against \
+             `crates/nc-markdown/src/lib.rs`, which the runner edits under the \
+             crate's own command, every rule held to a row that refuses by it. \
+             The corpus is the case file the reader is held to, and a weakening \
+             of this reader of it would remove evidence rather than uncover an \
+             undecided clause",
         ),
         (
             "crates/nc-ids/tests/against_denote.rs",
@@ -38861,7 +38890,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 285,
+            walked, 290,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38901,7 +38930,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3498] = [
+    static OPERATORS: [(&str, &str, &str); 3603] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -54675,6 +54704,415 @@ Options:
             "daemon_server",
             "open_connections",
             "the connections answered are the ones counted",
+        ),
+        ("markdown", "parse", "a tab is a control character, refused"),
+        ("markdown", "parse", "a line ending in a space is refused"),
+        (
+            "markdown",
+            "parse",
+            "a trailing space's column counts characters",
+        ),
+        ("markdown", "marker", "a bullet is a hyphen and a space"),
+        (
+            "markdown",
+            "marker",
+            "a hyphen alone is an item holding nothing",
+        ),
+        (
+            "markdown",
+            "marker",
+            "a number and a parenthesis is a marker of another kind",
+        ),
+        (
+            "markdown",
+            "marker",
+            "an ordered marker holds nine digits at most",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "containers nest to the bound and no further",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a comment is read only before the first block",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a comment is read only outside every container",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "only a paragraph is followed at once by a list",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a list follows a paragraph at once only in a list item",
+        ),
+        (
+            "markdown",
+            "is_a_comment",
+            "a comment holds no two hyphens inside it",
+        ),
+        (
+            "markdown",
+            "block",
+            "a line beginning with a space begins no block",
+        ),
+        ("markdown", "block", "a fence of tildes is refused"),
+        ("markdown", "block", "a line of equals signs is refused"),
+        ("markdown", "block", "two hyphens are no thematic break"),
+        ("markdown", "block", "three asterisks are no thematic break"),
+        (
+            "markdown",
+            "fence",
+            "a fence names a word of the closed list, whole",
+        ),
+        (
+            "markdown",
+            "fence",
+            "a fence is closed by as many backticks as opened it",
+        ),
+        (
+            "markdown",
+            "heading",
+            "a heading opens with six `#` at most",
+        ),
+        ("markdown", "heading", "a space follows a heading's `#`"),
+        ("markdown", "heading", "no `#` closes a heading"),
+        (
+            "markdown",
+            "heading",
+            "one space follows a heading's `#`, and no more",
+        ),
+        (
+            "markdown",
+            "quote",
+            "a quote's text begins past its mark and one space",
+        ),
+        ("markdown", "quote", "a quote holds something"),
+        (
+            "markdown",
+            "list",
+            "an ordered item is numbered one past the one before it",
+        ),
+        (
+            "markdown",
+            "list",
+            "a list ends where a marker of another kind begins",
+        ),
+        (
+            "markdown",
+            "cells",
+            "an escaped bar is the bar, in a code span too",
+        ),
+        ("markdown", "cells", "a row ends with a bar"),
+        ("markdown", "cells", "a row holds a cell"),
+        (
+            "markdown",
+            "table",
+            "a delimiter cell holds three hyphens at least",
+        ),
+        ("markdown", "table", "a delimiter cell holds hyphens alone"),
+        (
+            "markdown",
+            "table",
+            "every row holds as many cells as the header",
+        ),
+        (
+            "markdown",
+            "paragraph",
+            "a line of hyphens under a paragraph is refused",
+        ),
+        ("markdown", "paragraph", "a block begins after a blank line"),
+        (
+            "markdown",
+            "closing_ticks",
+            "a code span is closed by a run exactly as long",
+        ),
+        (
+            "markdown",
+            "stepped_over",
+            "a search for a closing mark steps over an escape whole",
+        ),
+        (
+            "markdown",
+            "stepped_over",
+            "a search for a closing mark steps over a code span whole",
+        ),
+        (
+            "markdown",
+            "closing_stars",
+            "emphasis is closed after something that is not a space",
+        ),
+        (
+            "markdown",
+            "closing_stars",
+            "emphasis is closed by a run as long as opened it",
+        ),
+        ("markdown", "closing_bracket", "no link holds a link"),
+        ("markdown", "span", "a code span of spaces alone keeps them"),
+        ("markdown", "is_a_slug", "an anchor is lower case"),
+        (
+            "markdown",
+            "target",
+            "an address names a host after its scheme",
+        ),
+        ("markdown", "target", "an address holds no quotation mark"),
+        ("markdown", "target", "an anchor is held to its shape"),
+        (
+            "markdown",
+            "target",
+            "a path's segment opens with a letter or a digit",
+        ),
+        (
+            "markdown",
+            "target",
+            "a path holds only what a file's name does",
+        ),
+        (
+            "markdown",
+            "target",
+            "a path ends as a text this tree links does",
+        ),
+        ("markdown", "entity", "an entity ends in a semicolon"),
+        (
+            "markdown",
+            "entity",
+            "an entity outside the three is refused",
+        ),
+        (
+            "markdown",
+            "inlines",
+            "a backslash escapes ASCII punctuation alone",
+        ),
+        (
+            "markdown",
+            "starred",
+            "three asterisks in a row are refused",
+        ),
+        ("markdown", "starred", "emphasis holds no emphasis"),
+        ("markdown", "starred", "strong holds no strong"),
+        (
+            "markdown",
+            "starred",
+            "an asterisk before a space opens nothing",
+        ),
+        ("markdown", "linked", "a link shows something"),
+        ("markdown", "linked", "a link's target is closed"),
+        ("markdown", "inlines", "a closing bracket alone is refused"),
+        ("markdown", "inlines", "an image is refused"),
+        ("markdown", "inlines", "a closing tag is raw HTML"),
+        (
+            "markdown",
+            "inlines",
+            "an underscore after a parenthesis would open emphasis",
+        ),
+        (
+            "markdown",
+            "inlines",
+            "an underscore before a space opens nothing",
+        ),
+        (
+            "embedded_pages",
+            "page",
+            "a page is found by its whole name",
+        ),
+        (
+            "embedded_pages",
+            "generated",
+            "a page generated from a registry is a dev page",
+        ),
+        (
+            "embedded_pages",
+            "title",
+            "a page with no heading is titled by its name",
+        ),
+        (
+            "embedded_pages",
+            "plain",
+            "a title says what its marks hold",
+        ),
+        ("desktop_text", "said", "a text is said in the locale asked"),
+        (
+            "desktop_text",
+            "said_with",
+            "a text's parameters are filled",
+        ),
+        (
+            "desktop_text",
+            "said_with",
+            "a text whose parameter is missing is said by its id",
+        ),
+        (
+            "kernel_shell",
+            "words",
+            "a footer always shown is the default",
+        ),
+        (
+            "kernel_shell",
+            "LANGUAGES",
+            "the language is the system's, then every locale shipped",
+        ),
+        (
+            "kernel_shell",
+            "one_of",
+            "a setting's word is read as written",
+        ),
+        (
+            "kernel_shell",
+            "read_back",
+            "a saved state's settings hold nothing beside their three",
+        ),
+        (
+            "kernel_shell",
+            "made",
+            "the footer's set chooses the footer's setting",
+        ),
+        (
+            "kernel_shell",
+            "made",
+            "the appearance's set chooses the appearance",
+        ),
+        (
+            "kernel_shell",
+            "is_a_read",
+            "a setting's read changes nothing, and is declared a read",
+        ),
+        (
+            "kernel_shell",
+            "word_of",
+            "each setting answers its own word",
+        ),
+        (
+            "desktop_mirror",
+            "chosen",
+            "the language chosen is the locale it names",
+        ),
+        (
+            "desktop_mirror",
+            "read",
+            "the settings hold nothing this build does not read",
+        ),
+        (
+            "desktop_mirror",
+            "Visibility",
+            "the footer hidden is read as hidden",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the footer folds where its setting hides it",
+        ),
+        (
+            "desktop_footer",
+            "TheFooter",
+            "a folding footer is drawn as one",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the staging channel is said by its own word",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the footer is named in the window's locale",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "the interface's registry holds a text",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text is named as a handle can be",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text is keyed by its own name",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text's key is in its namespace",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text says where it is shown",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "an interface text's name is two words at least",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "a word of an interface text's name opens with a letter",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "an interface text's name is lower case",
+        ),
+        (
+            "loader",
+            "every_reference",
+            "an interface text claims its sentence",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "an interface text's sentence is held to what it declares",
+        ),
+        (
+            "loader",
+            "interface_texts",
+            "the interface's texts are checked as they are read",
+        ),
+        (
+            "compiler_metadata",
+            "judged_text",
+            "a wiki text in Markdown is held to the subset",
+        ),
+        (
+            "compiler_metadata",
+            "judged_text",
+            "a wiki text in another format is not read as Markdown",
+        ),
+        (
+            "compiler",
+            "compile",
+            "a page outside the subset is never written",
+        ),
+        (
+            "pages",
+            "outside_the_subset",
+            "a text outside the subset is reported at its line",
+        ),
+        ("pages", "words", "a bracket in a person's words is escaped"),
+        (
+            "pages",
+            "words",
+            "an asterisk in a person's words is escaped",
+        ),
+        (
+            "compiler_surfaces",
+            "on_each_keyboard",
+            "a key's label is a person's words",
+        ),
+        (
+            "compiler_surfaces",
+            "keybindings",
+            "a chord a system keeps is a person's words",
         ),
     ];
 

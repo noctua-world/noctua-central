@@ -701,6 +701,7 @@ mod tests {
                 .collect(),
             notifications: Vec::new(),
             emails: Vec::new(),
+            interface: Vec::new(),
             limits: Limits {
                 tables: std::collections::BTreeMap::new(),
                 stores: std::collections::BTreeMap::new(),

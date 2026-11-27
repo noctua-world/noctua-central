@@ -2077,6 +2077,86 @@ Arguments:
   --text <text, at most 4096 characters>  required
 ```
 
+## `settings.appearance.read`
+
+In `en`:
+
+```text
+settings.appearance.read — Read the appearance
+Show whether the Noctua window is light or dark.
+
+Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: appearance, theme, dark mode, light mode, interface, settings
+
+Usage:
+  noctua settings.appearance.read [arguments]
+  noctua settings.appearance.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.appearance.read — Ler a aparência
+Mostrar se a janela do Noctua é clara ou escura.
+
+Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.
+
+Categories: noctua.settings
+Tags: aparência, tema, modo escuro, modo claro, interface, ajustes
+
+Usage:
+  noctua settings.appearance.read [arguments]
+  noctua settings.appearance.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.appearance.set`
+
+In `en`:
+
+```text
+settings.appearance.set — Change the appearance
+Draw the Noctua window light, dark, or as your system does.
+
+Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: appearance, theme, dark mode, light mode, colours, interface, settings, change
+
+Usage:
+  noctua settings.appearance.set [arguments]
+  noctua settings.appearance.set -- '<one JSON object>'
+
+Arguments:
+  --mode <one of: system, light, dark>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.appearance.set — Alterar a aparência
+Desenhar a janela do Noctua clara, escura, ou como o seu sistema.
+
+Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: aparência, tema, modo escuro, modo claro, cores, interface, ajustes, alterar
+
+Usage:
+  noctua settings.appearance.set [arguments]
+  noctua settings.appearance.set -- '<one JSON object>'
+
+Arguments:
+  --mode <one of: system, light, dark>  required
+```
+
 ## `settings.chord.read`
 
 In `en`:
@@ -2235,6 +2315,166 @@ Usage:
 
 Arguments:
   --chords <a JSON object>  (repeated, once for each item, at most 146 items)  required
+```
+
+## `settings.footer.read`
+
+In `en`:
+
+```text
+settings.footer.read — Read the footer's visibility
+Show whether the footer is always shown.
+
+Answers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.
+
+Categories: noctua.settings
+Tags: footer, visibility, hide the footer, interface, settings
+
+Usage:
+  noctua settings.footer.read [arguments]
+  noctua settings.footer.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.footer.read — Ler a visibilidade do rodapé
+Mostrar se o rodapé fica sempre visível.
+
+Responde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.
+
+Categories: noctua.settings
+Tags: rodapé, visibilidade, ocultar o rodapé, interface, ajustes
+
+Usage:
+  noctua settings.footer.read [arguments]
+  noctua settings.footer.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.footer.set`
+
+In `en`:
+
+```text
+settings.footer.set — Change the footer's visibility
+Keep the footer always shown, or hidden until needed.
+
+Chooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: footer, visibility, hide the footer, show the footer, interface, settings, change
+
+Usage:
+  noctua settings.footer.set [arguments]
+  noctua settings.footer.set -- '<one JSON object>'
+
+Arguments:
+  --visibility <one of: always, hidden>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.footer.set — Alterar a visibilidade do rodapé
+Manter o rodapé sempre visível, ou oculto até ser necessário.
+
+Escolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: rodapé, visibilidade, ocultar o rodapé, mostrar o rodapé, interface, ajustes, alterar
+
+Usage:
+  noctua settings.footer.set [arguments]
+  noctua settings.footer.set -- '<one JSON object>'
+
+Arguments:
+  --visibility <one of: always, hidden>  required
+```
+
+## `settings.language.read`
+
+In `en`:
+
+```text
+settings.language.read — Read the language
+Show the language the Noctua window speaks.
+
+Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: language, locale, english, portuguese, interface, settings
+
+Usage:
+  noctua settings.language.read [arguments]
+  noctua settings.language.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.language.read — Ler o idioma
+Mostrar o idioma em que a janela do Noctua fala.
+
+Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.
+
+Categories: noctua.settings
+Tags: idioma, língua, inglês, português, interface, ajustes
+
+Usage:
+  noctua settings.language.read [arguments]
+  noctua settings.language.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.language.set`
+
+In `en`:
+
+```text
+settings.language.set — Change the language
+Choose the language the Noctua window speaks.
+
+Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: language, locale, english, portuguese, translate, interface, settings, change
+
+Usage:
+  noctua settings.language.set [arguments]
+  noctua settings.language.set -- '<one JSON object>'
+
+Arguments:
+  --language <one of: system, en, pt-BR>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.language.set — Alterar o idioma
+Escolher o idioma em que a janela do Noctua fala.
+
+Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: idioma, língua, inglês, português, traduzir, interface, ajustes, alterar
+
+Usage:
+  noctua settings.language.set [arguments]
+  noctua settings.language.set -- '<one JSON object>'
+
+Arguments:
+  --language <one of: system, en, pt-BR>  required
 ```
 
 ## `settings.leader.read`

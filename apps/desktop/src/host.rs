@@ -1048,6 +1048,7 @@ fn probed_drawer(locale: nc_catalog::Locale) -> crate::drawer::View {
         draft: ";".to_owned(),
         asking: Some(Asking::Commands),
         seats: std::collections::BTreeMap::new(),
+        settings: crate::mirror::Settings::default(),
         next: PROBED_TAB + 2,
     };
     // The command list draws no key, so the drawer is drawn with none bound.
@@ -1636,13 +1637,22 @@ pub fn bound_said(
     locale: nc_catalog::Locale,
 ) -> String {
     format!(
-        "{} {}: {} leader",
+        "{} {}",
         refused_said(
             &nc_ipc::leader::refusal(&nc_platform::leader::Refused::ByBinding),
             locale
         ),
-        leader.written_for(nc_schema::keys::Keyboard::Linux),
-        cli.display()
+        crate::text::said_with(
+            nc_catalog::interface::Text::LeaderBind,
+            locale,
+            &[
+                (
+                    "chord",
+                    &leader.written_for(nc_schema::keys::Keyboard::Linux)
+                ),
+                ("command", &format!("{} leader", cli.display())),
+            ],
+        )
     )
 }
 
@@ -3027,7 +3037,10 @@ pub(crate) mod tests {
             "{bound}"
         );
         assert!(
-            bound.ends_with(" Alt+Super+Space: /home/a/bin/noctua-dev-0123abcd leader"),
+            bound.ends_with(
+                " Bind Alt+Super+Space in your compositor to run: \
+                 /home/a/bin/noctua-dev-0123abcd leader"
+            ),
             "{bound}"
         );
         for said in [

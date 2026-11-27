@@ -40,6 +40,14 @@ fn state(next: i64) -> Value {
         ("info", Value::object([("expanded", Value::Bool(false))])),
         ("prompt", Value::object([("draft", Value::text(""))])),
         ("seats", Value::Array(Vec::new())),
+        (
+            "settings",
+            Value::object([
+                ("language", Value::text("system")),
+                ("mode", Value::text("system")),
+                ("visibility", Value::text("always")),
+            ]),
+        ),
         ("next", Value::Integer(next)),
     ])
 }

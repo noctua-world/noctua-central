@@ -59,12 +59,12 @@ A key is a physical key, named as the W3C's `KeyboardEvent.code` names it, so ne
 | `Digit9` | 9 | 9 | 9 |
 | `Minus` | - | - | - |
 | `Equal` | = | = | = |
-| `BracketLeft` | [ | [ | [ |
-| `BracketRight` | ] | ] | ] |
+| `BracketLeft` | \[ | \[ | \[ |
+| `BracketRight` | \] | \] | \] |
 | `Backslash` | \\ | \\ | \\ |
 | `Semicolon` | ; | ; | ; |
 | `Quote` | ' | ' | ' |
-| `Backquote` | ` | ` | ` |
+| `Backquote` | \` | \` | \` |
 | `Comma` | , | , | , |
 | `Period` | . | . | . |
 | `Slash` | / | / | / |
@@ -200,8 +200,8 @@ The chords each system keeps for itself, each from the source that lists it. A L
 | Linux | GNOME | Super+Tab | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
 | Linux | GNOME | Alt+Shift+Tab | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
 | Linux | GNOME | Shift+Super+Tab | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
-| Linux | GNOME | Alt+` | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
-| Linux | GNOME | Super+` | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
+| Linux | GNOME | Alt+\` | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
+| Linux | GNOME | Super+\` | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
 | Linux | GNOME | Alt+Super+Left | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
 | Linux | GNOME | Alt+Super+Right | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |
 | Linux | GNOME | Ctrl+Alt+Left | https://raw.githubusercontent.com/GNOME/gsettings-desktop-schemas/master/schemas/org.gnome.desktop.wm.keybindings.gschema.xml.in |

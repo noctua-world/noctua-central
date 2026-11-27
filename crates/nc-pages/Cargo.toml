@@ -1,0 +1,21 @@
+[package]
+name = "nc-pages"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The pages an install carries: every generated page of the developer surfaces and the changelog, embedded as written and read by the one reader of Markdown."
+
+[dependencies]
+# **The one reader of Markdown**: a page is handed out as the tree that reader
+# answers, never as text for a second reader to interpret.
+nc-markdown.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice — the same line every
+# member of this workspace carries.
+nc-pages = { path = "." }
+
+[lints]
+workspace = true

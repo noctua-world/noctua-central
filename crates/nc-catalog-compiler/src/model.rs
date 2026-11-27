@@ -21,6 +21,8 @@ pub struct Catalog {
     pub notifications: Vec<Notification>,
     /// Every transactional email.
     pub emails: Vec<Email>,
+    /// Every text the interface itself says.
+    pub interface: Vec<InterfaceText>,
     /// Every safety limit and tunable.
     pub limits: Limits,
     /// Every command, with the metadata a dispatcher needs.
@@ -205,6 +207,32 @@ pub struct Email {
     /// The placeholders the body may interpolate.
     #[serde(default)]
     pub params: Vec<String>,
+}
+
+// --- interface.toml ---
+
+/// `catalog/interface.toml`, whole: its texts, and no other key.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct InterfaceFile {
+    #[serde(default, rename = "text")]
+    pub(crate) texts: Vec<InterfaceText>,
+}
+
+/// One text the interface itself says (`NOCTUA.md §12`): a sentence, a word or
+/// a control's name that is no command's and no error's.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct InterfaceText {
+    /// Stable, dotted, and what the generated handle is named after.
+    pub id: String,
+    /// The i18n key of the text: `interface.` and the id.
+    pub text: String,
+    /// The placeholders the text may interpolate.
+    #[serde(default)]
+    pub params: Vec<String>,
+    /// Where the interface shows it, in one English sentence.
+    pub shown: String,
 }
 
 // --- limits.toml ---

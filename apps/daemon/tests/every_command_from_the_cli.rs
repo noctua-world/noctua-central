@@ -292,6 +292,14 @@ const ROWS: &[Row] = &[
     ran("sidebar.hide", &[]),
     ran("footer.hide", &[]),
     ran("footer.show", &[]),
+    // **The three settings of how the interface is shown** are a part of its
+    // state, so each set is a read like the rows around it and no step.
+    ran("settings.footer.read", &[]),
+    ran("settings.footer.set", &["--visibility", "hidden"]),
+    ran("settings.language.read", &[]),
+    ran("settings.language.set", &["--language", "pt-BR"]),
+    ran("settings.appearance.read", &[]),
+    ran("settings.appearance.set", &["--mode", "dark"]),
     ran("info.say", &["--text", "said"]),
     ran("info.expand", &[]),
     ran("info.collapse", &[]),

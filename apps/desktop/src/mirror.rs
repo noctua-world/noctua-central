@@ -280,6 +280,104 @@ pub struct Seat {
     pub drag: Option<String>,
 }
 
+/// The language the interface speaks, as its setting says (`NOCTUA.md
+/// §10.9`, `§12.15`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Language {
+    /// The system's: the environment's language where the catalog ships it,
+    /// and English otherwise.
+    #[default]
+    System,
+    /// English.
+    English,
+    /// Brazilian Portuguese.
+    Portuguese,
+}
+
+impl Language {
+    /// Every one, with the word the kernel writes it as: `system`, or a
+    /// locale's tag.
+    const WORDS: [(Self, &'static str); 3] = [
+        (Self::System, "system"),
+        (Self::English, nc_catalog::Locale::En.tag()),
+        (Self::Portuguese, nc_catalog::Locale::PtBR.tag()),
+    ];
+
+    /// The locale a person chose, and none where the system's is followed.
+    #[must_use]
+    pub const fn chosen(self) -> Option<nc_catalog::Locale> {
+        match self {
+            Self::System => None,
+            Self::English => Some(nc_catalog::Locale::En),
+            Self::Portuguese => Some(nc_catalog::Locale::PtBR),
+        }
+    }
+}
+
+/// Whether the footer is always shown, as its setting says (`NOCTUA.md
+/// §12.3`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Visibility {
+    /// Always shown.
+    #[default]
+    Always,
+    /// Hidden until the Leader or the pointer asks for it.
+    Hidden,
+}
+
+impl Visibility {
+    /// Every one, with the word the kernel writes it as.
+    const WORDS: [(Self, &'static str); 2] = [(Self::Always, "always"), (Self::Hidden, "hidden")];
+}
+
+/// The mode the interface is drawn in, as its setting says (`NOCTUA.md
+/// §9.6`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Appearance {
+    /// The system's.
+    #[default]
+    System,
+    /// Light.
+    Light,
+    /// Dark.
+    Dark,
+}
+
+impl Appearance {
+    /// Every one, with the word the kernel writes it as.
+    const WORDS: [(Self, &'static str); 3] = [
+        (Self::System, "system"),
+        (Self::Light, "light"),
+        (Self::Dark, "dark"),
+    ];
+}
+
+/// The three settings of how the interface is shown, which the state holds
+/// (`NOCTUA.md §12.15`): each its default until a person chooses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Settings {
+    /// The language the interface speaks.
+    pub language: Language,
+    /// Whether the footer is always shown.
+    pub footer: Visibility,
+    /// The mode it is drawn in.
+    pub appearance: Appearance,
+}
+
+impl Settings {
+    /// The settings `value` writes, each a word of its own list.
+    fn read(value: &Value) -> Result<Self, Unread> {
+        let mut fields = Fields::of("the settings", value)?;
+        let settings = Self {
+            language: fields.word("language", &Language::WORDS)?,
+            footer: fields.word("visibility", &Visibility::WORDS)?,
+            appearance: fields.word("mode", &Appearance::WORDS)?,
+        };
+        fields.done()?;
+        Ok(settings)
+    }
+}
+
 /// The interface's state, as the daemon sent it (`NOCTUA.md §12.1`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shell {
@@ -303,6 +401,8 @@ pub struct Shell {
     pub asking: Option<Asking>,
     /// Every seat, by number.
     pub seats: BTreeMap<u64, Seat>,
+    /// The three settings of how the interface is shown.
+    pub settings: Settings,
     /// The identifier the next window or page is given.
     pub next: u64,
 }
@@ -653,6 +753,7 @@ impl Shell {
                 return Err(Unread(format!("two seats are seat {id}")));
             }
         }
+        let settings = Settings::read(top.take("settings")?)?;
         let next = top.id("next")?;
         top.done()?;
         Ok(Self {
@@ -666,6 +767,7 @@ impl Shell {
             draft,
             asking,
             seats,
+            settings,
             next,
         })
     }
@@ -1083,6 +1185,15 @@ pub(crate) mod tests {
 
     use super::{Asking, By, Fact, Focus, Kind, Mirror, Moved, Place, Region, Shell, Unread};
 
+    /// The three settings, as the kernel writes them.
+    fn settings_of(language: &str, mode: &str, visibility: &str) -> Value {
+        Value::object([
+            ("language", Value::text(language)),
+            ("mode", Value::text(mode)),
+            ("visibility", Value::text(visibility)),
+        ])
+    }
+
     /// The first run's state, as the kernel writes it, its windows `windows`.
     pub(crate) fn a_state_with_windows(windows: Vec<Value>) -> Value {
         Value::object([
@@ -1103,6 +1214,7 @@ pub(crate) mod tests {
             ("info", Value::object([("expanded", Value::Bool(false))])),
             ("prompt", Value::object([("draft", Value::text(""))])),
             ("seats", Value::Array(Vec::new())),
+            ("settings", settings_of("system", "system", "always")),
             ("next", Value::Integer(2)),
         ])
     }
@@ -1217,6 +1329,7 @@ pub(crate) mod tests {
                     ("drag", Value::text("dragged")),
                 ])]),
             ),
+            ("settings", settings_of("pt-BR", "dark", "hidden")),
             ("next", Value::Integer(6)),
         ])
     }
@@ -1277,6 +1390,20 @@ pub(crate) mod tests {
         assert_eq!((shell.draft.as_str(), shell.asking.clone()), ("", None));
         assert_eq!(shell.drawer.toward, Place::Workspace);
         assert_eq!((shell.drawer.share, shell.next), (33, 2));
+        assert_eq!(shell.settings, super::Settings::default());
+        assert_eq!(
+            (
+                shell.settings.language,
+                shell.settings.footer,
+                shell.settings.appearance
+            ),
+            (
+                super::Language::System,
+                super::Visibility::Always,
+                super::Appearance::System
+            )
+        );
+        assert_eq!(shell.settings.language.chosen(), None);
     }
 
     /// Every field the kernel writes is read as itself, at a value the first
@@ -1307,6 +1434,18 @@ pub(crate) mod tests {
         assert!(drawer.collapsed && drawer.flipped);
         assert_eq!((drawer.toward, drawer.share), (Place::Drawer, 49));
         assert!(shell.sidebar && !shell.footer && shell.expanded);
+        assert_eq!(
+            shell.settings,
+            super::Settings {
+                language: super::Language::Portuguese,
+                footer: super::Visibility::Hidden,
+                appearance: super::Appearance::Dark,
+            }
+        );
+        assert_eq!(
+            shell.settings.language.chosen(),
+            Some(nc_catalog::Locale::PtBR)
+        );
         assert_eq!(shell.message.as_deref(), Some("said"));
         assert_eq!(shell.draft, ";set");
         assert_eq!(
@@ -1385,6 +1524,7 @@ pub(crate) mod tests {
             &["drawer"],
             &["sidebar"],
             &["footer"],
+            &["settings"],
             &["info"],
             &["prompt"],
             &["prompt", "asking"],
@@ -1412,6 +1552,10 @@ pub(crate) mod tests {
             (&[], "info"),
             (&[], "prompt"),
             (&[], "seats"),
+            (&[], "settings"),
+            (&["settings"], "language"),
+            (&["settings"], "mode"),
+            (&["settings"], "visibility"),
             (&[], "next"),
             (&["windows", "0"], "id"),
             (&["windows", "0"], "shown"),

@@ -31,6 +31,7 @@ pub(crate) fn all(catalog: &Catalog) -> Vec<EmittedFile> {
             notifications(catalog),
         ),
         EmittedFile::new("crates/nc-catalog/src/emails.rs", emails(catalog)),
+        EmittedFile::new("crates/nc-catalog/src/interface.rs", interface(catalog)),
         EmittedFile::new("crates/nc-catalog/src/limits.rs", limits(catalog)),
         EmittedFile::new("crates/nc-catalog/src/commands.rs", commands(catalog)),
         EmittedFile::new("crates/nc-catalog/src/events.rs", events(catalog)),
@@ -215,6 +216,7 @@ fn lib() -> String {
          pub mod external_identifiers;\n\
          pub mod events;\n\
          pub mod i18n;\n\
+         pub mod interface;\n\
          pub mod limits;\n\
          pub mod notifications;\n\
          pub mod wiki;\n\
@@ -661,6 +663,73 @@ fn emails(catalog: &Catalog) -> String {
                 1 => quoted(&entry.subject),
                 2 => quoted(&entry.body),
                 _ => list(&entry.params),
+            };
+            let _ = writeln!(out, "            Self::{} => {rendered},", camel(&entry.id));
+        }
+        out.push_str("        }\n    }\n\n");
+    }
+    out.push_str("}\n");
+    out
+}
+
+/// The interface's own texts, as handles: `catalog/interface.toml`.
+fn interface(catalog: &Catalog) -> String {
+    let mut out = header(CommentStyle::Line("//!"), "catalog/interface.toml");
+    out.push_str(
+        "//!\n\
+         //! Every text the interface itself says: a sentence, a word or a control's\n\
+         //! name that is no command's and no error's. The interface shows one by its\n\
+         //! handle, never by a text written where it is drawn, so a text taken out of\n\
+         //! the registry is a compile error and every one exists in every locale.\n\
+         \n",
+    );
+    let mut sorted = catalog.interface.clone();
+    sorted.sort_by(|a, b| a.id.cmp(&b.id));
+
+    out.push_str("/// Every text of the interface's own this platform declares.\n");
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\n");
+    // Not `#[non_exhaustive]`, for the reason `ErrorCode` gives.
+    out.push_str("pub enum Text {\n");
+    for entry in &sorted {
+        let named = format!("The text `{}`.", entry.id);
+        let _ = writeln!(out, "    {}    {},", doc(&named), camel(&entry.id));
+    }
+    out.push_str("}\n\n");
+
+    out.push_str("impl Text {\n");
+    out.push_str("    /// Every text, in id order.\n");
+    out.push_str("    pub const ALL: &'static [Self] = &[\n");
+    for entry in &sorted {
+        let _ = writeln!(out, "        Self::{},", camel(&entry.id));
+    }
+    out.push_str("    ];\n\n");
+
+    for (name, returns, description, which) in [
+        ("id", "&'static str", "The stable id.", 0),
+        ("key", "&'static str", "The i18n key of the text.", 1),
+        (
+            "params",
+            "&'static [&'static str]",
+            "The placeholders the text interpolates.",
+            2,
+        ),
+        (
+            "shown",
+            "&'static str",
+            "Where the interface shows it, as the registry says.",
+            3,
+        ),
+    ] {
+        let _ = write!(
+            out,
+            "    /// {description}\n    #[must_use]\n    pub const fn {name}(self) -> {returns} {{\n        match self {{\n"
+        );
+        for entry in &sorted {
+            let rendered = match which {
+                0 => quoted(&entry.id),
+                1 => quoted(&entry.text),
+                2 => list(&entry.params),
+                _ => quoted(&entry.shown),
             };
             let _ = writeln!(out, "            Self::{} => {rendered},", camel(&entry.id));
         }

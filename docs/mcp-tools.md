@@ -693,6 +693,34 @@ In `pt-BR`:
 {"name":"prompt_set","description":"Definir o que a linha do prompt contém, como se fosse digitado ali.\n\nDefine o texto da linha do prompt, a última linha do rodapé. Um texto que começa com ponto e vírgula ou dois-pontos abre a lista de comandos na gaveta, e o resto dele filtra a lista.","inputSchema":{"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `settings.appearance.read`
+
+In `en`:
+
+```json
+{"name":"settings_appearance_read","description":"Show whether the Noctua window is light or dark.\n\nAnswers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_appearance_read","description":"Mostrar se a janela do Noctua é clara ou escura.\n\nResponde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.appearance.set`
+
+In `en`:
+
+```json
+{"name":"settings_appearance_set","description":"Draw the Noctua window light, dark, or as your system does.\n\nChooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_appearance_set","description":"Desenhar a janela do Noctua clara, escura, ou como o seu sistema.\n\nEscolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `settings.chord.read`
 
 In `en`:
@@ -747,6 +775,62 @@ In `pt-BR`:
 
 ```json
 {"name":"settings_chords_set","description":"Escolher cada tecla pressionada com o Leader e o que ela executa.\n\nSubstitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.","inputSchema":{"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `settings.footer.read`
+
+In `en`:
+
+```json
+{"name":"settings_footer_read","description":"Show whether the footer is always shown.\n\nAnswers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_footer_read","description":"Mostrar se o rodapé fica sempre visível.\n\nResponde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.footer.set`
+
+In `en`:
+
+```json
+{"name":"settings_footer_set","description":"Keep the footer always shown, or hidden until needed.\n\nChooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_footer_set","description":"Manter o rodapé sempre visível, ou oculto até ser necessário.\n\nEscolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.language.read`
+
+In `en`:
+
+```json
+{"name":"settings_language_read","description":"Show the language the Noctua window speaks.\n\nAnswers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_language_read","description":"Mostrar o idioma em que a janela do Noctua fala.\n\nResponde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.language.set`
+
+In `en`:
+
+```json
+{"name":"settings_language_set","description":"Choose the language the Noctua window speaks.\n\nChooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_language_set","description":"Escolher o idioma em que a janela do Noctua fala.\n\nEscolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `settings.leader.read`

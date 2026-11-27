@@ -1405,7 +1405,14 @@ fn two_names_that_differ_only_in_a_hyphen_collide() {
 /// one per nested table crosses the hundred-line budget `clippy.toml` sets, and
 /// a budget met by *reaching fewer structs* is the defect this table exists to
 /// close.
-const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 29] = [
+const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 30] = [
+    (
+        "interface-typo",
+        "catalog/interface.toml",
+        "text = \"interface.alert.start\"",
+        "texxt = \"interface.alert.start\"",
+        "texxt",
+    ),
     (
         "lockout-typo",
         "catalog/limits.toml",
@@ -1676,7 +1683,8 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 29] = [
 /// is missing. That is what this list is: one unknown key at the top of each
 /// registry, where the top is the file-level struct that no row above reaches,
 /// among them `LocaleFile`, the one `check.rs` delegates a rule to by name.
-const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 10] = [
+const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 11] = [
+    ("interface", "catalog/interface.toml"),
     ("errors", "catalog/errors.toml"),
     ("notifications", "catalog/notifications.toml"),
     ("emails", "catalog/emails.toml"),
@@ -4370,6 +4378,7 @@ fn an_empty_registry_fails_the_build() {
             "notifications",
         ),
         ("empty-emails", "catalog/emails.toml", "emails"),
+        ("empty-interface", "catalog/interface.toml", "texts"),
         ("empty-commands", "catalog/commands.toml", "commands"),
         ("empty-events", "catalog/log-events.toml", "log events"),
         (
@@ -4513,6 +4522,7 @@ fn a_missing_registry_fails_the_build() {
         "catalog/errors.toml",
         "catalog/notifications.toml",
         "catalog/emails.toml",
+        "catalog/interface.toml",
         "catalog/limits.toml",
         "catalog/commands.toml",
         "catalog/log-events.toml",
@@ -4563,6 +4573,14 @@ fn a_duplicate_name_in_every_registry_that_has_one_fails_the_build() {
              body = \"notification.catalog.mechanism.body\"\nparams = [\"name\"]\nseverity = \"info\"\n",
             "duplicate-notification",
             "catalog.mechanism",
+        ),
+        (
+            "dup-interface-text",
+            "catalog/interface.toml",
+            "\n[[text]]\nid = \"alert.start\"\ntext = \"interface.alert.start\"\nparams = []\n\
+             shown = \"The daemon alert line, a second time.\"\n",
+            "duplicate-interface-text",
+            "alert.start",
         ),
         (
             "dup-email",
@@ -7188,6 +7206,206 @@ fn a_run_of_backticks_in_a_schema_ends_no_block_on_any_page() {
         assert_eq!(
             opened, closed,
             "{name} opens {opened} block(s) of four and closes {closed}"
+        );
+    }
+}
+
+/// An interface text is named as a handle can be, keyed by its own name and
+/// placed, or the build fails.
+///
+/// **Each rule by its own check, naming the text**: a name that is no two
+/// lower-case words joined by a dot would become a handle nobody can spell —
+/// or one that collides with another's; a key that is not `interface.` and
+/// the id is a sentence filed under another entry's name; and a text with no
+/// `shown` is one a translator places by guessing.
+#[test]
+fn an_interface_text_is_named_keyed_and_placed_or_the_build_fails() {
+    for (name, from, to, check, naming) in [
+        (
+            "interface-capital",
+            "id = \"alert.start\"",
+            "id = \"alert.Start\"",
+            "interface-text-name",
+            "alert.Start",
+        ),
+        (
+            "interface-capital-inside",
+            "id = \"alert.start\"",
+            "id = \"alert.sTart\"",
+            "interface-text-name",
+            "alert.sTart",
+        ),
+        (
+            "interface-one-word",
+            "id = \"alert.start\"",
+            "id = \"alertstart\"",
+            "interface-text-name",
+            "alertstart",
+        ),
+        (
+            "interface-digit-first",
+            "id = \"alert.start\"",
+            "id = \"alert.1start\"",
+            "interface-text-name",
+            "alert.1start",
+        ),
+        (
+            "interface-two-hyphens",
+            "id = \"alert.restore-now\"",
+            "id = \"alert.restore--now\"",
+            "interface-text-name",
+            "alert.restore--now",
+        ),
+        (
+            "interface-key",
+            "text = \"interface.alert.start\"",
+            "text = \"interface.alert.begin\"",
+            "interface-text-key",
+            "alert.start",
+        ),
+        (
+            "interface-key-outside",
+            "text = \"interface.alert.start\"",
+            "text = \"alert.start\"",
+            "interface-text-key",
+            "alert.start",
+        ),
+        (
+            "interface-unplaced",
+            "shown = \"The daemon alert line's control after a stop made on purpose, which starts the daemon.\"",
+            "shown = \" \"",
+            "interface-text-unplaced",
+            "alert.start",
+        ),
+    ] {
+        let scratch = Scratch::new(name);
+        scratch.replacing("catalog/interface.toml", from, to);
+        scratch.must_fail_saying(check, naming);
+    }
+}
+
+/// An interface text's sentence is held to what its entry declares, and its
+/// key is claimed: a placeholder the entry does not declare, a parameter no
+/// sentence uses, and a sentence no entry claims each fail the build.
+#[test]
+fn an_interface_texts_sentence_is_claimed_and_held_to_its_parameters() {
+    let undeclared = Scratch::new("interface-param-undeclared");
+    undeclared.replacing(
+        "catalog/interface.toml",
+        "id = \"seat.numbered\"\ntext = \"interface.seat.numbered\"\nparams = [\"seat\"]",
+        "id = \"seat.numbered\"\ntext = \"interface.seat.numbered\"\nparams = []",
+    );
+    undeclared.must_fail_saying("param-not-declared", "interface text seat.numbered");
+    let unused = Scratch::new("interface-param-unused");
+    unused.replacing(
+        "catalog/interface.toml",
+        "id = \"alert.start\"\ntext = \"interface.alert.start\"\nparams = []",
+        "id = \"alert.start\"\ntext = \"interface.alert.start\"\nparams = [\"count\"]",
+    );
+    unused.must_fail_saying("param-never-used", "interface text alert.start");
+    let unclaimed = Scratch::new("interface-unclaimed");
+    unclaimed.edit("catalog/interface.toml", |text| {
+        let entry = "\n[[text]]\nid = \"alert.start\"\ntext = \"interface.alert.start\"\nparams = []\n\
+                     shown = \"The daemon alert line's control after a stop made on purpose, which starts the daemon.\"\n";
+        assert!(text.contains(entry), "the entry is written as this test reads it");
+        text.replace(entry, "")
+    });
+    unclaimed.must_fail("unreferenced-key", "interface.alert.start");
+}
+
+/// A wiki text written in Markdown outside the subset this tree reads fails
+/// the build, naming the file and the line.
+///
+/// **The one reader is the judge** (`nc_markdown`): raw HTML in a wiki text
+/// would reach a person as markup nobody meant, and the interface has no
+/// second way to draw a text it could not read.
+#[test]
+fn a_markdown_wiki_text_outside_the_subset_fails_the_build_naming_its_line() {
+    let scratch = Scratch::new("wiki-outside-the-subset");
+    let file = "catalog/wiki/en/commands/kernel.undo.md";
+    scratch.replacing(
+        file,
+        "## Redo\n",
+        "## Redo\n\nPress <b>redo</b> to go on.\n",
+    );
+    let (reported, _, line) = scratch.reported("markdown-outside-the-subset");
+    assert_eq!(reported, file);
+    assert_eq!(line, "Press <b>redo</b> to go on.");
+    let problem = scratch.only("markdown-outside-the-subset");
+    assert!(
+        problem.what.contains("column 7") && problem.what.contains("raw HTML"),
+        "{problem}"
+    );
+    // The same text in a format this reader does not read is not its to
+    // judge: plain text shows a `<` as a `<`.
+    let plain = Scratch::new("wiki-plain-holds-a-tag");
+    for locale in ["en", "pt-BR"] {
+        let from = plain
+            .root
+            .join(format!("catalog/wiki/{locale}/commands/kernel.undo.md"));
+        let text = std::fs::read_to_string(&from).expect("the wiki text is there");
+        std::fs::remove_file(&from).expect("removable");
+        plain.place(
+            &format!("catalog/wiki/{locale}/commands/kernel.undo.txt"),
+            &format!("{text}\nPress <b>redo</b>.\n"),
+        );
+    }
+    assert!(
+        plain
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "markdown-outside-the-subset"),
+        "{:?}",
+        plain.problems()
+    );
+}
+
+/// A page the compiler would emit outside the subset fails the build, naming
+/// the page and its line, and nothing is written.
+///
+/// **A registry's own description is published as its author wrote it**, its
+/// code spans kept, so one left open is a page a reader of Markdown would
+/// read wrongly from that line down: the build refuses it where the page
+/// would have been.
+#[test]
+fn a_page_outside_the_subset_fails_the_build_naming_the_page() {
+    let scratch = Scratch::new("page-outside-the-subset");
+    scratch.replacing(
+        "catalog/log-events.toml",
+        "description = \"An entry was appended to the chain\"",
+        "description = \"An entry was appended to the `chain\"",
+    );
+    // The page was never written, so its line is read from what the page
+    // would have held: the entry's own row.
+    let problem = scratch.only("markdown-outside-the-subset");
+    assert_eq!(problem.file, "docs/log-events.md");
+    assert!(problem.line.is_some_and(|line| line > 5), "{problem}");
+    assert!(problem.what.contains("code span"), "{problem}");
+}
+
+/// A key's label and a chord a page shows are a person's words: a bracket, a
+/// backtick or an asterisk in one is escaped, so the keybindings page is of
+/// the subset whatever a key types.
+#[test]
+fn a_label_that_is_markdown_is_escaped_in_a_cell() {
+    for (label, written) in [
+        ("[", "\\["),
+        ("]", "\\]"),
+        ("`", "\\`"),
+        ("*", "\\*"),
+        ("a|b", "a\\|b"),
+    ] {
+        let cell = nc_catalog_compiler::words_for_tests(label);
+        assert_eq!(cell, written, "{label}");
+        let row = format!("| key |\n|---|\n| {cell} |");
+        let read = nc_markdown::parse(&row).expect("a cell of the subset");
+        let nc_markdown::Block::Table { rows, .. } = &read.blocks[0] else {
+            panic!("{read:?}");
+        };
+        assert_eq!(
+            rows[0][0],
+            [nc_markdown::Inline::Text(label.to_owned())],
+            "{label}"
         );
     }
 }

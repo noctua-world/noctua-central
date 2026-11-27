@@ -1021,6 +1021,50 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 {"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false}
 ```
 
+## `settings.appearance.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F042` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the appearance | Ler a aparência |
+| Line description | Show whether the Noctua window is light or dark. | Mostrar se a janela do Noctua é clara ou escura. |
+| Paragraph | Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing. | Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada. |
+| Tags | appearance, theme, dark mode, light mode, interface, settings | aparência, tema, modo escuro, modo claro, interface, ajustes |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.appearance.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F042` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the appearance | Alterar a aparência |
+| Line description | Draw the Noctua window light, dark, or as your system does. | Desenhar a janela do Noctua clara, escura, ou como o seu sistema. |
+| Paragraph | Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
+| Tags | appearance, theme, dark mode, light mode, colours, interface, settings, change | aparência, tema, modo escuro, modo claro, cores, interface, ajustes, alterar |
+
+```json
+{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false}
+```
+
 ## `settings.chord.read`
 
 | | |
@@ -1107,6 +1151,94 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 
 ```json
 {"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false}
+```
+
+## `settings.footer.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0C9` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the footer's visibility | Ler a visibilidade do rodapé |
+| Line description | Show whether the footer is always shown. | Mostrar se o rodapé fica sempre visível. |
+| Paragraph | Answers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing. | Responde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada. |
+| Tags | footer, visibility, hide the footer, interface, settings | rodapé, visibilidade, ocultar o rodapé, interface, ajustes |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.footer.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F0C9` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the footer's visibility | Alterar a visibilidade do rodapé |
+| Line description | Keep the footer always shown, or hidden until needed. | Manter o rodapé sempre visível, ou oculto até ser necessário. |
+| Paragraph | Chooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
+| Tags | footer, visibility, hide the footer, show the footer, interface, settings, change | rodapé, visibilidade, ocultar o rodapé, mostrar o rodapé, interface, ajustes, alterar |
+
+```json
+{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false}
+```
+
+## `settings.language.read`
+
+| | |
+|---|---|
+| Action | `Read` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F1AB` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Read the language | Ler o idioma |
+| Line description | Show the language the Noctua window speaks. | Mostrar o idioma em que a janela do Noctua fala. |
+| Paragraph | Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing. | Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada. |
+| Tags | language, locale, english, portuguese, interface, settings | idioma, língua, inglês, português, interface, ajustes |
+
+```json
+{"type":"object","properties":{},"additionalProperties":false}
+```
+
+## `settings.language.set`
+
+| | |
+|---|---|
+| Action | `Write` |
+| Resource selector | `feature:interface` |
+| Mutating | no |
+| Can it be undone | nothing to undo — it makes no step, so undo passes over it (§11.5) |
+| Categories | `noctua.settings` |
+| Glyph | `U+F1AB` |
+
+| | en | pt-BR |
+|---|---|---|
+| Display name | Change the language | Alterar o idioma |
+| Line description | Choose the language the Noctua window speaks. | Escolher o idioma em que a janela do Noctua fala. |
+| Paragraph | Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
+| Tags | language, locale, english, portuguese, translate, interface, settings, change | idioma, língua, inglês, português, traduzir, interface, ajustes, alterar |
+
+```json
+{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false}
 ```
 
 ## `settings.leader.read`

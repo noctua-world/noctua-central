@@ -55,13 +55,16 @@
 //! the only state there is without one; the focused page's identity, since no
 //! page declares one until pages are drawn; the prompt's send control, and
 //! what typing `;`, `:` and `/` and sending do, which arrive with the command
-//! list; and a word naming the connection, the channel and a seat in each
-//! locale, which arrives with the interface's own texts — the channel is
-//! shown by the word its manifest writes, and a seat by its number.
+//! list. **Its own words are the interface's texts** ([`crate::text`]): the
+//! footer's name for a screen reader and the channel's word are said in the
+//! window's locale from `catalog/interface.toml`. **Its visibility is the
+//! footer's setting** (`settings.footer`, §12.15), read from the state: always
+//! shown, or the design system's folding footer, shown as the state says.
 
 use dioxus::prelude::*;
 use nc_canon::Value;
 use nc_catalog::Locale;
+use nc_catalog::interface::Text as Worded;
 use nc_channel::Channel;
 use noctua_design::{
     Button, ButtonSize, ButtonTone, ButtonVariant, Footer, FooterCorner, FooterCornerSide,
@@ -69,12 +72,7 @@ use noctua_design::{
     TextSize, TextTone, TextWeight,
 };
 
-use crate::mirror::{By, Seat, Shell};
-
-/// The name the footer is given for a screen reader: the product's, which
-/// no locale translates, until the interface's own texts arrive in both
-/// locales.
-pub const NAME: &str = crate::host::TITLE;
+use crate::mirror::{By, Seat, Shell, Visibility};
 
 /// The prompt's name, as a script finds it: its root's `data-nd-prompt`, and
 /// its text area's id after `nd-prompt-`.
@@ -231,14 +229,19 @@ pub struct Info {
 /// What the footer shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct View {
+    /// The footer's name for a screen reader, in the window's locale.
+    pub named: String,
+    /// Whether the footer's setting hides it until it is asked for.
+    pub folds: bool,
     /// Whether the state shows the footer now.
     pub shown: bool,
     /// `sidebar.show`'s display name, the modeline's first glyph's.
     pub sidebar: String,
     /// The focused page's identity, where it declares one.
     pub page: Option<Identity>,
-    /// The channel's word, where it is not production.
-    pub channel: Option<&'static str>,
+    /// The channel's word in the window's locale, where it is not
+    /// production.
+    pub channel: Option<String>,
     /// The drawer indicator, while the drawer is collapsed with something
     /// open in it.
     pub drawer: Option<Indicator>,
@@ -318,12 +321,15 @@ pub fn view(shell: Option<&Shell>, context: Context) -> View {
             label: title_of(Action::ExpandDrawer.command(), locale),
         });
     View {
+        named: crate::text::said(Worded::PartFooter, locale),
+        folds: shell.is_some_and(|shell| shell.settings.footer == Visibility::Hidden),
         shown: shell.is_none_or(|shell| shell.footer),
         sidebar: title_of(Action::ShowSidebar.command(), locale),
         page: None,
         channel: match context.channel {
             Channel::Production => None,
-            other => Some(other.word()),
+            Channel::Staging => Some(crate::text::said(Worded::ChannelStaging, locale)),
+            Channel::Development(_) => Some(crate::text::said(Worded::ChannelDevelopment, locale)),
         },
         drawer,
         info: Info {
@@ -359,6 +365,8 @@ const fn glyph_of(by: By) -> IconDrawing {
 #[component]
 pub fn TheFooter(view: View) -> Element {
     let View {
+        named,
+        folds,
         shown,
         sidebar,
         page,
@@ -369,7 +377,11 @@ pub fn TheFooter(view: View) -> Element {
         controls,
     } = view;
     rsx! {
-        Footer { class: "overflow-hidden", label: NAME, visibility: FooterVisibility::Always, shown,
+        Footer {
+            class: "overflow-hidden",
+            label: named,
+            visibility: if folds { FooterVisibility::Auto } else { FooterVisibility::Always },
+            shown,
             FooterCorner { side: FooterCornerSide::Start }
             FooterLine { kind: FooterLineKind::Modeline,
                 Button {
@@ -806,6 +818,7 @@ mod tests {
             draft: String::new(),
             asking: None,
             seats: BTreeMap::new(),
+            settings: crate::mirror::Settings::default(),
             next: 2,
         }
     }
@@ -934,7 +947,10 @@ mod tests {
             );
             assert!(
                 written.contains("role=\"group\"")
-                    && written.contains(&format!("aria-label=\"{}\"", super::NAME)),
+                    && written.contains(&format!(
+                        "aria-label=\"{}\"",
+                        crate::text::said(nc_catalog::interface::Text::PartFooter, Locale::En)
+                    )),
                 "{written}"
             );
         }
@@ -954,20 +970,26 @@ mod tests {
         }
     }
 
-    /// Until its setting exists the footer is always shown, and the state's
-    /// own "shown now" is written for the folded footer the setting will
-    /// choose.
+    /// The footer's visibility is its setting's: always shown until a
+    /// person hides it, then the design system's folding footer — and the
+    /// state's own "shown now" is written on it either way.
     #[test]
-    fn the_footer_is_always_shown_until_its_setting_exists() {
+    fn the_footers_visibility_is_its_settings() {
         let mut shell = first_run();
-        for shown in [true, false] {
-            shell.footer = shown;
-            let written = drawn(&shell, production(Locale::En));
-            assert_eq!(values(&written, "data-nd-visibility"), ["always"]);
-            assert_eq!(
-                values(&written, "data-nd-shown"),
-                [if shown { "true" } else { "false" }]
-            );
+        for (setting, visibility) in [
+            (crate::mirror::Visibility::Always, "always"),
+            (crate::mirror::Visibility::Hidden, "auto"),
+        ] {
+            shell.settings.footer = setting;
+            for shown in [true, false] {
+                shell.footer = shown;
+                let written = drawn(&shell, production(Locale::En));
+                assert_eq!(values(&written, "data-nd-visibility"), [visibility]);
+                assert_eq!(
+                    values(&written, "data-nd-shown"),
+                    [if shown { "true" } else { "false" }]
+                );
+            }
         }
         let before = markup(&view(None, production(Locale::En)));
         assert_eq!(values(&before, "data-nd-shown"), ["true"], "{before}");
@@ -1091,18 +1113,14 @@ mod tests {
     #[test]
     fn the_modelines_end_is_the_channel_the_connection_and_the_drawer() {
         let shell = everything();
-        for (channel, word) in [
-            (Channel::Production, None),
-            (Channel::Staging, Some("staging")),
-            (development(), Some("development")),
+        for (channel, locale, word) in [
+            (Channel::Production, Locale::En, None),
+            (Channel::Staging, Locale::En, Some("Staging")),
+            (development(), Locale::En, Some("Development")),
+            (Channel::Staging, Locale::PtBR, Some("Homologação")),
+            (development(), Locale::PtBR, Some("Desenvolvimento")),
         ] {
-            let written = drawn(
-                &shell,
-                Context {
-                    locale: Locale::En,
-                    channel,
-                },
-            );
+            let written = drawn(&shell, Context { locale, channel });
             let modeline = line(&written, "modeline");
             let end = modeline
                 .split_once("<div class=\"flex-1\"></div>")
@@ -1121,7 +1139,7 @@ mod tests {
                 "the count, and the channel where it is not production: {end}"
             );
             match word {
-                None => assert!(!end.contains("staging") && !end.contains("development")),
+                None => assert!(!end.contains("Staging") && !end.contains("Development")),
                 Some(word) => {
                     let at = end.find(&format!(">{word}</span>")).expect("the channel");
                     assert!(at < connection, "{end}");
@@ -1129,7 +1147,7 @@ mod tests {
             }
             assert_eq!(
                 values(end, "aria-label"),
-                [title_of("drawer.expand", Locale::En).as_str()]
+                [title_of("drawer.expand", locale).as_str()]
             );
             assert!(end.trim_end().ends_with("</span></div></div>"), "{end}");
         }
@@ -1596,8 +1614,9 @@ mod tests {
             "12.3",
             "Visibility is a setting (§12.15)",
             Held::Partly(
-                the_footer_is_always_shown_until_its_setting_exists,
-                "the setting that folds the footer, with the settings pages",
+                the_footers_visibility_is_its_settings,
+                "the setting's page, with the settings pages; what shows and hides a folded \
+                 footer is the design system's own suite's",
             ),
         ),
         (
@@ -2643,6 +2662,8 @@ mod tests {
         assert_eq!(
             built,
             View {
+                named: "Rodapé".to_owned(),
+                folds: false,
                 shown: true,
                 sidebar: "Mostrar a barra lateral".to_owned(),
                 page: None,

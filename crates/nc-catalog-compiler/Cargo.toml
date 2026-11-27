@@ -20,6 +20,10 @@ toml.workspace = true
 # nothing of, because the judge refuses a schema holding one; this crate's
 # escapers read that table through a re-export rather than through a copy.
 nc-schema.workspace = true
+# **The one reader of Markdown**, so a wiki text or a generated page outside
+# the subset the interface draws fails the build here, naming its file and
+# line, instead of reaching a page as text nobody meant.
+nc-markdown.workspace = true
 
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
