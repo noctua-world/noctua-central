@@ -289,8 +289,9 @@ fn laid_out(seen: &Witnessed) -> bool {
 /// the leader menu in its drawer at the next tap, gives the keyboard back to
 /// the prompt line when Esc's command closes the menu and keeps it in the
 /// drawer where the drawer still shows a page, answers a part it cannot take
-/// the keyboard on with where its keyboard is, the state following the page
-/// each time, draws a second seat's
+/// the keyboard on with where its keyboard is, keeps the keyboard in the
+/// drawer when the menu's list becomes the command list, which takes it no
+/// longer, the state following the page each time, draws a second seat's
 /// hover and keyboard where the state puts them and as the design system
 /// draws a state, keeps everything inside the smallest window with every
 /// control at least the least target, moves where the state puts it, puts
@@ -467,6 +468,34 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     assert_eq!(emptied.get("keyboard"), "prompt", "{emptied:?}");
     run("leader.tap", none());
     window.until("the leader menu in its drawer again", |seen| {
+        seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
+    });
+
+    // **The leader menu's list become the command list**, by a prompt
+    // another hand set: the list stays where it was, and is no stop of the
+    // keyboard now, the prompt's keys walking it. The drawer still shows it,
+    // so the keyboard stays in the drawer — on its own element, the list
+    // taking it no longer — in the state as on the page, and is never left
+    // to the webview to drop onto nothing.
+    run("prompt.set", Value::object([("text", Value::text(":"))]));
+    run(
+        "window.move",
+        Value::object([("x", Value::Integer(60)), ("y", Value::Integer(40))]),
+    );
+    let listed = window.until("the command list in its drawer", |seen| {
+        seen.get("at") == "60,40"
+    });
+    assert_eq!(
+        (listed.get("shows"), listed.get("keyboard")),
+        ("footer,drawer", "drawer"),
+        "{listed:?}"
+    );
+    assert_eq!(keyboard_of(&run("shell.read", none())), "drawer");
+    run("prompt.clear", none());
+    let cleared = window.until("its prompt cleared", |seen| seen.get("shows") == "footer");
+    assert_eq!(cleared.get("keyboard"), "prompt", "{cleared:?}");
+    run("leader.tap", none());
+    window.until("the leader menu in its drawer once more", |seen| {
         seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
     });
 

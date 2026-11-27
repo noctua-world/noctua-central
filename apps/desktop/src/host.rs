@@ -205,7 +205,8 @@ pub struct Witnessed {
     pub styled: bool,
     /// The part the system's own keyboard is in: `prompt`, `drawer`,
     /// `sidebar`, `info`, `modeline`, `workspace`, `elsewhere`, or `-` for
-    /// none.
+    /// none — on nothing, or on an element that can no longer take it, which
+    /// the system's webview drops it from a moment later.
     pub keyboard: String,
     /// The parts that draw anything, of `footer`, `drawer`, `sidebar` and
     /// `workspace`, in that order.

@@ -5313,10 +5313,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
   script. The expanded info line's box that scrolls is a stop of the keyboard, which the
   real window's suite holds by the element's own tab index; that the engine then scrolls it
   by the arrows is the engine's, and no test presses a real key on it. A draw that takes
-  away the element the keyboard is on puts it on its part's own element, and where the
-  part is gone whole the page says nothing: it rests on the state having moved the
-  keyboard already, which the kernel does for the drawer — the one part a draw empties
-  whole — by sending every keyboard on a drawer left showing nothing to the prompt line.
+  away the element the keyboard is on, or leaves it unable to take it, puts it on its
+  part's own element, and where the part is gone whole the page says nothing: it rests on
+  the state having moved the keyboard already, which the kernel does for the drawer — the
+  one part a draw empties whole — by sending every keyboard on a drawer left showing
+  nothing to the prompt line. The info line's box collapsed under the keyboard is a case
+  the suite cannot reach, since only a real key or a press puts the keyboard on that box:
+  the suite holds the rule where a command leads to it, the leader menu's list become the
+  command list, on the same branch of the page's script, and that the system's webview
+  drops a keyboard left on an element that cannot take it a moment later, and keeps it on
+  the chevron once the rule moves it there, was measured by hand under `Xvfb` with real
+  keys.
 - **A surface a plugin shows, as the desktop draws it.** `apps/desktop/src/surface.rs`
   reads a tree's shape strictly — its kinds, its keys, the type and the closed choices of
   each value, and the kernel's count of nodes and depth — and takes the kernel's

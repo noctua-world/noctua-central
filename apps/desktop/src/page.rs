@@ -45,8 +45,9 @@
 //! changed since the last: an
 //! attribute set, removed or changed, a text changed, an element whose name
 //! changed replaced and one added or taken away — so an element that stays
-//! keeps its focus, a keyboard on one taken away goes onto its part's own
-//! element where the part still holds one, and what the design system's
+//! keeps its focus, a keyboard on one taken away, or on one left unable to
+//! take it, goes onto its part's own element where the part still holds
+//! one, and what the design system's
 //! scripts added to the page,
 //! the prompt's block among it, stays as they left it; the text area's
 //! content is never touched, since it is what the person typed.
@@ -134,7 +135,9 @@ pub const DRAFT: &str = "draft";
 /// holds one, so a keyboard alone reaches all it holds; whether
 /// every seat's attribute changes how the element it is on is drawn, judged
 /// where the system's own seat is not in that state there; which part the
-/// system's own keyboard is in; which parts draw anything; and every seat's
+/// system's own keyboard is in — none where the element it is on can no
+/// longer take it, since the system's webview drops it from there onto
+/// nothing a moment later; which parts draw anything; and every seat's
 /// state, by the element it is on.
 ///
 /// **The keys are heard before anything else hears them**, on the window in
@@ -160,9 +163,16 @@ pub const DRAFT: &str = "draft";
 ///
 /// **A draw never leaves the keyboard on nothing behind the state's back**:
 /// one that takes away the element the keyboard is on — the leader menu's
-/// list, closed in a drawer that still shows a page — puts it on the own
-/// element of the part it was in, where that part still holds one that can
-/// take it, so the page stays where the state says. Where the part is gone
+/// list, closed in a drawer that still shows a page — or leaves it unable to
+/// take it — the expanded info line's box, no stop once the line collapses,
+/// or the leader menu's list become the command list, which the prompt
+/// walks — puts it on the own element of the part it was in, where that part
+/// still holds one that can take it, so the page stays where the state says.
+/// An element that can take it is one the engine gives it to, a button or a
+/// field enabled, a link or one with a tab index, drawn and neither hidden
+/// nor inert; the system's webview leaves the keyboard on one that can no
+/// longer take it only until a later pass of its own drops it onto nothing.
+/// Where the part is gone
 /// whole, the state has moved the keyboard already — the kernel keeps none on
 /// a drawer that shows nothing open — and the window puts it there. **And a
 /// part `focus` names that cannot take the keyboard** — not drawn, or inside
@@ -248,6 +258,8 @@ pub const SCRIPT: &str = r"(() => {
         : where === 'info' ? document.querySelector('footer .nd-footer-line[data-nd-kind=info] .nd-footer-line-toggle')
           : null;
   const takes = (element) => element !== null && !element.closest('[inert], [hidden]');
+  const TAKERS = '[tabindex], a[href], button:enabled, input:enabled, select:enabled, textarea:enabled';
+  const keeps = (element) => takes(element) && element.matches(TAKERS) && element.getClientRects().length > 0;
   const keyboardAt = () => {
     const active = document.activeElement;
     return active && active !== document.body ? regionOf(active) || 'workspace' : 'workspace';
@@ -362,9 +374,9 @@ pub const SCRIPT: &str = r"(() => {
       }
       drawing = false;
       const after = document.activeElement;
-      if (held && (!after || after === document.body)) {
+      if (held && (!after || !keeps(after))) {
         const part = partOf(held);
-        if (takes(part)) part.focus();
+        if (keeps(part)) part.focus();
       }
     },
     draft(text) {
@@ -472,7 +484,7 @@ pub const SCRIPT: &str = r"(() => {
       }
       const placeOf = (element) => regionOf(element) || 'elsewhere';
       const active = document.activeElement;
-      const keyboard = !active || active === document.body || active === document.documentElement ? '-' : placeOf(active);
+      const keyboard = !active || !keeps(active) ? '-' : placeOf(active);
       const holds = (part) => part !== null && Array.from(part.querySelectorAll('*')).some(rendered);
       const shows = [['footer', document.querySelector('footer')], ['drawer', document.getElementById('noctua-drawer')],
         ['sidebar', document.getElementById('noctua-sidebar')], ['workspace', document.getElementById('noctua-workspace')]]
@@ -937,23 +949,29 @@ pub(crate) mod tests {
 
     /// The script keeps the keyboard where the state says.
     ///
-    /// A draw that takes away the element the keyboard is on puts it on the
-    /// own element of the part it was in, where that part still holds one
-    /// that can take it; a part `focus` names that cannot take it is
-    /// answered with where the keyboard is; and the witness holds every box
-    /// that scrolls to being a stop of the keyboard or holding one. What each
-    /// does in the system's webview is held by
-    /// `apps/desktop/tests/the_window_follows_its_daemon.rs`, the window
-    /// suite.
+    /// A draw that takes away the element the keyboard is on, or leaves it
+    /// unable to take it, puts it on the own element of the part it was in,
+    /// where that part still holds one that can take it; a part `focus`
+    /// names that cannot take it is answered with where the keyboard is; and
+    /// the witness says a keyboard on an element that cannot take it as on
+    /// nothing, and holds every box that scrolls to being a stop of the
+    /// keyboard or holding one. What each does in the system's webview is
+    /// held by `apps/desktop/tests/the_window_follows_its_daemon.rs`, the
+    /// window suite.
     #[test]
     fn the_script_keeps_the_keyboard_where_the_state_says() {
         for written in [
             "const held = before && before !== document.body && region.contains(before) ? \
              regionOf(before) : null;",
-            "if (held && (!after || after === document.body)) {\n        \
+            "if (held && (!after || !keeps(after))) {\n        \
              const part = partOf(held);\n        \
-             if (takes(part)) part.focus();",
+             if (keeps(part)) part.focus();",
             "const takes = (element) => element !== null && !element.closest('[inert], [hidden]');",
+            "const TAKERS = '[tabindex], a[href], button:enabled, input:enabled, \
+             select:enabled, textarea:enabled';",
+            "const keeps = (element) => takes(element) && element.matches(TAKERS) && \
+             element.getClientRects().length > 0;",
+            "const keyboard = !active || !keeps(active) ? '-' : placeOf(active);",
             "if (!takes(element)) {\n        say('focus ' + keyboardAt());\n        return;\n      }",
             "return active && active !== document.body ? regionOf(active) || 'workspace' : \
              'workspace';",

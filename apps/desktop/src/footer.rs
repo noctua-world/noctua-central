@@ -421,7 +421,8 @@ pub fn TheFooter(view: View) -> Element {
 /// gives a box that scrolls no stop of its own, so without one a person on
 /// the keyboard alone would see the first rows and never the others. One
 /// line tall it holds one row, cut at its end, and is no stop: the chevron
-/// is the way to the rest.
+/// is the way to the rest, and where the line collapses under a keyboard on
+/// the box, the page puts the keyboard on the chevron ([`crate::page::SCRIPT`]).
 #[component]
 fn InfoLine(info: Info) -> Element {
     let Info {
