@@ -20088,18 +20088,18 @@ mod the_frozen_path_rule {
         ("desktop/commands.rs", 35, 6),
         ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 96, 4),
+        ("desktop/footer.rs", 97, 4),
         ("desktop/host.rs", 123, 14),
         ("desktop/keys.rs", 29, 3),
         ("desktop/lib.rs", 0, 14),
         ("desktop/main.rs", 23, 6),
         ("desktop/mirror.rs", 88, 18),
-        ("desktop/page.rs", 19, 1),
+        ("desktop/page.rs", 20, 1),
         ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
         ("desktop/surface.rs", 67, 19),
-        ("desktop/the_window_follows_its_daemon.rs", 18, 5),
+        ("desktop/the_window_follows_its_daemon.rs", 20, 5),
         ("desktop/the_window_opens_hidden.rs", 6, 3),
         ("desktop/theme.rs", 21, 2),
         ("dirs/lib.rs", 1, 0),
@@ -20231,7 +20231,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 66, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 27, 1),
-        ("nc-kernel/shell.rs", 209, 35),
+        ("nc-kernel/shell.rs", 212, 35),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 316, 87),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -26276,7 +26276,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24968;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24984;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26295,7 +26295,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7863;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7862;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26312,7 +26312,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2693;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2694;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26346,7 +26346,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32534;
+    const THE_REARRANGEMENTS_JUDGED: usize = 32569;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26400,7 +26400,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **799 of 32,534 are accepted by the first-line
+    /// rules the gates apply: **799 of 32,569 are accepted by the first-line
     /// rule alone, and 526 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26433,7 +26433,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2693 of
+    /// this tree offers, **2694 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a

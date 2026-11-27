@@ -96,13 +96,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"drawer_back","description":"Leave a sub-page of the drawer's page, or close that page if it has none.\n\nDoes what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"drawer_back","description":"Leave a sub-page of the drawer's page, or close that page if it has none.\n\nDoes what Esc does in the drawer: it goes back one step inside the drawer's page in focus or, when that page is not inside a sub-page, closes it in the drawer; a seat whose keyboard was on a drawer left showing nothing goes back to the prompt line.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"drawer_back","description":"Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.\n\nFaz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"drawer_back","description":"Sair de uma subpágina da página da gaveta, ou fechar a página se não houver.\n\nFaz o que o Esc faz na gaveta: volta um passo dentro da página em foco na gaveta ou, quando essa página não está numa subpágina, fecha-a na gaveta; um assento cujo teclado estava numa gaveta que fica sem mostrar nada volta para a linha do prompt.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `drawer.collapse`
@@ -642,13 +642,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"shell_focus","description":"Give a seat's keyboard to a part of an interface window.\n\nMoves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"shell_focus","description":"Give a seat's keyboard to a part of an interface window.\n\nMoves the keyboard focus of one seat — the system's own unless you name another — to a part of a window: its workspace area, the drawer, the prompt line, the sidebar, the info line or the modeline. Every window of the interface follows it. A keyboard on a drawer that shows nothing open goes back to the prompt line, whichever command left the drawer so.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"shell_focus","description":"Levar o teclado de um assento para uma parte de uma janela da interface.\n\nMove o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"shell_focus","description":"Levar o teclado de um assento para uma parte de uma janela da interface.\n\nMove o foco do teclado de um assento — o do próprio sistema, a menos que você indique outro — para uma parte de uma janela: a área de trabalho, a gaveta, a linha do prompt, a barra lateral, a linha de informações ou a linha de modo. Todas as janelas da interface acompanham. Um teclado numa gaveta que não mostra nada aberto volta para a linha do prompt, seja qual for o comando que a deixou assim.","inputSchema":{"type":"object","properties":{"seat":{"type":"integer","minimum":1,"maximum":4},"window":{"type":"integer","minimum":1},"region":{"type":"string","enum":["workspace","drawer","prompt","sidebar","info","modeline"]}},"required":["region"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `shell.hover`

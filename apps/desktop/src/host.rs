@@ -194,8 +194,11 @@ pub struct Witnessed {
     /// Whether every line of the footer stands wholly inside the window and
     /// inside every box that clips it: the footer's lines stay (§12.19).
     pub lines: bool,
-    /// Whether every control drawn is at least `--noctua-target-min` each
-    /// way.
+    /// Whether every control can be reached, by a touch and by the keyboard.
+    ///
+    /// Every control drawn is at least `--noctua-target-min` each way, and
+    /// every box that scrolls what it holds past what it shows is a stop of
+    /// the keyboard or holds one.
     pub reachable: bool,
     /// Whether every seat's attribute changes how the element it is on is
     /// drawn, where the system's own seat is not in that state there.
@@ -2024,7 +2027,10 @@ impl Running<'_> {
     /// the page that could not take it — and only when the state moved it
     /// from where the window last put it or the page last said it went: on a
     /// part's own element, or given up to nothing for the workspace area,
-    /// which holds nothing a keyboard is on yet.
+    /// which holds nothing a keyboard is on yet. A part that cannot take it —
+    /// not drawn, hidden or inert — the page answers with where the keyboard
+    /// is, which this window then says as the seat's focus, so the state
+    /// follows the page ([`crate::page::SCRIPT`]).
     fn keyboard(&mut self, opened: &Opened) {
         if !self.showing.is_loaded() {
             return;

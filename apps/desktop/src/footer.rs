@@ -220,6 +220,12 @@ pub struct Info {
     pub expand: String,
     /// `info.collapse`'s display name, the chevron's while it is expanded.
     pub collapse: String,
+    /// The line's own name, the word the catalog files its commands under.
+    ///
+    /// It is `info line` in English and `linha de informações` in
+    /// Portuguese: the name of the box its rows scroll in while it is
+    /// expanded, when that box is a stop of the keyboard.
+    pub named: String,
 }
 
 /// What the footer shows.
@@ -325,6 +331,7 @@ pub fn view(shell: Option<&Shell>, context: Context) -> View {
             rows: shell.map(|shell| rows(shell, locale)).unwrap_or_default(),
             expand: title_of(Action::ExpandInfo.command(), locale),
             collapse: title_of(Action::CollapseInfo.command(), locale),
+            named: crate::drawer::part_named(Action::ExpandInfo.command(), locale),
         },
         prompt: title_of("prompt.set", locale),
         controls: None,
@@ -407,6 +414,14 @@ pub fn TheFooter(view: View) -> Element {
 
 /// The info line: its glyph first, then a row for each of what it shows,
 /// and the chevron that expands it and collapses it again (§12.6).
+///
+/// **Expanded, the box its rows scroll in is a stop of the keyboard**, a
+/// region named by the line's own name: a window with less room than the
+/// line holds scrolls the rest inside it (§12.19), and the system's webview
+/// gives a box that scrolls no stop of its own, so without one a person on
+/// the keyboard alone would see the first rows and never the others. One
+/// line tall it holds one row, cut at its end, and is no stop: the chevron
+/// is the way to the rest.
 #[component]
 fn InfoLine(info: Info) -> Element {
     let Info {
@@ -414,11 +429,17 @@ fn InfoLine(info: Info) -> Element {
         rows,
         expand,
         collapse,
+        named,
     } = info;
     let action = if expanded {
         Action::CollapseInfo
     } else {
         Action::ExpandInfo
+    };
+    let (stop, role, label) = if expanded {
+        (Some("0"), Some("region"), Some(named))
+    } else {
+        (None, None, None)
     };
     let first = rows.first().cloned();
     let rest = rows.into_iter().skip(1);
@@ -432,7 +453,11 @@ fn InfoLine(info: Info) -> Element {
             collapse_label: collapse,
             action: action.command(),
             live: true,
-            div { class: "max-h-full flex-1 overflow-x-hidden overflow-y-auto",
+            div {
+                class: "max-h-full flex-1 overflow-x-hidden overflow-y-auto",
+                tabindex: stop,
+                role,
+                "aria-label": label,
                 div {
                     Icon { icon: IconDrawing::INFO, size: IconSize::Small }
                     if let Some(row) = first {
@@ -1192,10 +1217,45 @@ mod tests {
             );
         }
         assert!(
-            line(&written, "info")
-                .contains("<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\">"),
+            line(&written, "info").contains(
+                "<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\" tabindex=\"0\""
+            ),
             "{written}"
         );
+    }
+
+    /// Expanded, the box the info line's rows scroll in is a stop of the keyboard.
+    ///
+    /// The box is then a region named by the line's own name in the window's
+    /// locale, so a keyboard alone reaches every row a small window scrolls
+    /// past what it shows (§12.19); one line tall it is no stop, the chevron
+    /// being the way to the rest.
+    #[test]
+    fn the_info_line_expanded_is_a_stop_of_the_keyboard_named_by_the_line() {
+        for (locale, named) in [
+            (Locale::En, "info line"),
+            (Locale::PtBR, "linha de informações"),
+        ] {
+            for expanded in [true, false] {
+                let mut shell = first_run();
+                shell.expanded = expanded;
+                shell.message = Some("Saved.".to_owned());
+                let written = markup(&view(Some(&shell), production(locale)));
+                let scroller = if expanded {
+                    format!(
+                        "<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\" \
+                         tabindex=\"0\" role=\"region\" aria-label=\"{named}\"><div><svg"
+                    )
+                } else {
+                    "<div class=\"max-h-full flex-1 overflow-x-hidden overflow-y-auto\"><div><svg"
+                        .to_owned()
+                };
+                assert!(
+                    line(&written, "info").contains(&scroller),
+                    "{locale:?} expanded={expanded}: {written}"
+                );
+            }
+        }
     }
 
     /// What the info line shows: the message said on it — over any hover
@@ -2592,6 +2652,7 @@ mod tests {
                     rows: Vec::new(),
                     expand: title_of("info.expand", Locale::PtBR),
                     collapse: title_of("info.collapse", Locale::PtBR),
+                    named: "linha de informações".to_owned(),
                 },
                 prompt: title_of("prompt.set", Locale::PtBR),
                 controls: None,

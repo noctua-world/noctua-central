@@ -23,7 +23,8 @@
 //! and of what its page says it shows: its size in CSS pixels, whether
 //! everything drawn stands inside it either way, whether every line of the
 //! footer stands whole inside it, whether every control is at
-//! least `--noctua-target-min` each way, whether each seat's attribute
+//! least `--noctua-target-min` each way and every box that scrolls what it
+//! holds a stop of the keyboard or holding one, whether each seat's attribute
 //! changes how its element is drawn, where the system's own keyboard is,
 //! which parts draw anything, every seat's state by the element it is on, and
 //! a digest of the markup the page holds (`nc_desktop::host::witnessed_line`).
@@ -249,6 +250,31 @@ fn none() -> Value {
     Value::object(Vec::<(&str, Value)>::new())
 }
 
+/// Where the daemon's state, as `shell.read` answers it in `read`, puts the
+/// system's own seat's keyboard: the part's word, or `-` for nowhere.
+fn keyboard_of(read: &Value) -> String {
+    /// The field `name` of `value`, where it is an object.
+    fn field<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
+        match value {
+            Value::Object(fields) => fields.get(name),
+            _ => None,
+        }
+    }
+    let seats = field(read, "shell").and_then(|shell| field(shell, "seats"));
+    let Some(Value::Array(seats)) = seats else {
+        return "-".to_owned();
+    };
+    seats
+        .iter()
+        .find(|seat| matches!(field(seat, "seat"), Some(Value::Integer(1))))
+        .and_then(|seat| field(seat, "focus"))
+        .and_then(|focus| match field(focus, "region") {
+            Some(Value::Text(region)) => Some(region.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| "-".to_owned())
+}
+
 /// Whether the page `seen` holds has been laid out in a window shown: a
 /// webview a hidden window holds may have no size at all, which `WebKitGTK`
 /// gives it until the window is mapped, and says its size once it has one.
@@ -260,7 +286,11 @@ fn laid_out(seen: &Witnessed) -> bool {
 
 /// The window opens hidden and undecorated with nothing but the footer,
 /// shows when the Leader is tapped with the keyboard on its prompt, opens
-/// the leader menu in its drawer at the next tap, draws a second seat's
+/// the leader menu in its drawer at the next tap, gives the keyboard back to
+/// the prompt line when Esc's command closes the menu and keeps it in the
+/// drawer where the drawer still shows a page, answers a part it cannot take
+/// the keyboard on with where its keyboard is, the state following the page
+/// each time, draws a second seat's
 /// hover and keyboard where the state puts them and as the design system
 /// draws a state, keeps everything inside the smallest window with every
 /// control at least the least target, moves where the state puts it, puts
@@ -376,6 +406,67 @@ fn the_window_shows_hides_and_comes_back_from_its_daemon_with_a_second_seat() {
     // **The leader menu**, in the drawer, the keyboard on it.
     run("leader.tap", none());
     window.until("the leader menu in its drawer", |seen| {
+        seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
+    });
+
+    // **Closed by Esc's command**, the drawer's one page: the drawer then
+    // shows nothing, so the keyboard goes back to the prompt line, in the
+    // state as on the page — never left on the list the draw took away.
+    run("drawer.back", none());
+    let closed = window.until("the leader menu closed", |seen| {
+        seen.get("shows") == "footer"
+    });
+    assert_eq!(closed.get("keyboard"), "prompt", "{closed:?}");
+    assert_eq!(keyboard_of(&run("shell.read", none())), "prompt");
+
+    // **A part the page cannot take the keyboard on**, named by the state:
+    // the sidebar, hidden. The page answers with where its keyboard is, and
+    // the state follows it back to the prompt line.
+    run(
+        "shell.focus",
+        Value::object([("region", Value::text("sidebar"))]),
+    );
+    let deadline = Instant::now() + PATIENCE;
+    while keyboard_of(&run("shell.read", none())) != "prompt" {
+        assert!(
+            Instant::now() < deadline,
+            "the state kept the keyboard on a hidden sidebar"
+        );
+        window.until("a line once the state moved", |_| true);
+    }
+
+    // **The leader menu beside a page in the drawer**, closed by Esc's
+    // command: the drawer still shows the page, so the keyboard stays in the
+    // drawer — the menu's list taken away, on the drawer's own element — in
+    // the state as on the page. The window moved after it, so the line read
+    // is one drawn past the menu's closing.
+    run(
+        "page.open",
+        Value::object([("kind", Value::text("help")), ("in", Value::text("drawer"))]),
+    );
+    run("leader.tap", none());
+    window.until("the leader menu beside a page in its drawer", |seen| {
+        seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
+    });
+    run("drawer.back", none());
+    run(
+        "window.move",
+        Value::object([("x", Value::Integer(40)), ("y", Value::Integer(60))]),
+    );
+    let beside = window.until("the page left in its drawer", |seen| {
+        seen.get("at") == "40,60"
+    });
+    assert_eq!(
+        (beside.get("shows"), beside.get("keyboard")),
+        ("footer,drawer", "drawer"),
+        "{beside:?}"
+    );
+    assert_eq!(keyboard_of(&run("shell.read", none())), "drawer");
+    run("drawer.back", none());
+    let emptied = window.until("its drawer emptied", |seen| seen.get("shows") == "footer");
+    assert_eq!(emptied.get("keyboard"), "prompt", "{emptied:?}");
+    run("leader.tap", none());
+    window.until("the leader menu in its drawer again", |seen| {
         seen.get("shows") == "footer,drawer" && seen.get("keyboard") == "drawer"
     });
 

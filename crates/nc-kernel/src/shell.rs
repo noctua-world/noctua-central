@@ -989,6 +989,11 @@ fn the_read<E: Environment>(shared: &Shared<E>, held: Option<&Held>) -> Value {
 /// What `verb` with `args` makes of `state`, judged against what `known`
 /// says of the kernel.
 ///
+/// **No keyboard is left on a drawer that shows nothing open**: whatever the
+/// command, a seat's keyboard on the drawer once it is emptied or collapsed
+/// goes back to its window's prompt line ([`State::drawer_shut`]), so a
+/// window never holds a keyboard on a part it does not draw.
+///
 /// # Errors
 ///
 /// As [`ran`] says; `state` is left as it was.
@@ -1005,6 +1010,7 @@ pub(crate) fn changed(
         known,
     }
     .made(verb)?;
+    next.drawer_shut();
     *state = next;
     Ok(())
 }
@@ -1895,6 +1901,30 @@ impl State {
         }
     }
 
+    /// Whether the drawer shows anything a keyboard can be on: what the prompt
+    /// asks for, which it lists collapsed or not, or a page, while it is not
+    /// collapsed.
+    fn drawer_open(&self) -> bool {
+        self.asking.is_some() || (!self.drawer.pages.is_empty() && !self.drawer.collapsed)
+    }
+
+    /// Every seat whose keyboard is on a drawer that shows nothing open —
+    /// emptied, or collapsed — gone back to its window's prompt line: where
+    /// the leader menu's keyboard came from (§12.8, the second rule), and
+    /// where what is typed next goes.
+    fn drawer_shut(&mut self) {
+        if self.drawer_open() {
+            return;
+        }
+        for seat in self.seats.values_mut() {
+            if let Some(focus) = &mut seat.focus
+                && focus.region == Region::Drawer
+            {
+                focus.region = Region::Prompt;
+            }
+        }
+    }
+
     /// Hides the sidebar, every seat whose keyboard was on it going back to
     /// its window's workspace area.
     fn sidebar_hidden(&mut self) {
@@ -2440,6 +2470,15 @@ impl State {
                     seat.focus.is_none_or(|focus| {
                         self.windows.iter().any(|window| window.id == focus.window)
                     })
+                }),
+            ),
+            (
+                "a seat's keyboard is on the drawer only while it shows something open",
+                seats(&|seat| {
+                    self.drawer_open()
+                        || seat
+                            .focus
+                            .is_none_or(|focus| focus.region != Region::Drawer)
                 }),
             ),
             (
@@ -3627,6 +3666,103 @@ mod tests {
         assert_eq!(shared.drawer.share, 49);
     }
 
+    /// A keyboard on a drawer that comes to show nothing open goes back to
+    /// its window's prompt line, where the leader menu's came from, so no
+    /// seat's keyboard is left on a part a window does not draw.
+    ///
+    /// **Every way the drawer shuts, the keyboard on it each time**: Esc on
+    /// the leader menu, its one page; the menu closed by `page.close`; closed
+    /// by the page an entry of it opens in the workspace area; the drawer
+    /// collapsed; and the command list closed, by `prompt.clear` and by
+    /// typing past the `;`, with the keyboard on its list — and a keyboard
+    /// put on a drawer that shows nothing goes to the prompt line at once. A
+    /// drawer that still shows a page keeps the keyboard; a seat whose
+    /// keyboard is elsewhere stays there; and each seat goes to the prompt
+    /// line of its own window.
+    #[test]
+    fn a_keyboard_on_a_drawer_that_shuts_goes_back_to_the_prompt_line() {
+        let on = |state: &State, seat: u64| state.seats.get(&seat).and_then(|held| held.focus);
+        let prompt = |window: u64| {
+            Some(Focus {
+                window,
+                region: Region::Prompt,
+            })
+        };
+        let shown = ran(&State::default(), Verb::LeaderTap, &json!({}));
+        let menu = ran(&shown, Verb::LeaderTap, &json!({}));
+        assert_eq!(on(&menu, 1).map(|focus| focus.region), Some(Region::Drawer));
+        let leader = page_of(&menu, Kind::Leader);
+        let listing = ran(
+            &ran(&shown, Verb::PromptSet, &json!({"text": ";"})),
+            Verb::ShellFocus,
+            &json!({"region": "drawer"}),
+        );
+        assert_eq!(
+            on(&listing, 1).map(|focus| focus.region),
+            Some(Region::Drawer),
+            "the command list holds a keyboard"
+        );
+        for (how, shut) in [
+            ("Esc", ran(&menu, Verb::DrawerBack, &json!({}))),
+            (
+                "page.close",
+                ran(&menu, Verb::PageClose, &json!({"page": leader})),
+            ),
+            ("an entry", ran(&menu, Verb::PageSettings, &json!({}))),
+            ("collapse", ran(&menu, Verb::DrawerCollapse, &json!({}))),
+            ("prompt.clear", ran(&listing, Verb::PromptClear, &json!({}))),
+            (
+                "typing",
+                ran(&listing, Verb::PromptSet, &json!({"text": "x"})),
+            ),
+            (
+                "put there",
+                ran(&shown, Verb::ShellFocus, &json!({"region": "drawer"})),
+            ),
+        ] {
+            assert_eq!(on(&shut, 1), prompt(1), "{how}: {shut:?}");
+        }
+        let beside = ran(
+            &ran(
+                &shown,
+                Verb::PageOpen,
+                &json!({"kind": "help", "in": "drawer"}),
+            ),
+            Verb::LeaderTap,
+            &json!({}),
+        );
+        let kept = ran(&beside, Verb::DrawerBack, &json!({}));
+        assert_eq!(kept.drawer.pages, [page_of(&kept, Kind::Help)]);
+        assert_eq!(
+            on(&kept, 1).map(|focus| focus.region),
+            Some(Region::Drawer),
+            "a drawer showing a page keeps the keyboard"
+        );
+        let two = ran(&menu, Verb::WindowOpen, &json!({}));
+        let second = two.windows[1].id;
+        let seated = ran(
+            &ran(
+                &two,
+                Verb::ShellFocus,
+                &json!({"seat": 2, "window": second, "region": "drawer"}),
+            ),
+            Verb::ShellFocus,
+            &json!({"seat": 3, "region": "sidebar"}),
+        );
+        let shut = ran(&seated, Verb::DrawerBack, &json!({}));
+        assert_eq!(
+            (on(&shut, 1), on(&shut, 2), on(&shut, 3)),
+            (
+                prompt(1),
+                prompt(second),
+                Some(Focus {
+                    window: 1,
+                    region: Region::Sidebar
+                })
+            )
+        );
+    }
+
     /// A window opens shown, and closes with the pages only it showed — the
     /// last one hidden instead — and every seat in it loses its focus.
     #[test]
@@ -3862,8 +3998,10 @@ mod tests {
     /// menu, opened by a second tap and flipped by a third; the drawer
     /// collapsed, sent toward itself and resized; the sidebar shown and the
     /// footer hidden; a message expanded; the prompt asking for a parameter
-    /// with a draft no ASCII writes; and seat 1's pointer and seat 3's
-    /// keyboard each on something, seat 3 dragging.
+    /// with a draft no ASCII writes; seat 1's keyboard on the drawer the menu
+    /// opened in, which the prompt's asking keeps open though collapsed; and
+    /// seat 1's pointer and seat 3's keyboard each on something, seat 3
+    /// dragging.
     fn varied() -> State {
         let mut state = State::default();
         for (verb, args) in [
@@ -4065,8 +4203,9 @@ mod tests {
     /// with nothing in it, its share at half or at nothing; a draft or a
     /// message past its bytes, a message empty or holding what no reader
     /// sees, a command that is no name and a parameter that is no word; and a
-    /// seat past the bound or numbered zero, its focus on no window, and what
-    /// it hovers, selects or drags no word.
+    /// seat past the bound or numbered zero, its focus on no window, its
+    /// keyboard on a drawer that shows nothing open, and what it hovers,
+    /// selects or drags no word.
     #[expect(
         clippy::too_many_lines,
         reason = "one table, a row for each clause of the rules: split, a clause could lose \
@@ -4375,6 +4514,13 @@ mod tests {
                         region: Region::Prompt,
                     });
                 }),
+            ),
+            (
+                "a seat's keyboard is on the drawer only while it shows something open",
+                // The drawer is collapsed, so with the prompt asking for
+                // nothing it shows nothing open, and seat 1's keyboard is on
+                // it.
+                Box::new(|state: &mut State| state.asking = None),
             ),
             (
                 "what a seat hovers, selects or drags is a word",

@@ -45,7 +45,9 @@
 //! changed since the last: an
 //! attribute set, removed or changed, a text changed, an element whose name
 //! changed replaced and one added or taken away — so an element that stays
-//! keeps its focus, and what the design system's scripts added to the page,
+//! keeps its focus, a keyboard on one taken away goes onto its part's own
+//! element where the part still holds one, and what the design system's
+//! scripts added to the page,
 //! the prompt's block among it, stays as they left it; the text area's
 //! content is never touched, since it is what the person typed.
 //! `window.noctua.draft` writes a draft into the prompt's text area, unless
@@ -127,7 +129,9 @@ pub const DRAFT: &str = "draft";
 /// whether every element drawn stands inside the window, or inside something
 /// that clips it, each way; whether every line of the footer stands wholly
 /// inside the window and inside every box that clips it; whether every
-/// control drawn is at least `--noctua-target-min` each way; whether
+/// control drawn is at least `--noctua-target-min` each way, and every box
+/// that scrolls what it holds past what it shows is a stop of the keyboard or
+/// holds one, so a keyboard alone reaches all it holds; whether
 /// every seat's attribute changes how the element it is on is drawn, judged
 /// where the system's own seat is not in that state there; which part the
 /// system's own keyboard is in; which parts draw anything; and every seat's
@@ -153,6 +157,18 @@ pub const DRAFT: &str = "draft";
 /// on nothing, outside a draw — as the workspace area; a window that loses the
 /// keyboard to another keeps its place and says nothing. `focus` puts it on a
 /// part's own element, and gives it up to nothing for the workspace area.
+///
+/// **A draw never leaves the keyboard on nothing behind the state's back**:
+/// one that takes away the element the keyboard is on — the leader menu's
+/// list, closed in a drawer that still shows a page — puts it on the own
+/// element of the part it was in, where that part still holds one that can
+/// take it, so the page stays where the state says. Where the part is gone
+/// whole, the state has moved the keyboard already — the kernel keeps none on
+/// a drawer that shows nothing open — and the window puts it there. **And a
+/// part `focus` names that cannot take the keyboard** — not drawn, or inside
+/// something hidden or inert, as a collapsed sidebar is — is answered with
+/// where the keyboard is, said as above, so the state follows the page rather
+/// than name a part the page has no keyboard in.
 ///
 /// **A draw leaves nothing pointing at an option that is gone**: once a part
 /// is brought to its markup and enhanced again, an `aria-activedescendant`
@@ -231,6 +247,11 @@ pub const SCRIPT: &str = r"(() => {
       : where === 'modeline' ? document.querySelector('footer .nd-footer-line[data-nd-kind=modeline] button')
         : where === 'info' ? document.querySelector('footer .nd-footer-line[data-nd-kind=info] .nd-footer-line-toggle')
           : null;
+  const takes = (element) => element !== null && !element.closest('[inert], [hidden]');
+  const keyboardAt = () => {
+    const active = document.activeElement;
+    return active && active !== document.body ? regionOf(active) || 'workspace' : 'workspace';
+  };
   const within = (where) => where === 'prompt'
     ? document.querySelector('footer')
     : where === 'drawer' || where === 'sidebar' ? document.getElementById('noctua-' + where) : null;
@@ -329,6 +350,8 @@ pub const SCRIPT: &str = r"(() => {
       const key = next.id || next.localName;
       const region = next.id ? document.getElementById(next.id) : document.querySelector(next.localName);
       if (!region || !drawn.has(key)) return;
+      const before = document.activeElement;
+      const held = before && before !== document.body && region.contains(before) ? regionOf(before) : null;
       drawing = true;
       if (window.noctua.release) window.noctua.release(region);
       bring(region, drawn.get(key), next);
@@ -338,6 +361,11 @@ pub const SCRIPT: &str = r"(() => {
         if (!document.getElementById(holder.getAttribute('aria-activedescendant'))) holder.removeAttribute('aria-activedescendant');
       }
       drawing = false;
+      const after = document.activeElement;
+      if (held && (!after || after === document.body)) {
+        const part = partOf(held);
+        if (takes(part)) part.focus();
+      }
     },
     draft(text) {
       const area = document.querySelector('footer .nd-prompt-input');
@@ -357,7 +385,11 @@ pub const SCRIPT: &str = r"(() => {
         return;
       }
       const element = partOf(where);
-      if (element && active !== element) element.focus();
+      if (!takes(element)) {
+        say('focus ' + keyboardAt());
+        return;
+      }
+      if (active !== element) element.focus();
     },
     seats(told) {
       const seat = window.noctua.seat;
@@ -428,6 +460,15 @@ pub const SCRIPT: &str = r"(() => {
         if (!rendered(control)) continue;
         const box = control.getBoundingClientRect();
         if (box.width < least - 0.5 || box.height < least - 0.5) reachable = false;
+      }
+      const SCROLLS = ['auto', 'scroll'];
+      const stops = (element) => [element, ...element.querySelectorAll('*')].some((one) => one.tabIndex >= 0 && rendered(one));
+      for (const element of [root, ...root.querySelectorAll('*')]) {
+        if (!rendered(element)) continue;
+        const style = getComputedStyle(element);
+        const scrolls = (SCROLLS.includes(style.overflowY) && element.scrollHeight - element.clientHeight > 1)
+          || (SCROLLS.includes(style.overflowX) && element.scrollWidth - element.clientWidth > 1);
+        if (scrolls && !stops(element)) reachable = false;
       }
       const placeOf = (element) => regionOf(element) || 'elsewhere';
       const active = document.activeElement;
@@ -891,6 +932,35 @@ pub(crate) mod tests {
                     .any(|(name, contents)| *name == shipped && contents.contains(exported)),
                 "the design system ships {exported} in {shipped}, which the module imports"
             );
+        }
+    }
+
+    /// The script keeps the keyboard where the state says.
+    ///
+    /// A draw that takes away the element the keyboard is on puts it on the
+    /// own element of the part it was in, where that part still holds one
+    /// that can take it; a part `focus` names that cannot take it is
+    /// answered with where the keyboard is; and the witness holds every box
+    /// that scrolls to being a stop of the keyboard or holding one. What each
+    /// does in the system's webview is held by
+    /// `apps/desktop/tests/the_window_follows_its_daemon.rs`, the window
+    /// suite.
+    #[test]
+    fn the_script_keeps_the_keyboard_where_the_state_says() {
+        for written in [
+            "const held = before && before !== document.body && region.contains(before) ? \
+             regionOf(before) : null;",
+            "if (held && (!after || after === document.body)) {\n        \
+             const part = partOf(held);\n        \
+             if (takes(part)) part.focus();",
+            "const takes = (element) => element !== null && !element.closest('[inert], [hidden]');",
+            "if (!takes(element)) {\n        say('focus ' + keyboardAt());\n        return;\n      }",
+            "return active && active !== document.body ? regionOf(active) || 'workspace' : \
+             'workspace';",
+            "if (scrolls && !stops(element)) reachable = false;",
+            "one.tabIndex >= 0 && rendered(one)",
+        ] {
+            assert!(SCRIPT.contains(written), "{written} is not in {SCRIPT}");
         }
     }
 

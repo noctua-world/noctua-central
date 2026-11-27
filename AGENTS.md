@@ -5310,7 +5310,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   seat by its number. The info line is a live region, so a hover the state holds is
   announced as a notice is. And Dioxus's interpreter, which `apps/desktop/src/assets.rs`
   serves, is loaded by no page: the footer is brought to new markup by the document's own
-  script.
+  script. The expanded info line's box that scrolls is a stop of the keyboard, which the
+  real window's suite holds by the element's own tab index; that the engine then scrolls it
+  by the arrows is the engine's, and no test presses a real key on it. A draw that takes
+  away the element the keyboard is on puts it on its part's own element, and where the
+  part is gone whole the page says nothing: it rests on the state having moved the
+  keyboard already, which the kernel does for the drawer — the one part a draw empties
+  whole — by sending every keyboard on a drawer left showing nothing to the prompt line.
 - **A surface a plugin shows, as the desktop draws it.** `apps/desktop/src/surface.rs`
   reads a tree's shape strictly — its kinds, its keys, the type and the closed choices of
   each value, and the kernel's count of nodes and depth — and takes the kernel's
