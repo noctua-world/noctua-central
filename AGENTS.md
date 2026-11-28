@@ -518,7 +518,7 @@ fails a gate a minute or two later.
 | a command of the kernel's own | `catalog/commands.toml`, in a namespace the kernel keeps, and `crates/nc-kernel/src/builtin.rs` | a namespace the kernel keeps is a row of `RESERVED` in `crates/nc-kernel/src/registry.rs`, refused to every plugin from then on, and a row of the loop in `a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled` in `crates/nc-kernel/tests/activation.rs`; a `Builtin` variant, in its `ALL`, named as the catalog names the command, with its arm in `builtin` in `crates/nc-kernel/src/dispatch.rs` — `every_command_the_catalog_gives_the_kernel_is_one_it_runs_and_it_runs_no_other` holds the catalog, the registry and the handlers to each other both ways — and a test holding the arguments the handler reads to `Command::arguments`, both ways; one that changes state outside every unit is noted as having left the machine before it runs, so an undo stops at the step that ran it, and changes nothing until its dispatch's entry has landed — `limits.prune` is rehearsed as a dry run, then journaled as allowed by `pruned_once_journaled` in `crates/nc-kernel/src/dispatch.rs`, and only then deletes, and an agent's change is rehearsed by the directory, then journaled as allowed with what it makes by `changed_once_journaled`, and only then made — since nothing a journal refuses afterwards could put it back. One that changes state only through the command it dispatches — `surfaces.activate` — is named in `dispatches_what_it_shows` in `crates/nc-kernel/src/ui.rs`, so it opens no unit and leaves no note of having left the machine, and in `AS_WHAT_IT_RUNS` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes back what it runs |
 | a feature of the platform | `policy/world.json`, `policy/packs/<profile>/features.cedar` with its cases in `policy/packs/<profile>/tests/features.toml`, and the command's `resource_selector = "feature:<id>"` | the `Feature` sits in the world under its realm — two rows of `THE_WORLD` in `xtask/src/policy.rs` — and its permit names it by its id and its verb (`resource == Feature::"<id>"`), with a case for each constraint: another verb (`the_action_is_the_boundary`), another kind of principal (`the_principal_is_the_boundary`) and another feature, which moves the lists the *policy* row names. No static gate holds a selector's feature to the world, so the kernel's suite dispatches the command and reads its entity back from the journal; and a development install keeps the world it was installed with until `cargo xtask dev --install` copies it in again |
 | an agent permit | `policy/packs/<profile>/features.cedar` — `principal is Agent`, one verb, `resource == Feature::"<id>"` — beside the person's permit on the same feature, with its cases in `policy/packs/<profile>/tests/features.toml` | it is half of what an agent is answered: the decision point asks the same request again as the agent's operator, so the person's permit on the feature is the other half, and an agent reaches the feature only once its person grants it that feature with `agents.grant` — a grant may name any feature of the realm, and one no agent permit names allows nothing. Its cases ask as an agent marked `via_agent`, one link from its person: its kind of principal is refused with a `Device` so marked (`the_principal_is_the_boundary`), since a person is let in by the person's permit and an unmarked agent is refused by the core; the other half is a case asked as the person so marked; and an outsider's agent pins Cedar's answer over the whole world, which moves the lists the *policy* row names. A feature whose commands change who may act for a person takes none: the person's permits on `agents` and `mcp` ask `principal is User`, and the `agents.*` that change and a setting's set run at the top of a call tree only (`only_at_the_top` in `crates/nc-kernel/src/registry.rs`), refused nested with `[NC-KERN-0025]` |
-| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it — and in `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes its step back, as `of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone` in `crates/nc-kernel/src/history.rs` holds the kernel to; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A value that lets something act for the person — MCP's on — is named in `switches_mcp_on` and `puts_mcp_on` in `crates/nc-kernel/src/settings.rs`, so the decision point holds its set, and an undo or a redo that would put it back, for the person's confirmation in the Noctua window under codes of its own (`NOCTUA.md §12.15`); a value that does not, never waits. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's. **A setting whose value is the channel's `<config>/keybindings.json`** — the four shortcut settings — is a variant of `Which` in the same module, in its `ALL`, with its two names and its one field, a variant of `Shortcut` it is asked as and of `nc_channel::keys::Change` the daemon's keeper hands the judge (`Keybindings` in `apps/daemon/src/environment.rs`): its read answers the keys in force and its set is `written_once_journaled` in `crates/nc-kernel/src/dispatch.rs` — judged by the keeper, journaled as allowed, and only then written — never named in `writes_only_its_entry`, so it is a step that left the machine and every undo stops at it; it is decided on `feature:interface`, its schema's bounds are held to the vocabulary by `every_bound_the_shortcut_schemas_declare_is_held_to_its_source`, a refusal of a choice is one of the codes under *A shortcut setting refused* in `catalog/errors.toml`, and its rows join `FITTING`, `ROWS` and `SHORTCUTS` in `crates/nc-kernel/tests/the_decision_point.rs`. **A setting of how the interface is shown** — the footer's visibility, the language, the appearance — is neither: its value is a part of the interface's state (`crates/nc-kernel/src/shell.rs`), a variant of `Setting` there, in its `ALL`, with its one field, its closed list of words in `words` — the first its default — a field of `Chosen`, and its two commands variants of `Verb`, so everything *a part of the interface's state* joins applies; the commands are declared `reversibility = "read"` on `feature:interface`, the set `Write` and the read `Read`, the set's schema listing the words in `words`' order, which `each_setting_of_the_interface_is_one_word_of_its_own_list` holds both ways; and the desktop reads it as a field of `Settings` in `apps/desktop/src/mirror.rs`, each word a row of that type's `WORDS` |
+| a setting | `catalog/commands.toml` — `settings.<setting>.read` and `settings.<setting>.set`, commands of the kernel's own in category `noctua.settings`, the read answering the one object the set takes whole — both locales, `crates/nc-kernel/src/settings.rs`, and the setting's feature (*a feature of the platform*, above) | the set's one effect is the kernel's own entry in the channel's local store, staged in the set's unit, so it is named in `writes_only_its_entry` in `crates/nc-kernel/src/settings.rs` — by the command, never by its namespace — or `leaves_the_machine` in `crates/nc-kernel/src/history.rs` notes it as having left the machine and every undo stops at it — and in `TAKEN_BACK_WHOLE` in `crates/nc-catalog-compiler/src/docs.rs` and its mirror in `xtask/tests/the_pages_reach_the_catalog.rs`, so `docs/commands.md` says undo takes its step back, as `of_the_kernels_own_changes_undo_takes_back_undo_redo_and_the_switch_alone` in `crates/nc-kernel/src/history.rs` holds the kernel to; **the set runs at the top of a call tree only** — `only_at_the_top` in `crates/nc-kernel/src/registry.rs` reads it from the namespace and from its being a change or decided as one, so a set declared no change but decided under `Write` is kept there too, and the decision point refuses it nested with `[NC-KERN-0025]` — so its row in `apps/daemon/tests/every_command_from_the_cli.rs` goes after `kernel.undo` and `kernel.redo`, which still step through the write before them; an entry holding anything but the texts the module writes is refused as a row the kernel did not write, never read as the default; and what the setting holds is a field of `nc_kernel::Settings`, read by `Kernel::settings`. A value that lets something act for the person — MCP's on — is named in `switches_mcp_on` and `puts_mcp_on` in `crates/nc-kernel/src/settings.rs`, so the decision point holds its set, and an undo or a redo that would put it back, for the person's confirmation in the Noctua window under codes of its own (`NOCTUA.md §12.15`); a value that does not, never waits. A setting is never a permission (`NOCTUA.md §14.3`): what a principal may do stays a grant's. **A setting whose value is the channel's `<config>/keybindings.json`** — the four shortcut settings — is a variant of `Which` in the same module, in its `ALL`, with its two names and its one field, a variant of `Shortcut` it is asked as and of `nc_channel::keys::Change` the daemon's keeper hands the judge (`Keybindings` in `apps/daemon/src/environment.rs`): its read answers the keys in force and its set is `written_once_journaled` in `crates/nc-kernel/src/dispatch.rs` — judged by the keeper, journaled as allowed, and only then written — never named in `writes_only_its_entry`, so it is a step that left the machine and every undo stops at it; it is decided on `feature:interface`, its schema's bounds are held to the vocabulary by `every_bound_the_shortcut_schemas_declare_is_held_to_its_source`, a refusal of a choice is one of the codes under *A shortcut setting refused* in `catalog/errors.toml`, and its rows join `FITTING`, `ROWS` and `SHORTCUTS` in `crates/nc-kernel/tests/the_decision_point.rs`. **A setting of how the interface is shown** — the footer's visibility, the language, the appearance — is neither: its value is a part of the interface's state (`crates/nc-kernel/src/shell.rs`), a variant of `Setting` there, in its `ALL`, with its one field, its closed list of words in `words` — the first its default — a field of `Chosen`, and its two commands variants of `Verb`, so everything *a part of the interface's state* joins applies; the commands are declared `reversibility = "read"` on `feature:interface`, the set `Write` and the read `Read`, the set's schema listing the words in `words`' order, which `each_setting_of_the_interface_is_one_word_of_its_own_list` holds both ways; the set is a row of the top-only list in `only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone`, and its nested refusal a case of `a_plugin_sets_no_setting_of_the_interface_from_inside_a_command`; and the desktop reads it as a field of `Settings` in `apps/desktop/src/mirror.rs`, each word a row of that type's `WORDS` |
 | an interface text | `catalog/interface.toml` — a `[[text]]` with its `id`, its `text`, its `params` and where it is `shown` — and `"interface.<id>"` in both locale files | the id is two or more lower-case words joined by dots, which becomes the handle `nc_catalog::interface::Text::<Id>`, and the key is `interface.` and the id, nothing else (`interface-text-name`, `interface-text-key`); `shown` says in one English sentence where the interface shows it (`interface-text-unplaced`); a sentence is one key, so a count that reads differently for one and for many is two texts, and its placeholders are exactly `params`; the entry claims its key, so a sentence under `interface.` that no entry names is `unreferenced-key`. `docs/interface.md` publishes every text in both locales. **The desktop says a text only by its handle** (`apps/desktop/src/text.rs`: `said`, and `said_with` for one that takes parameters), never by a text written where it is drawn; a control is still named by its command's display name and a refusal by its code's message, which are their own registries'. Two ids of which one, with a backtick after it, sorts before the other with a hyphen after the same letters are listed on the page in an order its test refuses (`every_page_lists_its_entries_in_order`): name the second so that it does not open with the first |
 | a construct of the Markdown this tree reads | `crates/nc-markdown/src/lib.rs` — the block or the inline, its reading and the `Rule` each way of writing it wrongly is refused by, in `Rule::ALL` with its word and its sentence — and `crates/nc-markdown/tests/markdown-corpus.tsv` | a row of the corpus in the same edit for what is read, and one for each refusal: `every_rule_has_a_row_that_refuses_by_it` fails a rule with no row, and a row is written as the suite prints a tree, compared as text. **The subset is closed on purpose**: whatever is outside it is refused where it is read, never passed through as text, so a construct is added only with what the interface draws it as, and a link's target stays one of `Target`'s three forms — `https` the only scheme. A link in a row whose target ends in `.md` and names no file of this repository is refused by the reference gate, which reads the corpus as it reads every text file: give the target an anchor, or name a file that exists. A clause is an operator in `xtask/mutants.py`, under `markdown`, which the crate's own command kills. The catalog compiler reads every wiki text written in Markdown and every page it emits through this crate (`markdown-outside-the-subset`, naming the file and the line), so a construct taken out fails `cargo xtask build` on the first page that used it |
 | a page an install carries | a row of `PAGES` in `crates/nc-pages/src/lib.rs`, in the order of the names, with whether the help pages list it | nothing for a page the catalog compiler emits but the row: `the_pages_are_the_generated_pages_on_disk_and_the_changelog` fails until `PAGES` is every generated page under `docs/` and the changelog, each embedded as the file holds it, and `each_list_holds_the_pages_its_section_names` holds the help list written out. A page is never written here: it is generated (*a page about what the catalog cannot see*, below), and what a person reads in their own language is the registries' texts, not a page's prose, which is English with a column for each locale (`NOCTUA.md §12.16`) |
@@ -1922,7 +1922,8 @@ kernel's own, and the first is MCP's, `settings.mcp.read` and `settings.mcp.set`
   tag of a locale the catalog ships, the mode `system`, `light` or `dark` — the first its
   default, and any other word is refused with `[NC-VAL-0002]` from a command and sets the
   whole saved state aside when it is read back. The set runs at the top of a call tree
-  alone, as every setting's does.
+  alone, as every setting's does: it declares no change, since it is no step, and is kept
+  there by the action it is decided under, `Write` (`only_at_the_top`).
 
 **Enforced by** `each_setting_of_the_interface_is_one_word_of_its_own_list` and
 `a_saved_states_settings_are_read_only_as_words_of_their_lists` in
@@ -1937,7 +1938,9 @@ the real pack and world — every person answered, the switch on refused unconfi
 confirmed, held, confirmed, declined and cut short through `Kernel::dispatch_held` while the
 switch off is never held, the undo of a switch off and the redo of a switch on refused
 unconfirmed and run confirmed, a frozen account and a device refused, a plugin's nested
-switch refused from a command that writes and from one that reads —
+switch refused from a command that writes and from one that reads, and each of the three
+sets of the interface refused nested the same way with the setting left as it was
+(`a_plugin_sets_no_setting_of_the_interface_from_inside_a_command`) —
 `crates/nc-kernel/tests/units_and_history.rs`, which undoes and redoes the switch and an
 earlier step past it, the unit test of `crates/nc-kernel/src/history.rs` holding the
 kernel's own changes undo takes back to undo, redo and the switch, which `docs/commands.md`
@@ -1996,13 +1999,17 @@ channel's `<config>/keybindings.json` and never an entry of the store:
   `[NC-CHAN-0027]`. The file is outside every unit, so the set is a step that left the
   machine: the person's undo stops at it, and the way back is the setting set again.
 - **A Leader the system refuses is never written**, where the daemon is the process that
-  asks the system for it (`nc_ipc::leader`, Windows): the chord the choice puts in force is
-  asked for first, on the thread that holds the registration and with the Leader in force
+  asks the system for it (`nc_ipc::leader`, Windows): a set of the Leader asks for the chord
+  chosen first, on the thread that holds the registration and with the Leader in force
   still held (`nc_daemon::leader::Asking`) — the Leader held already asked of nobody — and
   what the system refuses (`nc_platform::leader::Refused`) refuses the set with
-  `[NC-CHAN-0026]`, naming the system's own code, nothing written and the old chord still
-  registered; once the file is written the old chord is let go and the new one is the one
-  held, and a write that fails gives the new one back.
+  `[NC-CHAN-0026]`, naming the system's own code, nothing written and the Leader standing
+  as it was — registered where it was, and where the system refused it when the daemon
+  started, still not; once the file is written the old chord is let go and the new one is
+  the one held, and a write that fails gives the new one back. **Only a set of the Leader
+  asks**: the chord modifier, the menu's keys and the chords leave the Leader as it is and
+  ask the system for nothing, so a Leader refused at the start keeps none of them from
+  being written.
 - **Each write is told to whoever holds the keys in force.** The daemon counts the writes
   its settings made since it started and answers the count to every watch as `keys`, at a
   new revision; the desktop interface, which asks the system for the Leader on Linux and
@@ -2037,7 +2044,8 @@ registrations the test grants and refuses —
 `a_leader_refused_at_the_start_is_asked_for_again_and_one_kept_is_said_held`,
 `a_shortcut_setting_writes_the_keybinding_configuration_and_each_write_is_counted`,
 `a_leader_a_setting_changes_is_granted_before_it_is_written_and_refused_where_the_system_refuses`,
-where each registration says what the file held when it was asked, and
+where each registration says what the file held when it was asked,
+`a_leader_refused_at_the_start_keeps_no_other_shortcut_from_being_written`, and
 `the_count_of_the_keys_written_is_answered_once_there_is_one_and_turns_as_a_revision`;
 `apps/daemon/tests/every_command_from_the_cli.rs`, where the eight are run through the
 CLI against a real daemon and
@@ -2252,7 +2260,8 @@ what a page is drawn from:
   HTML, so none is passed through; what a node holds is text, its escapes and entities
   already read, for whoever draws it to escape as its own.
 - **A link leads to one of three forms**: an address opening with `https://`, held to
-  printable ASCII with no quotation mark, bracket or backslash; a relative path of plain
+  printable ASCII with no quotation mark or apostrophe, angle bracket, backtick,
+  parenthesis or backslash; a relative path of plain
   segments ending as a text this tree links does, with an anchor or none; or an anchor of
   this page. No other scheme is read as a target — `javascript:`, `data:`, `file:`,
   `http:` and an absolute path among them.
@@ -2262,8 +2271,11 @@ what a page is drawn from:
 - **A text outside the subset fails the build.** The catalog compiler reads every wiki
   text written in Markdown and every page it emits through the same function, and writes
   nothing while one is refused (`markdown-outside-the-subset`, naming the file and the
-  line); the pages an install carries are read again by `crates/nc-pages`' own suite, the
-  changelog among them.
+  line); a person's words a page shows — a translator's sentence, a key's label — are
+  escaped as text first, so no translation fails it; `cargo xtask release` writes each
+  commit's words as text and refuses a changelog the reader refuses before writing it;
+  and the pages `crates/nc-pages` embeds are read again by its own suite, the changelog
+  among them.
 
 **Enforced by** `crates/nc-markdown/tests/the_corpus_is_the_subset.rs`, which replays
 every row of `crates/nc-markdown/tests/markdown-corpus.tsv` — a source and its tree, or a
@@ -2272,7 +2284,12 @@ by it; the unit tests beside the reader, for the coordinates, the nesting bound,
 kinds of fence and every form a target is refused in; the operators under `markdown` in
 `xtask/mutants.py`; `a_markdown_wiki_text_outside_the_subset_fails_the_build_naming_its_line`
 and `a_page_outside_the_subset_fails_the_build_naming_the_page` in
-`crates/nc-catalog-compiler/tests/the_gates_fire.rs`; and
+`crates/nc-catalog-compiler/tests/the_gates_fire.rs`, with
+`a_label_that_is_markdown_is_escaped_in_a_cell` there for a person's words;
+`every_subject_the_history_rule_accepts_is_its_own_words_in_the_changelog`,
+`backticks_that_begin_an_entry_open_no_fence_though_they_close` and
+`a_changelog_outside_the_subset_is_refused_before_anything_is_written` in
+`xtask/src/release.rs`; and
 `every_page_is_read_by_the_one_reader_and_opens_with_its_title` in
 `crates/nc-pages/src/lib.rs`.
 
@@ -2445,7 +2462,13 @@ declares — each answer saying in `next` where the next page starts, and a page
 its rows' text would pass half of `payload_bytes`, its first row apart. A page of the
 journal is read through `nc_journal::Store::page`, a `LIMIT` in the statement of each store,
 so it costs what it answers and not what the history holds; it holds this kernel's realm's
-entries alone, and names an entry the store could not read instead of skipping it.
+entries alone, and names an entry the store could not read instead of skipping it. A table
+of the local database is counted row by row only where the catalog bounds it; the one it
+bounds by no number, the local journal, is counted from the end of its key
+(`nc_prune::sqlite::Sqlite::rows_to_the_end`) — its triggers land every entry at the next
+sequence from zero and refuse every delete, so its last sequence plus one is its count —
+because the limits read runs under the bus every dispatch waits on, and a count of every
+row would cost the whole history each time.
 
 **The log read is the daemon's own ring, and nothing reaches the ring that the log's types
 keep out of the store.** `nc_log::Log::keeping` keeps the newest lines a log recorded, each
@@ -2470,7 +2493,8 @@ sessions', the policy's, the plugins', the log's and the journal's own cases bes
 and `a_journal_that_cannot_be_read_is_answered_unavailable_and_no_entry_of_it`; by
 `a_page_is_the_first_entries_from_where_it_was_asked_and_no_more` and the three stores'
 shared scripts for `Store::page`, PostgreSQL's order under a clustered heap among them; by
-`the_rows_of_a_table_are_counted_whatever_a_delete_from_it_would_reach` in
+`the_rows_of_a_table_are_counted_whatever_a_delete_from_it_would_reach` and
+`a_dense_table_is_counted_from_the_end_of_its_key_in_one_step` in
 `crates/nc-prune/tests/in_sqlite.rs`; by the ring's two tests in `crates/nc-log/src/lib.rs`;
 and, over the daemon, by `the_daemons_sink_keeps_its_newest_lines_within_the_catalogs_bound`,
 `the_dev_pages_read_the_sessions_the_connections_and_the_log_this_daemon_holds` and, against
@@ -4958,6 +4982,11 @@ branch the release is made from.
   the section of the first release that reaches it, as its subject, its scope and its
   short hash, in the part its type says; a release's notes are its section without the
   heading. No date and no machine reach it, so the same history gives the same bytes.
+  **A commit's words are written as text**, since an install carries the changelog as a
+  page the one reader of Markdown reads (`crates/nc-pages`): a code span the words close is
+  kept, every other character that reader takes as markup is escaped, and where the words
+  begin an entry, so is any mark that would open a block there; and a changelog that reader
+  refuses all the same refuses the release before anything is written.
 - **The assets** are judged against GitHub's limits on a release before anything is
   published: `cargo xtask release --channel staging --dry-run` lists them against those
   limits, which GitHub publishes at
@@ -5540,10 +5569,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   A draft is told to the daemon as a note, and one the daemon refused, or one in flight
   when a connection is lost, is not told again until the person types once more; a draft
   set elsewhere while the person types is written over what they typed, the last writer
-  winning. The channel is said by its word in the window's locale, and the footer named
-  by its own (`catalog/interface.toml`); the words for the connection and for a seat are
-  in that registry and said by nothing yet: the modeline shows the connection by a glyph
-  no reader is told the meaning of, and an info line row names its seat by its number.
+  winning. The channel is said by its word in the window's locale, the footer named by
+  its own, the modeline's connection glyph by the connection's word — offline, the only
+  state there is before a realm's server — for a screen reader, and another seat's info
+  line row by the seat's word and its number (`catalog/interface.toml`); what a screen
+  reader then says of them is not run by any test here, only the names the markup holds.
   The info line is a live region, so a hover the state holds is
   announced as a notice is. And Dioxus's interpreter, which `apps/desktop/src/assets.rs`
   serves, is loaded by no page: the footer is brought to new markup by the document's own
@@ -5567,26 +5597,42 @@ rather than anything decided for the project, and each is a maintainer's to reop
   yet: the window speaks the locale it was started in, English, and is drawn in the mode
   the system preferred when it opened, until the step that draws the settings pages makes
   the window follow them. The footer's visibility is followed: `hidden` draws the design
-  system's folding footer with the state's "shown now" on it, and what shows and hides a
-  folded footer — the Leader, the pointer at the window's bottom edge — is the state's
-  `footer.show` and `footer.hide` and the design system's own behaviour, which no test
-  here presses. `footer.hide` under `always` changes the state's flag and nothing a
+  system's folding footer with the state's "shown now" on it, which under `hidden` is a
+  reveal — a Leader tap or `footer.show` begins it, and the kernel ends it once no seat's
+  keyboard is on the footer or the drawer (`footer_let_go` in
+  `crates/nc-kernel/src/shell.rs`), the window reporting where the keyboard went as it
+  does; the pointer at the window's bottom edge or over the footer, and a keyboard coming
+  back to it, open it by the design system's own rules, which no test here presses, and
+  begin no reveal. `footer.hide` under `always` changes the state's flag and nothing a
   person sees. A setting set is no step, so nothing undoes one; and the appearance is the
   mode alone — the palette stays the design system's default.
 - **The interface's own texts, where nothing says them yet.** `catalog/interface.toml`
   holds the daemon alert line's sentences and offers, the confirmation surface's labels,
   the prompt's send control and the sentence for a text nothing handles, the words for
   the connection and a seat, and the names of each setting's choices, in both locales;
-  on this branch the desktop says the footer's name, the channel's word and the line
-  naming a compositor's binding, and the rest are said by the parts that draw them as
-  they arrive. Nothing holds a text to being said somewhere: a text no part says is
-  compiled, published in `docs/interface.md` and unused.
+  on this branch the desktop says the footer's name, the channel's word, the connection's
+  word, a seat's word and the line naming a compositor's binding, and the rest wait for
+  the parts that draw them: the alert line's, the confirmation surface's and the undo
+  notice's for the desktop's second chain, the prompt's send control's, the settings'
+  choices for the settings pages, and the connection online for a realm's server.
+  `every_interface_text_is_said_by_the_desktop_or_waits_for_its_part` in
+  `xtask/tests/the_registry_reaches_the_code.rs` holds each text to a use in the desktop's
+  own code or to a row of its list of texts whose part has not arrived, which fails for a
+  text on it that a part says, so the list only shrinks; a text used only in a test, or
+  named and never drawn, is what it cannot see.
 - **Markdown, past the subset.** `nc_markdown` is held to its own corpus and to nothing
   else: no suite compares what another reader of Markdown — a forge, CommonMark's
   reference — makes of a text of the subset, so "a page reads the same wherever it is
   rendered" is the subset's intent, measured only by what it refuses. One difference is
   known: a bare `https://` address in a page is text here and a link where a reader
-  autolinks, as `docs/keybindings.md`'s sources are. The reader bounds its depth and not
+  autolinks, as `docs/keybindings.md`'s sources are. Emphasis follows CommonMark's
+  flanking rules for `*` and `_`, and a character beside a run that is neither a letter,
+  a digit, whitespace nor punctuation of the basic Latin set — punctuation to one version
+  of CommonMark, a symbol to another, and no table of Unicode's categories in this crate —
+  is read both ways, the run refused where the two readings differ. A source outside the subset in two
+  places is told of the first the reader meets, which is not always the first in the
+  source: every line's control characters and trailing space are read before any block,
+  and a block's shape before its text. The reader bounds its depth and not
   a text's length, which is its caller's: a wiki text is held to 64 KiB by its judge, and
   a page an install carries by nothing but the build that embeds it. A link's target is
   read, never opened: what an `https` address leads to, and whether a page a path names

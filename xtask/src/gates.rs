@@ -4576,11 +4576,13 @@ pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `NOT EXISTS` of each table holding the table's rows by a `RESTRICT`
     // reference, every name in it read from `pragma_foreign_key_list` and put
     // through `identifier` too, and `key` again. The count a reader is shown
-    // (`rows`) names `quoted` alone.
+    // (`rows`) names `quoted` alone, and the end of a dense table's key
+    // (`rows_to_the_end`) `quoted` and `column`, the key's name put through
+    // `identifier` as well, both from the catalog.
     Asserted {
         file: "crates/nc-prune/src/sqlite.rs",
-        calls: 3,
-        from: &["key", "ordered", "quoted", "unheld"],
+        calls: 4,
+        from: &["column", "key", "ordered", "quoted", "unheld"],
     },
     // The decision point's schemas, one per test, each named from a literal,
     // the process id and the test's own word, dropped and created in one loop

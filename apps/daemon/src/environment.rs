@@ -123,9 +123,13 @@ impl nc_kernel::Hosting for Host {
 /// **Nothing is written that its reader would refuse any part of**
 /// (`nc_channel::keys::proposed`), and nothing at all by a set that is
 /// refused. **A Leader the system refuses is never written**: where this
-/// daemon asks the system for the Leader, the chord the choice puts in force
-/// is asked for first, with the Leader held still held, and kept in its place
-/// only once the file is written — a write that fails gives it back.
+/// daemon asks the system for the Leader, a set of the Leader asks for the
+/// chord chosen first, with the Leader held still held, and keeps it in its
+/// place only once the file is written — a write that fails gives it back.
+/// **Only a set of the Leader asks**: the chord modifier, the menu's keys and
+/// the chords leave the Leader as it is, so none of them asks the system for
+/// anything, and a Leader the system refused when the daemon started keeps
+/// none of them from being written.
 #[derive(Debug)]
 pub struct Keybindings {
     /// The install whose configuration this is.
@@ -197,7 +201,10 @@ impl nc_kernel::Shortcuts for Keybindings {
     ) -> Result<nc_kernel::Keys, nc_kernel::Refusal> {
         let proposed = self.judged(shortcut)?;
         let server = self.server.upgrade();
-        let asking = server.as_ref().and_then(|server| server.leader_asking());
+        let asking = server
+            .as_ref()
+            .filter(|_| matches!(shortcut, nc_kernel::Shortcut::Leader(_)))
+            .and_then(|server| server.leader_asking());
         let leader = proposed.effective().leader;
         if let Some(asking) = &asking {
             asking.tried(leader).map_err(|refused| {
@@ -209,7 +216,7 @@ impl nc_kernel::Shortcuts for Keybindings {
                     nc_catalog::ErrorCode::ChannelShortcutLeaderUndelivered,
                     format!(
                         "the system did not grant the Leader `{}`: {} [{}], so nothing was \
-                         written and the Leader in force is still the one registered",
+                         written and the Leader stands as it was",
                         leader.written(),
                         refused.sentence,
                         refused.code.code()

@@ -2917,10 +2917,13 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `en`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.appearance.read — Read the appearance"),
-    ("cli.md", "Show whether the Noctua window is light or dark."),
     (
         "cli.md",
-        "Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.",
+        "Show whether the Noctua window is chosen light or dark.",
+    ),
+    (
+        "cli.md",
+        "Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -2939,10 +2942,13 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `pt-BR`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.appearance.read — Ler a aparência"),
-    ("cli.md", "Mostrar se a janela do Noctua é clara ou escura."),
     (
         "cli.md",
-        "Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+        "Mostrar se a janela do Noctua foi escolhida clara ou escura.",
+    ),
+    (
+        "cli.md",
+        "Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -2964,11 +2970,11 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "settings.appearance.set — Change the appearance"),
     (
         "cli.md",
-        "Draw the Noctua window light, dark, or as your system does.",
+        "Choose a light or a dark Noctua window, or your system's mode.",
     ),
     (
         "cli.md",
-        "Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+        "Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -2989,11 +2995,11 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "settings.appearance.set — Alterar a aparência"),
     (
         "cli.md",
-        "Desenhar a janela do Noctua clara, escura, ou como o seu sistema.",
+        "Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.",
     ),
     (
         "cli.md",
-        "Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        "Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -3343,10 +3349,10 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `en`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.language.read — Read the language"),
-    ("cli.md", "Show the language the Noctua window speaks."),
+    ("cli.md", "Show the language chosen for the Noctua window."),
     (
         "cli.md",
-        "Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.",
+        "Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -3365,10 +3371,13 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `pt-BR`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.language.read — Ler o idioma"),
-    ("cli.md", "Mostrar o idioma em que a janela do Noctua fala."),
     (
         "cli.md",
-        "Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+        "Mostrar o idioma escolhido para a janela do Noctua.",
+    ),
+    (
+        "cli.md",
+        "Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -3388,10 +3397,10 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `en`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.language.set — Change the language"),
-    ("cli.md", "Choose the language the Noctua window speaks."),
+    ("cli.md", "Choose the language for the Noctua window."),
     (
         "cli.md",
-        "Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+        "Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -3413,13 +3422,10 @@ static PROSE: [(&str, &str); 3626] = [
     ("cli.md", "In `pt-BR`:"),
     ("cli.md", "```text"),
     ("cli.md", "settings.language.set — Alterar o idioma"),
+    ("cli.md", "Escolher o idioma para a janela do Noctua."),
     (
         "cli.md",
-        "Escolher o idioma em que a janela do Noctua fala.",
-    ),
-    (
-        "cli.md",
-        "Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        "Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
     ),
     ("cli.md", "Categories: noctua.settings"),
     (
@@ -6417,14 +6423,14 @@ static PROSE: [(&str, &str); 3626] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_appearance_read\",\"description\":\"Show whether the Noctua window is light or dark.\\n\\nAnswers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_appearance_read\",\"description\":\"Show whether the Noctua window is chosen light or dark.\\n\\nAnswers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_appearance_read\",\"description\":\"Mostrar se a janela do Noctua é clara ou escura.\\n\\nResponde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_appearance_read\",\"description\":\"Mostrar se a janela do Noctua foi escolhida clara ou escura.\\n\\nResponde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.appearance.set`"),
@@ -6432,14 +6438,14 @@ static PROSE: [(&str, &str); 3626] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_appearance_set\",\"description\":\"Draw the Noctua window light, dark, or as your system does.\\n\\nChooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\",\"enum\":[\"system\",\"light\",\"dark\"]}},\"required\":[\"mode\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_appearance_set\",\"description\":\"Choose a light or a dark Noctua window, or your system's mode.\\n\\nChooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\",\"enum\":[\"system\",\"light\",\"dark\"]}},\"required\":[\"mode\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_appearance_set\",\"description\":\"Desenhar a janela do Noctua clara, escura, ou como o seu sistema.\\n\\nEscolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\",\"enum\":[\"system\",\"light\",\"dark\"]}},\"required\":[\"mode\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_appearance_set\",\"description\":\"Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.\\n\\nEscolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\",\"enum\":[\"system\",\"light\",\"dark\"]}},\"required\":[\"mode\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.chord.read`"),
@@ -6537,14 +6543,14 @@ static PROSE: [(&str, &str); 3626] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_language_read\",\"description\":\"Show the language the Noctua window speaks.\\n\\nAnswers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_language_read\",\"description\":\"Show the language chosen for the Noctua window.\\n\\nAnswers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_language_read\",\"description\":\"Mostrar o idioma em que a janela do Noctua fala.\\n\\nResponde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_language_read\",\"description\":\"Mostrar o idioma escolhido para a janela do Noctua.\\n\\nResponde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.language.set`"),
@@ -6552,14 +6558,14 @@ static PROSE: [(&str, &str); 3626] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_language_set\",\"description\":\"Choose the language the Noctua window speaks.\\n\\nChooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"enum\":[\"system\",\"en\",\"pt-BR\"]}},\"required\":[\"language\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_language_set\",\"description\":\"Choose the language for the Noctua window.\\n\\nChooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"enum\":[\"system\",\"en\",\"pt-BR\"]}},\"required\":[\"language\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"settings_language_set\",\"description\":\"Escolher o idioma em que a janela do Noctua fala.\\n\\nEscolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"enum\":[\"system\",\"en\",\"pt-BR\"]}},\"required\":[\"language\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"settings_language_set\",\"description\":\"Escolher o idioma para a janela do Noctua.\\n\\nEscolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"language\":{\"type\":\"string\",\"enum\":[\"system\",\"en\",\"pt-BR\"]}},\"required\":[\"language\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `settings.leader.read`"),

@@ -2083,9 +2083,9 @@ In `en`:
 
 ```text
 settings.appearance.read — Read the appearance
-Show whether the Noctua window is light or dark.
+Show whether the Noctua window is chosen light or dark.
 
-Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.
+Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.
 
 Categories: noctua.settings
 Tags: appearance, theme, dark mode, light mode, interface, settings
@@ -2102,9 +2102,9 @@ In `pt-BR`:
 
 ```text
 settings.appearance.read — Ler a aparência
-Mostrar se a janela do Noctua é clara ou escura.
+Mostrar se a janela do Noctua foi escolhida clara ou escura.
 
-Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.
+Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.
 
 Categories: noctua.settings
 Tags: aparência, tema, modo escuro, modo claro, interface, ajustes
@@ -2123,9 +2123,9 @@ In `en`:
 
 ```text
 settings.appearance.set — Change the appearance
-Draw the Noctua window light, dark, or as your system does.
+Choose a light or a dark Noctua window, or your system's mode.
 
-Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.
+Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.
 
 Categories: noctua.settings
 Tags: appearance, theme, dark mode, light mode, colours, interface, settings, change
@@ -2142,9 +2142,9 @@ In `pt-BR`:
 
 ```text
 settings.appearance.set — Alterar a aparência
-Desenhar a janela do Noctua clara, escura, ou como o seu sistema.
+Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.
 
-Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
 
 Categories: noctua.settings
 Tags: aparência, tema, modo escuro, modo claro, cores, interface, ajustes, alterar
@@ -2403,9 +2403,9 @@ In `en`:
 
 ```text
 settings.language.read — Read the language
-Show the language the Noctua window speaks.
+Show the language chosen for the Noctua window.
 
-Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.
+Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.
 
 Categories: noctua.settings
 Tags: language, locale, english, portuguese, interface, settings
@@ -2422,9 +2422,9 @@ In `pt-BR`:
 
 ```text
 settings.language.read — Ler o idioma
-Mostrar o idioma em que a janela do Noctua fala.
+Mostrar o idioma escolhido para a janela do Noctua.
 
-Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.
+Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.
 
 Categories: noctua.settings
 Tags: idioma, língua, inglês, português, interface, ajustes
@@ -2443,9 +2443,9 @@ In `en`:
 
 ```text
 settings.language.set — Change the language
-Choose the language the Noctua window speaks.
+Choose the language for the Noctua window.
 
-Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.
+Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.
 
 Categories: noctua.settings
 Tags: language, locale, english, portuguese, translate, interface, settings, change
@@ -2462,9 +2462,9 @@ In `pt-BR`:
 
 ```text
 settings.language.set — Alterar o idioma
-Escolher o idioma em que a janela do Noctua fala.
+Escolher o idioma para a janela do Noctua.
 
-Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
 
 Categories: noctua.settings
 Tags: idioma, língua, inglês, português, traduzir, interface, ajustes, alterar

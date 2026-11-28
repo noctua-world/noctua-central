@@ -1035,8 +1035,8 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | | en | pt-BR |
 |---|---|---|
 | Display name | Read the appearance | Ler a aparência |
-| Line description | Show whether the Noctua window is light or dark. | Mostrar se a janela do Noctua é clara ou escura. |
-| Paragraph | Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing. | Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada. |
+| Line description | Show whether the Noctua window is chosen light or dark. | Mostrar se a janela do Noctua foi escolhida clara ou escura. |
+| Paragraph | Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing. | Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada. |
 | Tags | appearance, theme, dark mode, light mode, interface, settings | aparência, tema, modo escuro, modo claro, interface, ajustes |
 
 ```json
@@ -1057,8 +1057,8 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | | en | pt-BR |
 |---|---|---|
 | Display name | Change the appearance | Alterar a aparência |
-| Line description | Draw the Noctua window light, dark, or as your system does. | Desenhar a janela do Noctua clara, escura, ou como o seu sistema. |
-| Paragraph | Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
+| Line description | Choose a light or a dark Noctua window, or your system's mode. | Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema. |
+| Paragraph | Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
 | Tags | appearance, theme, dark mode, light mode, colours, interface, settings, change | aparência, tema, modo escuro, modo claro, cores, interface, ajustes, alterar |
 
 ```json
@@ -1211,8 +1211,8 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | | en | pt-BR |
 |---|---|---|
 | Display name | Read the language | Ler o idioma |
-| Line description | Show the language the Noctua window speaks. | Mostrar o idioma em que a janela do Noctua fala. |
-| Paragraph | Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing. | Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada. |
+| Line description | Show the language chosen for the Noctua window. | Mostrar o idioma escolhido para a janela do Noctua. |
+| Paragraph | Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing. | Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada. |
 | Tags | language, locale, english, portuguese, interface, settings | idioma, língua, inglês, português, interface, ajustes |
 
 ```json
@@ -1233,8 +1233,8 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 | | en | pt-BR |
 |---|---|---|
 | Display name | Change the language | Alterar o idioma |
-| Line description | Choose the language the Noctua window speaks. | Escolher o idioma em que a janela do Noctua fala. |
-| Paragraph | Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
+| Line description | Choose the language for the Noctua window. | Escolher o idioma para a janela do Noctua. |
+| Paragraph | Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead. | Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo. |
 | Tags | language, locale, english, portuguese, translate, interface, settings, change | idioma, língua, inglês, português, traduzir, interface, ajustes, alterar |
 
 ```json

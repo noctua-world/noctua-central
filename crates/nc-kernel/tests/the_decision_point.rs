@@ -11856,6 +11856,90 @@ async fn a_setting_of_the_interface_is_set_and_read_by_a_person_alone_in_no_unit
     );
 }
 
+/// A plugin sets no setting of how the interface is shown from inside a
+/// command.
+///
+/// **A set that is no step is still a person's own call alone**: ana runs a
+/// command of the reference plugin that writes and one that only reads, each
+/// dispatching one of the three sets as her, and each nested set is refused
+/// with `[NC-KERN-0025]` — although none declares a change — journaled with
+/// the kernel's own sentinel, and the setting reads its default after every
+/// one. A read of the setting is no set, and is answered from inside a read.
+#[tokio::test]
+async fn a_plugin_sets_no_setting_of_the_interface_from_inside_a_command() {
+    let (fixture, _) = reference().await;
+    let settings = [
+        (
+            "settings.footer.read",
+            "settings.footer.set",
+            r#"{"visibility":"always"}"#,
+            r#"{"visibility":"hidden"}"#,
+        ),
+        (
+            "settings.language.read",
+            "settings.language.set",
+            r#"{"language":"system"}"#,
+            r#"{"language":"pt-BR"}"#,
+        ),
+        (
+            "settings.appearance.read",
+            "settings.appearance.set",
+            r#"{"mode":"system"}"#,
+            r#"{"mode":"dark"}"#,
+        ),
+    ];
+    for (read, set, first, asked) in settings {
+        for relay_command in ["reference.relay.write", "reference.relay.read"] {
+            let answered = fixture
+                .as_("ana", relay_command, &relay(set, asked, None))
+                .await
+                .unwrap_or_else(|refused| panic!("{relay_command} answers: {refused}"));
+            let refused = field(&answered, "refused")
+                .into_text()
+                .unwrap_or_else(|| panic!("{relay_command}: `{set}` was not refused: {answered}"));
+            assert!(
+                refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+                "{relay_command}: {set}: {refused}"
+            );
+            assert_eq!(
+                fixture.as_("ana", read, "{}").await.expect("read"),
+                first,
+                "{relay_command}: a plugin's command set `{set}`"
+            );
+        }
+        let answered = fixture
+            .as_("ana", "reference.relay.read", &relay(read, "{}", None))
+            .await
+            .expect("the relay answers");
+        assert_eq!(
+            field(&answered, "answered"),
+            Value::Integer(1),
+            "{answered}"
+        );
+        assert_eq!(text(&answered, "last"), first, "{answered}");
+    }
+    let entries = fixture.entries().await;
+    let sets: Vec<&Entry> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| {
+            command_of(entry)
+                .is_some_and(|command| settings.iter().any(|(_, set, ..)| *set == command))
+        })
+        .collect();
+    assert_eq!(sets.len(), 6, "{sets:#?}");
+    for entry in sets {
+        assert_eq!(
+            (
+                entry.record.principal.as_str(),
+                entry.record.result,
+                deciding(entry)
+            ),
+            ("ana", Outcome::Denied, Some("kernel.top_level_only")),
+            "{entry:?}"
+        );
+    }
+}
+
 /// A change of the interface the journal did not take is never made, and the
 /// same change the journal takes is.
 ///
@@ -12561,7 +12645,10 @@ fn the_local_tables() -> Vec<&'static nc_catalog::TableLimit> {
 /// kernel told of no host says neither of the host's counts, as `null`, the
 /// tables are the catalog's local ones in its order, each with its bound or
 /// `null`, and the units' table holds none and then, after a write, the one
-/// the store counts.
+/// the store counts. **The local journal, which no number bounds, is counted
+/// from the end of its key**: an entry put at sequence 41 past a gap — which
+/// only its trigger keeps out, dropped here as a process of the same user
+/// could — answers forty-two, where reading its rows would answer one.
 #[tokio::test]
 async fn the_limits_read_answers_each_count_and_each_local_table_as_they_stand_now() {
     let (fixture, _) = reference().await;
@@ -12631,6 +12718,31 @@ async fn the_limits_read_answers_each_count_and_each_local_table_as_they_stand_n
     assert_eq!(
         of(&row_named(&tables, "table", "store_units"), "rows"),
         counted(1)
+    );
+    let pool = fixture.store.inner.pool();
+    sqlx::query("DROP TRIGGER local_journal_entries_sequence_is_the_next_one")
+        .execute(pool)
+        .await
+        .expect("whoever can write the file can drop its trigger");
+    sqlx::query(
+        "INSERT INTO main.local_journal_entries (sequence, realm, principal, actor_chain, \
+         action, resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES (41, 'elsewhere', 'principal-1', '[]', 'kernel.test', 'null', ?1, NULL, 1, \
+         NULL, ?2)",
+    )
+    .bind(Outcome::Allowed.as_str())
+    .bind("ab".repeat(32))
+    .execute(pool)
+    .await
+    .expect("an entry past a gap");
+    let tables = rows(&read().await, "tables");
+    assert_eq!(
+        of(
+            &row_named(&tables, "table", "local_journal_entries"),
+            "rows"
+        ),
+        counted(42),
+        "the local journal is counted from the end of its key"
     );
 }
 

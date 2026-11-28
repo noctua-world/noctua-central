@@ -36,8 +36,13 @@
 //! | entity | `&lt;`, `&gt;` and `&amp;`, and no other |
 //!
 //! Emphasis may hold strong and strong emphasis, neither itself; a link holds
-//! no link. `_` is text, and is refused where another reader would open
-//! emphasis with it, so a page reads the same wherever it is rendered.
+//! no link. **A run of `*` opens where `CommonMark`'s left-flanking rule lets it
+//! and closes where its right-flanking rule does, and `_` is text**, refused
+//! wherever `CommonMark` would let it open emphasis. A character beside a run
+//! that this crate cannot class — outside ASCII, and neither a letter, a digit
+//! nor whitespace: punctuation to one version of `CommonMark` and not to another
+//! — is read both ways, and a run the two readings disagree on is refused. So
+//! a page reads the same wherever it is rendered.
 //!
 //! # What is outside it
 //!
@@ -228,11 +233,12 @@ pub enum Rule {
     Code,
     /// A run of three `*` or more.
     Stars,
-    /// A `*` or `**` that opens nothing, or is never closed.
+    /// A `*` or `**` that opens nothing — no left-flanking run, for every
+    /// reader — or is never closed by a right-flanking one.
     Star,
     /// Emphasis inside emphasis, or strong inside strong.
     Nested,
-    /// A `_` another reader would open emphasis with.
+    /// A `_` `CommonMark` would let open emphasis, for any reader.
     Underscore,
     /// A `[` or a `]` that is no link's.
     Bracket,
@@ -508,8 +514,13 @@ impl Character {
 ///
 /// # Errors
 ///
-/// [`Refused`], naming the line, the column and the [`Rule`], for the first
-/// thing in `source` that is outside the subset.
+/// [`Refused`], naming the line, the column and the [`Rule`], for a thing in
+/// `source` that is outside the subset: the first the reader meets, which is
+/// not always the first in the source. Every line is read for a control
+/// character and a space at its end before any block is, and a block's shape
+/// — its lines, a table's rows and their cells — before the text inside it,
+/// so a source outside the subset in two places is told of one, and of the
+/// other once that one is mended.
 pub fn parse(source: &str) -> Result<Document, Refused> {
     let lines: Vec<Line<'_>> = source
         .split('\n')
@@ -802,11 +813,13 @@ fn list(
     first: Marker,
     depth: usize,
 ) -> Result<(Block, usize), Refused> {
-    let under = " ".repeat(first.width());
     let mut items = Vec::new();
     let mut marked = first;
     let mut next = at;
     loop {
+        // Under this item's own text: an item numbered with one digit more
+        // than the first holds only lines indented as far as its own text.
+        let under = " ".repeat(marked.width());
         let mut held: Vec<Line<'_>> = lines
             .get(next)
             .map(|line| line.past(marked.width()))
@@ -1024,20 +1037,107 @@ fn stepped_over(characters: &[Character], at: usize) -> usize {
     }
 }
 
+/// What stands beside a run of `*` or `_`, as `CommonMark`'s flanking rules
+/// class it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Side {
+    /// Whitespace, or the edge of the text the run is read in.
+    Space,
+    /// A character of ASCII punctuation.
+    Punctuation,
+    /// A letter or a digit, of any script.
+    Word,
+    /// Any other character: a symbol, a mark or punctuation outside ASCII,
+    /// which one reader of Markdown counts as punctuation and another does
+    /// not, and which this crate, holding no table of Unicode's categories,
+    /// reads both ways.
+    Other,
+}
+
+impl Side {
+    /// What `character` is beside a run; [`Side::Space`] for none.
+    ///
+    /// The edge of a text this reader reads apart — what a link or an
+    /// emphasis holds — stands for the delimiter beyond it, which is ASCII
+    /// punctuation; every rule here reads such an edge as it reads
+    /// punctuation, so the two are one.
+    fn of(character: Option<&Character>) -> Self {
+        match character.map(|held| held.written) {
+            None => Self::Space,
+            Some(written) if written.is_whitespace() => Self::Space,
+            Some(written) if written.is_ascii_punctuation() => Self::Punctuation,
+            Some(written) if written.is_alphanumeric() => Self::Word,
+            Some(_) => Self::Other,
+        }
+    }
+
+    /// The classes a reader may give it: [`Side::Other`] is punctuation to
+    /// one and neither punctuation nor whitespace to another.
+    const fn read_as(self) -> [Self; 2] {
+        match self {
+            Self::Other => [Self::Punctuation, Self::Word],
+            side => [side, side],
+        }
+    }
+}
+
+/// Whether a run between `before` and `after` is left-flanking (`CommonMark`
+/// 6.2): followed by no whitespace, and by no punctuation unless whitespace
+/// or punctuation stands before it.
+fn left_flanking(before: Side, after: Side) -> bool {
+    after != Side::Space
+        && (after != Side::Punctuation || matches!(before, Side::Space | Side::Punctuation))
+}
+
+/// Whether a run between `before` and `after` is right-flanking (`CommonMark`
+/// 6.2): preceded by no whitespace, and by no punctuation unless whitespace
+/// or punctuation stands after it.
+fn right_flanking(before: Side, after: Side) -> bool {
+    before != Side::Space
+        && (before != Side::Punctuation || matches!(after, Side::Space | Side::Punctuation))
+}
+
+/// Whether a run of `_` between `before` and `after` may open emphasis
+/// (`CommonMark` 6.2): left-flanking, and either not right-flanking or
+/// preceded by punctuation.
+fn underscore_opens(before: Side, after: Side) -> bool {
+    left_flanking(before, after) && (!right_flanking(before, after) || before == Side::Punctuation)
+}
+
+/// What `rule` answers of the run at `at`, `marks` long, in `characters`,
+/// where every reader answers alike; none where the reader's class of a
+/// character beside it decides.
+fn flanked(
+    characters: &[Character],
+    at: usize,
+    marks: usize,
+    rule: fn(Side, Side) -> bool,
+) -> Option<bool> {
+    let before = Side::of(at.checked_sub(1).and_then(|before| characters.get(before)));
+    let after = Side::of(characters.get(at + marks));
+    let mut answers = before
+        .read_as()
+        .into_iter()
+        .flat_map(|before| after.read_as().map(|after| rule(before, after)));
+    let first = answers.next()?;
+    answers.all(|answer| answer == first).then_some(first)
+}
+
 /// Where the run of exactly `stars` asterisks that closes emphasis opened
-/// before `from` begins: one with something other than a space before it.
+/// before `from` begins: the first that is right-flanking — none past one
+/// that a reader may read as closing or not, where the reader's class of a
+/// character beside it decides.
 fn closing_stars(characters: &[Character], from: usize, stars: usize) -> Option<usize> {
     let mut at = from;
     while let Some(held) = characters.get(at) {
         if held.written == '*' {
             let found = run(characters, at, '*');
-            let closes = at > from
-                && at
-                    .checked_sub(1)
-                    .and_then(|before| characters.get(before))
-                    .is_some_and(|before| before.written != ' ');
-            if found == stars && closes {
-                return Some(at);
+            if found == stars {
+                match flanked(characters, at, found, right_flanking) {
+                    Some(true) => return Some(at),
+                    Some(false) => {}
+                    None => return None,
+                }
             }
             at += found;
         } else {
@@ -1169,9 +1269,7 @@ fn starred(
     if (strong && within.strong) || (!strong && within.emphasis) {
         return Err(here.refused(Rule::Nested));
     }
-    let opens = characters
-        .get(at + stars)
-        .is_some_and(|held| held.written != ' ');
+    let opens = flanked(characters, at, stars, left_flanking) == Some(true);
     let Some(close) = closing_stars(characters, at + stars, stars).filter(|_| opens) else {
         return Err(here.refused(Rule::Star));
     };
@@ -1252,10 +1350,6 @@ fn inlines(characters: &[Character], within: Within) -> Result<Vec<Inline>, Refu
     let mut at = 0;
     while let Some(&here) = characters.get(at) {
         let after = characters.get(at + 1).map(|held| held.written);
-        let before = at
-            .checked_sub(1)
-            .and_then(|before| characters.get(before))
-            .map(|held| held.written);
         let inline = match here.written {
             '\\' => {
                 let Some(escaped) = after.filter(char::is_ascii_punctuation) else {
@@ -1292,10 +1386,16 @@ fn inlines(characters: &[Character], within: Within) -> Result<Vec<Inline>, Refu
             {
                 return Err(here.refused(Rule::Html));
             }
-            '_' if before.is_none_or(|before| matches!(before, ' ' | '('))
-                && after.is_some_and(|next| next != ' ') =>
-            {
-                return Err(here.refused(Rule::Underscore));
+            '_' => {
+                // A run read whole, by what stands before and after it: one
+                // that no reader opens emphasis with is text.
+                let marks = run(characters, at, '_');
+                if flanked(characters, at, marks, underscore_opens) != Some(false) {
+                    return Err(here.refused(Rule::Underscore));
+                }
+                text.extend(core::iter::repeat_n('_', marks));
+                at += marks;
+                continue;
             }
             '&' => {
                 let (character, written) = entity(characters, at)

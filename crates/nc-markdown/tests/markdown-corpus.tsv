@@ -84,10 +84,13 @@ accept	- outer\n\n  - inner	ul[li[p["outer"] ul[li[p["inner"]]]]]
 accept	1. first\n   - under it\n2. second	ol:1[li[p["first"] ul[li[p["under it"]]]] li[p["second"]]]
 accept	-dash and -5 are text	p["-dash and -5 are text"]
 accept	123456789. nine digits	ol:123456789[li[p["nine digits"]]]
+accept	9. a\n10. b\n\n    c	ol:9[li[p["a"]] li[p["b"] p["c"]]]
 accept	` a `` b `	p[code"a `` b"]
 accept	*a \\* b*	p[em["a * b"]]
 accept	*a `*` b*	p[em["a " code"*" " b"]]
 accept	a _ b	p["a _ b"]
+accept	a__b, a_b. and (x_) and é_ü and x_«y	p["a__b, a_b. and (x_) and é_ü and x_«y"]
+accept	*(b)* and a *b* c	p[em["(b)"] " and a " em["b"] " c"]
 
 # What is outside it, each refused where it is read.
 refuse	- a\n  ```\n  x\n  ```	2:3	joined
@@ -97,6 +100,8 @@ refuse	a\u{7}b	1:2	control
 refuse	trailing 	1:9	trailing
 refuse	 indented	1:1	indent
 refuse	- a\n   three under two	2:3	joined
+refuse	9. a\n10. b\n\n   c	4:1	indent
+refuse	9. a\n10. b\n   - c	3:1	joined
 refuse	<b>raw</b>	1:1	html
 refuse	text <b>raw</b>	1:6	html
 refuse	text <https://example.org>	1:6	html
@@ -160,6 +165,19 @@ refuse	**a **b** c**	1:5	nested
 refuse	_emphasis_	1:1	underscore
 refuse	a _b_	1:3	underscore
 refuse	(_b_)	1:2	underscore
+refuse	"_hello_"	1:2	underscore
+refuse	a-_b_-c	1:3	underscore
+refuse	\u{a0}_a_	1:2	underscore
+refuse	»_a	1:2	underscore
+refuse	__init__	1:1	underscore
+refuse	a*(b)*c	1:2	star
+refuse	*a (b)*c	1:1	star
+refuse	a*b→*c	1:2	star
+refuse	a*→b*	1:2	star
+refuse	*a→*b*	1:1	star
+refuse	a*(b)* c	1:2	star
+refuse	a "_" b	1:4	underscore
+refuse	a\n~~~	2:1	joined
 refuse	[text]	1:1	bracket
 refuse	[text](	1:7	target
 refuse	[text](https://example.org	1:7	target
@@ -185,3 +203,10 @@ refuse	--	1:1	break
 refuse	|\n|---|	1:1	table
 refuse	*a * b*	1:4	nested
 refuse	a * b*	1:3	star
+
+# A source outside the subset in two places is refused at the first the
+# reader meets, which is not always the first in the source: every line's
+# control characters and the space at its end are read before any block, and
+# a block's shape before the text inside it.
+refuse	<b>\n\nlater 	3:6	trailing
+refuse	|<b>|\n|---|\n|a|b|	3:1	cells

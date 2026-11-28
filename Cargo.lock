@@ -6065,6 +6065,7 @@ dependencies = [
  "nc-channel",
  "nc-cli",
  "nc-local",
+ "nc-markdown",
  "nc-platform",
  "nc-policy",
  "nc-schema",

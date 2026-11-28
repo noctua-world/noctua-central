@@ -102,6 +102,35 @@ impl Sqlite {
         .map_err(|error| said("could not count", &error))?;
         Ok(u64::try_from(held).unwrap_or(0))
     }
+
+    /// How many rows `table` holds where its integer `key` is dense from
+    /// zero: the key's last value plus one, and zero where it holds none.
+    ///
+    /// **One step down the key's index, whatever the table holds**, where
+    /// [`Self::rows`] reads every row: a table that grows without a bound and
+    /// is counted while its reader holds a lock — the local journal, which
+    /// `dev.limits.read` counts under the kernel's bus — would cost its whole
+    /// history on every read. It is the table's count only where every row
+    /// lands at the next key from zero and none is removed, as the local
+    /// journal's own triggers hold; for any other table it is the next key,
+    /// not the count, so its caller names the table it is true of.
+    ///
+    /// # Errors
+    ///
+    /// Returns why the table was not counted: a name or a key that is not a
+    /// plain identifier, a table or a column the database does not hold, or a
+    /// database that did not answer.
+    pub async fn rows_to_the_end(&self, table: &str, key: &str) -> Result<u64, crate::Failure> {
+        let quoted = identifier(table)?;
+        let column = identifier(key)?;
+        let last: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT max({column}) FROM main.{quoted}"
+        )))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|error| said("could not count", &error))?;
+        Ok(last.map_or(0, |last| u64::try_from(last).unwrap_or(0).saturating_add(1)))
+    }
 }
 
 /// A name safe to write into a statement, quoted — or why it is not one.

@@ -63,6 +63,10 @@ nc-policy.workspace = true
 nc-schema.workspace = true
 nc-catalog.workspace = true
 nc-catalog-compiler.workspace = true
+# The one reader of Markdown (`crates/nc-markdown`), which a release holds the
+# changelog it computed to before it writes anything: an install carries the
+# changelog as a page, read by that reader.
+nc-markdown.workspace = true
 clap.workspace = true
 # Colour that disappears when stdout is not a tty, so a log file and a terminal
 # read the same. Declared here rather than in the workspace table because xtask

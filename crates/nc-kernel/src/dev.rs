@@ -208,8 +208,12 @@ const fn strategy(strategy: Strategy) -> &'static str {
 /// table's count, read and never held to what a delete would reach
 /// (`nc_prune::sqlite::Sqlite::rows`), so a table whose trigger refuses every
 /// delete is counted as any other; it is `null` for a table that could not
-/// be counted. A store with no local database — one held in memory — answers
-/// no table.
+/// be counted. **A table the catalog bounds by no number is counted from
+/// the end of the column that orders it** ([`counted_to_the_end`]): its count
+/// is read under the bus every dispatch waits on, and reading every row of a
+/// table that grows with the whole history would make each read cost more
+/// than the last. A store with no local database — one held in memory —
+/// answers no table.
 async fn tables<E: Environment>(shared: &Shared<E>, only: Option<&[&str]>) -> Value {
     let Some(target) = shared.store.pruner() else {
         return Value::Array(Vec::new());
@@ -221,7 +225,12 @@ async fn tables<E: Environment>(shared: &Shared<E>, only: Option<&[&str]>) -> Va
         {
             continue;
         }
-        let counted = target.rows(table.name).await.ok();
+        let counted = if counted_to_the_end(table) {
+            target.rows_to_the_end(table.name, table.order_by).await
+        } else {
+            target.rows(table.name).await
+        }
+        .ok();
         rows.push(Value::object([
             ("table", Value::text(table.name)),
             ("rows", counted.map_or(Value::Null, count)),
@@ -230,6 +239,18 @@ async fn tables<E: Environment>(shared: &Shared<E>, only: Option<&[&str]>) -> Va
         ]));
     }
     Value::Array(rows)
+}
+
+/// Whether `table` is counted from the end of the column that orders it,
+/// rather than row by row: where the catalog bounds it by no number.
+///
+/// **True only of a table dense from zero**, which a test holds: the one
+/// local table the catalog bounds by no number is the local journal, whose
+/// triggers land every entry at the next sequence from zero and refuse every
+/// delete (`local-migrations/0004_local_journal.sql`), so its last sequence
+/// plus one is its count, read in one step of its primary key.
+const fn counted_to_the_end(table: &nc_catalog::TableLimit) -> bool {
+    table.max_rows.is_none()
 }
 
 /// The host `shared` was told of, if it was told of one.
@@ -646,7 +667,7 @@ mod tests {
 
     use super::{
         AGENTS, FROM, JOURNAL, LIMITS, LOGS, MAX, PLUGINS, POLICY, SESSIONS, TABLES_OF_AGENTS,
-        Used, budget, counts, entry, fitting, page, strategy,
+        Used, budget, counted_to_the_end, counts, entry, fitting, page, strategy,
     };
 
     /// The feature the five reads of how the machine stands are decided on.
@@ -666,6 +687,31 @@ mod tests {
         (LOGS, &[FROM, MAX], REALM),
         (JOURNAL, &[FROM, MAX], REALM),
     ];
+
+    /// Only the local journal is counted from the end of its key, and every
+    /// other local table row by row.
+    ///
+    /// **The one table the catalog bounds by no number is the one whose key
+    /// is dense from zero**: a table a migration adds with no bound is
+    /// counted from its end only once a reader of its triggers has added it
+    /// here, since for any other table the end of its key is not its count.
+    #[test]
+    fn only_the_local_journal_is_counted_from_the_end_of_its_key() {
+        let to_the_end: Vec<(&str, &str)> = nc_catalog::TABLES
+            .iter()
+            .filter(|table| table.database == Database::LocalFile && counted_to_the_end(table))
+            .map(|table| (table.name, table.order_by))
+            .collect();
+        assert_eq!(to_the_end, [("local_journal_entries", "sequence")]);
+        assert!(
+            nc_catalog::TABLES
+                .iter()
+                .filter(|table| table.database == Database::LocalFile)
+                .filter(|table| !counted_to_the_end(table))
+                .all(|table| table.max_rows.is_some()),
+            "a bounded table is counted row by row"
+        );
+    }
 
     /// The declared dev commands are the ones this module implements: the
     /// arguments each reads, both ways, and the decision each is made under —

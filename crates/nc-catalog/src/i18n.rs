@@ -2949,15 +2949,15 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.appearance.read.description",
         [
-            "Show whether the Noctua window is light or dark.",
-            "Mostrar se a janela do Noctua é clara ou escura.",
+            "Show whether the Noctua window is chosen light or dark.",
+            "Mostrar se a janela do Noctua foi escolhida clara ou escura.",
         ],
     ),
     (
         "command.settings.appearance.read.paragraph",
         [
-            "Answers the mode the Noctua window is drawn in, in this installation of Noctua: your system's, light or dark. It follows your system until you choose another. It changes nothing.",
-            "Responde o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua: o do seu sistema, claro ou escuro. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+            "Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.",
+            "Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.",
         ],
     ),
     (
@@ -2967,15 +2967,15 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.appearance.set.description",
         [
-            "Draw the Noctua window light, dark, or as your system does.",
-            "Desenhar a janela do Noctua clara, escura, ou como o seu sistema.",
+            "Choose a light or a dark Noctua window, or your system's mode.",
+            "Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.",
         ],
     ),
     (
         "command.settings.appearance.set.paragraph",
         [
-            "Chooses the mode the Noctua window is drawn in, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
-            "Escolhe o modo em que a janela do Noctua é desenhada, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+            "Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
         ],
     ),
     (
@@ -3099,15 +3099,15 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.language.read.description",
         [
-            "Show the language the Noctua window speaks.",
-            "Mostrar o idioma em que a janela do Noctua fala.",
+            "Show the language chosen for the Noctua window.",
+            "Mostrar o idioma escolhido para a janela do Noctua.",
         ],
     ),
     (
         "command.settings.language.read.paragraph",
         [
-            "Answers the language the Noctua window speaks in this installation of Noctua: your system's language, or one you chose. It follows your system until you choose another. It changes nothing.",
-            "Responde o idioma em que a janela do Noctua fala nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. Ela segue o seu sistema até você escolher outro. Não altera nada.",
+            "Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.",
+            "Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.",
         ],
     ),
     (
@@ -3117,15 +3117,15 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.language.set.description",
         [
-            "Choose the language the Noctua window speaks.",
-            "Escolher o idioma em que a janela do Noctua fala.",
+            "Choose the language for the Noctua window.",
+            "Escolher o idioma para a janela do Noctua.",
         ],
     ),
     (
         "command.settings.language.set.paragraph",
         [
-            "Chooses the language the Noctua window speaks, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, the window speaks English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
-            "Escolhe o idioma em que a janela do Noctua fala, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, a janela fala inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+            "Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
         ],
     ),
     (
@@ -3802,15 +3802,15 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.channel.shortcut-leader-undelivered",
         [
-            "The system did not give Noctua the Leader you chose, because another program already uses those keys or the system could not be asked, so nothing was changed and the Leader you had still works. Free the keys in that program, or choose another Leader.",
-            "O sistema não entregou ao Noctua o Leader que você escolheu, porque outro programa já usa essas teclas ou o sistema não pôde ser consultado, então nada foi alterado e o Leader que você tinha continua funcionando. Libere as teclas nesse programa ou escolha outro Leader.",
+            "The system did not give Noctua the Leader you chose, because another program already uses those keys or the system could not be asked, so nothing was changed and your shortcuts stay as they were. Free the keys in that program, or choose another Leader.",
+            "O sistema não entregou ao Noctua o Leader que você escolheu, porque outro programa já usa essas teclas ou o sistema não pôde ser consultado, então nada foi alterado e seus atalhos continuam como estavam. Libere as teclas nesse programa ou escolha outro Leader.",
         ],
     ),
     (
         "error.channel.shortcuts-unsaved",
         [
-            "Noctua could not save your keyboard shortcut settings, so nothing was changed. Check that the disk has room and is connected, then try again.",
-            "O Noctua não conseguiu salvar suas configurações de atalhos de teclado, então nada foi alterado. Veja se o disco tem espaço e está conectado e tente de novo.",
+            "Noctua could not save your keyboard shortcut settings, so nothing was changed. Your shortcut file may be one another account can change, one this version of Noctua cannot read or too large, or its disk may be full or disconnected. Check the file and its disk, then try again.",
+            "O Noctua não conseguiu salvar suas configurações de atalhos de teclado, então nada foi alterado. Seu arquivo de atalhos pode ser um que outra conta consegue alterar, um que esta versão do Noctua não lê ou grande demais, ou o disco dele pode estar cheio ou desconectado. Verifique o arquivo e o disco dele e tente de novo.",
         ],
     ),
     (

@@ -1370,6 +1370,51 @@ mod tests {
         }
     }
 
+    /// A set refused for the file as it stands is told as the file's, never
+    /// as the disk's alone.
+    ///
+    /// **One code answers a file another account can reach, one this build
+    /// does not read, a choice past the file's bound and a disk that did not
+    /// answer** — `[NC-CHAN-0027]`, from a choice and from a write alike — and
+    /// its message is what the window says of it (`crate::keys` leaves the
+    /// detail to the sentence), so in every locale it names the file as well
+    /// as the disk: a person whose file another account could change is told
+    /// to look at the file.
+    #[test]
+    fn a_set_refused_for_the_file_is_told_as_the_files() {
+        let what = "`/scratch/keybindings.json`".to_owned();
+        for refused in [
+            KeysRefused::NotPrivate(what.clone()),
+            KeysRefused::Unavailable(what.clone()),
+            KeysRefused::Unreadable(what.clone()),
+        ] {
+            assert_eq!(
+                refused.code_of_a_choice(),
+                ErrorCode::ChannelShortcutsUnsaved,
+                "{refused}"
+            );
+        }
+        for unwritten in [
+            super::Unwritten::NotPrivate(what.clone()),
+            super::Unwritten::Failed(what.clone()),
+        ] {
+            assert_eq!(unwritten.code(), ErrorCode::ChannelShortcutsUnsaved);
+        }
+        for (locale, file, disk) in [
+            (nc_catalog::Locale::En, "file", "disk"),
+            (nc_catalog::Locale::PtBR, "arquivo", "disco"),
+        ] {
+            let told =
+                nc_catalog::message(ErrorCode::ChannelShortcutsUnsaved.message_key(), locale)
+                    .expect("a message in every locale");
+            assert!(
+                told.contains(file) && told.contains(disk),
+                "{}: {told}",
+                locale.tag()
+            );
+        }
+    }
+
     /// A channel is installed while its manifest is there and not while
     /// nothing is.
     ///

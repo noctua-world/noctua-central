@@ -464,6 +464,79 @@ async fn a_temporary_object_on_the_connection_is_refused() {
     pool.close().await;
 }
 
+/// A table dense from zero is counted from the end of its key, in one step
+/// of its index, whatever it holds.
+///
+/// **The key's last value plus one, never the rows read**: ten rows whose
+/// keys run 1 to 10 answer eleven, which a count would not; a row at key 41
+/// answers forty-two, and a temporary table of the same name is not the one
+/// read; a table that holds none answers zero; the statement is
+/// one SQLite answers by searching the key's index, never by scanning the
+/// table; and a name or a key that is no plain identifier, or a column the
+/// table does not hold, is refused and never counted as none.
+#[tokio::test]
+async fn a_dense_table_is_counted_from_the_end_of_its_key_in_one_step() {
+    let scratch = Scratch::new("to-the-end");
+    let pool = pool(&scratch, 1).await;
+    fill(&pool).await;
+    let target = Sqlite::new(pool.clone());
+    assert_eq!(target.rows_to_the_end("rows_over_time", "id").await, Ok(11));
+    sqlx::query("INSERT INTO rows_over_time (id, at) VALUES (41, 0)")
+        .execute(&pool)
+        .await
+        .expect("a row past a gap");
+    assert_eq!(target.rows_to_the_end("rows_over_time", "id").await, Ok(42));
+    assert_eq!(target.rows("rows_over_time").await, Ok(11));
+    let plan: Vec<String> =
+        sqlx::query("EXPLAIN QUERY PLAN SELECT max(\"id\") FROM main.\"rows_over_time\"")
+            .fetch_all(&pool)
+            .await
+            .expect("a plan")
+            .iter()
+            .map(|step| sqlx::Row::get::<String, _>(step, "detail"))
+            .collect();
+    assert!(
+        !plan.is_empty() && plan.iter().all(|step| !step.starts_with("SCAN")),
+        "the last key is read by scanning the table: {plan:?}"
+    );
+    run(
+        &pool,
+        "CREATE TEMP TABLE rows_over_time (id INTEGER PRIMARY KEY)",
+    )
+    .await;
+    assert_eq!(
+        target.rows_to_the_end("rows_over_time", "id").await,
+        Ok(42),
+        "a temporary table of the same name was read"
+    );
+    run(&pool, "DROP TABLE temp.rows_over_time").await;
+    run(&pool, "CREATE TABLE none_yet (id INTEGER PRIMARY KEY)").await;
+    assert_eq!(target.rows_to_the_end("none_yet", "id").await, Ok(0));
+    for (table, key, why) in [
+        (
+            "rows_over_time",
+            "id; DROP TABLE rows_over_time",
+            "not a plain identifier",
+        ),
+        (
+            "rows_over_time; DROP TABLE rows_over_time",
+            "id",
+            "not a plain identifier",
+        ),
+        ("rows_over_time", "no_such_column", "could not count"),
+        ("no_such_table", "id", "could not count"),
+    ] {
+        let refused = target.rows_to_the_end(table, key).await;
+        assert!(
+            refused
+                .as_ref()
+                .is_err_and(|refused| refused.why.contains(why)),
+            "{table} {key}: {refused:?}"
+        );
+    }
+    assert_eq!(surviving(&pool, "rows_over_time").await.len(), 11);
+}
+
 /// A table's rows are counted for a reader whatever a delete from it would
 /// reach, and from the database's own table alone.
 ///

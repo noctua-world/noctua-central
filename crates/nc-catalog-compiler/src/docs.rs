@@ -528,26 +528,38 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
         .map_or_else(|| "—".to_owned(), |text| words(text))
 }
 
-/// A person's words in a cell, shown as written: `cell`, and every backtick,
-/// asterisk and square bracket escaped.
+/// A person's words in a cell, shown as written: what `cell` escapes, and
+/// every other character the subset reads as markup — a backtick, an
+/// asterisk, a square bracket, an underscore and an ampersand — escaped by a
+/// backslash.
 ///
 /// **A locale's sentence or tag is text a person reads**, never Markdown:
 /// two backticks in a paragraph, or one in each of two tags, would open a
 /// code span that hides both and shows what lies between as code — the `, `
-/// joining two tags included. Escaped after `cell`, so the backslash it adds
-/// is not doubled. A registry's own description is another thing: an
-/// error's or a log event's may set a name as code on purpose, and keeps
-/// only the escapes of `cell`. An asterisk and a bracket are escaped for the
-/// same reason as a backtick: one opens emphasis or a link wherever Markdown
-/// is read whole, and the one reader this tree renders a page with
-/// (`nc_markdown`) refuses either left open, so a key's own label — `[`, `]`,
-/// a backtick — is written through here too.
+/// joining two tags included. A registry's own description is another
+/// thing: an error's or a log event's may set a name as code on purpose, and
+/// keeps only the escapes of `cell`. An asterisk, a bracket and an
+/// underscore are escaped for the same reason as a backtick: each opens
+/// emphasis or a link wherever Markdown is read whole — `Send _now` — and the
+/// one reader this tree renders a page with (`nc_markdown`) refuses one left
+/// open; and an ampersand, since one before a name and a `;` — `AT&T;` — is
+/// read as an entity, which that reader refuses for any but three. So a
+/// key's own label — `[`, `]`, a backtick — is written through here too.
+/// **One pass, character by character**, so a backslash this adds is never
+/// escaped again and the `&lt;` written for a `<` keeps its ampersand.
 pub(crate) fn words(text: &str) -> String {
-    cell(text)
-        .replace('`', "\\`")
-        .replace('*', "\\*")
-        .replace('[', "\\[")
-        .replace(']', "\\]")
+    let mut written = String::new();
+    for character in crate::printable(text).chars() {
+        match character {
+            '\\' | '|' | '`' | '*' | '[' | ']' | '_' | '&' => {
+                written.push('\\');
+                written.push(character);
+            }
+            '<' => written.push_str("&lt;"),
+            other => written.push(other),
+        }
+    }
+    written
 }
 
 /// The locale tags, source first, as the columns of every message table.

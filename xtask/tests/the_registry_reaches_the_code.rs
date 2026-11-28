@@ -1245,6 +1245,180 @@ fn every_interface_text_carries_its_key_its_params_and_where_it_is_shown() {
     assert_eq!(ids.len(), catalog.interface.len());
 }
 
+/// The texts of the interface's own whose part the desktop has not drawn
+/// yet, each beside the part that will say it.
+///
+/// **A list that only shrinks**: a text a part of the desktop says is taken
+/// off it, and one that stays on it once said fails
+/// [`every_interface_text_is_said_by_the_desktop_or_waits_for_its_part`], so
+/// a text whose part is already drawn cannot sit unused.
+const WAITING_FOR_THEIR_PART: [(&str, &str); 23] = [
+    (
+        "alert.countdown-one",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.countdown-other",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.not-running",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.restore-now",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.start",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.stopped",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "confirm.asked-by-agent",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.asked-by-you",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.confirm",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.decline",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.irreversible",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "connection.online",
+        "a realm's server reached, which nothing says before Stage 22",
+    ),
+    (
+        "history.nothing-to-undo",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "history.undo-of-an-agent",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "history.undo-takes-back",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "prompt.nothing-handles",
+        "the prompt's send control and what it sends",
+    ),
+    ("prompt.send", "the prompt's send control and what it sends"),
+    ("settings.appearance.dark", "the settings pages"),
+    ("settings.appearance.light", "the settings pages"),
+    ("settings.appearance.system", "the settings pages"),
+    ("settings.footer.always", "the settings pages"),
+    ("settings.footer.hidden", "the settings pages"),
+    ("settings.language.system", "the settings pages"),
+];
+
+/// The desktop's own code, each source up to its tests: what a window can
+/// say.
+fn the_desktops_code() -> String {
+    let directory = root().join("apps/desktop/src");
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&directory)
+        .expect("the desktop's sources are read")
+        .map(|entry| entry.expect("an entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect();
+    sources.sort();
+    assert!(!sources.is_empty(), "no source of the desktop was read");
+    sources
+        .iter()
+        .map(|path| {
+            let text = std::fs::read_to_string(path).expect("a source is read");
+            text.split("#[cfg(test)]")
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// Whether `code` names `word` whole: not as a part of a longer name.
+fn names_whole(code: &str, word: &str) -> bool {
+    let continues = |character: Option<char>| {
+        character.is_some_and(|character| character.is_ascii_alphanumeric() || character == '_')
+    };
+    code.match_indices(word).any(|(at, _)| {
+        !continues(code[..at].chars().next_back())
+            && !continues(code[at + word.len()..].chars().next())
+    })
+}
+
+/// Every text of the interface's own is said by the desktop, or waits for a
+/// part the desktop has not drawn.
+///
+/// **Said is named by its handle in the desktop's own code**, its tests left
+/// out: a text the registry holds and no part says is published and shown
+/// nowhere, which is how a glyph's spoken name went unwired while the glyph
+/// was drawn. A text waits only on [`WAITING_FOR_THEIR_PART`], and a text on
+/// that list that a part says fails, so the list shrinks as the parts arrive.
+#[test]
+fn every_interface_text_is_said_by_the_desktop_or_waits_for_its_part() {
+    let code = the_desktops_code();
+    let mut said = 0_usize;
+    for text in nc_catalog::interface::Text::ALL {
+        let handle = format!("{text:?}");
+        let waits = WAITING_FOR_THEIR_PART
+            .iter()
+            .find(|(id, _)| *id == text.id())
+            .map(|(_, part)| *part);
+        match (names_whole(&code, &handle), waits) {
+            (true, None) => said += 1,
+            (false, Some(_)) => {}
+            (true, Some(part)) => panic!(
+                "`{}` is said by the desktop, so it waits for {part} no longer: take it off \
+                 `WAITING_FOR_THEIR_PART`",
+                text.id()
+            ),
+            (false, None) => panic!(
+                "`{}` ({handle}) is said by no part of the desktop: say it where its part draws \
+                 it, or name the part it waits for in `WAITING_FOR_THEIR_PART`",
+                text.id()
+            ),
+        }
+    }
+    for (id, _) in WAITING_FOR_THEIR_PART {
+        assert!(
+            nc_catalog::interface::Text::ALL
+                .iter()
+                .any(|text| text.id() == id),
+            "`{id}` waits for its part and is no text of the registry"
+        );
+    }
+    assert!(
+        WAITING_FOR_THEIR_PART.is_sorted(),
+        "the texts waiting are in id order"
+    );
+    assert!(said > 1, "the desktop says no text: nothing was compared");
+}
+
+/// A name is found whole, never inside a longer one.
+#[test]
+fn a_handle_is_found_whole_and_never_inside_a_longer_name() {
+    assert!(names_whole("Worded::PartFooter,", "PartFooter"));
+    assert!(names_whole("PartFooter", "PartFooter"));
+    assert!(!names_whole("Worded::PartFooterLine", "PartFooter"));
+    assert!(!names_whole("APartFooter", "PartFooter"));
+    assert!(!names_whole("_PartFooter", "PartFooter"));
+    assert!(!names_whole("", "PartFooter"));
+}
+
 #[test]
 fn every_command_carries_what_a_dispatcher_decides_on() {
     // `mutating` and `reversibility` are read by undo, by the journal and by the

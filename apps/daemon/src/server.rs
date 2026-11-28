@@ -3825,6 +3825,105 @@ mod tests {
         serving.closed().await;
     }
 
+    /// A Leader the system refused when the daemon started keeps no other
+    /// shortcut setting from being written, and a set of the Leader the
+    /// system refuses again says only that the Leader stands as it was.
+    ///
+    /// **With registrations a test grants and refuses, the channel's own
+    /// Leader taken by another program from the start**: the chord modifier,
+    /// the menu's keys and the chords are each written asking the system for
+    /// nothing; the Leader set to that same chord is asked for again and
+    /// refused with `[NC-CHAN-0026]`, whose sentence claims no Leader
+    /// registered; and the Leader set to a chord the system grants is
+    /// written and held.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_refused_at_the_start_keeps_no_other_shortcut_from_being_written() {
+        let serving = Serving::new().await;
+        let found = found_of(&serving);
+        let file = found.layout.keybindings.clone();
+        serving
+            .kernel
+            .keep_shortcuts(Arc::new(crate::environment::Keybindings::new(
+                found.clone(),
+                Arc::downgrade(&serving.server),
+            )));
+        let default = found.install.channel.leader();
+        let written = default.written();
+        let heard: Said = Arc::default();
+        let held = crate::leader::listening(
+            Arc::clone(&serving.server),
+            &tokio::runtime::Handle::current(),
+            default,
+            granting(&heard, &[written.as_str()], String::new),
+        );
+        serving.server.leader_held_by(held.asking());
+        for (command, args) in [
+            ("settings.chord.set", r#"{"chord":"Super"}"#.to_owned()),
+            (
+                "settings.menu-keys.set",
+                r#"{"keys":[{"command":"page.help","key":"KeyY"}]}"#.to_owned(),
+            ),
+            (
+                "settings.chords.set",
+                r#"{"chords":[{"chord":false,"command":"page.help","key":"KeyY"}]}"#.to_owned(),
+            ),
+        ] {
+            let answered = dispatched(&serving, command, &args).await;
+            assert!(answered.is_ok(), "{command}: {answered:?}");
+        }
+        let after = std::fs::read_to_string(&file).expect("the file");
+        assert!(
+            after.contains(r#""chord":"Super""#) && after.contains("KeyY"),
+            "{after}"
+        );
+        assert_eq!(
+            said(&heard),
+            [format!("asked {written}")],
+            "only the start asked"
+        );
+        let again = format!(r#"{{"leader":"{written}"}}"#);
+        let refused = dispatched(&serving, "settings.leader.set", &again)
+            .await
+            .expect_err("the system refuses it again");
+        assert_eq!(
+            refused.code(),
+            ErrorCode::ChannelShortcutLeaderUndelivered,
+            "{refused}"
+        );
+        assert!(
+            refused.sentence().contains("the Leader stands as it was")
+                && !refused
+                    .sentence()
+                    .contains("in force is still the one registered"),
+            "{refused}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), after);
+        let to = r#"{"leader":"Control+Alt+KeyK"}"#;
+        assert_eq!(
+            dispatched(&serving, "settings.leader.set", to)
+                .await
+                .as_deref(),
+            Ok(to)
+        );
+        assert!(
+            std::fs::read_to_string(&file)
+                .expect("the file")
+                .contains("Control+Alt+KeyK")
+        );
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        assert_eq!(
+            said(&heard),
+            [
+                format!("asked {written}"),
+                "asked Control+Alt+KeyK".to_owned(),
+                "back Control+Alt+KeyK".to_owned(),
+            ]
+        );
+        serving.closed().await;
+    }
+
     /// The variable that tells this test binary, run as a child, to say what
     /// a refused Leader is logged as.
     const TELLS: &str = "NC_DAEMON_SERVER_LEADER_TELLS";

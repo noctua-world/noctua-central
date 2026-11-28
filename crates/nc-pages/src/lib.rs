@@ -1,5 +1,5 @@
-//! The pages an install carries: the generated developer surfaces and the
-//! changelog, embedded as written (`NOCTUA.md §12.16`, `§15.3`).
+//! The pages an install is to carry: the generated developer surfaces and
+//! the changelog, embedded as written (`NOCTUA.md §12.16`, `§15.3`).
 //!
 //! **The generated Markdown is the source, and the interface is its reader.**
 //! `cargo xtask docs` writes every page under `docs/` from the catalog and the
@@ -8,14 +8,18 @@
 //! the build wrote ([`PAGES`]) and hands it out as the tree the one reader of
 //! Markdown answers ([`Page::document`]). Nothing here writes a page or adds
 //! to one: a page that repeats generated content by hand would be a second
-//! account of it (`§20.5`).
+//! account of it (`§20.5`). **No binary links this crate yet**: the
+//! desktop's help and dev pages, which draw these trees, are what will carry
+//! it into an install.
 //!
-//! **Read at build time, twice.** The catalog compiler reads every page it
-//! emits through `nc_markdown` and writes nothing while one is outside the
-//! subset, so `cargo xtask build` fails naming the page and its line; and this
-//! crate's own suite reads every page it embeds — the changelog, which the
-//! compiler does not emit, among them — so a page the interface could not
-//! draw fails the gate before any binary carries it.
+//! **Read before anything carries it, three times.** The catalog compiler
+//! reads every page it emits through `nc_markdown` and writes nothing while
+//! one is outside the subset, so `cargo xtask build` fails naming the page and
+//! its line; `cargo xtask release` reads the changelog it computed through
+//! the same reader, its commits' own words written as text, and writes
+//! nothing while it is outside the subset; and this crate's own suite reads
+//! every page it embeds — the changelog, which the compiler does not emit,
+//! among them — so a page the interface could not draw fails the gate.
 //!
 //! **The prose is English, and the columns are both locales'.** A generated
 //! page says what the code does in the language every artifact of this tree

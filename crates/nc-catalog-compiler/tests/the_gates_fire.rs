@@ -7383,9 +7383,10 @@ fn a_page_outside_the_subset_fails_the_build_naming_the_page() {
     assert!(problem.what.contains("code span"), "{problem}");
 }
 
-/// A key's label and a chord a page shows are a person's words: a bracket, a
-/// backtick or an asterisk in one is escaped, so the keybindings page is of
-/// the subset whatever a key types.
+/// A key's label and a chord a page shows, and a translator's sentence, are a
+/// person's words: a bracket, a backtick, an asterisk, an underscore or an
+/// ampersand in one is escaped, so every page is of the subset, and shows the
+/// words as written, whatever a key types or a translator writes.
 #[test]
 fn a_label_that_is_markdown_is_escaped_in_a_cell() {
     for (label, written) in [
@@ -7394,6 +7395,12 @@ fn a_label_that_is_markdown_is_escaped_in_a_cell() {
         ("`", "\\`"),
         ("*", "\\*"),
         ("a|b", "a\\|b"),
+        ("_x", "\\_x"),
+        ("a _b", "a \\_b"),
+        ("Send _now_", "Send \\_now\\_"),
+        ("AT&T;", "AT\\&T;"),
+        ("&lt; and <b>", "\\&lt; and &lt;b>"),
+        ("C:\\ and |", "C:\\\\ and \\|"),
     ] {
         let cell = nc_catalog_compiler::words_for_tests(label);
         assert_eq!(cell, written, "{label}");
