@@ -49,11 +49,12 @@ blake3.workspace = true
 # `check::RUNS_THE_STACK`, which decides which gate steps apply
 # (`NOCTUA.md §2.7`).
 nc-platform.workspace = true
-# The runtime `sqlx` already drives this crate on, for one thing of its own:
-# an open waits for the profile's lock on the blocking pool, never on a thread
+# The runtime `sqlx` already drives this crate on, for what an open does with
+# the profile's lock: it waits for it on the blocking pool, never on a thread
 # that drives futures — two opens of one profile awaited on one runtime
 # otherwise deadlock for ever, the second holding the thread the first needs
-# to go on and let go.
+# to go on and let go — and holds it to the end of its work, in a task of its
+# own and, while it makes a missing file, on a thread of that pool.
 tokio.workspace = true
 
 [dev-dependencies]

@@ -152,7 +152,8 @@ fn judged_directory(directory: &Path, holding: Holding) -> Result<User, LocalErr
 /// `sqlx` takes no lock for. Unheld, both would refuse opens of a sound
 /// profile, measured. Waited for in place, as every filesystem call of an open
 /// is — on the blocking pool ([`off_the_runtime`]): an open holds it for as
-/// long as it takes to judge and migrate, and one that ends releases it — a
+/// long as it takes to make, judge and migrate the file, its caller awaiting
+/// it or not ([`crate::LocalStore::open`]), and one that ends releases it — a
 /// process stopped while it holds it holds every other open of the profile
 /// until it goes on or ends.
 pub(crate) fn private_file_in(directory: &Path) -> Result<Prepared, LocalError> {
@@ -245,8 +246,23 @@ fn begun(directory: &Path, user: User) -> Result<Making, LocalError> {
     })
 }
 
+/// A point an open passes, which a test of this crate stops one at to drop
+/// what awaits it there ([`crate::LocalStore::open`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Point {
+    /// The file begun, before the connection that turns it into a
+    /// write-ahead log opens ([`made`]).
+    Converting,
+    /// The file turned and flushed, before it is renamed to the store's
+    /// name.
+    Renaming,
+    /// The file at the store's name, before it is judged.
+    Judging,
+}
+
 /// The file `making` holds turned into an empty database by SQLite, under its
-/// creation name, and then put at `file` whole.
+/// creation name, and then put at `file` whole; `held`, the profile's hold,
+/// handed back once it is.
 ///
 /// **So that a store at its own name is never half-made.** The first
 /// connection that sets `journal_mode = WAL` on a new file writes its first
@@ -266,42 +282,79 @@ fn begun(directory: &Path, user: User) -> Result<Making, LocalError> {
 /// ([`begun`]); after it, an empty database in write-ahead-log mode, which the
 /// next one migrates.
 ///
-/// **Under the profile's hold** ([`private_file_in`]), as the rest of the
-/// open is: no other open of this build makes or renames a file in the
-/// directory meanwhile, and `file` was found missing under it.
+/// **Under the profile's hold, to the end of the work** ([`private_file_in`]):
+/// the whole of it runs on one thread of the blocking pool, which owns `held`
+/// and lets it go only once the rename is durable or the work has failed, so
+/// no other open of this build makes, removes or renames a file in the
+/// directory meanwhile, and `file` was found missing under it. **A future
+/// would not**: one dropped while it awaited the conversion or the rename —
+/// a daemon told to stop as it started drops its start, and a runtime shut
+/// down drops every task — would drop the hold with it while SQLite went on
+/// on its own thread and the rename on the blocking pool, and an open that
+/// took the hold then would remove the creation file and make its own, which
+/// the first open's rename put at the store's name — measured, the second
+/// open refused `NC-DB-0001`, its file renamed from under it. A task of the
+/// pool is never stopped part of the way: a runtime dropped waits for it, and
+/// one shut down without waiting leaves it to run to its end. `between` is
+/// called at [`Point::Converting`] and [`Point::Renaming`].
 ///
 /// # Errors
 ///
 /// [`LocalError::Unavailable`] when SQLite or the filesystem did not answer —
 /// a full disk, a companion SQLite left when it closed the file — and what
 /// [`said`](crate::said) and [`failed`] make of anything else they answer.
-pub(crate) async fn made(making: Making, file: &Path) -> Result<(), LocalError> {
-    use sqlx::{ConnectOptions as _, Connection as _};
-    let converting = options(&making.creation)
-        .connect()
-        .await
-        .map_err(|error| crate::said("making the local database", &error))?;
-    converting.close().await.map_err(|error| {
-        crate::said(
-            "closing the connection that made the local database",
-            &error,
-        )
-    })?;
+pub(crate) async fn made(
+    making: Making,
+    held: nc_platform::Held,
+    file: &Path,
+    between: impl Fn(Point) + Send + 'static,
+) -> Result<nc_platform::Held, LocalError> {
     let file = file.to_owned();
-    tokio::task::spawn_blocking(move || put_in_place(making, &file))
-        .await
-        .unwrap_or_else(|_| {
-            Err(LocalError::Unavailable(
-                "the new database could not be put in place: the task that did it did not \
-                 finish"
-                    .to_owned(),
-            ))
+    let runtime = tokio::runtime::Handle::current();
+    let work = move || {
+        between(Point::Converting);
+        converted(&runtime, &making.creation)?;
+        put_in_place(making, &file, &between)
+    };
+    let done = tokio::task::spawn_blocking(move || work().map(|()| held)).await;
+    done.unwrap_or_else(|_| {
+        Err(LocalError::Unavailable(
+            "the new database could not be made: the task that made it did not finish".to_owned(),
+        ))
+    })
+}
+
+/// The file at `creation` turned into an empty database in write-ahead-log
+/// mode by one connection opened with the options of the pool's
+/// ([`options`]), and closed, so that SQLite checkpoints and deletes any
+/// `-wal` and `-shm` it kept.
+///
+/// **Driven to its end on the thread that calls it**, one of the blocking
+/// pool's, through the runtime's handle: `sqlx` keeps a connection on a
+/// thread of its own and answers through channels, so nothing here waits on
+/// the runtime's timers or its I/O, and it goes on whether or not the
+/// runtime does.
+fn converted(runtime: &tokio::runtime::Handle, creation: &Path) -> Result<(), LocalError> {
+    use sqlx::{ConnectOptions as _, Connection as _};
+    runtime.block_on(async {
+        let converting = options(creation)
+            .connect()
+            .await
+            .map_err(|error| crate::said("making the local database", &error))?;
+        converting.close().await.map_err(|error| {
+            crate::said(
+                "closing the connection that made the local database",
+                &error,
+            )
         })
+    })
 }
 
 /// What [`made`] does once SQLite has closed the file: nothing left beside
 /// it, the file flushed, renamed to `file`, and the rename made durable.
-fn put_in_place(making: Making, file: &Path) -> Result<(), LocalError> {
+///
+/// **Before the rename**, `between` is called at [`Point::Renaming`].
+fn put_in_place(making: Making, file: &Path, between: &impl Fn(Point)) -> Result<(), LocalError> {
     let Making {
         directory,
         creation,
@@ -322,6 +375,7 @@ fn put_in_place(making: Making, file: &Path) -> Result<(), LocalError> {
         )
     })?;
     drop(made);
+    between(Point::Renaming);
     std::fs::rename(&creation, file).map_err(|error| {
         failed(
             &format!(
@@ -351,6 +405,10 @@ fn put_in_place(making: Making, file: &Path) -> Result<(), LocalError> {
 /// a current-thread runtime, and three on one of two workers, would wait thirty
 /// seconds and answer nothing. Each open's wait is a thread of the blocking
 /// pool's instead.
+///
+/// **What it answers is the open's from then on, wherever its caller is**: a
+/// task of the open's own awaits it ([`crate::LocalStore::open`]), and the
+/// hold goes with the file begun to the thread that makes it ([`made`]).
 ///
 /// # Errors
 ///
@@ -553,7 +611,8 @@ mod tests {
             let making = super::begun(&scratch.0, user.clone()).expect("begun");
             let left = super::beside(&scratch.0.join(crate::CREATION_NAME), suffix);
             drop(nc_platform::create_private(&left).expect("a file left beside it"));
-            let refused = super::put_in_place(making, &file).expect_err("not put in place");
+            let refused =
+                super::put_in_place(making, &file, &|_| {}).expect_err("not put in place");
             assert!(
                 matches!(&refused, crate::LocalError::Unavailable(why) if why.contains(suffix)),
                 "{suffix}: {refused:?}"

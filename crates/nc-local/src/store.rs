@@ -35,7 +35,7 @@
 //! granted.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nc_ids::{OpaqueId, Snowflake};
 use sqlx::Row as _;
@@ -423,15 +423,54 @@ impl LocalStore {
     /// [`LocalError::Unavailable`] when SQLite or the filesystem cannot be
     /// reached — a parent directory that does not exist, a full disk.
     pub async fn open(directory: &Path) -> Result<Self, LocalError> {
+        Self::open_with(directory, |_| {}).await
+    }
+
+    /// What [`LocalStore::open`] does, calling `between` at each point of it
+    /// a test of this crate stops an open at (`crate::open::Point`).
+    ///
+    /// **In a task of its own, which holds the profile to the end**: the
+    /// open's future is spawned and awaited, so a caller that stops awaiting
+    /// it — a daemon told to stop as it starts drops its start — leaves it to
+    /// make, judge and migrate the file with the profile held, and to drop
+    /// what it opened once it is done, rather than dropping the hold while a
+    /// statement it sent runs on on SQLite's own thread, where another open
+    /// would take the hold and migrate beside it. **What this does not
+    /// answer**: a runtime shut down drops the task at its next wait, and the
+    /// hold with it, while the statement in flight may still finish; the
+    /// making of a missing file is the blocking pool's and holds the profile
+    /// to its end even then (`crate::open::made`).
+    async fn open_with(
+        directory: &Path,
+        between: impl Fn(crate::open::Point) + Clone + Send + 'static,
+    ) -> Result<Self, LocalError> {
+        let opening = Self::opening(directory.to_owned(), between);
+        tokio::spawn(opening).await.unwrap_or_else(|_| {
+            Err(LocalError::Unavailable(
+                "the local database could not be opened: the task that opened it did not \
+                 finish"
+                    .to_owned(),
+            ))
+        })
+    }
+
+    /// What [`LocalStore::open_with`] spawns: the open itself, the profile
+    /// held from the first step to the last.
+    async fn opening(
+        directory: PathBuf,
+        between: impl Fn(crate::open::Point) + Clone + Send + 'static,
+    ) -> Result<Self, LocalError> {
         use sqlx::{ConnectOptions as _, Connection as _};
-        let (file, _one_open_at_a_time, making) = crate::open::off_the_runtime(directory).await?;
+        let (file, held, making) = crate::open::off_the_runtime(&directory).await?;
         // **A file this open made is put at its name whole**, turned into a
         // write-ahead log under a name of its own first, so the file judged
         // below is never one an open stopped part of the way through making
-        // (`crate::open::made`).
-        if let Some(making) = making {
-            crate::open::made(making, &file).await?;
-        }
+        // (`crate::open::made`), which hands the hold back once it is.
+        let _one_open_at_a_time = match making {
+            Some(making) => crate::open::made(making, held, &file, between.clone()).await?,
+            None => held,
+        };
+        between(crate::open::Point::Judging);
         // **Judged on a connection that writes nothing, and only then the
         // pool**, whose every connection sets `journal_mode = WAL` — which
         // converts a file in another journal mode before anything has asked
@@ -2051,6 +2090,193 @@ fn past_every_key_beginning_with(prefix: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{Entry, Expect, Revision, holds_what_was_expected, past_every_key_beginning_with};
+    use crate::open::Point;
+
+    /// A scratch directory for one test, removed however the test leaves.
+    struct Scratch(std::path::PathBuf);
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let root =
+                std::env::temp_dir().join(format!("nc-local-store-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir(&root).expect("a scratch directory");
+            Self(root)
+        }
+    }
+
+    /// How a test ends the open it stopped: its caller dropped, or the
+    /// runtime it runs on shut down.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum Ended {
+        /// The task that awaits the open aborted, the runtime going on.
+        Dropped,
+        /// The runtime shut down without waiting, dropping every task on it.
+        ShutDown,
+    }
+
+    /// An open of a profile nobody has opened, stopped at `point`, then ended
+    /// as `ended` says; answers once it is stopped, with the runtime when it
+    /// still runs and what lets the open go on.
+    fn stopped(
+        profile: &std::path::Path,
+        point: Point,
+        ended: Ended,
+    ) -> (Option<tokio::runtime::Runtime>, std::sync::mpsc::Sender<()>) {
+        let (reached, arrived) = std::sync::mpsc::channel();
+        let (go, gone) = std::sync::mpsc::channel::<()>();
+        let gone = std::sync::Arc::new(std::sync::Mutex::new(gone));
+        let between = move |at| {
+            if at == point {
+                let _ = reached.send(());
+                // Bounded, so an open stopped on the thread its caller would
+                // be dropped from goes on in the end, and the test answers.
+                if let Ok(gone) = gone.lock() {
+                    let _ = gone.recv_timeout(std::time::Duration::from_secs(30));
+                }
+            }
+        };
+        // **A runtime of one thread to shut down**, which drops every task on
+        // it before `shutdown_background` returns; two workers to drop a
+        // caller from, since an open stopped as it judges holds one.
+        let runtime = match ended {
+            Ended::Dropped => tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build(),
+            Ended::ShutDown => tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build(),
+        }
+        .expect("a runtime");
+        let opening = runtime.spawn({
+            let profile = profile.to_owned();
+            async move {
+                super::LocalStore::open_with(&profile, between)
+                    .await
+                    .map(drop)
+            }
+        });
+        // Waited for off the thread that drives the runtime, which the open
+        // needs until it is stopped.
+        let waited = runtime.block_on(async {
+            tokio::task::spawn_blocking(move || {
+                arrived.recv_timeout(std::time::Duration::from_secs(60))
+            })
+            .await
+        });
+        assert!(
+            matches!(waited, Ok(Ok(()))),
+            "{point:?}: the open never reached it"
+        );
+        match ended {
+            Ended::Dropped => {
+                opening.abort();
+                assert!(
+                    runtime
+                        .block_on(opening)
+                        .is_err_and(|failed| failed.is_cancelled()),
+                    "{point:?}: the open's caller was not dropped"
+                );
+                (Some(runtime), go)
+            }
+            Ended::ShutDown => {
+                runtime.shutdown_background();
+                (None, go)
+            }
+        }
+    }
+
+    /// An open stopped part of the way through, and ended there — its caller
+    /// dropped, or its runtime shut down — holds the profile until its work is
+    /// done, and the next open in the same process opens the profile whole.
+    ///
+    /// **What it holds against**: the hold a local of the caller's future,
+    /// let go when a daemon told to stop as it started dropped its start,
+    /// while the rename the open had sent ran on on the blocking pool —
+    /// measured, a second open in the same process then removed the creation
+    /// file and made its own, the first open's rename put that file at the
+    /// store's name, and the second was refused `NC-DB-0001` on a sound fresh
+    /// profile. Stopped as it judges, an open whose caller is gone would let
+    /// another migrate beside its statements. Shut down as it judges is what
+    /// [`super::LocalStore::open_with`] says it does not answer.
+    #[test]
+    fn an_open_ended_part_of_the_way_holds_the_profile_until_its_work_is_done() {
+        for (point, ended) in [
+            (Point::Converting, Ended::Dropped),
+            (Point::Renaming, Ended::Dropped),
+            (Point::Judging, Ended::Dropped),
+            (Point::Converting, Ended::ShutDown),
+            (Point::Renaming, Ended::ShutDown),
+        ] {
+            let scratch = Scratch::new(&format!("ended-{point:?}-{ended:?}"));
+            let profile = scratch.0.join("profile");
+            let (runtime, go) = stopped(&profile, point, ended);
+            let user = nc_platform::user_in(&profile).expect("this user's");
+            let taken =
+                nc_platform::try_hold(&profile, crate::LOCK_NAME, &user).expect("the hold asked");
+            assert!(
+                taken.is_none(),
+                "{point:?}, {ended:?}: the profile was let go with the open's work still to do"
+            );
+            if point == Point::Renaming {
+                let made = std::fs::read(profile.join(crate::CREATION_NAME)).expect("the file");
+                assert_eq!(
+                    made.get(18..20),
+                    Some(&[2_u8, 2][..]),
+                    "{ended:?}: the file is renamed before it is a write-ahead log"
+                );
+            }
+            drop(go);
+            let runtime = runtime.unwrap_or_else(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("a runtime")
+            });
+            let judged = runtime.block_on(async {
+                let store = super::LocalStore::open(&profile).await?;
+                let mut connection = store
+                    .pool()
+                    .acquire()
+                    .await
+                    .map_err(|error| crate::said("reaching the store", &error))?;
+                let found = crate::schema::found_in(&mut connection)
+                    .await
+                    .map_err(|error| crate::said("reading the schema", &error))?;
+                drop(connection);
+                store.close().await;
+                Ok::<_, crate::LocalError>(crate::schema::judge(&found))
+            });
+            assert_eq!(
+                judged.map_err(|error| error.to_string()),
+                Ok(Ok(())),
+                "{point:?}, {ended:?}"
+            );
+            let names: Vec<String> = std::fs::read_dir(&profile)
+                .expect("readable")
+                .map(|entry| {
+                    entry
+                        .expect("an entry")
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect();
+            assert!(
+                !names
+                    .iter()
+                    .any(|name| name.starts_with(crate::CREATION_NAME)),
+                "{point:?}, {ended:?}: {names:?}"
+            );
+        }
+    }
 
     /// A commit's refusal is an error, and the database's failure inside one
     /// is its source.

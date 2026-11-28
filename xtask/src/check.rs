@@ -20256,10 +20256,10 @@ mod the_frozen_path_rule {
         ("nc-local/agents.rs", 42, 11),
         ("nc-local/journal.rs", 26, 12),
         ("nc-local/lib.rs", 13, 10),
-        ("nc-local/open.rs", 30, 6),
+        ("nc-local/open.rs", 32, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 71, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 89, 12),
+        ("nc-local/store.rs", 95, 16),
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 33, 165),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
@@ -23113,8 +23113,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 958 scratches this tree
-    /// builds, 870 of the 958 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 960 scratches this tree
+    /// builds, 872 of the 960 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23180,7 +23180,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 76] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 77] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -23241,6 +23241,7 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 28, 28),
         ("nc-local/open.rs", 6, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 47, 47),
+        ("nc-local/store.rs", 2, 2),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/clipboard.rs", 2, 2),
         ("nc-platform/lib.rs", 32, 32),
@@ -26289,7 +26290,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25841;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25859;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26308,7 +26309,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8285;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8298;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26325,7 +26326,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2837;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2842;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26359,7 +26360,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33573;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33600;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26413,7 +26414,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,573 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,600 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26446,7 +26447,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2837 of
+    /// this tree offers, **2842 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38930,7 +38931,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3697] = [
+    static OPERATORS: [(&str, &str, &str); 3700] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44572,7 +44573,7 @@ Options:
         ),
         (
             "local_store",
-            "open",
+            "opening",
             "a file is judged on a connection that writes nothing",
         ),
         (
@@ -49086,7 +49087,7 @@ Options:
         ),
         (
             "local_store",
-            "open",
+            "opening",
             "an open waits for its profile's lock off the threads that poll it",
         ),
         (
@@ -55530,8 +55531,23 @@ Options:
         ),
         (
             "local_store",
-            "open",
+            "opening",
             "a database this open made is put at its name before it is judged",
+        ),
+        (
+            "local_store",
+            "open_with",
+            "an open goes on in a task of its own when its caller stops awaiting it",
+        ),
+        (
+            "local_open",
+            "made",
+            "the profile is held on the thread that makes its file until the file is in place",
+        ),
+        (
+            "local_open",
+            "made",
+            "a new file is turned into a write-ahead log before it is renamed",
         ),
     ];
 

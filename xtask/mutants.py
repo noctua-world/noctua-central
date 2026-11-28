@@ -5303,7 +5303,7 @@ WEAKENINGS = [
     ("local_store", "judged_before_migrating", "the file is judged before the migrator writes",
      "    schema::before_migrating(connection, schema::MINIMUM_SQLITE, &carried).await\n}",
      "    let _ = &carried;\n    Ok(())\n}"),
-    ("local_store", "open", "a file is judged on a connection that writes nothing",
+    ("local_store", "opening", "a file is judged on a connection that writes nothing",
      "        let mut judging = crate::open::for_judging(&file)\n",
      "        let mut judging = crate::open::options(&file)\n"),
     ("local_store", "within_what_one_unit_may_record", "a unit past what one unit may record is refused",
@@ -8276,9 +8276,9 @@ WEAKENINGS = [
     ("local_schema", "written_by_this_build", "a migration edited after it ran is refused before the migrator runs",
      "        .find(|row| this_builds(row.version).is_some_and(|(_, checksum)| *checksum != row.checksum))",
      "        .find(|row| this_builds(row.version).is_some_and(|_| false))"),
-    ("local_store", "open", "an open waits for its profile's lock off the threads that poll it",
-     "        let (file, _one_open_at_a_time, making) = crate::open::off_the_runtime(directory).await?;",
-     "        let (file, _one_open_at_a_time, making) = crate::open::private_file_in(directory)?;"),
+    ("local_store", "opening", "an open waits for its profile's lock off the threads that poll it",
+     "        let (file, held, making) = crate::open::off_the_runtime(&directory).await?;",
+     "        let (file, held, making) = crate::open::private_file_in(&directory)?;"),
     ("kernel_net_ureq", "unanswered", "a request that did not complete is told in one sentence of the kernel's",
      "        _ => TransportError::Unavailable(UNANSWERED.to_owned()),",
      "        other => TransportError::Unavailable(format!(\"{UNANSWERED}: {other}\")),"),
@@ -12814,9 +12814,22 @@ WEAKENINGS = [
     ("local_open", "private_file_in", "a companion of the store's name with no database is refused",
      "    if let Some(alone) = beside_it.first() {",
      "    if let Some(alone) = beside_it.first().filter(|_| false) {"),
-    ("local_store", "open", "a database this open made is put at its name before it is judged",
-     "            crate::open::made(making, &file).await?;",
-     "            drop(making);"),
+    ("local_store", "opening", "a database this open made is put at its name before it is judged",
+     "            Some(making) => crate::open::made(making, held, &file, between.clone()).await?,",
+     "            Some(making) => {\n                drop(making);\n                held\n            }"),
+    # The profile held for as long as the work it guards: an open in a task of
+    # its own, which a caller that stops awaiting it leaves running, and a
+    # missing file made on one thread of the blocking pool, which owns the hold
+    # until the file is in place whatever becomes of the runtime.
+    ("local_store", "open_with", "an open goes on in a task of its own when its caller stops awaiting it",
+     "        tokio::spawn(opening).await.unwrap_or_else(|_| {",
+     "        Ok::<_, tokio::task::JoinError>(opening.await).unwrap_or_else(|_| {"),
+    ("local_open", "made", "the profile is held on the thread that makes its file until the file is in place",
+     "    let done = tokio::task::spawn_blocking(move || work().map(|()| held)).await;",
+     "    let done = tokio::task::spawn_blocking(work).await.map(|made| made.map(|()| held));"),
+    ("local_open", "made", "a new file is turned into a write-ahead log before it is renamed",
+     "        converted(&runtime, &making.creation)?;\n",
+     "        let _ = &runtime;\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

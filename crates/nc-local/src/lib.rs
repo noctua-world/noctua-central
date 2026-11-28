@@ -33,7 +33,11 @@
 //!    has migrated the file: SQLite refuses two connections turning a new
 //!    file's journal into a write-ahead log at once, and `sqlx` takes no lock
 //!    around a migration. On Windows, which locks no directory, the lock is a
-//!    private file beside the database, [`LOCK_NAME`].
+//!    private file beside the database, [`LOCK_NAME`]. **Held for as long as
+//!    the work it guards**, its caller awaiting the open or not: the open runs
+//!    in a task of its own, and a missing file is made on one thread of the
+//!    blocking pool that owns the lock until the file is in place, whatever
+//!    becomes of the runtime.
 //! 2. **The file is created by this crate, private, before SQLite sees it.**
 //!    On Unix SQLite would create it `0644` less the umask, and its `-wal` and
 //!    `-shm` companions take the database file's mode rather than the umask, so
