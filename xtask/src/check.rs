@@ -20131,7 +20131,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 132, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 133, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -23113,8 +23113,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 960 scratches this tree
-    /// builds, 872 of the 960 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 961 scratches this tree
+    /// builds, 873 of the 961 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23214,7 +23214,7 @@ mod the_frozen_path_rule {
         ("desktop/main.rs", 2, 2),
         ("desktop/the_window_opens_hidden.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 281, 281),
+        ("nc-catalog-compiler/the_gates_fire.rs", 282, 282),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -26290,7 +26290,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25869;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25871;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26360,7 +26360,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33621;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33626;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26414,7 +26414,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,621 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,626 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph

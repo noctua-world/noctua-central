@@ -7360,6 +7360,95 @@ fn a_markdown_wiki_text_outside_the_subset_fails_the_build_naming_its_line() {
     );
 }
 
+/// What `AGENTS.md` says the build leaves unjudged of a wiki text's markup
+/// is what the build leaves unjudged.
+///
+/// **Measured, not listed.** A text of each format that has a reader to
+/// refuse it — Markdown and Typst — is planted in every locale holding what
+/// that reader refuses, and the build is asked. A format whose text it
+/// refuses is one the **Not answered** paragraph of the entry's invariant
+/// names the check of, and never says nothing parses; a format whose text it
+/// accepts is one the paragraph says nothing parses. The paragraph went on
+/// saying nothing parsed a Markdown text once the build refused one outside
+/// the subset, so its reader was told a malformed text went unchecked when
+/// the build refused it.
+#[test]
+fn the_manual_says_which_wiki_formats_the_build_reads() {
+    let manual =
+        std::fs::read_to_string(repository().join("AGENTS.md")).expect("AGENTS.md is readable");
+    let heading = "\n### An entry shows everything it holds, within its bounds, judged once \
+                   for every reader\n";
+    let (_, section) = manual
+        .split_once(heading)
+        .expect("`AGENTS.md` holds the entry's invariant under its heading");
+    let section = section.split("\n### ").next().unwrap_or(section);
+    let unanswered = section
+        .split("\n\n")
+        .find(|paragraph| paragraph.starts_with("**Not answered:**"))
+        .expect("the entry's invariant says what it does not answer")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let unparsed = "since nothing in this build parses or prints one";
+    let ends = unanswered.find(unparsed).unwrap_or_else(|| {
+        panic!(
+            "the entry's invariant no longer says which wiki formats nothing in this build \
+             parses (`{unparsed}`), so this test has no clause to hold: {unanswered}"
+        )
+    });
+    let opens = unanswered[..ends]
+        .rfind("whether ")
+        .expect("the clause saying nothing parses a format opens with `whether`");
+    let clause = &unanswered[opens..ends];
+    for (format, extension, refused) in [
+        ("Markdown", "md", "Press <b>undo</b> to go back.\n"),
+        ("Typst", "typ", "#text(weight: \"bold\")[undo to go back\n"),
+    ] {
+        let scratch = Scratch::new(&format!("wiki-read-as-{extension}"));
+        let planted = format!("/kernel.undo.{extension}");
+        for locale in ["en", "pt-BR"] {
+            let from = scratch
+                .root
+                .join(format!("catalog/wiki/{locale}/commands/kernel.undo.md"));
+            let text = std::fs::read_to_string(&from).expect("the wiki text is there");
+            std::fs::remove_file(&from).expect("removable");
+            scratch.place(
+                &format!("catalog/wiki/{locale}/commands{planted}"),
+                &format!("{text}\n{refused}"),
+            );
+        }
+        let refusing: std::collections::BTreeSet<&str> = scratch
+            .problems()
+            .iter()
+            .filter(|problem| problem.file.ends_with(&planted))
+            .map(|problem| problem.check)
+            .collect();
+        if refusing.is_empty() {
+            assert!(
+                clause.contains(format),
+                "a {format} wiki text holding what its reader refuses is accepted, so nothing \
+                 in this build parses one, and the entry's invariant in `AGENTS.md` says so of \
+                 `{clause}` alone: name {format} there"
+            );
+        } else {
+            assert!(
+                !clause.contains(format),
+                "the build refuses a {format} wiki text outside its reader ({refusing:?}), and \
+                 the entry's invariant in `AGENTS.md` says nothing in this build parses one \
+                 (`{clause}`), which tells its reader a malformed text goes unchecked"
+            );
+            for check in &refusing {
+                assert!(
+                    unanswered.contains(&format!("`{check}`")),
+                    "the build refuses a {format} wiki text by `{check}`, and the entry's \
+                     invariant in `AGENTS.md` says what it leaves unanswered of one without \
+                     naming the check that answers the rest: {unanswered}"
+                );
+            }
+        }
+    }
+}
+
 /// A page the compiler would emit outside the subset fails the build, naming
 /// the page and its line, and nothing is written.
 ///

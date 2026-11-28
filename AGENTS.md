@@ -4549,7 +4549,10 @@ tree, a locale's directory, a registry's and a text belong, by every door
 `a_link_where_a_wiki_path_belongs_fails_the_build`. The page escapes every cell and links a
 wiki text rather than inlining it, writes a value an entry is identified by as a code span
 whose fence no backtick in it ends and whose cell no bar in it ends, and the generated crate
-writes a glyph as its escape.
+writes a glyph as its escape. What the paragraph below leaves unjudged of a wiki text's
+markup is held to what the build refuses, by
+`the_manual_says_which_wiki_formats_the_build_reads`, which plants a text each format's
+reader would refuse.
 
 **Not answered:** whether a text is true, or a translation faithful beyond not being the
 source sentence again; whether a category's standard name and role are its standard's
@@ -4559,8 +4562,11 @@ which nothing in this build runs, expands or resolves, and a name, a path or a b
 identifier can be copied by anything installed beside the real one, so a reader that one
 day matches one against a system holds the match as a hint, never as proof (**What is
 deliberately not claimed**); whether a glyph depicts what its comment names; whether a wiki
-text's Markdown or Typst is well formed, since nothing in this build parses or prints one;
-and two display names or tags that differ only by look-alike characters, which needs the
+text's Typst is well formed, since nothing in this build parses or prints one; whether a
+Markdown one reads as its author meant, since nothing prints one either and the build holds
+it only to the subset this tree reads (`markdown-outside-the-subset`, **A Markdown text is
+read by one closed subset, and nothing outside it reaches a page**); and two display
+names or tags that differ only by look-alike characters, which needs the
 confusable folding `BLANK_RANGES` says this crate does not carry.
 
 ### A page says what the code does, and nothing a value it publishes writes
@@ -6110,11 +6116,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
 
 **The catalog's entries**
 
-- **A wiki text is compiled in and linked, and never read.** No surface in this build
+- **A wiki text is compiled in and linked, and never shown.** No surface in this build
   prints one — the CLI shows no wiki text, and `docs/commands.md` and
   `docs/external-identifiers.md` link the file — so
-  whether its Markdown renders as its author meant is not checked, and Typst is not
-  rendered anywhere (`NOCTUA-PLAN.md`, Stage 27+).
+  whether its Markdown renders as its author meant is not checked beyond its being of the
+  subset (`markdown-outside-the-subset`), and Typst is neither parsed nor rendered anywhere
+  (`NOCTUA-PLAN.md`, Stage 27+).
 - **A glyph's name is a comment.** The table holds code points the font draws, not what
   each depicts, so a glyph that draws something other than its comment says is accepted.
 - **A category is what its standard said when it was read.** The `freedesktop` set is every
