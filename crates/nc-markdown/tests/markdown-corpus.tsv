@@ -90,6 +90,8 @@ accept	[plain](a.txt)	p[link:page"a.txt"["plain"]]
 # an emoji between colons, which it draws as the emoji, are text here: the two
 # constructs of another reader that are read, never refused.
 accept	see https://example.org/a now	p["see https://example.org/a now"]
+accept	see http://example.org/a now	p["see http://example.org/a now"]
+accept	see ftp://example.org/a now	p["see ftp://example.org/a now"]
 accept	see www.example.org now	p["see www.example.org now"]
 accept	write to a@example.org now	p["write to a@example.org now"]
 accept	a :smile: b and 10:30:45	p["a :smile: b and 10:30:45"]
@@ -239,6 +241,12 @@ refuse	$`*$a`	1:1	dollar
 refuse	# $x$	1:3	dollar
 refuse	| a |\n|---|\n| $x$ |	3:3	dollar
 refuse	a\nb $c\nd$	2:3	dollar
+# A reader of math counts a space alone as whitespace beside a `$`: a `$`
+# beside any other space opens and closes math there, a price written with a
+# no-break space after its currency's sign among them.
+refuse	$a\u{a0}$	1:1	dollar
+refuse	$\u{3000}a$	1:1	dollar
+refuse	De R$\u{a0}5,00 a R$\u{a0}10,00	1:5	dollar
 refuse	a\n~~~	2:1	joined
 refuse	[text]	1:1	bracket
 refuse	[text](	1:7	target

@@ -5683,24 +5683,28 @@ rather than anything decided for the project, and each is a maintainer's to reop
   reference — makes of a text of the subset, so "a page reads the same wherever it is
   rendered" is the subset's intent, measured only by what it refuses. Two differences are
   known, and kept: an address GitHub's Markdown links where it stands, written bare — one
-  opening with `https://` or `www.`, or an e-mail address — is text here and a link there,
-  as `docs/keybindings.md`'s sources are; refusing it would refuse a person's words that
-  hold an address, and no target is ever read from one. And an emoji's name between two
-  colons, `:smile:`, is text here and the emoji there: which names GitHub draws is a table
-  this crate does not hold, and the shape alone is a time's too, `10:30:45`, so a commit
-  subject holding one shows the emoji in `CHANGELOG.md` on GitHub. GitHub's
-  strikethrough and its math are not such differences: a run of `~` beside a word is
-  refused (`tilde`), and so is a `$` that may open math a later `$` of the block's text
-  closes (`dollar`), and every writer of a person's words into a page — `as_text` in
-  `xtask/src/release.rs`, `words` in `crates/nc-catalog-compiler/src/docs.rs` — escapes a
-  `~` and a `$`. Emphasis follows CommonMark's flanking rules for `*` and `_`, and a
-  character beside a run that is neither a letter, a digit, whitespace nor punctuation of
-  the basic Latin set — punctuation to one version of CommonMark, a symbol to another, and
-  no table of Unicode's categories in this crate — is read both ways, the run refused
-  where the two readings differ. Rust's classes stand
-  in for CommonMark's only where they agree: its whitespace past the line and paragraph
-  separators, which are refused with the controls, and its letters but the circled and
-  squared Latin letters, which are symbols to Unicode and read both ways; measured once by
+  opening with `https://`, `http://` or `www.`, an `ftp` address, or an e-mail address — is
+  text here and a link there, as `docs/keybindings.md`'s sources are; refusing it would refuse
+  a person's words that hold an address, and no target is ever read from one. And an
+  emoji's name between two colons, `:smile:`, is text here and the emoji there: which
+  names GitHub draws is a table this crate does not hold, and the shape alone is a time's
+  too, `10:30:45`, so a commit subject holding one shows the emoji in `CHANGELOG.md` on
+  GitHub. GitHub's strikethrough and its math are not such differences: a run of `~`
+  beside a word is refused (`tilde`), and so is a `$` that may open math a later `$` of
+  the block's text closes (`dollar`), and every writer of a person's words into a page —
+  `as_text` in `xtask/src/release.rs`, `words` in `crates/nc-catalog-compiler/src/docs.rs`
+  — escapes a `~` and a `$`. Emphasis follows CommonMark's flanking rules for `*` and `_`,
+  and a character beside a run that is neither a letter, a digit, whitespace nor
+  punctuation of the basic Latin set — punctuation to one version of CommonMark, a symbol
+  to another, and no table of Unicode's categories in this crate — is read both ways, the
+  run refused where the two readings differ. Rust's classes stand in for CommonMark's only
+  where they agree: its whitespace past the line and paragraph separators, which are
+  refused with the controls, and its letters but the circled and squared Latin letters,
+  which are symbols to Unicode and read both ways. Beside a `$` its whitespace stands in
+  for nothing: a reader of math counts a space, a tab and a line ending there and no other
+  space, so a `$` beside a no-break space or an ideographic one opens or closes math as a
+  `$` beside a letter does, and is refused — a price whose currency's sign a no-break
+  space follows, as pt-BR's formatting writes one, among them. Each was measured once by
   hand against `pandoc -f gfm` over random sources of those characters, which no suite
   runs, as the thematic breaks, the runs of `~`, the `$`, the emoji's names and the bare
   addresses of the corpus were against `pandoc -f commonmark` and `-f gfm`. A source

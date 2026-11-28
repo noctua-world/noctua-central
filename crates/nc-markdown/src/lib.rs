@@ -41,13 +41,14 @@
 //! wherever `CommonMark` would let it open emphasis; a run of `~` is text too,
 //! refused wherever GitHub's Markdown would let it strike text through, and so
 //! is a `$`, refused where GitHub's Markdown would let it open math that a
-//! `$` after it in the block's text closes. A character beside a run that
-//! this crate cannot class — outside ASCII, and neither a letter, a digit nor
-//! whitespace: punctuation to one version of `CommonMark` and not to another
-//! — is read both ways, and a run the two readings disagree on is refused; so
-//! is a circled or squared Latin letter, a symbol Rust counts as a letter.
-//! So a page reads the same wherever `CommonMark` is read, and wherever
-//! GitHub's Markdown is but for the two differences below.
+//! `$` after it in the block's text closes, a space the one whitespace it
+//! counts beside a `$` — a no-break space is none. A character beside a run
+//! that this crate cannot class — outside ASCII, and neither a letter, a digit
+//! nor whitespace: punctuation to one version of `CommonMark` and not to
+//! another — is read both ways, and a run the two readings disagree on is
+//! refused; so is a circled or squared Latin letter, a symbol Rust counts as a
+//! letter. So a page reads the same wherever `CommonMark` is read, and
+//! wherever GitHub's Markdown is but for the two differences below.
 //!
 //! # What is outside it
 //!
@@ -64,13 +65,13 @@
 //!
 //! **Two constructs of GitHub's are read as text, and not refused**: an
 //! address it links where it stands, written bare — one opening with
-//! `https://` or `www.`, or an e-mail address — and an emoji's name between
-//! two colons, `:smile:`, which it draws as that emoji. Here each is the text
-//! it is; there, the same words are a link or a picture. No target is ever
-//! read from either; refusing an address would refuse the words of a person
-//! who writes one, and the names of emoji are a table of GitHub's, which this
-//! crate does not hold and a shape alone cannot stand in for without refusing
-//! a time written `10:30:45`.
+//! `https://`, `http://` or `www.`, an `ftp` address, or an e-mail address —
+//! and an emoji's name between two colons, `:smile:`, which it draws as that
+//! emoji. Here each is the text it is; there, the same words are a link or a
+//! picture. No target is ever read from either; refusing an address would
+//! refuse the words of a person who writes one, and the names of emoji are a
+//! table of GitHub's, which this crate does not hold and a shape alone cannot
+//! stand in for without refusing a time written `10:30:45`.
 //!
 //! # The coordinates
 //!
@@ -1140,7 +1141,9 @@ impl Side {
     /// **Rust's classes are read only where they are `CommonMark`'s.** Its
     /// whitespace is, in a line [`is_a_control`] let through. Its letters are
     /// not quite: [`is_a_lettered_symbol`] names the symbols it counts as
-    /// letters, which are read both ways as any other symbol is.
+    /// letters, which are read both ways as any other symbol is. Beside a
+    /// `$`, where a reader of math counts a space alone, none of this is read
+    /// ([`spaces_math`]).
     fn of(character: Option<&Character>) -> Self {
         match character.map(|held| held.written) {
             None => Self::Space,
@@ -1469,8 +1472,9 @@ fn text_of(characters: &[Character]) -> Result<Vec<Inline>, Refused> {
 }
 
 /// The first `$` of a block's text that GitHub's Markdown may read as
-/// opening math: followed by no whitespace, and with a `$` further on that
-/// may close it — one no whitespace precedes — and something between the two.
+/// opening math: followed by no space ([`spaces_math`]), and with a `$`
+/// further on that may close it — one no space precedes — and something
+/// between the two.
 ///
 /// **The one that opens is read as a reader reads the text, left to right**:
 /// an escaped `$`, and one inside a code span that opened before it, are the
@@ -1488,7 +1492,7 @@ fn opening_math(characters: &[Character]) -> Option<Character> {
     let mut at = 0;
     let open = loop {
         let held = characters.get(at)?;
-        if held.written == '$' && Side::of(characters.get(at + 1)) != Side::Space {
+        if held.written == '$' && !spaces_math(characters.get(at + 1)) {
             break at;
         }
         at = stepped_over(characters, at);
@@ -1499,9 +1503,25 @@ fn opening_math(characters: &[Character]) -> Option<Character> {
         .iter()
         .enumerate()
         .any(|(offset, held)| {
-            held.written == '$' && Side::of(characters.get(past + offset - 1)) != Side::Space
+            held.written == '$' && !spaces_math(characters.get(past + offset - 1))
         });
     closed.then(|| characters.get(open).copied()).flatten()
+}
+
+/// Whether `beside`, after a `$` or before one, is whitespace to a reader of
+/// math, which no `$` beside it opens or closes at: a space, or the edge of
+/// the text.
+///
+/// **A space alone, not Rust's whitespace**: a reader of math counts a
+/// space, a tab and a line ending, and no other, and a line read past
+/// [`is_a_control`] holds no tab, while a paragraph's lines are joined by a
+/// space. So a `$` beside any other space — a no-break space, as a price is
+/// written after its currency's sign, or an ideographic one — opens and
+/// closes math as a `$` beside a letter does: `pandoc -f gfm` reads a `$`,
+/// a letter, a no-break space and a `$` as math, and `costs $5 and $10` as
+/// text.
+fn spaces_math(beside: Option<&Character>) -> bool {
+    matches!(beside.map(|held| held.written), None | Some(' '))
 }
 
 /// The inlines `characters` write, read `within` what already holds them.
@@ -1721,6 +1741,32 @@ mod tests {
             }
         }
         assert_eq!(let_through, 17, "every space separator is let through");
+    }
+
+    /// Beside a `$`, a space is whitespace and no other space is, as a reader
+    /// of math reads one: `pandoc -f gfm` among them.
+    ///
+    /// **Each space separator but the space** — the whitespace a line may
+    /// hold — after the `$` that opens or before the one that closes, leaves
+    /// the two math, refused; the space leaves them text.
+    #[test]
+    fn beside_a_dollar_a_space_alone_is_whitespace() {
+        let mut read = 0;
+        for space in (0..=u32::from(char::MAX))
+            .filter_map(char::from_u32)
+            .filter(|character| character.is_whitespace() && *character != '\n')
+            .filter(|character| parse(&format!("a{character}b")).is_ok())
+        {
+            for source in [format!("$a{space}$"), format!("${space}a$")] {
+                if space == ' ' {
+                    assert!(parse(&source).is_ok(), "{source:?}");
+                } else {
+                    assert_eq!(refused(&source), (1, 1, Rule::Dollar), "{source:?}");
+                }
+            }
+            read += 1;
+        }
+        assert_eq!(read, 17, "every space separator is read beside a `$`");
     }
 
     /// A symbol Rust counts as a letter is read both ways, as every other
