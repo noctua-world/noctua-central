@@ -96,13 +96,12 @@
 //! leader` and a hotkey do the same: with the leader menu open in the drawer of
 //! the seat's window, shown, a tap sends the next page opened to the other
 //! region; with the seat's keyboard on the prompt line of a window that is
-//! shown, the footer shown, it opens the leader menu in the drawer; otherwise
-//! — the window hidden with the menu open in it, or the footer hidden with
-//! the keyboard on its prompt line, included — it shows the window and puts
-//! the seat's keyboard on the prompt line. Every tap shows the footer
-//! (§12.3). **A tap never hides the interface**: §12.8 gives a tap no such
-//! rule, and a menu or a prompt line no one sees never keeps a tap from
-//! showing it.
+//! shown — a line seen however the footer is set, since a folded footer opens
+//! around the keyboard inside it — it opens the leader menu in the drawer;
+//! otherwise — the window hidden with the menu open in it included — it shows
+//! the window and puts the seat's keyboard on the prompt line. Every tap shows
+//! the footer (§12.3). **A tap never hides the interface**: §12.8 gives a tap
+//! no such rule, and a menu no one sees never keeps a tap from showing it.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
@@ -1226,7 +1225,11 @@ fn the_read<E: Environment>(shared: &Shared<E>, held: Option<&Held>) -> Value {
 /// **No keyboard is left on a drawer that shows nothing open**: whatever the
 /// command, a seat's keyboard on the drawer once it is emptied or collapsed
 /// goes back to its window's prompt line ([`State::drawer_shut`]), so a
-/// window never holds a keyboard on a part it does not draw.
+/// window never holds a keyboard on a part it does not draw. **And no reveal
+/// outlives the last keyboard on the footer**: whatever the command, a
+/// keyboard moved — where the window says it went, to the sidebar, or gone
+/// with the window it was in — with none left on the footer or the drawer
+/// lets a footer its setting hides go ([`State::footer_let_go`]).
 ///
 /// # Errors
 ///
@@ -1237,6 +1240,7 @@ pub(crate) fn changed(
     args: &serde_json::Value,
     known: &dyn Known,
 ) -> Result<(), Refusal> {
+    let keyboards = state.keyboards();
     let mut next = state.clone();
     Change {
         state: &mut next,
@@ -1245,6 +1249,9 @@ pub(crate) fn changed(
     }
     .made(verb)?;
     next.drawer_shut();
+    if next.keyboards() != keyboards {
+        next.footer_let_go();
+    }
     *state = next;
     Ok(())
 }
@@ -1567,7 +1574,6 @@ impl Change<'_> {
             .and_then(Region::of)
             .ok_or_else(|| invalid(format!("`{REGION}` names no part of a window")))?;
         self.state.seat_mut(seat).focus = Some(Focus { window, region });
-        self.state.footer_let_go();
         Ok(())
     }
 
@@ -1656,17 +1662,19 @@ impl Change<'_> {
     /// open in a window hidden — by `window.hide`, or by closing the last one
     /// — shows nothing, so the tap is rule 1's and shows the window, rather
     /// than flip where a page no one sees goes. The prompt's: the seat's
-    /// keyboard on the prompt line of a window shown, and the footer that
-    /// holds the line shown — with `footer.hide` the line is not seen, so the
-    /// tap is rule 1's and shows the footer, rather than open a menu over a
-    /// line no one sees. **Every tap shows the footer** (§12.3).
+    /// keyboard on the prompt line of a window shown, **a line seen whatever
+    /// the state's "shown now" says** — a footer is always shown, or it is the
+    /// design system's folding footer, which opens while a keyboard is inside
+    /// it — so a keyboard a click or Tab put there under `hidden`, or one
+    /// `footer.hide` left there, is one tap from the menu, as rule 2 says.
+    /// **Every tap shows the footer** (§12.3).
     fn leader_tap(&mut self) -> Result<(), Refusal> {
         let seat = self.seat()?;
         let window = self.state.current(seat);
         let shown = self.state.window(window)?.shown;
         // A hidden footer appears when the Leader is pressed, whichever rule
-        // the tap follows; the prompt's rule asks whether it was shown before.
-        let footer = core::mem::replace(&mut self.state.footer, true);
+        // the tap follows.
+        self.state.footer = true;
         if shown && self.state.leader_open() {
             self.state.drawer.flipped = !self.state.drawer.flipped;
             return Ok(());
@@ -1675,10 +1683,7 @@ impl Change<'_> {
             window,
             region: Region::Prompt,
         };
-        if shown
-            && footer
-            && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt)
-        {
+        if shown && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt) {
             self.state
                 .opened(Kind::Leader, None, Place::Drawer, window)?;
             self.state.seat_mut(seat).focus = Some(Focus {
@@ -2202,6 +2207,15 @@ impl State {
         }
     }
 
+    /// Every seat's keyboard that is on a part of a window, by seat: what a
+    /// command compares to tell whether it moved one ([`changed`]).
+    fn keyboards(&self) -> Vec<(u64, Focus)> {
+        self.seats
+            .iter()
+            .filter_map(|(id, seat)| seat.focus.map(|focus| (*id, focus)))
+            .collect()
+    }
+
     /// Whether a seat's keyboard is on the footer — on one of its three lines
     /// — or on the drawer: what holds a hidden footer shown (§12.3).
     fn holds_the_footer(&self) -> bool {
@@ -2219,11 +2233,13 @@ impl State {
     ///
     /// **"Shown now" is a reveal where the setting hides the footer**: a Leader
     /// tap or `footer.show` shows it, it stays while a seat's keyboard is on
-    /// the footer or the drawer, and the first keyboard to leave them, with no
-    /// other left on them, ends it — what §12.3 asks for focus, decided here
-    /// so every window folds it at once. The pointer's part is the design
-    /// system's folding footer's own, which opens under a pointer whatever
-    /// this says. A footer always shown is left as it is.
+    /// the footer or the drawer, and a keyboard moved with none left on them
+    /// ends it — moved where the window says it went or by a command, or gone
+    /// with the window it was in ([`changed`]) — what §12.3 asks for focus,
+    /// decided here so every window folds it at once. The pointer's
+    /// part, and a keyboard's inside the footer it is on, are the design
+    /// system's folding footer's own, which opens under a pointer or around a
+    /// focus whatever this says. A footer always shown is left as it is.
     fn footer_let_go(&mut self) {
         if self.settings.visibility == HIDDEN {
             self.footer = self.footer && self.holds_the_footer();
@@ -3590,10 +3606,8 @@ mod tests {
     /// the page opened then goes to the drawer, closing the menu and the flip
     /// with it. A tap with the keyboard on the prompt of a hidden window shows
     /// it rather than open the menu, one with the menu open in a window hidden
-    /// or closed shows it rather than flip, one with the keyboard on the
-    /// prompt line of a footer hidden shows the footer rather than open the
-    /// menu, every tap shows the footer, and the seat a tap names is the one
-    /// that moves.
+    /// or closed shows it rather than flip, every tap shows the footer, and
+    /// the seat a tap names is the one that moves.
     #[test]
     fn a_leader_tap_follows_the_three_rules_and_never_hides_the_interface() {
         let hidden = ran(&State::default(), Verb::FooterHide, &json!({}));
@@ -3655,29 +3669,8 @@ mod tests {
             let flipped = ran(&shown, Verb::LeaderTap, &json!({}));
             assert!(flipped.drawer.flipped, "{}", hiding.name());
         }
-        // **Nor does a prompt line no one sees** (§12.3, §12.8 rule 1): with
-        // the footer hidden and the keyboard left on its prompt line in a
-        // window shown, a tap shows the footer and opens no menu, and the tap
-        // after it, the line now seen, opens the menu. With the menu open and
-        // the footer hidden, a tap flips and shows the footer.
-        let unseen = ran(&first, Verb::FooterHide, &json!({}));
-        assert!(window(&unseen, 1).shown && !unseen.footer);
-        assert_eq!(
-            unseen.seats[&1].focus.map(|focus| focus.region),
-            Some(Region::Prompt)
-        );
-        let footer_shown = ran(&unseen, Verb::LeaderTap, &json!({}));
-        assert!(footer_shown.footer && window(&footer_shown, 1).shown);
-        assert!(
-            footer_shown.drawer.pages.is_empty(),
-            "a tap opened the menu over a prompt line no one saw"
-        );
-        assert_eq!(
-            footer_shown.seats[&1].focus.map(|focus| focus.region),
-            Some(Region::Prompt)
-        );
-        let seen = ran(&footer_shown, Verb::LeaderTap, &json!({}));
-        assert!(seen.leader_open() && seen.footer);
+        // With the menu open and the footer hidden, a tap flips and shows the
+        // footer.
         let menu_seen = ran(&second, Verb::FooterHide, &json!({}));
         let flipped = ran(&menu_seen, Verb::LeaderTap, &json!({}));
         assert!(
@@ -3693,6 +3686,61 @@ mod tests {
             other.seats[&2].focus.map(|focus| focus.region),
             Some(Region::Prompt)
         );
+    }
+
+    /// One tap opens the leader menu from a prompt line the keyboard is on,
+    /// however the footer is set.
+    ///
+    /// **A prompt line the keyboard is on is seen** (§12.3, §12.8 rule 2): a
+    /// footer is always shown, or it is the design system's folding footer,
+    /// open while a keyboard is inside it — so the state's "shown now" false,
+    /// by `footer.hide` under either setting or by the keyboard reaching the
+    /// line by a click or Tab under `hidden`, which begins no reveal, is no
+    /// reason for a tap to show a line the person already sees and open
+    /// nothing. The tap opens the menu, gives it the keyboard and shows the
+    /// footer.
+    #[test]
+    fn a_tap_opens_the_menu_from_a_prompt_line_the_keyboard_is_on_however_the_footer_is_set() {
+        let first = ran(&State::default(), Verb::LeaderTap, &json!({}));
+        let hidden_setting = json!({"visibility": "hidden"});
+        let folded = ran(&first, Verb::SettingsFooterSet, &hidden_setting);
+        let away = ran(
+            &ran(&first, Verb::ShellFocus, &json!({"region": "workspace"})),
+            Verb::SettingsFooterSet,
+            &hidden_setting,
+        );
+        assert!(!away.footer, "the setting hidden left the footer shown");
+        for (how, unseen) in [
+            (
+                "`footer.hide` always",
+                ran(&first, Verb::FooterHide, &json!({})),
+            ),
+            (
+                "`footer.hide` hidden",
+                ran(&folded, Verb::FooterHide, &json!({})),
+            ),
+            (
+                "the keyboard reaching the line hidden",
+                ran(&away, Verb::ShellFocus, &json!({"region": "prompt"})),
+            ),
+        ] {
+            assert!(window(&unseen, 1).shown && !unseen.footer, "{how}");
+            assert_eq!(
+                unseen.seats[&1].focus.map(|focus| focus.region),
+                Some(Region::Prompt),
+                "{how}"
+            );
+            let tapped = ran(&unseen, Verb::LeaderTap, &json!({}));
+            assert!(
+                tapped.leader_open() && tapped.footer && window(&tapped, 1).shown,
+                "{how}: a tap left the menu shut over a prompt line the person saw"
+            );
+            assert_eq!(
+                tapped.seats[&1].focus.map(|focus| focus.region),
+                Some(Region::Drawer),
+                "{how}"
+            );
+        }
     }
 
     /// Each command of a leader menu's entry that opens a page leaves the
@@ -4482,8 +4530,91 @@ mod tests {
         );
         assert!(always.footer, "chosen always, the footer is not shown now");
         assert!(
-            ran(&always, Verb::ShellFocus, &away).footer,
+            ran(
+                &ran(&always, Verb::ShellFocus, &json!({"region": "prompt"})),
+                Verb::ShellFocus,
+                &away
+            )
+            .footer,
             "a keyboard leaving hid a footer always shown"
+        );
+    }
+
+    /// A hidden footer is let go however the last keyboard leaves it.
+    ///
+    /// **A command is judged as the window is**: one that moves the keyboard
+    /// to the sidebar, or closes the window it was in, lets the footer go as a
+    /// keyboard the window moves does —
+    /// unless another seat's keyboard is still on the footer — and
+    /// `footer.show`, beginning a reveal no keyboard holds, is kept by a
+    /// command that moves no keyboard and ended by one that moves a keyboard
+    /// anywhere but the footer.
+    #[test]
+    fn a_hidden_footer_is_let_go_however_the_last_keyboard_leaves_it() {
+        let chosen = ran(
+            &State::default(),
+            Verb::SettingsFooterSet,
+            &json!({"visibility": "hidden"}),
+        );
+        let tapped = ran(&chosen, Verb::LeaderTap, &json!({}));
+        let sidebar = ran(&tapped, Verb::SidebarCycle, &json!({}));
+        assert!(sidebar.footer, "the sidebar shown moved no keyboard");
+        let on_the_sidebar = ran(&sidebar, Verb::SidebarCycle, &json!({}));
+        assert_eq!(
+            on_the_sidebar.seats[&1].focus.map(|focus| focus.region),
+            Some(Region::Sidebar)
+        );
+        assert!(
+            !on_the_sidebar.footer,
+            "the keyboard moved to the sidebar by a command kept the footer shown"
+        );
+        let in_the_second = ran(
+            &ran(&chosen, Verb::WindowOpen, &json!({})),
+            Verb::ShellFocus,
+            &json!({"window": 2, "region": "workspace"}),
+        );
+        let tapped_there = ran(&in_the_second, Verb::LeaderTap, &json!({}));
+        assert_eq!(
+            tapped_there.seats[&1].focus,
+            Some(Focus {
+                window: 2,
+                region: Region::Prompt
+            })
+        );
+        assert!(tapped_there.footer);
+        let closed = ran(&tapped_there, Verb::WindowClose, &json!({"window": 2}));
+        assert!(closed.seats[&1].focus.is_none());
+        assert!(
+            !closed.footer,
+            "the window the keyboard was in closed, and the footer stayed shown"
+        );
+        let other_seat = ran(
+            &tapped_there,
+            Verb::ShellFocus,
+            &json!({"seat": 2, "window": 1, "region": "prompt"}),
+        );
+        assert!(
+            ran(&other_seat, Verb::WindowClose, &json!({"window": 2})).footer,
+            "another seat on the prompt line let it go"
+        );
+        let asked = ran(&chosen, Verb::FooterShow, &json!({}));
+        assert!(asked.footer, "`footer.show` began no reveal");
+        assert!(
+            ran(&asked, Verb::InfoSay, &json!({"text": "kept"})).footer,
+            "a command that moved no keyboard ended a reveal"
+        );
+        assert!(
+            ran(
+                &asked,
+                Verb::ShellHover,
+                &json!({"seat": 2, "by": "pointer", "target": "modeline.glyph"})
+            )
+            .footer,
+            "a seat come with its pointer alone moved a keyboard"
+        );
+        assert!(
+            !ran(&asked, Verb::ShellFocus, &json!({"region": "sidebar"})).footer,
+            "a keyboard moved with none on the footer kept a reveal"
         );
     }
 

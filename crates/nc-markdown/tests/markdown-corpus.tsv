@@ -91,12 +91,15 @@ accept	*a `*` b*	p[em["a " code"*" " b"]]
 accept	a _ b	p["a _ b"]
 accept	a__b, a_b. and (x_) and é_ü and x_«y	p["a__b, a_b. and (x_) and é_ü and x_«y"]
 accept	*(b)* and a *b* c	p[em["(b)"] " and a " em["b"] " c"]
+accept	*Ⓐ* and a*\u{24ea}*b	p[em["Ⓐ"] " and a" em["⓪"] "b"]
 
 # What is outside it, each refused where it is read.
 refuse	- a\n  ```\n  x\n  ```	2:3	joined
 refuse	a\tb	1:2	control
 refuse	a\rb	1:2	control
 refuse	a\u{7}b	1:2	control
+refuse	_\u{2028}b_	1:2	control
+refuse	a\u{2029}b	1:2	control
 refuse	trailing 	1:9	trailing
 refuse	 indented	1:1	indent
 refuse	- a\n   three under two	2:3	joined
@@ -175,6 +178,11 @@ refuse	*a (b)*c	1:1	star
 refuse	a*b→*c	1:2	star
 refuse	a*→b*	1:2	star
 refuse	*a→*b*	1:1	star
+refuse	a*Ⓐ*b	1:2	star
+refuse	a**Ⓐ**b	1:2	star
+refuse	a*\u{1f130}*b	1:2	star
+refuse	a*\u{1f150}*b	1:2	star
+refuse	a*\u{1f170}*b	1:2	star
 refuse	a*(b)* c	1:2	star
 refuse	a "_" b	1:4	underscore
 refuse	a\n~~~	2:1	joined

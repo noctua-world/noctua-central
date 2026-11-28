@@ -2211,12 +2211,12 @@ hover, selection and drag.
   run's state, which shows nothing but the footer.
 - **A Leader tap follows `NOCTUA.md §12.8`'s three rules in order**: with the leader menu
   open in the drawer of the seat's window, shown, it sends the next page to the other
-  place, with the seat's keyboard on the prompt of a window shown and the footer that
-  holds it shown it opens the menu, and otherwise — the menu left open in a window hidden
-  or closed, or the footer hidden with the keyboard on its prompt, included — it shows the
-  window and puts the keyboard on the prompt. Every tap shows the footer, as
-  `NOCTUA.md §12.3` says. **It never hides the interface**, and a menu or a prompt line no
-  one sees never keeps it from showing it.
+  place, with the seat's keyboard on the prompt of a window shown it opens the menu —
+  whatever the state's "shown now" says, since a footer is always shown or folds open
+  around the keyboard inside it — and otherwise — the menu left open in a window hidden
+  or closed included — it shows the window and puts the keyboard on the prompt. Every tap
+  shows the footer, as `NOCTUA.md §12.3` says. **It never hides the interface**, and a
+  menu no one sees never keeps it from showing it.
 
 **Enforced by** the tests beside `crates/nc-kernel/src/shell.rs` — the declarations and
 every schema's bound held to what the module reads and the catalog's limits, each
@@ -2254,8 +2254,8 @@ what a page is drawn from:
   thematic break; code spans, emphasis, strong, links, a backslash before ASCII
   punctuation and three entities. Anything else is refused with a rule of its own, at the
   line and the column — in characters — it was read at: raw HTML and an autolink first, an
-  image, a reference link, a setext heading, an indented block, a hard break, a tab or
-  another control character.
+  image, a reference link, a setext heading, an indented block, a hard break, a tab, the
+  line or the paragraph separator, or another control character.
 - **No markup of a text's own reaches a reader of the tree.** There is no node for raw
   HTML, so none is passed through; what a node holds is text, its escapes and entities
   already read, for whoever draws it to escape as its own.
@@ -5598,12 +5598,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   the system preferred when it opened, until the step that draws the settings pages makes
   the window follow them. The footer's visibility is followed: `hidden` draws the design
   system's folding footer with the state's "shown now" on it, which under `hidden` is a
-  reveal — a Leader tap or `footer.show` begins it, and the kernel ends it once no seat's
-  keyboard is on the footer or the drawer (`footer_let_go` in
-  `crates/nc-kernel/src/shell.rs`), the window reporting where the keyboard went as it
-  does; the pointer at the window's bottom edge or over the footer, and a keyboard coming
-  back to it, open it by the design system's own rules, which no test here presses, and
-  begin no reveal. `footer.hide` under `always` changes the state's flag and nothing a
+  reveal — a Leader tap or `footer.show` begins it, and the kernel ends it once a keyboard
+  moves and none is left on the footer or the drawer (`footer_let_go` and `changed` in
+  `crates/nc-kernel/src/shell.rs`), whether the window reports where the keyboard went, a
+  command moves it, or its window closes; the pointer at the window's bottom edge or over
+  the footer, and a keyboard coming back to it, open it by the design system's own rules,
+  which no test here presses, and begin no reveal — and a keyboard on the prompt line is
+  one tap from the leader menu all the same, the line being open around it. `footer.hide` under `always` changes the state's flag and nothing a
   person sees. A setting set is no step, so nothing undoes one; and the appearance is the
   mode alone — the palette stays the design system's default.
 - **The interface's own texts, where nothing says them yet.** `catalog/interface.toml`
@@ -5629,7 +5630,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   flanking rules for `*` and `_`, and a character beside a run that is neither a letter,
   a digit, whitespace nor punctuation of the basic Latin set — punctuation to one version
   of CommonMark, a symbol to another, and no table of Unicode's categories in this crate —
-  is read both ways, the run refused where the two readings differ. A source outside the subset in two
+  is read both ways, the run refused where the two readings differ. Rust's classes stand
+  in for CommonMark's only where they agree: its whitespace past the line and paragraph
+  separators, which are refused with the controls, and its letters but the circled and
+  squared Latin letters, which are symbols to Unicode and read both ways; measured once by
+  hand against `pandoc -f gfm` over random sources of those characters, which no suite
+  runs. A source outside the subset in two
   places is told of the first the reader meets, which is not always the first in the
   source: every line's control characters and trailing space are read before any block,
   and a block's shape before its text. The reader bounds its depth and not

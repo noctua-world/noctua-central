@@ -20241,7 +20241,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/registry.rs", 67, 25),
         ("nc-kernel/session.rs", 35, 7),
         ("nc-kernel/settings.rs", 55, 2),
-        ("nc-kernel/shell.rs", 242, 39),
+        ("nc-kernel/shell.rs", 245, 39),
         ("nc-kernel/supervisor.rs", 58, 12),
         ("nc-kernel/the_decision_point.rs", 353, 96),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
@@ -20266,7 +20266,7 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-markdown/lib.rs", 65, 9),
+        ("nc-markdown/lib.rs", 69, 9),
         ("nc-markdown/the_corpus_is_the_subset.rs", 13, 0),
         ("nc-pages/lib.rs", 13, 2),
         ("nc-platform/clipboard.rs", 16, 11),
@@ -26289,7 +26289,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25779;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25793;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26308,7 +26308,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8257;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8263;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26325,7 +26325,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2827;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2829;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26359,7 +26359,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33456;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33488;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26413,7 +26413,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,456 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,488 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26446,7 +26446,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2827 of
+    /// this tree offers, **2829 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38930,7 +38930,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3666] = [
+    static OPERATORS: [(&str, &str, &str); 3674] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -45578,11 +45578,6 @@ Options:
             "leader_tap",
             "a tap opens the menu only from a window that is shown",
         ),
-        (
-            "kernel_shell",
-            "leader_tap",
-            "a tap opens the menu only from a prompt line the footer shows",
-        ),
         ("kernel_shell", "leader_tap", "a tap shows the footer"),
         (
             "kernel_shell",
@@ -45601,6 +45596,21 @@ Options:
         ),
         (
             "kernel_shell",
+            "changed",
+            "a keyboard moved off the footer lets a hidden footer go",
+        ),
+        (
+            "kernel_shell",
+            "changed",
+            "a command that moves no keyboard keeps a reveal",
+        ),
+        (
+            "kernel_shell",
+            "keyboards",
+            "a seat whose keyboard is on nothing has moved none",
+        ),
+        (
+            "kernel_shell",
             "holds_the_footer",
             "a keyboard on the drawer holds a hidden footer",
         ),
@@ -45613,11 +45623,6 @@ Options:
             "kernel_shell",
             "holds_the_footer",
             "any seat's keyboard holds a hidden footer",
-        ),
-        (
-            "kernel_shell",
-            "focus",
-            "a keyboard moved lets go of a hidden footer",
         ),
         (
             "kernel_shell",
@@ -54861,6 +54866,16 @@ Options:
             "the connections answered are the ones counted",
         ),
         ("markdown", "parse", "a tab is a control character, refused"),
+        (
+            "markdown",
+            "is_a_control",
+            "a line separator is refused as a control character is",
+        ),
+        (
+            "markdown",
+            "is_a_control",
+            "a paragraph separator is refused as a control character is",
+        ),
         ("markdown", "parse", "a line ending in a space is refused"),
         (
             "markdown",
@@ -55058,6 +55073,31 @@ Options:
             "markdown",
             "underscore_opens",
             "an underscore after punctuation opens though right-flanking",
+        ),
+        (
+            "markdown",
+            "of",
+            "a symbol Rust counts as a letter is read both ways",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a circled Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a squared Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a negative circled Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a negative squared Latin letter is a symbol",
         ),
         (
             "markdown",

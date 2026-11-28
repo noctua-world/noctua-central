@@ -41,7 +41,8 @@
 //! wherever `CommonMark` would let it open emphasis. A character beside a run
 //! that this crate cannot class — outside ASCII, and neither a letter, a digit
 //! nor whitespace: punctuation to one version of `CommonMark` and not to another
-//! — is read both ways, and a run the two readings disagree on is refused. So
+//! — is read both ways, and a run the two readings disagree on is refused; so
+//! is a circled or squared Latin letter, a symbol Rust counts as a letter. So
 //! a page reads the same wherever it is rendered.
 //!
 //! # What is outside it
@@ -49,10 +50,11 @@
 //! Raw HTML, an autolink, an image, a reference link, a setext heading, an
 //! indented code block, a tilde fence, a `*` or `+` bullet, a `1)` item, a
 //! table's alignment colons, a hard line break, a tab or any other control
-//! character, a line ending in a space, and an entity not listed above. Each
-//! is refused with a [`Rule`] of its own, at the line and the column it was
-//! read at ([`Refused`]) — never read as text, since the same source would
-//! then be one page here and another wherever Markdown is read whole.
+//! character, the line and the paragraph separators, a line ending in a
+//! space, and an entity not listed above. Each is refused with a [`Rule`] of
+//! its own, at the line and the column it was read at ([`Refused`]) — never
+//! read as text, since the same source would then be one page here and
+//! another wherever Markdown is read whole.
 //!
 //! # The coordinates
 //!
@@ -191,7 +193,8 @@ pub enum Target {
 /// Why a source is not of the subset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rule {
-    /// A tab, a carriage return or another control character.
+    /// A tab, a carriage return, a line or paragraph separator, or another
+    /// control character.
     Control,
     /// A line ending in a space.
     Trailing,
@@ -324,8 +327,8 @@ impl Rule {
     pub const fn said(self) -> &'static str {
         match self {
             Self::Control => {
-                "a tab, a carriage return or another control character: write spaces, and end \
-                 each line with a line feed alone"
+                "a tab, a carriage return, a line or paragraph separator, or another control \
+                 character: write spaces, and end each line with a line feed alone"
             }
             Self::Trailing => "the line ends in a space: take it away",
             Self::Indent => {
@@ -532,7 +535,7 @@ pub fn parse(source: &str) -> Result<Document, Refused> {
         })
         .collect();
     for line in &lines {
-        if let Some(offset) = line.text.chars().position(char::is_control) {
+        if let Some(offset) = line.text.chars().position(is_a_control) {
             return Err(line.refused(offset, Rule::Control));
         }
         if line.text.ends_with(' ') {
@@ -542,6 +545,20 @@ pub fn parse(source: &str) -> Result<Document, Refused> {
     Ok(Document {
         blocks: blocks(&lines, 0, false)?,
     })
+}
+
+/// Whether `character` is refused wherever it stands, as [`Rule::Control`]:
+/// a control character, or the line or the paragraph separator.
+///
+/// **The two separators end a line inside a line.** One reader breaks the
+/// line there, Rust counts them as whitespace, and `CommonMark` as neither
+/// whitespace nor punctuation, so a `_` or a `*` beside one opens emphasis in
+/// one reader and is text in another: refused, every reader reads the text
+/// alike. And with every control character refused too, what is whitespace
+/// to Rust in a line read past this is whitespace to `CommonMark` and
+/// nothing else: Unicode's `Zs`.
+fn is_a_control(character: char) -> bool {
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
 /// A list item's marker: its kind, and how many characters it takes.
@@ -1061,12 +1078,19 @@ impl Side {
     /// emphasis holds — stands for the delimiter beyond it, which is ASCII
     /// punctuation; every rule here reads such an edge as it reads
     /// punctuation, so the two are one.
+    ///
+    /// **Rust's classes are read only where they are `CommonMark`'s.** Its
+    /// whitespace is, in a line [`is_a_control`] let through. Its letters are
+    /// not quite: [`is_a_lettered_symbol`] names the symbols it counts as
+    /// letters, which are read both ways as any other symbol is.
     fn of(character: Option<&Character>) -> Self {
         match character.map(|held| held.written) {
             None => Self::Space,
             Some(written) if written.is_whitespace() => Self::Space,
             Some(written) if written.is_ascii_punctuation() => Self::Punctuation,
-            Some(written) if written.is_alphanumeric() => Self::Word,
+            Some(written) if written.is_alphanumeric() && !is_a_lettered_symbol(written) => {
+                Self::Word
+            }
             Some(_) => Self::Other,
         }
     }
@@ -1079,6 +1103,25 @@ impl Side {
             side => [side, side],
         }
     }
+}
+
+/// Whether `character` is a symbol that `char::is_alphanumeric` counts as a
+/// letter: the circled, squared, negative circled and negative squared Latin
+/// letters, which Unicode files under the symbols (`So`) and gives
+/// `Other_Alphabetic`.
+///
+/// **Every such character, measured**: of all that `is_alphanumeric`
+/// answers for, these alone are punctuation or a symbol by Unicode's
+/// categories, so these alone are punctuation to `CommonMark` 0.31, which
+/// counts every symbol, and a letter to the versions before it.
+const fn is_a_lettered_symbol(character: char) -> bool {
+    matches!(
+        character,
+        '\u{24B6}'..='\u{24E9}'
+            | '\u{1F130}'..='\u{1F149}'
+            | '\u{1F150}'..='\u{1F169}'
+            | '\u{1F170}'..='\u{1F189}'
+    )
 }
 
 /// Whether a run between `before` and `after` is left-flanking (`CommonMark`
@@ -1515,5 +1558,72 @@ mod tests {
             let rule = parse(&source).expect_err(other).rule;
             assert!(matches!(rule, Rule::Info | Rule::Trailing), "{other}");
         }
+    }
+
+    /// What is whitespace to Rust in a line the reader lets through is the
+    /// whitespace of `CommonMark`: Unicode's `Zs`, and nothing else.
+    ///
+    /// **Every other character Rust counts as whitespace** but the line feed,
+    /// which ends a line, is a control or a separator, and refused wherever it
+    /// stands.
+    #[test]
+    fn whitespace_past_the_line_rules_is_commonmarks() {
+        let space_separator = |character: char| {
+            matches!(
+                u32::from(character),
+                0x20 | 0xA0 | 0x1680 | 0x2000..=0x200A | 0x202F | 0x205F | 0x3000
+            )
+        };
+        let mut let_through = 0;
+        for character in (0..=u32::from(char::MAX))
+            .filter_map(char::from_u32)
+            .filter(|character| character.is_whitespace() && *character != '\n')
+        {
+            match parse(&format!("a{character}b")) {
+                Ok(_) => {
+                    assert!(space_separator(character), "{:04X}", u32::from(character));
+                    let_through += 1;
+                }
+                Err(refused) => assert_eq!(refused.rule, Rule::Control),
+            }
+        }
+        assert_eq!(let_through, 17, "every space separator is let through");
+    }
+
+    /// A symbol Rust counts as a letter is read both ways, as every other
+    /// symbol outside ASCII is.
+    ///
+    /// **Each circled or squared Latin letter**, beside a run that opens
+    /// emphasis read as a letter and none read as punctuation, refuses it, and
+    /// one both readings open is read; a circled digit, which is no symbol, is
+    /// a digit to every reader.
+    #[test]
+    fn a_lettered_symbol_is_read_as_a_letter_and_as_punctuation() {
+        let ranges = [
+            '\u{24B6}'..='\u{24E9}',
+            '\u{1F130}'..='\u{1F149}',
+            '\u{1F150}'..='\u{1F169}',
+            '\u{1F170}'..='\u{1F189}',
+        ];
+        for symbol in ranges.into_iter().flatten() {
+            assert!(symbol.is_alphanumeric(), "{:04X}", u32::from(symbol));
+            assert_eq!(refused(&format!("a*{symbol}*b")), (1, 2, Rule::Star));
+            assert_eq!(
+                parse(&format!("*{symbol}*"))
+                    .expect("both readings open")
+                    .blocks,
+                [Block::Paragraph(vec![Inline::Emphasis(vec![
+                    Inline::Text(symbol.to_string())
+                ])])]
+            );
+        }
+        assert_eq!(
+            parse("a*\u{24EA}*b").expect("a digit").blocks,
+            [Block::Paragraph(vec![
+                Inline::Text("a".to_owned()),
+                Inline::Emphasis(vec![Inline::Text("\u{24EA}".to_owned())]),
+                Inline::Text("b".to_owned()),
+            ])]
+        );
     }
 }
