@@ -901,6 +901,49 @@ fn the_stop_mark_silences_every_restorer() {
     }
 }
 
+/// Waits until the daemon `client` reached says it serves its kernel.
+///
+/// Its status is asked for [`nc_daemon::testing::PATIENCE`] at most.
+/// **What a restored start is held to**: a daemon answers its handshake while
+/// it starts, before it has opened its profile's store, so one that met a
+/// store it refuses — the store's file beside a hot journal, which a daemon
+/// killed while it made the store once left — ends `NC-DB-0007` after it
+/// answered, and only its status tells.
+async fn serves_its_kernel(client: &mut nc_ipc::Client, installed: &nc_daemon::testing::Installed) {
+    let deadline = tokio::time::Instant::now() + nc_daemon::testing::PATIENCE;
+    loop {
+        let answered = tokio::time::timeout(
+            nc_daemon::testing::PATIENCE,
+            client.ask(&nc_ipc::Request::Status),
+        )
+        .await
+        .expect("answered in time")
+        .unwrap_or_else(|error| {
+            panic!(
+                "the restored daemon did not answer its status ({error}), its standard error \
+                 ending: {}",
+                installed.standard_error()
+            )
+        });
+        let nc_ipc::Answer::Status(status) = answered else {
+            panic!("the status was answered with {answered:?}");
+        };
+        let state = status
+            .into_object()
+            .and_then(|mut fields| fields.remove("state"))
+            .and_then(nc_canon::Value::into_text);
+        if state.as_deref() == Some(nc_ipc::State::Running.word()) {
+            return;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the restored daemon did not come to serve its kernel within {:?}: {state:?}",
+            nc_daemon::testing::PATIENCE
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
 /// The interface's countdown, the second kind of restorer (`NOCTUA.md
 /// §12.17`), with this test standing in for the desktop interface that runs it:
 /// it asks `nc_ipc::alert` what the line says, as the desktop will, and runs
@@ -908,7 +951,11 @@ fn the_stop_mark_silences_every_restorer() {
 ///
 /// **A daemon lost with no mark** is said not running and counted down, and at
 /// the deadline the restorer the line names — the install's own daemon,
-/// `--restored` — brings it back as a new instance. **The deadline is kept by
+/// `--restored` — brings it back as a new instance, which starts and serves
+/// its kernel. **The lost one is killed while it starts**, the moment it
+/// answers, so it may die in any moment of making the store of its fresh
+/// profile: the restored one coming to serve is what holds that no such
+/// moment leaves a store the next start refuses. **The deadline is kept by
 /// the clock**, the line asked again until it ends the countdown, as the
 /// desktop asks it: no line restores the moment its daemon was lost, and on
 /// Windows what a killed process held is let go when the system gets to it. **A daemon stopped as
@@ -982,6 +1029,8 @@ async fn the_interfaces_countdown_restores_a_daemon_lost_and_leaves_a_stopped_on
         second.instance, first.instance,
         "the daemon the line restored is not a new start"
     );
+    // **And it starts, whatever the lost one was doing when it was killed.**
+    serves_its_kernel(&mut client, &installed).await;
 
     // **Stopped on purpose: said stopped, nothing counted down, and a
     // restorer run anyway leaves it down.**

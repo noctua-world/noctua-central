@@ -8277,8 +8277,8 @@ WEAKENINGS = [
      "        .find(|row| this_builds(row.version).is_some_and(|(_, checksum)| *checksum != row.checksum))",
      "        .find(|row| this_builds(row.version).is_some_and(|_| false))"),
     ("local_store", "open", "an open waits for its profile's lock off the threads that poll it",
-     "        let (file, _one_open_at_a_time) = crate::open::off_the_runtime(directory).await?;",
-     "        let (file, _one_open_at_a_time) = crate::open::private_file_in(directory)?;"),
+     "        let (file, _one_open_at_a_time, making) = crate::open::off_the_runtime(directory).await?;",
+     "        let (file, _one_open_at_a_time, making) = crate::open::private_file_in(directory)?;"),
     ("kernel_net_ureq", "unanswered", "a request that did not complete is told in one sentence of the kernel's",
      "        _ => TransportError::Unavailable(UNANSWERED.to_owned()),",
      "        other => TransportError::Unavailable(format!(\"{UNANSWERED}: {other}\")),"),
@@ -12788,6 +12788,35 @@ WEAKENINGS = [
     ("compiler_surfaces", "keybindings", "a chord a system keeps is a person's words",
      "            words(&kept.chord.written_for(kept.keyboard)),",
      "            cell(&kept.chord.written_for(kept.keyboard)),"),
+    # A missing local database made whole before it has its name: under the
+    # creation name, what an open stopped part of the way left there taken
+    # away — the file and its companions, each judged first — nothing left
+    # beside it when it is put at its name, and a companion found at the
+    # store's name with no database refused.
+    ("local_open", "begun", "a database is made under its creation name, never the store's",
+     "    let creation = directory.join(crate::CREATION_NAME);",
+     "    let creation = directory.join(crate::FILE_NAME);"),
+    ("local_open", "begun", "what an open stopped while making the database left is taken away",
+     "        std::fs::remove_file(path).map_err(|error| {",
+     "        Ok::<(), std::io::Error>(()).map_err(|error| {"),
+    ("local_open", "begun", "the companions an open stopped while making left are taken away before SQLite sees the file",
+     "    let mut left = companions_of(&creation, &user)?;\n",
+     "    let mut left = companions_of(&creation, &user)?;\n    left.clear();\n"),
+    ("local_open", "begun", "a link at the creation name is refused, never removed",
+     "    if there(nc_platform::judge(&creation, Kind::File, &user))? {",
+     "    if std::fs::symlink_metadata(&creation).is_ok() {"),
+    ("local_open", "companions_of", "a companion is held to the rule before it is counted as there",
+     "        if there(nc_platform::judge_made_by_default(&companion, user))? {",
+     "        if std::fs::symlink_metadata(&companion).is_ok() {"),
+    ("local_open", "put_in_place", "a file left beside the new database keeps it from the store's name",
+     "    if let Some(left) = companions_of(&creation, &user)?.first() {",
+     "    if let Some(left) = companions_of(&creation, &user)?.first().filter(|_| false) {"),
+    ("local_open", "private_file_in", "a companion of the store's name with no database is refused",
+     "    if let Some(alone) = beside_it.first() {",
+     "    if let Some(alone) = beside_it.first().filter(|_| false) {"),
+    ("local_store", "open", "a database this open made is put at its name before it is judged",
+     "            crate::open::made(making, &file).await?;",
+     "            drop(making);"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

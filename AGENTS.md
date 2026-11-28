@@ -2582,8 +2582,34 @@ header.
   `a_migration_edited_after_it_ran_is_refused`). The file and its journal are left byte
   for byte (`another_applications_wal_file_is_refused_and_left_as_it_stood`,
   `a_damaged_file_with_frames_in_its_wal_is_refused_and_left_as_it_stood`), and a file
-  beside a hot rollback journal, which this build never leaves, is refused with that
-  journal not rolled back (`a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood`).
+  beside a hot rollback journal, which this build never leaves (the bullet below), is
+  refused with that journal not rolled back
+  (`a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood`).
+- **A store half-made at its own name** is not left by an open that stops — a daemon
+  killed as it starts, a power cut on a person's very first start. Turning a new file into
+  a write-ahead log writes its first page through a rollback journal and then deletes the
+  journal, and a daemon killed between the two — twice on the Windows runner, by a suite
+  that kills a daemon the moment it answers, which it does before its store opens — left
+  the store's file beside a hot journal, refused `NC-DB-0007` at every start after until the
+  journal was deleted by hand. So a missing file is made under `nc_local::CREATION_NAME`,
+  private, turned into a write-ahead log there on one connection with the pool's pragmas,
+  closed, held to having nothing left beside it, flushed, renamed to `nc_local::FILE_NAME`,
+  and the directory synced where that is what makes a rename durable
+  (`nc_platform::sync_directory`). What an open stopped part of the way left under the
+  creation name — the file and its `-journal`, `-wal` and `-shm` — the next open that finds
+  no store takes away and makes again
+  (`what_an_open_stopped_while_making_the_database_left_is_made_again_and_opens_fresh`),
+  each judged first by the rule its twin at the store's name is held to, a link refused and
+  left (`a_link_at_the_creation_name_is_refused_and_left_as_it_stood`), and before SQLite
+  sees the new file, since SQLite deleting a log or a journal it finds beside a file of no
+  pages would hide an open that did not
+  (`what_an_open_stopped_while_making_the_database_left_is_taken_away_first`). **Nothing at
+  the store's own name is removed or repaired**: the same leftover there is refused and left
+  byte for byte
+  (`the_first_write_of_a_new_file_stopped_at_the_stores_name_is_refused_and_left_as_it_stood`),
+  and a `-journal`, `-wal` or `-shm` there with no store beside it is `NC-DB-0007` before
+  anything is made, since SQLite would read it into the new file
+  (`a_companion_with_no_database_is_refused_and_left_as_it_stood`).
 - **Images are append-only and every write is counted**: the triggers hold under
   `trusted_schema = OFF` and their refusal is recognised by SQLite's extended code 1811;
   every statement names `main.`, every write checks the rows it changed, and every
@@ -5509,10 +5535,21 @@ rather than anything decided for the project, and each is a maintainer's to reop
   the mode its umask gives, so a group that umask lets write there is not answered for the
   tests. The blobs' directory stops the same people and no more. An open leaves a `-shm` it
   gave a `-wal` that had none (an index holding no data) beside a file it then refuses, and
-  leaves what it made before it judged the path it refuses: the database file, when it was
-  missing and a companion is then refused, and on Windows the profile's lock file
-  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without bound
-  for another open of the profile, so a process stopped mid-open holds every other.
+  leaves what it made before it judged the path it refuses: on Windows the profile's lock
+  file (`nc_local::LOCK_NAME`), made before the database file is judged, and a database it
+  was making under `nc_local::CREATION_NAME` when SQLite or the filesystem failed it part of
+  the way, which the next open takes away. It waits without bound for another open of the
+  profile, so a process stopped mid-open holds every other. **A store made whole has two
+  edges this does not close.** An empty file an earlier build left at the store's own name —
+  one that made the file there and was stopped before its first connection — is turned into
+  a write-ahead log where it stands, as that build would have, so a stop in that moment can
+  still leave it beside a hot journal; this build makes no such file, and replacing it would
+  be removing something at the store's name. And the rename is `std::fs::rename`, which
+  replaces a name that is there: the name was found missing under the profile's hold, so
+  only a process of the same user making it in between is overwritten. That the flush and
+  the directory's sync reach the disk is not staged — no suite cuts the power — and the kill
+  at each of the open's file calls was measured once, by hand, under `strace` on Linux; the
+  suites stage what each kill leaves.
 - **`chrono` is linked unmaintained**, through `cedar-policy-core`, for Cedar's `datetime`
   extension, which the packs use for a grant's validity and the request's `now`.
   RUSTSEC-2026-0543 says so and names no defect, and `deny.toml` leaves it out of the audit

@@ -418,12 +418,20 @@ impl LocalStore {
     /// [`LocalError::Refused`] when the directory or a file is not private to
     /// this user; [`LocalError::Migration`] when a migration fails;
     /// [`LocalError::Unexpected`] when the file is another application's, the
-    /// self-check fails or the file's migrations are not this build's;
+    /// self-check fails, the file's migrations are not this build's, or a
+    /// companion of the file stands where there is no file;
     /// [`LocalError::Unavailable`] when SQLite or the filesystem cannot be
     /// reached — a parent directory that does not exist, a full disk.
     pub async fn open(directory: &Path) -> Result<Self, LocalError> {
         use sqlx::{ConnectOptions as _, Connection as _};
-        let (file, _one_open_at_a_time) = crate::open::off_the_runtime(directory).await?;
+        let (file, _one_open_at_a_time, making) = crate::open::off_the_runtime(directory).await?;
+        // **A file this open made is put at its name whole**, turned into a
+        // write-ahead log under a name of its own first, so the file judged
+        // below is never one an open stopped part of the way through making
+        // (`crate::open::made`).
+        if let Some(making) = making {
+            crate::open::made(making, &file).await?;
+        }
         // **Judged on a connection that writes nothing, and only then the
         // pool**, whose every connection sets `journal_mode = WAL` — which
         // converts a file in another journal mode before anything has asked

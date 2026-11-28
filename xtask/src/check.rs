@@ -20089,7 +20089,7 @@ mod the_frozen_path_rule {
         ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 38, 3),
         ("desktop/assets.rs", 21, 3),
         ("desktop/client.rs", 13, 1),
         ("desktop/commands.rs", 35, 6),
@@ -20255,9 +20255,9 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
         ("nc-local/agents.rs", 42, 11),
         ("nc-local/journal.rs", 26, 12),
-        ("nc-local/lib.rs", 12, 10),
-        ("nc-local/open.rs", 19, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
+        ("nc-local/lib.rs", 13, 10),
+        ("nc-local/open.rs", 30, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 71, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 89, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
@@ -23113,8 +23113,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 952 scratches this tree
-    /// builds, 864 of the 952 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 958 scratches this tree
+    /// builds, 870 of the 958 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23239,8 +23239,8 @@ mod the_frozen_path_rule {
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 28, 28),
-        ("nc-local/open.rs", 4, 4),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
+        ("nc-local/open.rs", 6, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 47, 47),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/clipboard.rs", 2, 2),
         ("nc-platform/lib.rs", 32, 32),
@@ -26289,7 +26289,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25800;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25841;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26308,7 +26308,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8263;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8285;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26325,7 +26325,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2829;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2837;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26359,7 +26359,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33503;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33573;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26413,7 +26413,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,503 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,573 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26446,7 +26446,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2829 of
+    /// this tree offers, **2837 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38930,7 +38930,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3689] = [
+    static OPERATORS: [(&str, &str, &str); 3697] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -55491,6 +55491,47 @@ Options:
             "compiler_surfaces",
             "keybindings",
             "a chord a system keeps is a person's words",
+        ),
+        (
+            "local_open",
+            "begun",
+            "a database is made under its creation name, never the store's",
+        ),
+        (
+            "local_open",
+            "begun",
+            "what an open stopped while making the database left is taken away",
+        ),
+        (
+            "local_open",
+            "begun",
+            "the companions an open stopped while making left are taken away before SQLite sees \
+             the file",
+        ),
+        (
+            "local_open",
+            "begun",
+            "a link at the creation name is refused, never removed",
+        ),
+        (
+            "local_open",
+            "companions_of",
+            "a companion is held to the rule before it is counted as there",
+        ),
+        (
+            "local_open",
+            "put_in_place",
+            "a file left beside the new database keeps it from the store's name",
+        ),
+        (
+            "local_open",
+            "private_file_in",
+            "a companion of the store's name with no database is refused",
+        ),
+        (
+            "local_store",
+            "open",
+            "a database this open made is put at its name before it is judged",
         ),
     ];
 

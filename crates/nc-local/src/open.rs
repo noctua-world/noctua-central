@@ -9,6 +9,13 @@
 //! a mode or an access list, a symbolic link or any reparse point — is the
 //! answer of `nc_platform`, which this module asks, and then says what was not
 //! opened.
+//!
+//! **And a missing database is made whole before it has its name.** It is
+//! made under [`crate::CREATION_NAME`], turned into a write-ahead log there
+//! ([`made`]), and renamed to [`crate::FILE_NAME`] only then, so a store at its
+//! own name is never one half-made. What an open stopped part of the way left
+//! under the creation name is the one thing this crate ever removes, and only
+//! once it is judged by the rule the store is held to ([`begun`]).
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -20,6 +27,45 @@ use crate::LocalError;
 
 /// The files SQLite keeps beside the database, each held to the same rule.
 const COMPANIONS: [&str; 3] = ["-wal", "-shm", "-journal"];
+
+/// The path SQLite keeps `file`'s companion of `suffix` at: the file's name
+/// with the suffix after it.
+fn beside(file: &Path, suffix: &str) -> PathBuf {
+    let mut name = file.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+/// Whether the path `judged` answers for is there.
+///
+/// Held to the rule it was judged by: `false` when nothing is, and the
+/// refusal or the failure of anything else, as what it is here.
+fn there(judged: Result<(), Judged>) -> Result<bool, LocalError> {
+    match judged {
+        Ok(()) => Ok(true),
+        Err(Judged::Failed(call)) if call.error().kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(judged) => Err(not_taken(judged, Holding::Database)),
+    }
+}
+
+/// The companions SQLite keeps beside `file` that are there, each judged
+/// first and refused when it is not this user's alone.
+///
+/// **SQLite makes them, with the system's own security**, so on Windows each
+/// is owned by whoever the token makes the owner of what this process creates
+/// — the Administrators group, in an elevated process — and is judged as such
+/// ([`nc_platform::judge_made_by_default`]); the directory, the lock and the
+/// database file are this crate's, made owned by the user, and held to that.
+fn companions_of(file: &Path, user: &User) -> Result<Vec<PathBuf>, LocalError> {
+    let mut found = Vec::new();
+    for suffix in COMPANIONS {
+        let companion = beside(file, suffix);
+        if there(nc_platform::judge_made_by_default(&companion, user))? {
+            found.push(companion);
+        }
+    }
+    Ok(found)
+}
 
 /// What a private directory holds, which its refusal names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,10 +131,18 @@ fn judged_directory(directory: &Path, holding: Holding) -> Result<User, LocalErr
 }
 
 /// The directory, private and held for this open, and the database file
-/// inside it, private.
+/// inside it, private — or, where none is, a new one begun under the creation
+/// name ([`begun`]).
 ///
-/// Returns the file's path and the directory held ([`nc_platform::hold`]),
-/// which every other open of the profile waits on until it is dropped.
+/// Returns the file's path, the directory held ([`nc_platform::hold`]), which
+/// every other open of the profile waits on until it is dropped, and the file
+/// begun when there was none, which [`made`] puts at that path.
+///
+/// **A companion with no database beside it is refused**, `NC-DB-0007`, and
+/// left as it is: this build never removes the database, so a `-wal`, a
+/// `-shm` or a `-journal` at its name with nothing there is not one it left,
+/// and SQLite would read a log or roll a journal back into the file made new
+/// beside it.
 ///
 /// **One open of a profile at a time** — two app instances, the daemon and a
 /// command-line tool beside it — because what an open does to a profile
@@ -101,48 +155,194 @@ fn judged_directory(directory: &Path, holding: Holding) -> Result<User, LocalErr
 /// long as it takes to judge and migrate, and one that ends releases it — a
 /// process stopped while it holds it holds every other open of the profile
 /// until it goes on or ends.
-pub(crate) fn private_file_in(
-    directory: &Path,
-) -> Result<(PathBuf, nc_platform::Held), LocalError> {
+pub(crate) fn private_file_in(directory: &Path) -> Result<Prepared, LocalError> {
     private_directory(directory)?;
     let user = judged_directory(directory, Holding::Database)?;
     let held = nc_platform::hold(directory, crate::LOCK_NAME, &user)
         .map_err(|judged| not_taken(judged, Holding::Database))?;
     let file = directory.join(crate::FILE_NAME);
-    match nc_platform::judge(&file, Kind::File, &user) {
-        Ok(()) => {}
-        Err(Judged::Failed(call)) if call.error().kind() == io::ErrorKind::NotFound => {
-            nc_platform::create_private(&file).map_err(|error| {
-                failed(
-                    &format!("`{}` could not be created", file.display()),
-                    &error,
-                )
-            })?;
-        }
-        Err(judged) => return Err(not_taken(judged, Holding::Database)),
-    }
-    // **SQLite makes the companions, with the system's own security**, so on
-    // Windows each is owned by whoever the token makes the owner of what this
-    // process creates — the Administrators group, in an elevated process —
-    // and is judged as such; the directory, the lock and the file above are
-    // this crate's, made owned by the user, and held to that.
-    for suffix in COMPANIONS {
-        let companion = PathBuf::from(format!("{}{suffix}", file.display()));
-        match nc_platform::judge_made_by_default(&companion, &user) {
-            Ok(()) => {}
-            Err(Judged::Failed(call)) if call.error().kind() == io::ErrorKind::NotFound => {}
-            Err(judged) => return Err(not_taken(judged, Holding::Database)),
-        }
-    }
+    let found = there(nc_platform::judge(&file, Kind::File, &user))?;
+    let beside_it = companions_of(&file, &user)?;
     // **A file found in a directory this call just made is another open's**,
     // made between the two statements, and is judged as any other: refusing it
     // would refuse every open but the first of a fresh profile opened at once.
-    Ok((file, held))
+    if found {
+        return Ok((file, held, None));
+    }
+    if let Some(alone) = beside_it.first() {
+        return Err(LocalError::Unexpected(format!(
+            "`{}` stands where there is no database for it to belong to, and this build \
+             never removes the database, so it is not a file this build left. It was left as \
+             it is, and nothing was made beside it",
+            alone.display()
+        )));
+    }
+    let making = begun(directory, user)?;
+    Ok((file, held, Some(making)))
+}
+
+/// What [`private_file_in`] answers: the database file's path, the profile
+/// held for this open, and the file begun when there was none.
+pub(crate) type Prepared = (PathBuf, nc_platform::Held, Option<Making>);
+
+/// A database file made new, private and empty, under
+/// [`crate::CREATION_NAME`], with nothing beside it: what [`made`] turns into
+/// a database and puts at the store's own name.
+#[derive(Debug)]
+pub(crate) struct Making {
+    /// The directory it is made in, which the rename is made durable in.
+    directory: PathBuf,
+    /// Its path, under the creation name.
+    creation: PathBuf,
+    /// The handle it was made with, which flushes it once SQLite has
+    /// written it and is closed before the rename.
+    made: std::fs::File,
+    /// The user the directory was judged to be, whom what is left beside it
+    /// is held to.
+    user: User,
+}
+
+/// What an earlier open stopped while it made the database left under the
+/// creation name taken away, and the file made new there, private.
+///
+/// **Only names this crate makes, and never the store's**: the creation
+/// file, and the `-journal`, `-wal` and `-shm` SQLite made beside it while it
+/// was turned into a write-ahead log ([`made`]) — what a process killed as it
+/// starts, or a power cut on a person's very first start, leaves. Each is
+/// judged first by the rule its twin at the store's name is held to — not a
+/// link, this user's alone — and one that is not is refused and left
+/// (`NC-DB-0006`), as the store would be; only then is it removed, the
+/// companions before the file. Nothing at [`crate::FILE_NAME`] is removed or
+/// repaired here or anywhere: a file there is the store, held to what it is.
+fn begun(directory: &Path, user: User) -> Result<Making, LocalError> {
+    let creation = directory.join(crate::CREATION_NAME);
+    let mut left = companions_of(&creation, &user)?;
+    if there(nc_platform::judge(&creation, Kind::File, &user))? {
+        left.push(creation.clone());
+    }
+    for path in &left {
+        std::fs::remove_file(path).map_err(|error| {
+            failed(
+                &format!(
+                    "`{}`, left by an open that stopped, could not be removed",
+                    path.display()
+                ),
+                &error,
+            )
+        })?;
+    }
+    let made = nc_platform::create_private(&creation).map_err(|error| {
+        failed(
+            &format!("`{}` could not be created", creation.display()),
+            &error,
+        )
+    })?;
+    Ok(Making {
+        directory: directory.to_owned(),
+        creation,
+        made,
+        user,
+    })
+}
+
+/// The file `making` holds turned into an empty database by SQLite, under its
+/// creation name, and then put at `file` whole.
+///
+/// **So that a store at its own name is never half-made.** The first
+/// connection that sets `journal_mode = WAL` on a new file writes its first
+/// page through a rollback journal, and deletes the journal once the page is
+/// down: a process stopped between the two left the file at the store's name
+/// beside a hot journal, which every open after refused as a file this build
+/// did not leave (`NC-DB-0007`) until somebody deleted the journal by hand —
+/// met by a daemon killed as it started, twice on the Windows runner, and
+/// measured on Linux by killing an open at the journal's unlink. Here that
+/// conversion runs on one connection of its own, opened with the options of
+/// every connection of the pool ([`options`]), and closed, so that SQLite
+/// checkpoints and deletes any `-wal` and `-shm` it kept; then nothing may be
+/// left beside the file, which is flushed, renamed to `file`, and the rename
+/// made durable where the system does that by syncing the directory
+/// ([`nc_platform::sync_directory`]). Stopped anywhere before the rename, an
+/// open leaves its work under the creation name, which the next one removes
+/// ([`begun`]); after it, an empty database in write-ahead-log mode, which the
+/// next one migrates.
+///
+/// **Under the profile's hold** ([`private_file_in`]), as the rest of the
+/// open is: no other open of this build makes or renames a file in the
+/// directory meanwhile, and `file` was found missing under it.
+///
+/// # Errors
+///
+/// [`LocalError::Unavailable`] when SQLite or the filesystem did not answer —
+/// a full disk, a companion SQLite left when it closed the file — and what
+/// [`said`](crate::said) and [`failed`] make of anything else they answer.
+pub(crate) async fn made(making: Making, file: &Path) -> Result<(), LocalError> {
+    use sqlx::{ConnectOptions as _, Connection as _};
+    let converting = options(&making.creation)
+        .connect()
+        .await
+        .map_err(|error| crate::said("making the local database", &error))?;
+    converting.close().await.map_err(|error| {
+        crate::said(
+            "closing the connection that made the local database",
+            &error,
+        )
+    })?;
+    let file = file.to_owned();
+    tokio::task::spawn_blocking(move || put_in_place(making, &file))
+        .await
+        .unwrap_or_else(|_| {
+            Err(LocalError::Unavailable(
+                "the new database could not be put in place: the task that did it did not \
+                 finish"
+                    .to_owned(),
+            ))
+        })
+}
+
+/// What [`made`] does once SQLite has closed the file: nothing left beside
+/// it, the file flushed, renamed to `file`, and the rename made durable.
+fn put_in_place(making: Making, file: &Path) -> Result<(), LocalError> {
+    let Making {
+        directory,
+        creation,
+        made,
+        user,
+    } = making;
+    if let Some(left) = companions_of(&creation, &user)?.first() {
+        return Err(LocalError::Unavailable(format!(
+            "`{}` was left beside the new database when SQLite closed it, so the database was \
+             not put in place; the next open makes it again",
+            left.display()
+        )));
+    }
+    made.sync_all().map_err(|error| {
+        failed(
+            &format!("`{}` could not be flushed", creation.display()),
+            &error,
+        )
+    })?;
+    drop(made);
+    std::fs::rename(&creation, file).map_err(|error| {
+        failed(
+            &format!(
+                "`{}` could not be renamed to `{}`",
+                creation.display(),
+                file.display()
+            ),
+            &error,
+        )
+    })?;
+    nc_platform::sync_directory(&directory).map_err(|error| {
+        failed(
+            &format!("`{}` could not be synced", directory.display()),
+            &error,
+        )
+    })
 }
 
 /// What [`private_file_in`] does, on the runtime's blocking pool: the
-/// directory made and judged, the file made, and the profile held for this
-/// open.
+/// directory made and judged, the file found or begun, and the profile held
+/// for this open.
 ///
 /// **Never on a thread that drives futures.** The lock is waited for in place,
 /// and an open holds it across every `.await` of its judging and migrating:
@@ -156,9 +356,7 @@ pub(crate) fn private_file_in(
 ///
 /// What [`private_file_in`] refuses, and [`LocalError::Unavailable`] when the
 /// task it ran on did not finish.
-pub(crate) async fn off_the_runtime(
-    directory: &Path,
-) -> Result<(PathBuf, nc_platform::Held), LocalError> {
+pub(crate) async fn off_the_runtime(directory: &Path) -> Result<Prepared, LocalError> {
     let directory = directory.to_owned();
     tokio::task::spawn_blocking(move || private_file_in(&directory))
         .await
@@ -293,6 +491,77 @@ mod tests {
             let _ = std::fs::remove_dir_all(&root);
             std::fs::create_dir(&root).expect("a scratch directory");
             Self(root)
+        }
+    }
+
+    /// A private scratch directory, and the user it is held to.
+    fn held_to_its_user(scratch: &Scratch) -> nc_platform::User {
+        nc_platform::testing::make_private(&scratch.0).expect("private");
+        nc_platform::user_in(&scratch.0).expect("this user's")
+    }
+
+    /// What an open stopped while it made the database left under the
+    /// creation name — the file, and each companion SQLite makes — is taken
+    /// away before the file is made again, empty and private.
+    ///
+    /// **Taken away here, before SQLite sees the new file**: SQLite deletes a
+    /// `-wal` or a `-journal` it finds beside a file of no pages itself, so an
+    /// open that left them to it would pass every suite that opens a store,
+    /// measured. This is where the open is held to its own rule.
+    #[test]
+    fn what_an_open_stopped_while_making_the_database_left_is_taken_away_first() {
+        let scratch = Scratch::new("left");
+        let user = held_to_its_user(&scratch);
+        let creation = scratch.0.join(crate::CREATION_NAME);
+        let mut left = vec![creation.clone()];
+        left.extend(
+            super::COMPANIONS
+                .iter()
+                .map(|suffix| super::beside(&creation, suffix)),
+        );
+        for path in &left {
+            let mut file = nc_platform::create_private(path).expect("a file left");
+            std::io::Write::write_all(&mut file, b"left by an open that stopped").expect("written");
+        }
+        let making = super::begun(&scratch.0, user).expect("begun");
+        for suffix in super::COMPANIONS {
+            assert!(
+                std::fs::symlink_metadata(super::beside(&creation, suffix)).is_err(),
+                "`{suffix}` was left for SQLite to find"
+            );
+        }
+        assert_eq!(
+            std::fs::metadata(&creation).expect("made").len(),
+            0,
+            "the file was not made new"
+        );
+        assert!(
+            nc_platform::testing::is_as_created(&creation),
+            "made private"
+        );
+        drop(making);
+    }
+
+    /// A companion left beside the new file once SQLite has closed it keeps
+    /// the file from the store's name, whichever it is.
+    #[test]
+    fn a_file_left_beside_the_new_database_keeps_it_from_the_stores_name() {
+        let scratch = Scratch::new("kept-from-its-name");
+        let user = held_to_its_user(&scratch);
+        let file = scratch.0.join(crate::FILE_NAME);
+        for suffix in super::COMPANIONS {
+            let making = super::begun(&scratch.0, user.clone()).expect("begun");
+            let left = super::beside(&scratch.0.join(crate::CREATION_NAME), suffix);
+            drop(nc_platform::create_private(&left).expect("a file left beside it"));
+            let refused = super::put_in_place(making, &file).expect_err("not put in place");
+            assert!(
+                matches!(&refused, crate::LocalError::Unavailable(why) if why.contains(suffix)),
+                "{suffix}: {refused:?}"
+            );
+            assert!(
+                std::fs::symlink_metadata(&file).is_err(),
+                "`{suffix}` beside it, the file was put at the store's name"
+            );
         }
     }
 
