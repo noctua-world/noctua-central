@@ -1765,10 +1765,10 @@ fn the_entry(change: &Change) -> String {
 /// **A code span the words close is kept as written**, since a subject sets
 /// a name as code on purpose; every other character the subset reads as
 /// markup — a backslash, an asterisk, an underscore, a square bracket, an
-/// ampersand, a tilde, and a backtick that closes nothing — is escaped by a
-/// backslash, and a `<` is written `&lt;`. **Where they begin an item, what
-/// would open a block there is escaped too**: a first character of ASCII
-/// punctuation — a heading's `#`, a quote's `>`, a list's `-` or `+`, a
+/// ampersand, a tilde, a dollar sign, and a backtick that closes nothing — is
+/// escaped by a backslash, and a `<` is written `&lt;`. **Where they begin an
+/// item, what would open a block there is escaped too**: a first character of
+/// ASCII punctuation — a heading's `#`, a quote's `>`, a list's `-` or `+`, a
 /// table's `|` — a run of three backticks or more, which opens a fence, and
 /// the mark after a first run of digits, which numbers a list; so an entry is
 /// one paragraph whatever its words begin with.
@@ -1853,7 +1853,7 @@ fn as_text(words: &str, begin: bool) -> String {
 /// Whether [`as_text`] escapes `character` by a backslash wherever it
 /// stands.
 const fn escaped_in_text(character: char) -> bool {
-    matches!(character, '\\' | '*' | '_' | '[' | ']' | '&' | '~')
+    matches!(character, '\\' | '*' | '_' | '[' | ']' | '&' | '~' | '$')
 }
 
 /// Refuses a changelog the one reader of Markdown refuses (`nc_markdown`).
@@ -5675,6 +5675,8 @@ mod tests {
             "```fenced and more",
             "~~~ tildes",
             "strike ~~this~~ and ~that~ out",
+            "use $HOME/$PATH and $x$ and $$y$$",
+            "$ a dollar first",
             "--- a break",
             "=== a line",
             "`code` first",

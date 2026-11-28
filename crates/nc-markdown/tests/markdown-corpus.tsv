@@ -73,6 +73,12 @@ accept	`~~a~~`	p[code"~~a~~"]
 accept	a ~ b	p["a ~ b"]
 accept	a ~~ b	p["a ~~ b"]
 accept	\\~a\\~	p["~a~"]
+accept	costs $5 and $10	p["costs $5 and $10"]
+accept	a $ b $ c	p["a $ b $ c"]
+accept	a $ b$	p["a $ b$"]
+accept	$$	p["$$"]
+accept	\\$x\\$	p["$x$"]
+accept	`$x$` and `$`y$	p[code"$x$" " and " code"$" "y$"]
 accept	`  `	p[code"  "]
 accept	[text](https://example.org/a?b=1#c)	p[link:web"https://example.org/a?b=1#c"["text"]]
 accept	[the *verbs*](cli.md#verbs)	p[link:page"cli.md"#"verbs"["the " em["verbs"]]]
@@ -80,11 +86,13 @@ accept	[the manual](AGENTS.md)	p[link:page"AGENTS.md"["the manual"]]
 accept	[redo](kernel.undo.md#redo)	p[link:page"kernel.undo.md"#"redo"["redo"]]
 accept	[stops](#when-it-stops)	p[link:anchor"when-it-stops"["stops"]]
 accept	[plain](a.txt)	p[link:page"a.txt"["plain"]]
-# An address GitHub's Markdown links where it is written bare is text here:
-# the one construct of another reader that is read, never refused.
+# An address GitHub's Markdown links where it is written bare, and a name of
+# an emoji between colons, which it draws as the emoji, are text here: the two
+# constructs of another reader that are read, never refused.
 accept	see https://example.org/a now	p["see https://example.org/a now"]
 accept	see www.example.org now	p["see www.example.org now"]
 accept	write to a@example.org now	p["write to a@example.org now"]
+accept	a :smile: b and 10:30:45	p["a :smile: b and 10:30:45"]
 accept	\\* \\_ \\[ \\] \\` \\\\ \\< \\# \\&	p["* _ [ ] ` \\ < # &"]
 accept	&lt;b&gt; &amp; AT&T a & b &nope	p["<b> & AT&T a & b &nope"]
 accept	2 < 3 and 3 > 2 and a <- b	p["2 < 3 and 3 > 2 and a <- b"]
@@ -148,6 +156,12 @@ refuse	* * *	1:1	break
 refuse	> _ _ _	1:3	break
 refuse	- _ _ _	1:3	break
 refuse	1. _ _ _	1:4	break
+# A thematic break is read before a list item, so a line of one where the
+# list's next item would be ends the list: never an item holding a rule.
+refuse	- a\n- ---	2:1	joined
+refuse	- a\n\n- ---	3:1	break
+refuse	> - a\n> - ---	2:3	joined
+refuse	1. a\n   - b\n   - ---	3:4	joined
 refuse	>quoted	1:2	quote
 refuse	>	1:1	quote
 refuse	* star	1:1	marker
@@ -214,6 +228,17 @@ refuse	~a~	1:1	tilde
 refuse	a ~~b~~ c	1:3	tilde
 refuse	a~ b	1:2	tilde
 refuse	a ~~~b~~~	1:3	tilde
+refuse	$x$	1:1	dollar
+refuse	use $HOME/$PATH here	1:5	dollar
+refuse	$$x$$	1:1	dollar
+refuse	$5/$10	1:1	dollar
+refuse	$a $b$	1:1	dollar
+refuse	a *$b* c$	1:4	dollar
+refuse	$`a`$	1:1	dollar
+refuse	$`*$a`	1:1	dollar
+refuse	# $x$	1:3	dollar
+refuse	| a |\n|---|\n| $x$ |	3:3	dollar
+refuse	a\nb $c\nd$	2:3	dollar
 refuse	a\n~~~	2:1	joined
 refuse	[text]	1:1	bracket
 refuse	[text](	1:7	target

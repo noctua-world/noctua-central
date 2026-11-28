@@ -39,32 +39,38 @@
 //! no link. **A run of `*` opens where `CommonMark`'s left-flanking rule lets it
 //! and closes where its right-flanking rule does, and `_` is text**, refused
 //! wherever `CommonMark` would let it open emphasis; a run of `~` is text too,
-//! refused wherever GitHub's Markdown would let it strike text through. A
-//! character beside a run that this crate cannot class — outside ASCII, and
-//! neither a letter, a digit nor whitespace: punctuation to one version of
-//! `CommonMark` and not to another — is read both ways, and a run the two
-//! readings disagree on is refused; so is a circled or squared Latin letter,
-//! a symbol Rust counts as a letter. So a page reads the same wherever
-//! `CommonMark` is read, and wherever GitHub's Markdown is but for the one
-//! difference below.
+//! refused wherever GitHub's Markdown would let it strike text through, and so
+//! is a `$`, refused where GitHub's Markdown would let it open math that a
+//! `$` after it in the block's text closes. A character beside a run that
+//! this crate cannot class — outside ASCII, and neither a letter, a digit nor
+//! whitespace: punctuation to one version of `CommonMark` and not to another
+//! — is read both ways, and a run the two readings disagree on is refused; so
+//! is a circled or squared Latin letter, a symbol Rust counts as a letter.
+//! So a page reads the same wherever `CommonMark` is read, and wherever
+//! GitHub's Markdown is but for the two differences below.
 //!
 //! # What is outside it
 //!
 //! Raw HTML, an autolink, an image, a reference link, a setext heading, a
 //! thematic break of any shape but `---` — spaces between its marks among
 //! them — an indented code block, a tilde fence, a `*` or `+` bullet, a `1)`
-//! item, a table's alignment colons, strikethrough, a hard line break, a tab
-//! or any other control character, the line and the paragraph separators, a
-//! line ending in a space, and an entity not listed above. Each is refused
-//! with a [`Rule`] of its own, at the line and the column it was read at
-//! ([`Refused`]) — never read as text, since the same source would then be
-//! one page here and another wherever Markdown is read whole.
+//! item, a table's alignment colons, strikethrough, math between two `$`, a
+//! hard line break, a tab or any other control character, the line and the
+//! paragraph separators, a line ending in a space, and an entity not listed
+//! above. Each is refused with a [`Rule`] of its own, at the line and the
+//! column it was read at ([`Refused`]) — never read as text, since the same
+//! source would then be one page here and another wherever Markdown is read
+//! whole.
 //!
-//! **One construct of GitHub's is read as text, and not refused**: an
+//! **Two constructs of GitHub's are read as text, and not refused**: an
 //! address it links where it stands, written bare — one opening with
-//! `https://` or `www.`, or an e-mail address. Here it is the text it is;
-//! there, the same words are a link. No target is ever read from one, and
-//! refusing it would refuse the words of a person who writes an address.
+//! `https://` or `www.`, or an e-mail address — and an emoji's name between
+//! two colons, `:smile:`, which it draws as that emoji. Here each is the text
+//! it is; there, the same words are a link or a picture. No target is ever
+//! read from either; refusing an address would refuse the words of a person
+//! who writes one, and the names of emoji are a table of GitHub's, which this
+//! crate does not hold and a shape alone cannot stand in for without refusing
+//! a time written `10:30:45`.
 //!
 //! # The coordinates
 //!
@@ -256,6 +262,9 @@ pub enum Rule {
     /// A run of `~` GitHub's Markdown would let open or close strikethrough,
     /// for any reader.
     Tilde,
+    /// A `$` GitHub's Markdown would let open math that a `$` after it
+    /// closes, for any reader.
+    Dollar,
     /// A `[` or a `]` that is no link's.
     Bracket,
     /// A link's target of no form [`Target`] holds.
@@ -268,7 +277,7 @@ pub enum Rule {
 
 impl Rule {
     /// Every rule, in the order declared.
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self::Control,
         Self::Trailing,
         Self::Indent,
@@ -294,6 +303,7 @@ impl Rule {
         Self::Nested,
         Self::Underscore,
         Self::Tilde,
+        Self::Dollar,
         Self::Bracket,
         Self::Target,
         Self::Image,
@@ -330,6 +340,7 @@ impl Rule {
             Self::Nested => "nested",
             Self::Underscore => "underscore",
             Self::Tilde => "tilde",
+            Self::Dollar => "dollar",
             Self::Bracket => "bracket",
             Self::Target => "target",
             Self::Image => "image",
@@ -419,6 +430,10 @@ impl Rule {
             Self::Tilde => {
                 "the `~` would strike text through where GitHub's Markdown is read: write `\\~` \
                  for the character, or set it in a code span"
+            }
+            Self::Dollar => {
+                "the `$` would open math that a `$` after it closes, where GitHub's Markdown is \
+                 read: write `\\$` for the character, or set it in a code span"
             }
             Self::Bracket => {
                 "the bracket is no link's: write a link as `[text](target)`, and `\\[` or \
@@ -673,9 +688,10 @@ fn begins_a_block(line: Line<'_>) -> bool {
 /// them or not.
 ///
 /// **Every shape, not only the one the subset holds**: [`block`] refuses
-/// each but `---` as [`Rule::Break`], and [`begins_a_block`] counts each, so
-/// a line read as a rule wherever Markdown is read whole is never read as a
-/// paragraph's text here. The spaces before such a line, and after it, are
+/// each but `---` as [`Rule::Break`], [`begins_a_block`] counts each, and
+/// [`list`] ends a list at one, so a line read as a rule wherever Markdown is
+/// read whole is never read as a paragraph's text here, nor as a list's next
+/// item. The spaces before such a line, and after it, are
 /// refused before this is asked.
 fn is_a_break(text: &str) -> bool {
     ['-', '_', '*'].into_iter().any(|mark| {
@@ -822,7 +838,7 @@ fn heading(line: Line<'_>) -> Result<Block, Refused> {
     let characters: Vec<Character> = said.characters().collect();
     Ok(Block::Heading {
         level,
-        text: inlines(&characters, Within::default())?,
+        text: text_of(&characters)?,
     })
 }
 
@@ -896,12 +912,18 @@ fn list(
             next = written + 1;
         }
         items.push(blocks(&held, depth + 1, true)?);
-        // The next item: a marker of this list's kind, after any blank lines.
+        // The next item: a marker of this list's kind, after any blank lines,
+        // on a line that is no thematic break — which `CommonMark` reads
+        // before a list item (4.1), so `- ---` there ends the list wherever
+        // Markdown is read whole, and is refused by what follows it here.
         let Some((written, line)) =
             next_written(lines, next).and_then(|written| Some((written, *lines.get(written)?)))
         else {
             break;
         };
+        if is_a_break(line.text) {
+            break;
+        }
         let Ok(Some(following)) = marker(line.text) else {
             break;
         };
@@ -992,7 +1014,7 @@ fn table(lines: &[Line<'_>], at: usize, open: Line<'_>) -> Result<(Block, usize)
     }
     let read = |row: &Vec<Vec<Character>>| {
         row.iter()
-            .map(|cell| inlines(cell, Within::default()))
+            .map(|cell| text_of(cell))
             .collect::<Result<Vec<_>, _>>()
     };
     let head = read(head)?;
@@ -1037,10 +1059,7 @@ fn paragraph(lines: &[Line<'_>], at: usize, item: bool) -> Result<(Block, usize)
         characters.extend(line.characters());
         next += 1;
     }
-    Ok((
-        Block::Paragraph(inlines(&characters, Within::default())?),
-        next,
-    ))
+    Ok((Block::Paragraph(text_of(&characters)?), next))
 }
 
 /// Which inlines the text being read is already inside.
@@ -1431,6 +1450,58 @@ fn linked(
         },
         end + 1,
     ))
+}
+
+/// What a block's text writes — a heading's, a paragraph's or a cell's — as
+/// its inlines, refused where GitHub's Markdown may read math in it
+/// ([`opening_math`]).
+///
+/// # Errors
+///
+/// [`Refused`] by the first rule its inlines break, and then by
+/// [`Rule::Dollar`].
+fn text_of(characters: &[Character]) -> Result<Vec<Inline>, Refused> {
+    let read = inlines(characters, Within::default())?;
+    match opening_math(characters) {
+        Some(open) => Err(open.refused(Rule::Dollar)),
+        None => Ok(read),
+    }
+}
+
+/// The first `$` of a block's text that GitHub's Markdown may read as
+/// opening math: followed by no whitespace, and with a `$` further on that
+/// may close it — one no whitespace precedes — and something between the two.
+///
+/// **The one that opens is read as a reader reads the text, left to right**:
+/// an escaped `$`, and one inside a code span that opened before it, are the
+/// character and code to every reader. **The one that closes is looked for in
+/// the characters as written**, a code span's and an escape's among them,
+/// since a reader of math reads its pair from the `$` that opens it before a
+/// code span or an emphasis after it — `pandoc` reads `` $`*$a` `` as math and
+/// then text — so a `$` inside emphasis and one past it are a pair too, and
+/// the first `$` that opens is the one refused: whatever closes a later one
+/// closes it. **And for any reader**: a `$` may close math whatever follows
+/// it, a digit among them, which some readers of math will not close at and
+/// `pandoc` does, so `$5/$10` is refused, and `costs $5 and $10` is text,
+/// since a space precedes its second `$`.
+fn opening_math(characters: &[Character]) -> Option<Character> {
+    let mut at = 0;
+    let open = loop {
+        let held = characters.get(at)?;
+        if held.written == '$' && Side::of(characters.get(at + 1)) != Side::Space {
+            break at;
+        }
+        at = stepped_over(characters, at);
+    };
+    let past = open + 2;
+    let closed = characters
+        .get(past..)?
+        .iter()
+        .enumerate()
+        .any(|(offset, held)| {
+            held.written == '$' && Side::of(characters.get(past + offset - 1)) != Side::Space
+        });
+    closed.then(|| characters.get(open).copied()).flatten()
 }
 
 /// The inlines `characters` write, read `within` what already holds them.

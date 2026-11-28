@@ -530,8 +530,8 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
 
 /// A person's words in a cell, shown as written: what `cell` escapes, and
 /// every other character the subset reads as markup — a backtick, an
-/// asterisk, a square bracket, an underscore, an ampersand and a tilde —
-/// escaped by a backslash.
+/// asterisk, a square bracket, an underscore, an ampersand, a tilde and a
+/// dollar sign — escaped by a backslash.
 ///
 /// **A locale's sentence or tag is text a person reads**, never Markdown:
 /// two backticks in a paragraph, or one in each of two tags, would open a
@@ -545,15 +545,17 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
 /// open; and an ampersand, since one before a name and a `;` — `AT&T;` — is
 /// read as an entity, which that reader refuses for any but three; and a
 /// tilde, which strikes text through where GitHub's Markdown is read —
-/// `from ~5 to 10~` — and which that reader refuses beside a word. So a key's
-/// own label — `[`, `]`, a backtick — is written through here too.
+/// `from ~5 to 10~` — and which that reader refuses beside a word; and a
+/// dollar sign, which opens math there — `$HOME/$PATH` — and which that
+/// reader refuses where a later one would close it. So a key's own label —
+/// `[`, `]`, a backtick — is written through here too.
 /// **One pass, character by character**, so a backslash this adds is never
 /// escaped again and the `&lt;` written for a `<` keeps its ampersand.
 pub(crate) fn words(text: &str) -> String {
     let mut written = String::new();
     for character in crate::printable(text).chars() {
         match character {
-            '\\' | '|' | '`' | '*' | '[' | ']' | '_' | '&' | '~' => {
+            '\\' | '|' | '`' | '*' | '[' | ']' | '_' | '&' | '~' | '$' => {
                 written.push('\\');
                 written.push(character);
             }

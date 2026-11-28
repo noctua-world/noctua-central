@@ -20266,7 +20266,7 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-markdown/lib.rs", 71, 9),
+        ("nc-markdown/lib.rs", 73, 9),
         ("nc-markdown/the_corpus_is_the_subset.rs", 13, 0),
         ("nc-pages/lib.rs", 13, 2),
         ("nc-platform/clipboard.rs", 16, 11),
@@ -26290,7 +26290,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25859;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25865;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26309,7 +26309,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8298;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8301;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26326,7 +26326,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2842;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2843;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26360,7 +26360,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33600;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33611;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26414,7 +26414,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,600 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,611 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26447,7 +26447,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2842 of
+    /// this tree offers, **2843 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -38931,7 +38931,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3700] = [
+    static OPERATORS: [(&str, &str, &str); 3708] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -39214,6 +39214,11 @@ Options:
             "release",
             "escaped_in_text",
             "a tilde in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a dollar sign in a commit's words is escaped",
         ),
         (
             "release",
@@ -55023,6 +55028,11 @@ Options:
         ),
         (
             "markdown",
+            "list",
+            "a list ends at a thematic break where its next item would be",
+        ),
+        (
+            "markdown",
             "cells",
             "an escaped bar is the bar, in a code span too",
         ),
@@ -55259,6 +55269,31 @@ Options:
         ),
         ("markdown", "inlines", "a run of `~` is read whole"),
         (
+            "markdown",
+            "text_of",
+            "a block's text is refused where math may open in it",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math is closed only by a `$` no whitespace precedes",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math holds something between its two `$`",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math is opened only by a `$` no whitespace follows",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "an escaped `$` and one in a code span open no math",
+        ),
+        (
             "embedded_pages",
             "page",
             "a page is found by its whole name",
@@ -55482,6 +55517,11 @@ Options:
         ),
         ("pages", "words", "a bar in a person's words is escaped"),
         ("pages", "words", "a tilde in a person's words is escaped"),
+        (
+            "pages",
+            "words",
+            "a dollar sign in a person's words is escaped",
+        ),
         ("pages", "words", "a `<` in a person's words is no tag"),
         (
             "compiler_surfaces",
