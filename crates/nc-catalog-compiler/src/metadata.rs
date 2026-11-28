@@ -578,7 +578,7 @@ pub(crate) fn wiki(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>) 
                 let Some((name, format)) = one_text(&relative, &file, names, problems) else {
                     continue;
                 };
-                let Some(read) = judged_text(&relative, &path, problems) else {
+                let Some(read) = judged_text(&relative, &path, format, problems) else {
                     continue;
                 };
                 let held = found.entry((registry.clone(), name.clone())).or_default();
@@ -660,8 +660,15 @@ fn names_by_registry(catalog: &Catalog) -> [(&str, Vec<&str>); 2] {
     ]
 }
 
-/// One wiki file's text, read as UTF-8 and held to the judge.
-fn judged_text(relative: &str, path: &Path, problems: &mut Vec<Problem>) -> Option<String> {
+/// One wiki file's text, read as UTF-8 and held to the judge — and, written
+/// in Markdown, to the one subset every reader of this tree draws
+/// (`nc_markdown`), refused by its line where it is outside it.
+fn judged_text(
+    relative: &str,
+    path: &Path,
+    format: WikiFormat,
+    problems: &mut Vec<Problem>,
+) -> Option<String> {
     let Ok(read) = std::fs::read_to_string(path) else {
         problems.push(Problem::in_file(
             relative,
@@ -681,6 +688,12 @@ fn judged_text(relative: &str, path: &Path, problems: &mut Vec<Problem>) -> Opti
              Write what the entry is, in the locale's own words",
             "wiki-text-refused",
         ));
+        return None;
+    }
+    if format == WikiFormat::Markdown
+        && let Err(refused) = nc_markdown::parse(&read)
+    {
+        problems.push(crate::docs::outside_the_subset(relative, &refused));
         return None;
     }
     Some(read)

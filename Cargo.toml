@@ -242,6 +242,14 @@ nc-authz = { path = "crates/nc-authz" }
 # the rule is written once; it depends on nothing of this workspace, so a
 # binary that takes it crosses no wall the log keeps.
 nc-fuzzy = { path = "crates/nc-fuzzy" }
+# The one reader of Markdown (`NOCTUA.md §12.16`, `§20.4`): a closed subset
+# read into a typed tree, anything outside it refused by its line and column.
+# The catalog compiler reads every Markdown text it compiles through it — a
+# wiki text, a page it emits — so one outside the subset fails the build, and
+# the pages an install carries are held to it where they are embedded; it
+# depends on nothing, of this workspace or outside it, which was Stage 16's
+# decision over a parser taken as a dependency (`§2.3`).
+nc-markdown = { path = "crates/nc-markdown" }
 # The local kernel (`NOCTUA.md §11`), taken by the daemon that runs it and by
 # nothing else shipped: its `LogSink` is the one sink the daemon's own events and
 # the kernel's are written to.

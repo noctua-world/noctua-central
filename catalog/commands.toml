@@ -286,6 +286,244 @@ mutating = true
 args_schema = """
 {"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false}"""
 
+# The shortcut settings (`NOCTUA.md §12.8`, `§12.15`): the channel's Leader, its
+# chord modifier, the leader menu's keys and the chords, each a setting of its
+# own — `settings.<setting>.read` answering the one object
+# `settings.<setting>.set` takes whole. **Their value is the channel's
+# keybinding configuration (`Layout.keybindings`), never an entry of the store**: the read answers the keys
+# in force, as `nc_channel::keys::effective` reads them, and the set writes the
+# file through the judge that reads it (`nc_channel::keys::proposed`), refusing
+# a choice any part of which that reader would refuse — and writing nothing
+# then. A Leader and a chord modifier are written as the grammar writes them
+# (`Alt+Space`, `Shift`), a key as `KeyboardEvent.code` names it, and a command
+# by its name; the leader menu's keys are every key of the menu's table, and the
+# chords every key pressed with the Leader held, `chord` saying whether the
+# chord modifier is held as well. A choice that is the default is written as no
+# choice. **All eight are `Feature::"interface"`'s** — `Read` and `Write`, which
+# the family pack gives every person of the realm and no agent or device: the
+# keys are how a person reaches and drives their own interface. **A set changes
+# a file outside every unit**, so a step that ran one is one undo stops at, and
+# it is journaled as allowed before the file is written; it runs only at the top
+# of a call tree (`[NC-KERN-0025]`). The bounds: a table holds each of the 73
+# keys of the vocabulary once, so the menu's keys are at most 73 and the chords,
+# over two tables, 146; a command's name is at most 96 characters; and no key's
+# name is longer than 16 — each held to its source by a test beside the
+# commands (`crates/nc-kernel/src/settings.rs`).
+[[command]]
+name = "settings.leader.read"
+title = "command.settings.leader.read.title"
+description = "command.settings.leader.read.description"
+paragraph = "command.settings.leader.read.paragraph"
+tags = "command.settings.leader.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F11C"   # nf-fa-keyboard_o
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.leader.set"
+title = "command.settings.leader.set.title"
+description = "command.settings.leader.set.description"
+paragraph = "command.settings.leader.set.paragraph"
+tags = "command.settings.leader.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0AD"   # nf-fa-wrench
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"leader":{"type":"string","minLength":1,"maxLength":64}},"required":["leader"],"additionalProperties":false}"""
+
+[[command]]
+name = "settings.chord.read"
+title = "command.settings.chord.read.title"
+description = "command.settings.chord.read.description"
+paragraph = "command.settings.chord.read.paragraph"
+tags = "command.settings.chord.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F02B"   # nf-fa-tag
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.chord.set"
+title = "command.settings.chord.set.title"
+description = "command.settings.chord.set.description"
+paragraph = "command.settings.chord.set.paragraph"
+tags = "command.settings.chord.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F02C"   # nf-fa-tags
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"chord":{"type":"string","minLength":1,"maxLength":16}},"required":["chord"],"additionalProperties":false}"""
+
+[[command]]
+name = "settings.menu-keys.read"
+title = "command.settings.menu-keys.read.title"
+description = "command.settings.menu-keys.read.description"
+paragraph = "command.settings.menu-keys.read.paragraph"
+tags = "command.settings.menu-keys.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0C9"   # nf-fa-bars
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.menu-keys.set"
+title = "command.settings.menu-keys.set.title"
+description = "command.settings.menu-keys.set.description"
+paragraph = "command.settings.menu-keys.set.paragraph"
+tags = "command.settings.menu-keys.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F03A"   # nf-fa-list
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"keys":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16}},"required":["command","key"],"additionalProperties":false},"maxItems":73}},"required":["keys"],"additionalProperties":false}"""
+
+[[command]]
+name = "settings.chords.read"
+title = "command.settings.chords.read.title"
+description = "command.settings.chords.read.description"
+paragraph = "command.settings.chords.read.paragraph"
+tags = "command.settings.chords.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0CA"   # nf-fa-list_ul
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.chords.set"
+title = "command.settings.chords.set.title"
+description = "command.settings.chords.set.description"
+paragraph = "command.settings.chords.set.paragraph"
+tags = "command.settings.chords.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0CB"   # nf-fa-list_ol
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false}"""
+
+# The three settings of how the interface is shown (`NOCTUA.md §12.15`): the
+# footer's visibility, the language and the appearance. Their value is a part
+# of the interface's state the kernel holds (`crates/nc-kernel/src/shell.rs`),
+# so each is a read on the interface's feature that changes nothing an undo
+# takes back, as every change of what a window shows is.
+[[command]]
+name = "settings.footer.read"
+title = "command.settings.footer.read.title"
+description = "command.settings.footer.read.description"
+paragraph = "command.settings.footer.read.paragraph"
+tags = "command.settings.footer.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0C9"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.footer.set"
+title = "command.settings.footer.set.title"
+description = "command.settings.footer.set.description"
+paragraph = "command.settings.footer.set.paragraph"
+tags = "command.settings.footer.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F0C9"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false}"""
+
+[[command]]
+name = "settings.language.read"
+title = "command.settings.language.read.title"
+description = "command.settings.language.read.description"
+paragraph = "command.settings.language.read.paragraph"
+tags = "command.settings.language.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F1AB"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.language.set"
+title = "command.settings.language.set.title"
+description = "command.settings.language.set.description"
+paragraph = "command.settings.language.set.paragraph"
+tags = "command.settings.language.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F1AB"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false}"""
+
+[[command]]
+name = "settings.appearance.read"
+title = "command.settings.appearance.read.title"
+description = "command.settings.appearance.read.description"
+paragraph = "command.settings.appearance.read.paragraph"
+tags = "command.settings.appearance.read.tags"
+categories = ["noctua.settings"]
+glyph = "U+F042"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "settings.appearance.set"
+title = "command.settings.appearance.set.title"
+description = "command.settings.appearance.set.description"
+paragraph = "command.settings.appearance.set.paragraph"
+tags = "command.settings.appearance.set.tags"
+categories = ["noctua.settings"]
+glyph = "U+F042"
+action = "Write"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false}"""
+
 # The agents a person makes (`NOCTUA.md §14.6`): each an identity of its own,
 # minted by the machine's minter, acting for the person who made it and for no
 # one else, with a label, a budget a session of it spends, and grants each
@@ -1049,3 +1287,127 @@ reversibility = "read"
 mutating = false
 args_schema = """
 {"type":"object","properties":{},"additionalProperties":false}"""
+
+# What the dev pages read (`NOCTUA.md §12.16`, `§15.3`): the part of the
+# minimum that is the state of this machine rather than a registry — every
+# bound with a use to show, every loaded plugin with what it was granted and
+# what it uses, the agents' sessions the daemon holds open, the tables that
+# keep a person's agents, the realm's policy pack and epoch, the daemon's own
+# log as it is recorded, and the journal, a page at a time. Each is a read of
+# the kernel's own, decided as every command is, so every dev page is
+# authorized and none is reachable only from a window.
+#
+# Five are `Read` on the platform's `interface` feature, as everything the
+# person's interface shows them of the kernel's own is — what waits for their
+# confirmation, the surfaces, their next undo — which the family pack gives
+# every person of the realm and no agent or device: they answer counts, names
+# and versions, and nothing a person wrote. Two are `Read` on the realm, which
+# the pack gives a guardian alone, as it gives `journal.verify`: the log and
+# the journal say who did what, and the journal is the realm's audit log
+# (`§14.9`) — data of the realm's, so no feature is what they select.
+# **Neither group has a feature of its own**, and the reason is measured: an
+# agent may be granted every feature its realm holds, so each feature the
+# shipped world gains widens the widest answer of `agents.list`, and one more
+# than it holds takes that answer past a frame
+# (`the_widest_list_of_agents_fits_one_frame` in `crates/nc-kernel/src/agents.rs`).
+#
+# Every answer is bounded. One that can grow is read a page at a time —
+# `from`, where the page starts, and `max`, at most `[kernel] dev_page_max`
+# rows, which a test holds each schema to — and says in `next` where the next
+# page starts; a page also ends before its rows' text would pass half of
+# `[kernel] payload_bytes`. The log is the daemon's own ring in memory, this
+# machine's lines and no other's, `[daemon] dev_logs_ring_lines` of them at
+# most: each line is the one the central log is sent, so the wall that keeps
+# user data and secrets out of that store (`§15.4`) is what keeps them out of
+# this answer. The central log itself is read from its own store.
+
+[[command]]
+name = "dev.limits.read"
+title = "command.dev.limits.read.title"
+description = "command.dev.limits.read.description"
+paragraph = "command.dev.limits.read.paragraph"
+tags = "command.dev.limits.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.plugins.read"
+title = "command.dev.plugins.read.title"
+description = "command.dev.plugins.read.description"
+paragraph = "command.dev.plugins.read.paragraph"
+tags = "command.dev.plugins.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.sessions.read"
+title = "command.dev.sessions.read.title"
+description = "command.dev.sessions.read.description"
+paragraph = "command.dev.sessions.read.paragraph"
+tags = "command.dev.sessions.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.agents.read"
+title = "command.dev.agents.read.title"
+description = "command.dev.agents.read.description"
+paragraph = "command.dev.agents.read.paragraph"
+tags = "command.dev.agents.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.policy.read"
+title = "command.dev.policy.read.title"
+description = "command.dev.policy.read.description"
+paragraph = "command.dev.policy.read.paragraph"
+tags = "command.dev.policy.read.tags"
+action = "Read"
+resource_selector = "feature:interface"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.logs.read"
+title = "command.dev.logs.read.title"
+description = "command.dev.logs.read.description"
+paragraph = "command.dev.logs.read.paragraph"
+tags = "command.dev.logs.read.tags"
+action = "Read"
+resource_selector = "realm"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""
+
+[[command]]
+name = "dev.journal.read"
+title = "command.dev.journal.read.title"
+description = "command.dev.journal.read.description"
+paragraph = "command.dev.journal.read.paragraph"
+tags = "command.dev.journal.read.tags"
+action = "Read"
+resource_selector = "realm"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false}"""

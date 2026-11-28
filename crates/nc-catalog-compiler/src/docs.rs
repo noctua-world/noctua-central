@@ -30,6 +30,7 @@ use nc_schema::entry::Shown;
 
 use crate::EmittedFile;
 use crate::model::{Catalog, CommandEntry, Owner, Severity};
+use crate::problem::Problem;
 use crate::surfaces::Surfaces;
 
 /// Where the surfaces live.
@@ -42,6 +43,7 @@ pub(crate) fn all(catalog: &Catalog, surfaces: &Surfaces) -> Vec<EmittedFile> {
         EmittedFile::new(page("errors"), errors(catalog)),
         EmittedFile::new(page("notifications"), notifications(catalog)),
         EmittedFile::new(page("emails"), emails(catalog)),
+        EmittedFile::new(page("interface"), interface(catalog)),
         EmittedFile::new(page("limits"), limits(catalog)),
         EmittedFile::new(page("commands"), commands(catalog)),
         EmittedFile::new(page("log-events"), log_events(catalog)),
@@ -55,6 +57,47 @@ pub(crate) fn all(catalog: &Catalog, surfaces: &Surfaces) -> Vec<EmittedFile> {
             crate::surfaces::keybindings(catalog, surfaces),
         ),
     ]
+}
+
+/// The problem of a Markdown text at `file` that [`nc_markdown::parse`]
+/// refused: its line, the column and the rule in what it says.
+///
+/// **One subset for every Markdown text this build compiles** — a wiki text a
+/// person wrote and a page this module emits — because the interface draws
+/// each from the tree that one reader answers and has no second way to show a
+/// text it could not read (`NOCTUA.md §12.16`).
+pub(crate) fn outside_the_subset(file: &str, refused: &nc_markdown::Refused) -> Problem {
+    Problem::at(
+        file,
+        refused.line,
+        format!(
+            "is outside the Markdown this tree reads, at column {}: {}",
+            refused.column,
+            refused.rule.said()
+        ),
+        "every Markdown text is read by one closed subset, `nc_markdown`, which the \
+         interface draws from, so a construct outside it would reach a person as text \
+         nobody meant. Write it as the sentence above says; where the text is a page \
+         the compiler emits, the defect is in the function that wrote that line",
+        "markdown-outside-the-subset",
+    )
+}
+
+/// Every page of `files` that is outside the subset, each as its problem.
+pub(crate) fn pages_outside_the_subset(files: &[EmittedFile]) -> Vec<Problem> {
+    files
+        .iter()
+        .filter(|file| {
+            std::path::Path::new(&file.path)
+                .extension()
+                .is_some_and(|extension| extension == "md")
+        })
+        .filter_map(|file| {
+            nc_markdown::parse(&file.contents)
+                .err()
+                .map(|refused| outside_the_subset(&file.path, &refused))
+        })
+        .collect()
 }
 
 fn page(name: &str) -> String {
@@ -387,6 +430,14 @@ pub fn cell_for_tests(text: &str) -> String {
     cell(text)
 }
 
+/// A person's words in a cell, for the tests that hold a label to the subset
+/// and a page to the catalog: what `words` writes.
+#[doc(hidden)]
+#[must_use]
+pub fn words_for_tests(text: &str) -> String {
+    words(text)
+}
+
 pub(crate) fn cell(text: &str) -> String {
     // **Through `printable` first.** `printable`'s own doc says it writes
     // "every `///` line the compiler emits **and every Markdown cell**"; were
@@ -477,18 +528,42 @@ fn sentence(catalog: &Catalog, key: &str, tag: &str) -> String {
         .map_or_else(|| "—".to_owned(), |text| words(text))
 }
 
-/// A person's words in a cell, shown as written: `cell`, and every backtick
-/// escaped.
+/// A person's words in a cell, shown as written: what `cell` escapes, and
+/// every other character the subset reads as markup — a backtick, an
+/// asterisk, a square bracket, an underscore, an ampersand, a tilde and a
+/// dollar sign — escaped by a backslash.
 ///
 /// **A locale's sentence or tag is text a person reads**, never Markdown:
 /// two backticks in a paragraph, or one in each of two tags, would open a
 /// code span that hides both and shows what lies between as code — the `, `
-/// joining two tags included. Escaped after `cell`, so the backslash it adds
-/// is not doubled. A registry's own description is another thing: an
-/// error's or a log event's may set a name as code on purpose, and keeps
-/// only the escapes of `cell`.
+/// joining two tags included. A registry's own description is another
+/// thing: an error's or a log event's may set a name as code on purpose, and
+/// keeps only the escapes of `cell`. An asterisk, a bracket and an
+/// underscore are escaped for the same reason as a backtick: each opens
+/// emphasis or a link wherever Markdown is read whole — `Send _now` — and the
+/// one reader this tree renders a page with (`nc_markdown`) refuses one left
+/// open; and an ampersand, since one before a name and a `;` — `AT&T;` — is
+/// read as an entity, which that reader refuses for any but three; and a
+/// tilde, which strikes text through where GitHub's Markdown is read —
+/// `from ~5 to 10~` — and which that reader refuses beside a word; and a
+/// dollar sign, which opens math there — `$HOME/$PATH` — and which that
+/// reader refuses where a later one would close it. So a key's own label —
+/// `[`, `]`, a backtick — is written through here too.
+/// **One pass, character by character**, so a backslash this adds is never
+/// escaped again and the `&lt;` written for a `<` keeps its ampersand.
 pub(crate) fn words(text: &str) -> String {
-    cell(text).replace('`', "\\`")
+    let mut written = String::new();
+    for character in crate::printable(text).chars() {
+        match character {
+            '\\' | '|' | '`' | '*' | '[' | ']' | '_' | '&' | '~' | '$' => {
+                written.push('\\');
+                written.push(character);
+            }
+            '<' => written.push_str("&lt;"),
+            other => written.push(other),
+        }
+    }
+    written
 }
 
 /// The locale tags, source first, as the columns of every message table.
@@ -713,6 +788,32 @@ fn emails(catalog: &Catalog) -> String {
             &mut out,
             &[("Subject", &entry.subject), ("Body", &entry.body)],
         );
+    }
+    out
+}
+
+/// Every text the interface itself says, with where it is shown and what it
+/// says in every locale.
+fn interface(catalog: &Catalog) -> String {
+    let mut out = header(
+        "Interface texts",
+        "catalog/interface.toml and catalog/i18n/",
+        "Every text the desktop interface says that is no command's and no error's: a \
+         line's sentence, a control's name, a word of the modeline. **A text that is not \
+         declared does not exist** — the interface shows one by a generated handle, so one \
+         that was removed is a compile error, and each is written in every locale \
+         (`§10.9`).\n\n\
+         What a command is called, and what a refusal says, are their own registries': \
+         `docs/commands.md` and `docs/errors.md`.",
+    );
+    // Sorted, like the generated crate and every other page.
+    let mut in_order: Vec<_> = catalog.interface.iter().collect();
+    in_order.sort_by(|a, b| a.id.cmp(&b.id));
+    for entry in in_order {
+        let _ = writeln!(out, "## `{}`\n", entry.id);
+        let _ = writeln!(out, "{}\n", cell(&entry.shown));
+        let _ = writeln!(out, "Parameters: {}\n", parameters(&entry.params));
+        messages(catalog, &mut out, &[("Text", &entry.text)]);
     }
     out
 }
@@ -980,7 +1081,9 @@ fn kernel(catalog: &Catalog) -> String {
          line's message of `shell_text_bytes` each, a window no smaller than \
          `shell_window_min_width` by `shell_window_min_height` and a drawer of at most \
          `shell_drawer_share_max` percent of the height it shares with the workspace \
-         area. **`agents.list`'s answer is not held \
+         area; and a page of what the dev pages read (`§12.16`) — the plugins loaded, \
+         the daemon's own log, the journal — to `dev_page_max` rows, and to half of \
+         `payload_bytes` where that is fewer. **`agents.list`'s answer is not held \
          to `payload_bytes`**: the widest list of agents a profile of the shipped world can \
          hold is longer than a payload, and a test holds it within one frame, so a plugin \
          that dispatches it can be handed more than it may answer with itself.\n\n",
@@ -1041,7 +1144,12 @@ fn daemon(catalog: &Catalog) -> String {
          then killed — through the process its PID record was held to. The compiler holds \
          the start above `ipc_handshake_ms`, so a handshake the daemon is allowed is never \
          cut short, and the stop to at least twice `stop_drain_ms`, which a stopping daemon \
-         waits once for what it still runs and once more for its runtime's last work.\n\n",
+         waits once for what it still runs and once more for its runtime's last work.\n\n\
+         **The live log is kept by `crates/nc-log`, as `apps/daemon` tells it.** The daemon \
+         keeps its newest `dev_logs_ring_lines` log lines in memory, each the one line the \
+         central log is sent, for `dev.logs.read` to read a page at a time (`§12.16`); a \
+         line past the bound takes the oldest one's place, and a daemon that starts keeps \
+         none of the last one's.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.daemon.each() {

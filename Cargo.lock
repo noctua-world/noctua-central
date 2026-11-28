@@ -2760,6 +2760,7 @@ version = "0.1.0-rc.1"
 dependencies = [
  "blake3",
  "nc-catalog-compiler",
+ "nc-markdown",
  "nc-platform",
  "nc-schema",
  "serde",
@@ -2953,6 +2954,21 @@ dependencies = [
  "nc-catalog",
  "nc-ids",
  "nc-log",
+]
+
+[[package]]
+name = "nc-markdown"
+version = "0.1.0-rc.1"
+dependencies = [
+ "nc-markdown",
+]
+
+[[package]]
+name = "nc-pages"
+version = "0.1.0-rc.1"
+dependencies = [
+ "nc-markdown",
+ "nc-pages",
 ]
 
 [[package]]
@@ -6049,6 +6065,7 @@ dependencies = [
  "nc-channel",
  "nc-cli",
  "nc-local",
+ "nc-markdown",
  "nc-platform",
  "nc-policy",
  "nc-schema",

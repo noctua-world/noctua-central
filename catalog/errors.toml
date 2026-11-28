@@ -1524,6 +1524,70 @@ message = "error.channel.leader-unregistered"
 severity = "error"
 retryable = true
 
+# --- A shortcut setting refused (§12.8, §12.15) ---
+#
+# What `settings.leader.set`, `settings.chord.set`, `settings.menu-keys.set` and
+# `settings.chords.set` refuse a choice with. **Nothing is written by a set that
+# is refused**: the file is left as it was and the keys in force stand, which is
+# what tells these from the codes above, each of which says a default took a
+# refused part's place when the file was read. One code for each thing a person
+# does about it: choose another Leader, choose another key, free the chord in
+# the program that holds it, or mend the file and the disk.
+
+[[error]]
+# The judge's own rules of the Leader, by `nc_channel::keys::proposed`: a
+# Leader holding no modifier or its own chord modifier, one that held with the
+# chord modifier is another channel's, one another channel has — and another
+# channel's file that cannot be judged, since a guess could be a collision. The
+# sentence names the rule and the channel.
+code = "NC-CHAN-0023"
+description = "The Leader or the chord modifier a shortcut setting was asked for breaks a rule of the Leader's, or could not be judged against another channel's, so nothing was written and the keys in force stand"
+message = "error.channel.shortcut-leader-collides"
+severity = "error"
+retryable = false
+
+[[error]]
+# Rule 4, by the same judge: one key of one table runs one command. The
+# sentence names the key, the table and both commands.
+code = "NC-CHAN-0024"
+description = "The keys a shortcut setting was asked for bind one key of one table twice, so nothing was written and the keys in force stand"
+message = "error.channel.shortcut-key-bound-twice"
+severity = "error"
+retryable = false
+
+[[error]]
+# The grammar's closed vocabulary (`nc_schema::keys`): a chord, a modifier, a
+# key or a command's name it does not write. The modifiers, the lock keys, the
+# numpad, the media keys and Esc are kept out of it, so none is ever bound.
+code = "NC-CHAN-0025"
+description = "A shortcut setting was asked for a key, a chord, a modifier or a command's name the keybinding grammar does not write — a key it keeps out of every shortcut among them — so nothing was written and the keys in force stand"
+message = "error.channel.shortcut-key-reserved"
+severity = "error"
+retryable = false
+
+[[error]]
+# Where the daemon is the process that asks the system for the Leader
+# (`nc_ipc::leader`), the chord chosen is asked for before anything is written,
+# while the Leader in force is still held: what the system refuses
+# (`nc_platform::leader::Refused`) refuses the setting, and the chord held is
+# kept. The sentence carries the system's refusal with its own code.
+code = "NC-CHAN-0026"
+description = "The system did not grant the Leader a shortcut setting was asked for — another program holds it, or the system could not be asked — so nothing was written and the Leader in force is still the one registered"
+message = "error.channel.shortcut-leader-undelivered"
+severity = "error"
+retryable = true
+
+[[error]]
+# The file as it stands is not this user's alone, was not read, or is not one
+# this build reads — a later format among them — and is never written over;
+# the choice is past the file's bound; the disk did not answer the write; or the
+# kernel asked keeps no keybinding configuration. The sentence says which.
+code = "NC-CHAN-0027"
+description = "A shortcut setting could not be read or saved: the keybinding configuration as it stands is not one that is written over, the choice is past the file's bound, the disk did not answer, or no configuration is kept where it was asked; nothing was changed"
+message = "error.channel.shortcuts-unsaved"
+severity = "error"
+retryable = true
+
 # --- The daemon (§11.1, §16.2) ---
 #
 # What a daemon refuses to start on, each by what it found, so a log is

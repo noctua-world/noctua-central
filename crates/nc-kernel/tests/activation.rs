@@ -969,6 +969,7 @@ async fn a_namespace_the_kernel_keeps_is_refused_before_anything_is_compiled() {
     for namespace in [
         "agents",
         "confirmations",
+        "dev",
         "drawer",
         "footer",
         "info",

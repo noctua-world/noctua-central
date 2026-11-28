@@ -644,6 +644,79 @@ async fn an_agent_is_held_to_its_own_rights_over_the_endpoint() {
     stopped(&mut person, &mut daemon, &installed).await;
 }
 
+/// A running daemon answers its dev pages the sessions it holds and the lines
+/// it logged, to its person and to no agent.
+///
+/// **Over the endpoint of a daemon started as an install starts one**: with
+/// one agent's session open, the person's `dev.sessions.read` lists that
+/// agent, one session open, and counts both connections; their
+/// `dev.logs.read` holds the line the daemon logged when the session opened,
+/// exactly as the store is sent it; and the session itself is refused both
+/// reads, each denial journaled as its agent acting for the person.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_daemon_answers_its_dev_pages_the_sessions_it_holds_and_the_lines_it_logged() {
+    let installed = Installed::new(Path::new(BINARY));
+    let (mut daemon, mut person, agent) = with_an_agent(&installed, 100, &["naming"]).await;
+    let mut session = daemon.session(agent).await;
+    let read = |command: &'static str| dispatch(command, "{}");
+    let Answer::Result(sessions) = asked(&mut person, read("dev.sessions.read")).await else {
+        panic!("the person's own read of the sessions was not answered");
+    };
+    let held = sessions.clone().into_object().expect("an object");
+    assert_eq!(
+        held.get("sessions").map(Value::to_canonical),
+        Some(format!(r#"[{{"agent":"{}"}}]"#, agent.to_crockford())),
+        "{sessions:?}"
+    );
+    assert_eq!(held.get("open"), Some(&Value::Integer(1)), "{sessions:?}");
+    assert_eq!(
+        held.get("connections"),
+        Some(&Value::Integer(2)),
+        "the person's connection and the session's: {sessions:?}"
+    );
+    let Answer::Result(logged) = asked(&mut person, read("dev.logs.read")).await else {
+        panic!("the person's own read of the log was not answered");
+    };
+    let lines: Vec<String> = logged
+        .into_object()
+        .and_then(|mut fields| fields.remove("lines"))
+        .and_then(Value::into_array)
+        .expect("the lines")
+        .into_iter()
+        .filter_map(Value::into_object)
+        .filter_map(|mut row| row.remove("line"))
+        .filter_map(Value::into_text)
+        .collect();
+    let opened = format!(
+        r#"{{"_msg":"daemon.session_opened","agent":"{}","level":"info","service":"noctua-daemon","version":"{}"}}"#,
+        agent.to_crockford(),
+        env!("CARGO_PKG_VERSION")
+    );
+    assert_eq!(
+        lines.iter().filter(|line| **line == opened).count(),
+        1,
+        "{lines:?}"
+    );
+    for command in ["dev.sessions.read", "dev.logs.read"] {
+        refused_with(
+            &asked(&mut session, read(command)).await,
+            ErrorCode::PolicyDenied,
+        );
+    }
+    let decided = decided(&installed).await;
+    for command in ["dev.sessions.read", "dev.logs.read"] {
+        let asked_by_it = of_the_agent(&decided, agent, command);
+        assert_eq!(asked_by_it.len(), 1, "{command}: {decided:?}");
+        assert_eq!(
+            (asked_by_it[0].chain.as_slice(), asked_by_it[0].result),
+            ([PERSON.to_owned()].as_slice(), Outcome::Denied),
+            "{command}"
+        );
+    }
+    drop(session);
+    stopped(&mut person, &mut daemon, &installed).await;
+}
+
 /// A session asks for its tools and dispatches commands, and for nothing else,
 /// and stays bound.
 ///
@@ -832,6 +905,13 @@ const FITTING: &[(&str, &str)] = &[
     ("agents.revoke", r#"{"agent":"0000000000000"}"#),
     ("confirmations.list", "{}"),
     ("confirmations.read", r#"{"serial":1}"#),
+    ("dev.agents.read", "{}"),
+    ("dev.journal.read", r#"{"from":0}"#),
+    ("dev.limits.read", "{}"),
+    ("dev.logs.read", r#"{"max":1}"#),
+    ("dev.plugins.read", "{}"),
+    ("dev.policy.read", "{}"),
+    ("dev.sessions.read", "{}"),
     ("drawer.back", "{}"),
     ("drawer.collapse", "{}"),
     ("drawer.expand", "{}"),
@@ -868,8 +948,22 @@ const FITTING: &[(&str, &str)] = &[
     ("prompt.ask", r#"{"command":"a.b"}"#),
     ("prompt.clear", "{}"),
     ("prompt.set", r#"{"text":""}"#),
+    ("settings.appearance.read", "{}"),
+    ("settings.appearance.set", r#"{"mode":"system"}"#),
+    ("settings.chord.read", "{}"),
+    ("settings.chord.set", r#"{"chord":"Shift"}"#),
+    ("settings.chords.read", "{}"),
+    ("settings.chords.set", r#"{"chords":[]}"#),
+    ("settings.footer.read", "{}"),
+    ("settings.footer.set", r#"{"visibility":"always"}"#),
+    ("settings.language.read", "{}"),
+    ("settings.language.set", r#"{"language":"system"}"#),
+    ("settings.leader.read", "{}"),
+    ("settings.leader.set", r#"{"leader":"Alt+Space"}"#),
     ("settings.mcp.read", "{}"),
     ("settings.mcp.set", r#"{"on":true}"#),
+    ("settings.menu-keys.read", "{}"),
+    ("settings.menu-keys.set", r#"{"keys":[]}"#),
     ("shell.drag", "{}"),
     ("shell.focus", r#"{"region":"prompt"}"#),
     ("shell.hover", r#"{"by":"pointer"}"#),

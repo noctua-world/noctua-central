@@ -33,7 +33,11 @@
 //!    has migrated the file: SQLite refuses two connections turning a new
 //!    file's journal into a write-ahead log at once, and `sqlx` takes no lock
 //!    around a migration. On Windows, which locks no directory, the lock is a
-//!    private file beside the database, [`LOCK_NAME`].
+//!    private file beside the database, [`LOCK_NAME`]. **Held for as long as
+//!    the work it guards**, its caller awaiting the open or not: the open runs
+//!    in a task of its own, and a missing file is made on one thread of the
+//!    blocking pool that owns the lock until the file is in place, whatever
+//!    becomes of the runtime.
 //! 2. **The file is created by this crate, private, before SQLite sees it.**
 //!    On Unix SQLite would create it `0644` less the umask, and its `-wal` and
 //!    `-shm` companions take the database file's mode rather than the umask, so
@@ -42,7 +46,21 @@
 //!    `create_new` is `O_CREAT | O_EXCL`, which does not follow one at the last
 //!    component. A file that exists is held to the same owner, reach and
 //!    not-a-link rule — read and write for its owner, nothing for anybody else
-//!    — and so are the companions when they are there.
+//!    — and so are the companions when they are there. **A missing file is
+//!    made whole before it has its name**: created under [`CREATION_NAME`],
+//!    turned into a write-ahead log there by one connection with the pool's
+//!    pragmas, closed so SQLite takes away any `-wal` and `-shm` it kept, held
+//!    to having nothing beside it, then flushed and renamed to [`FILE_NAME`],
+//!    the directory synced where that is what makes a rename durable.
+//!    Turning a new file into a write-ahead log writes its first page through
+//!    a rollback journal, so a
+//!    process stopped in that moment at the store's own name left a file
+//!    beside a hot journal, refused at every open after; under the creation
+//!    name, the next open that finds no database removes what was left there —
+//!    the creation file and its companions, each judged first by the rule its
+//!    twin at the store's name is held to — and makes it again. Nothing at
+//!    [`FILE_NAME`] is removed or repaired, and a companion found there with
+//!    no database is `NC-DB-0007`, left as it is.
 //! 3. **The pragmas are the connection's, not the schema's**, set through
 //!    `SqliteConnectOptions` on every connection the pool opens:
 //!    `journal_mode = WAL`, `synchronous = FULL`, `foreign_keys = ON`,
@@ -137,7 +155,11 @@
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`
 //! flag and an authorizer are not reachable through `sqlx`'s safe API, and
-//! nothing here runs SQL anybody but this repository wrote. On Windows, the
+//! nothing here runs SQL anybody but this repository wrote. An empty file an
+//! earlier build left at [`FILE_NAME`], stopped before its first connection,
+//! is turned into a write-ahead log where it stands, as that build would have:
+//! this build makes no such file, and nothing at the store's name is replaced.
+//! On Windows, the
 //! Administrators group, `SYSTEM` and a process holding the backup or the
 //! take-ownership privilege read and take whatever an access list says,
 //! as root does on Unix.
@@ -166,6 +188,16 @@ use nc_catalog::ErrorCode;
 
 /// The database file's name inside the directory [`LocalStore::open`] is given.
 pub const FILE_NAME: &str = "local.sqlite3";
+
+/// The name a new database file is made under, and turned into a write-ahead
+/// log under, before it is renamed to [`FILE_NAME`].
+///
+/// **Never the store's**, so a file at [`FILE_NAME`] is one made whole. What
+/// an open stopped part of the way left here — the file, and the companions
+/// SQLite made beside it — is removed by the next open that finds no
+/// database, once each is judged by the rule the store is held to; nothing
+/// else in the directory is ever removed.
+pub const CREATION_NAME: &str = "local.sqlite3-new";
 
 /// The name of the file that holds a profile for one open, where the lock
 /// needs a file.

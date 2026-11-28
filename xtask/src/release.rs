@@ -957,6 +957,7 @@ fn released(setting: &Releasing) -> Result<(), String> {
     )?;
     let notes = the_notes_of(&sections, version)?;
     let changelog = the_changelog(&sections);
+    of_the_subset(&changelog)?;
     said_what_it_carries(&notes)?;
 
     match (setting.mode, setting.github) {
@@ -1736,20 +1737,141 @@ fn the_part_of(change: &Change) -> Option<Part> {
 
 /// One change as the changelog lists it: its scope, what it does and its
 /// short hash, and under it what a breaking change asks.
+///
+/// **Each is a commit's own words, written as text** ([`as_text`]): the
+/// changelog is a page an install carries (`crates/nc-pages`), read by the
+/// one reader of Markdown, so a subject holding `[daemon]` or `_now_` is
+/// shown as written rather than read as a link or emphasis, or refused.
 fn the_entry(change: &Change) -> String {
     let scope = change
         .scope
         .as_ref()
-        .map_or_else(String::new, |scope| format!("**{scope}:** "));
-    let note = change
-        .note
-        .as_ref()
-        .map_or_else(String::new, |note| format!("  What to do: {note}\n"));
+        .map(|scope| format!("**{}:** ", as_text(scope, false)));
+    let note = change.note.as_ref().map_or_else(String::new, |note| {
+        format!("  What to do: {}\n", as_text(note, false))
+    });
     format!(
-        "- {scope}{} ({})\n{note}",
-        change.description,
+        "- {}{} ({})\n{note}",
+        scope.as_deref().unwrap_or_default(),
+        as_text(&change.description, scope.is_none()),
         short(&change.hash)
     )
+}
+
+/// `words`, a commit's own, as text of the Markdown subset that reads as
+/// those words (`nc_markdown`), where they `begin` a list item's text or
+/// not.
+///
+/// **A code span the words close is kept as written**, since a subject sets
+/// a name as code on purpose; every other character the subset reads as
+/// markup — a backslash, an asterisk, an underscore, a square bracket, an
+/// ampersand, a tilde, a dollar sign, and a backtick that closes nothing — is
+/// escaped by a backslash, and a `<` is written `&lt;`. **Where they begin an
+/// item, what would open a block there is escaped too**: a first character of
+/// ASCII punctuation — a heading's `#`, a quote's `>`, a list's `-` or `+`, a
+/// table's `|` — a run of three backticks or more, which opens a fence, and
+/// the mark after a first run of digits, which numbers a list; so an entry is
+/// one paragraph whatever its words begin with.
+fn as_text(words: &str, begin: bool) -> String {
+    let characters: Vec<char> = words.chars().collect();
+    let ticks_at = |at: usize| {
+        characters
+            .get(at..)
+            .unwrap_or(&[])
+            .iter()
+            .take_while(|character| **character == '`')
+            .count()
+    };
+    let mut written = String::new();
+    let mut at = 0;
+    if begin {
+        let digits = characters
+            .iter()
+            .take_while(|character| character.is_ascii_digit())
+            .count();
+        let fence = ticks_at(0);
+        match characters.first() {
+            Some('0'..='9') if matches!(characters.get(digits), Some('.' | ')')) => {
+                written.extend(characters.get(..digits).unwrap_or(&[]));
+                written.push('\\');
+                written.extend(characters.get(digits));
+                at = digits + 1;
+            }
+            Some('`') if fence >= 3 => {
+                written.push_str(&"\\`".repeat(fence));
+                at = fence;
+            }
+            Some(first)
+                if first.is_ascii_punctuation() && *first != '`' && !escaped_in_text(*first) =>
+            {
+                written.push('\\');
+                written.push(*first);
+                at = 1;
+            }
+            _ => {}
+        }
+    }
+    while let Some(&here) = characters.get(at) {
+        if here == '`' {
+            let ticks = ticks_at(at);
+            let mut close = at + ticks;
+            let closed = loop {
+                match characters.get(close) {
+                    None => break None,
+                    Some('`') => {
+                        let found = ticks_at(close);
+                        if found == ticks {
+                            break Some(close);
+                        }
+                        close += found;
+                    }
+                    Some(_) => close += 1,
+                }
+            };
+            if let Some(close) = closed {
+                written.extend(characters.get(at..close + ticks).unwrap_or(&[]));
+                at = close + ticks;
+            } else {
+                written.push_str(&"\\`".repeat(ticks));
+                at += ticks;
+            }
+            continue;
+        }
+        if escaped_in_text(here) {
+            written.push('\\');
+            written.push(here);
+        } else if here == '<' {
+            written.push_str("&lt;");
+        } else {
+            written.push(here);
+        }
+        at += 1;
+    }
+    written
+}
+
+/// Whether [`as_text`] escapes `character` by a backslash wherever it
+/// stands.
+const fn escaped_in_text(character: char) -> bool {
+    matches!(character, '\\' | '*' | '_' | '[' | ']' | '&' | '~' | '$')
+}
+
+/// Refuses a changelog the one reader of Markdown refuses (`nc_markdown`).
+///
+/// **Before anything is written**: the changelog is a page an install carries
+/// (`crates/nc-pages`), and one the reader refuses fails that crate's suite
+/// on the release commit and on every gate after it.
+///
+/// # Errors
+///
+/// Returns where the reader refused it, and that nothing was written.
+fn of_the_subset(changelog: &str) -> Result<(), String> {
+    nc_markdown::parse(changelog).map(drop).map_err(|refused| {
+        format!(
+            "the {CHANGELOG} this release would write is outside the Markdown this tree reads, \
+             at {refused}: an install carries it as a page, so nothing was written"
+        )
+    })
 }
 
 /// A release's notes: its section of the changelog without the heading, each
@@ -3839,11 +3961,17 @@ mod tests {
     /// So this is a name list, compared both directions the way
     /// `xtask/src/policy.rs`'s `CORE_POLICIES` is: a call into this workspace
     /// that is not written here fails, and a name written here that the module
-    /// stopped calling fails too. The two rules this module reads with rather
-    /// than writes again: a conventional subject, and a character nobody can
-    /// see. The gate is not a call: it runs in a child of its own, this same
-    /// tool's `check`, which the `Command` census counts.
-    const MAY_REACH: [&str; 2] = ["crate::history::subject", "nc_schema::unseen"];
+    /// stopped calling fails too. The three rules this module reads with rather
+    /// than writes again: a conventional subject, a character nobody can see,
+    /// and the Markdown the changelog is held to — `nc_markdown::parse`, which
+    /// reads a text and writes nothing. The gate is not a call: it runs in a
+    /// child of its own, this same tool's `check`, which the `Command` census
+    /// counts.
+    const MAY_REACH: [&str; 3] = [
+        "crate::history::subject",
+        "nc_markdown::parse",
+        "nc_schema::unseen",
+    ];
 
     /// Every `use` statement the shipped half is allowed to carry.
     ///
@@ -5492,6 +5620,158 @@ mod tests {
         assert!(
             changelog.starts_with("# Changelog\n\n") && changelog.ends_with(")\n"),
             "{changelog}"
+        );
+    }
+
+    /// The text an entry is read as by the one reader of Markdown, with a
+    /// code span written back between backticks and every other inline as
+    /// the text it holds.
+    fn read_back(inlines: &[nc_markdown::Inline]) -> String {
+        inlines
+            .iter()
+            .map(|inline| match inline {
+                nc_markdown::Inline::Text(text) => text.clone(),
+                nc_markdown::Inline::Code(code) => format!("`{code}`"),
+                nc_markdown::Inline::Strong(inner) | nc_markdown::Inline::Emphasis(inner) => {
+                    format!("<{}>", read_back(inner))
+                }
+                nc_markdown::Inline::Link { .. } => panic!("an entry read a link: {inlines:?}"),
+            })
+            .collect()
+    }
+
+    /// Every subject the history rule accepts is listed in the changelog as
+    /// its own words, in a changelog the one reader of Markdown reads.
+    ///
+    /// **Every shape the rule lets through**, each subject first held to the
+    /// rule itself: brackets, asterisks, underscores, a raw tag, an entity, a
+    /// backslash, a code span and a backtick that closes none, and, where the
+    /// words begin the entry, every mark that would open a block there — a
+    /// heading, a quote, a list, a numbered list, a table, a fence, a thematic
+    /// break; each with no scope and with one, and with a note under it. The
+    /// changelog parses, and each entry is one item holding one paragraph that
+    /// reads as the scope, the words and the hash, the scope alone strong.
+    #[test]
+    fn every_subject_the_history_rule_accepts_is_its_own_words_in_the_changelog() {
+        let words = [
+            "declare the daemon's own bounds under [daemon], with the mark's lease",
+            "keep *one* and **two** and ***three***",
+            "read _now_ and snake_case and __init__",
+            "refuse <b> and <!-- this --> and a <- b",
+            "say AT&T; and &lt; and a & b",
+            "write C:\\temp and a \\ alone",
+            "name `nc_markdown::parse` and `a*b_c [d]` in code",
+            "leave a ` alone and two `` too",
+            "![an image](AGENTS.md) and [a link](https://example.org)",
+            "# a heading",
+            "> a quote",
+            "- a list",
+            "+ a list",
+            "* a list",
+            "1. a numbered list",
+            "2026) a year",
+            "12. and 3) and 4",
+            "| a | table |",
+            "```fenced and more",
+            "~~~ tildes",
+            "strike ~~this~~ and ~that~ out",
+            "use $HOME/$PATH and $x$ and $$y$$",
+            "$ a dollar first",
+            "--- a break",
+            "=== a line",
+            "`code` first",
+            "\\ a backslash first",
+            "& an ampersand first",
+            "_ an underscore first",
+        ];
+        for described in words {
+            for scope in [None, Some("nc_kernel"), Some("_private"), Some("a.b/c-d")] {
+                let subject = scope.map_or_else(
+                    || format!("feat: {described}"),
+                    |scope| format!("feat({scope}): {described}"),
+                );
+                crate::history::subject(&subject)
+                    .unwrap_or_else(|why| panic!("`{subject}` is refused by the rule: {why}"));
+                let mut change = a_change_of("feat", scope, false, described);
+                change.note = Some(format!("keep {described}"));
+                let changelog = super::the_changelog(&[super::Section {
+                    version: v("0.2.0"),
+                    changes: vec![change.clone()],
+                }]);
+                let read = nc_markdown::parse(&changelog)
+                    .unwrap_or_else(|refused| panic!("`{subject}`: {refused}\n{changelog}"));
+                let items: Vec<&Vec<nc_markdown::Block>> = read
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match block {
+                        nc_markdown::Block::List { items, .. } => Some(items),
+                        _ => None,
+                    })
+                    .flatten()
+                    .collect();
+                let [item] = items.as_slice() else {
+                    panic!("`{subject}` is not one item: {read:?}");
+                };
+                let [nc_markdown::Block::Paragraph(said)] = item.as_slice() else {
+                    panic!("`{subject}` is not one paragraph: {item:?}");
+                };
+                if described.starts_with("name `") {
+                    assert!(
+                        said.contains(&nc_markdown::Inline::Code("nc_markdown::parse".to_owned())),
+                        "a code span the words close is not kept: {said:?}"
+                    );
+                }
+                let scoped = scope.map_or_else(String::new, |scope| format!("<{scope}:> "));
+                assert_eq!(
+                    read_back(said),
+                    format!(
+                        "{scoped}{described} ({}) What to do: keep {described}",
+                        super::short(&change.hash)
+                    ),
+                    "`{subject}`:\n{changelog}"
+                );
+            }
+        }
+    }
+
+    /// A fence a commit's words open and close where they begin an entry is
+    /// text, as every other mark that would open a block there is.
+    #[test]
+    fn backticks_that_begin_an_entry_open_no_fence_though_they_close() {
+        for described in ["```x``` and more", "````x```` too"] {
+            crate::history::subject(&format!("fix: {described}")).expect("the rule accepts it");
+            let change = a_change_of("fix", None, false, described);
+            let changelog = super::the_changelog(&[super::Section {
+                version: v("0.2.1"),
+                changes: vec![change.clone()],
+            }]);
+            let read = nc_markdown::parse(&changelog)
+                .unwrap_or_else(|refused| panic!("`{described}`: {refused}\n{changelog}"));
+            let Some(nc_markdown::Block::List { items, .. }) = read.blocks.last() else {
+                panic!("`{described}`: {read:?}");
+            };
+            let [nc_markdown::Block::Paragraph(said)] = items[0].as_slice() else {
+                panic!("`{described}`: {items:?}");
+            };
+            assert_eq!(
+                read_back(said),
+                format!("{described} ({})", super::short(&change.hash))
+            );
+        }
+    }
+
+    /// A changelog the one reader of Markdown refuses is refused before
+    /// anything is written, naming where.
+    #[test]
+    fn a_changelog_outside_the_subset_is_refused_before_anything_is_written() {
+        assert_eq!(super::of_the_subset(super::OPENING), Ok(()));
+        let refused = super::of_the_subset(&format!("{}\n- a [b] c\n", super::OPENING))
+            .expect_err("a bracket that is no link's");
+        assert!(
+            refused.contains("CHANGELOG.md")
+                && refused.contains("line 5")
+                && refused.contains("nothing was written"),
+            "{refused}"
         );
     }
 

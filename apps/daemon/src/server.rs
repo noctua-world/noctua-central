@@ -44,9 +44,12 @@
 //! process that asks (`crate::leader`), as one object — `display`, the
 //! environment's variables by name; `shell`, the object `shell.read` answers
 //! as `shell`; `leader`, `{"held":true}` or the `refused` code and
-//! sentence; and `confirmations`, the serials of the calls the kernel holds
-//! for the person's confirmation (`nc_kernel::Kernel::pending_moves`) — each
-//! only once there is one. The revision is this process's
+//! sentence; `confirmations`, the serials of the calls the kernel holds
+//! for the person's confirmation (`nc_kernel::Kernel::pending_moves`); and
+//! `keys`, how many times a shortcut setting wrote the channel's keybinding
+//! configuration since this daemon started (`crate::environment::Keybindings`),
+//! which whoever holds the keys in force reads the file again for, compared
+//! only for being another number — each only once there is one. The revision is this process's
 //! alone: a daemon that starts again begins at zero, holding no environment
 //! and no Leader's outcome of the last one's, and the interface's state is
 //! the kernel's, which keeps it between starts.
@@ -217,6 +220,9 @@ pub struct Server {
     /// How many agents' sessions are open: each counted before it opens, and
     /// until its connection ends.
     sessions: AtomicUsize,
+    /// The agent of each session open, one for each: held from the moment
+    /// the kernel opened it until its connection ends.
+    open: Mutex<Vec<Snowflake>>,
     /// What a client may watch, at the revision it is at.
     watched: tokio::sync::watch::Sender<Watched>,
     /// The desktop interface the daemon starts, and the one it started.
@@ -224,6 +230,9 @@ pub struct Server {
     /// How many connections are attached as that desktop: each counted once
     /// it proved it is, and until it closes.
     attached: AtomicUsize,
+    /// What a change of the Leader is asked through, once the daemon asks
+    /// the system for it (`crate::leader`).
+    leader: OnceLock<crate::leader::Asking>,
     log: Sink,
 }
 
@@ -250,9 +259,11 @@ impl Server {
             connections: AtomicUsize::new(0),
             all_closed: tokio::sync::Notify::new(),
             sessions: AtomicUsize::new(0),
+            open: Mutex::new(Vec::new()),
             watched: tokio::sync::watch::Sender::new(Watched::default()),
             desktop,
             attached: AtomicUsize::new(0),
+            leader: OnceLock::new(),
             log,
         }
     }
@@ -814,6 +825,10 @@ impl Server {
             .session(&named, &self.named.person)
             .await
             .map_err(|refusal| refused_by_kernel(&refusal))?;
+        self.open
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(agent);
         Ok(Opened {
             agent,
             session,
@@ -1008,6 +1023,23 @@ impl Server {
         let _ = self.closed(deadline).await;
     }
 
+    /// The agent of each session open now, one for each session: what the
+    /// kernel's dev pages are answered (`crate::environment::Host`).
+    #[must_use]
+    pub fn open_sessions(&self) -> Vec<Snowflake> {
+        self.open
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// How many connections are open now: what the kernel's dev pages are
+    /// answered against `ipc_connections_max`.
+    #[must_use]
+    pub fn open_connections(&self) -> u64 {
+        u64::try_from(self.connections.load(Ordering::SeqCst)).unwrap_or(u64::MAX)
+    }
+
     /// The daemon's status, as one object.
     #[must_use]
     pub fn status(&self) -> Value {
@@ -1088,6 +1120,34 @@ impl Server {
         });
     }
 
+    /// Holds `asking`, what a change of the Leader is asked through from
+    /// then on: said once, by the run that asked the system for the Leader
+    /// (`crate::leader::listened`), and one said already stands.
+    pub fn leader_held_by(&self, asking: crate::leader::Asking) {
+        // Said once a run; a second is another thread's, which this one
+        // never asks.
+        let _ = self.leader.set(asking);
+    }
+
+    /// What a change of the Leader is asked through, where the daemon is the
+    /// process that asks the system for it; nothing where it is not.
+    #[must_use]
+    pub fn leader_asking(&self) -> Option<crate::leader::Asking> {
+        self.leader.get().cloned()
+    }
+
+    /// A shortcut setting wrote the channel's keybinding configuration: the
+    /// count of those writes moves by one, and the watched revision with it,
+    /// so every watch that waits is answered and whoever holds the keys in
+    /// force — the desktop interface, which asks the system for the Leader on
+    /// Linux and macOS — reads the file again.
+    pub fn keys_written(&self) {
+        self.watched.send_modify(|watched| {
+            watched.keys = Watched::next(watched.keys);
+            watched.moved();
+        });
+    }
+
     /// A press of the Leader the daemon heard: `leader.tap` dispatched as the
     /// person for the system's own seat (`nc_ipc::leader`), admitted as every
     /// dispatch is, so a stop drains it or refuses it, and journaled as every
@@ -1145,6 +1205,9 @@ struct Watched {
     /// The serials of the calls the kernel holds for the person's
     /// confirmation, as it told them last: none held, none.
     held: Vec<u64>,
+    /// How many times a shortcut setting wrote the channel's keybinding
+    /// configuration since this daemon started, counted as a revision is.
+    keys: u64,
 }
 
 impl Watched {
@@ -1152,18 +1215,27 @@ impl Watched {
     /// number the wire writes, `i64::MAX`.
     const LAST: u64 = i64::MAX.unsigned_abs();
 
+    /// The count after `count`, which turns to zero past [`Watched::LAST`].
+    const fn next(count: u64) -> u64 {
+        if count >= Self::LAST { 0 } else { count + 1 }
+    }
+
     /// Moves to the next revision.
     const fn moved(&mut self) {
-        self.revision = if self.revision >= Self::LAST {
-            0
-        } else {
-            self.revision + 1
-        };
+        self.revision = Self::next(self.revision);
+    }
+
+    /// The count of the writes of the keybinding configuration, as a watch
+    /// is answered it: nothing while there is none.
+    fn keys_said(&self) -> Option<Value> {
+        (self.keys > 0).then(|| Value::Integer(i64::try_from(self.keys).unwrap_or(i64::MAX)))
     }
 
     /// What is held, as the one object a watch is answered: `display`, the
-    /// environment's variables by name; `shell`, the interface's state; and
-    /// `leader`, what came of asking for it — each only once there is one.
+    /// environment's variables by name; `shell`, the interface's state;
+    /// `leader`, what came of asking for it; `confirmations`, the calls held;
+    /// and `keys`, how many times a setting wrote the keybinding
+    /// configuration — each only once there is one.
     fn state(&self) -> Value {
         let mut fields = Vec::new();
         if let Some(display) = &self.display {
@@ -1192,6 +1264,9 @@ impl Watched {
                         .collect(),
                 ),
             ));
+        }
+        if let Some(keys) = self.keys_said() {
+            fields.push(("keys", keys));
         }
         Value::object(fields)
     }
@@ -1264,8 +1339,15 @@ struct Opened {
 
 impl Drop for Opened {
     fn drop(&mut self) {
-        self.counted
-            .0
+        let server = &self.counted.0;
+        // One of this agent's sessions is no longer open: an agent may hold
+        // several, each listed once.
+        let mut open = server.open.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(at) = open.iter().position(|agent| *agent == self.agent) {
+            open.swap_remove(at);
+        }
+        drop(open);
+        server
             .log
             .record(&nc_log::events::DaemonSessionEnded { agent: self.agent });
     }
@@ -1887,10 +1969,10 @@ mod tests {
                 person: world.person().clone(),
                 since: 1_767_225_600_000,
             };
-            let log = Arc::new(std::sync::Mutex::new(
+            let log = crate::environment::sink(
                 nc_log::Log::open(crate::environment::origin(), crate::testing::NOBODY_LISTENS)
                     .expect("a store on this machine"),
-            ));
+            );
             let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
             let opening = crate::environment::Opening {
                 world,
@@ -2300,6 +2382,120 @@ mod tests {
         held.push(server.counted_session().expect("the place given back"));
         drop(held);
         assert_eq!(server.sessions.load(Ordering::SeqCst), 0);
+    }
+
+    /// The daemon answers its kernel's dev pages the sessions and the
+    /// connections it holds, and the newest lines of its own log.
+    ///
+    /// **Over a kernel the daemon opens, told of its host as a start tells
+    /// it**: no session at first; two sessions of one agent are two rows,
+    /// one of them gone when its connection ends, and none once both have;
+    /// the connections are the server's own count. The log read answers the
+    /// lines the daemon's sink kept, each under its serial and exactly the
+    /// line the store is sent — an event's name, its level, the service and
+    /// its version, and its declared fields, nothing else.
+    #[tokio::test]
+    async fn the_dev_pages_read_the_sessions_the_connections_and_the_log_this_daemon_holds() {
+        use nc_kernel::logging::LogSink as _;
+
+        let serving = Serving::new().await;
+        let server = &serving.server;
+        serving
+            .kernel
+            .hosted_by(Arc::new(crate::environment::Host::new(Arc::downgrade(
+                server,
+            ))));
+        let agent = serving.agent.to_crockford();
+        let said = |open: usize, connections: usize| {
+            let rows = vec![format!(r#"{{"agent":"{agent}"}}"#); open].join(",");
+            format!(
+                r#"{{"connections":{connections},"connections_max":{},"max":{},"open":{open},"sessions":[{rows}]}}"#,
+                nc_catalog::DAEMON.ipc_connections_max,
+                nc_catalog::DAEMON.sessions_max
+            )
+        };
+        let read = || async {
+            serving
+                .as_the_person("dev.sessions.read", "{}")
+                .await
+                .to_canonical()
+        };
+        assert_eq!(read().await, said(0, 0));
+        let first = server
+            .asked(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        let second = server
+            .asked(Request::Session {
+                agent: serving.agent,
+            })
+            .await;
+        assert!(first.opened.is_some() && second.opened.is_some());
+        server.connections.fetch_add(2, Ordering::SeqCst);
+        assert_eq!(read().await, said(2, 2));
+        let limits = serving.as_the_person("dev.limits.read", "{}").await;
+        let used = |limit: &str| {
+            limits
+                .clone()
+                .into_object()
+                .and_then(|mut fields| fields.remove("counts"))
+                .and_then(Value::into_array)
+                .expect("the counts")
+                .into_iter()
+                .filter_map(Value::into_object)
+                .find(|row| row.get("limit") == Some(&Value::text(limit)))
+                .and_then(|mut row| row.remove("used"))
+        };
+        assert_eq!(used("daemon.sessions_max"), Some(Value::Integer(2)));
+        assert_eq!(used("daemon.ipc_connections_max"), Some(Value::Integer(2)));
+        drop(second);
+        assert_eq!(read().await, said(1, 2));
+        drop(first);
+        server.connections.fetch_sub(2, Ordering::SeqCst);
+        assert_eq!(read().await, said(0, 0));
+
+        let kept = server.log.kept(0, usize::MAX);
+        let answered = serving.as_the_person("dev.logs.read", "{}").await;
+        let lines: Vec<(Value, Value)> = answered
+            .clone()
+            .into_object()
+            .and_then(|mut fields| fields.remove("lines"))
+            .and_then(Value::into_array)
+            .expect("the lines")
+            .into_iter()
+            .filter_map(Value::into_object)
+            .filter_map(|mut row| Some((row.remove("serial")?, row.remove("line")?)))
+            .collect();
+        assert_eq!(
+            lines,
+            kept.lines
+                .iter()
+                .map(|(serial, line)| (
+                    Value::Integer(i64::try_from(*serial).expect("fits")),
+                    Value::text(line.as_str())
+                ))
+                .collect::<Vec<_>>()
+        );
+        let opened = format!(
+            r#"{{"_msg":"daemon.session_opened","agent":"{agent}","level":"info","service":"noctua-daemon","version":"{}"}}"#,
+            env!("CARGO_PKG_VERSION")
+        );
+        assert_eq!(
+            kept.lines
+                .iter()
+                .filter(|(_, line)| *line == opened)
+                .count(),
+            2,
+            "{kept:?}"
+        );
+        assert!(
+            kept.lines
+                .iter()
+                .map(|(serial, _)| *serial)
+                .eq(1..=kept.held),
+            "every line this daemon recorded is kept, in order: {kept:?}"
+        );
     }
 
     /// A session is opened only while MCP is on and for an agent of the
@@ -3030,9 +3226,12 @@ mod tests {
             crate::leader::listening(
                 Arc::clone(server),
                 &tokio::runtime::Handle::current(),
-                move |on_press, _on_lost| {
+                nc_channel::Channel::Staging.leader(),
+                move |_leader, on_press, _on_lost| {
                     *pressed.lock().expect("nothing panics holding it") = Some(on_press);
-                    Ok(nc_ipc::leader::Listening::Held(DroppedOnce(dropped)))
+                    Ok(nc_ipc::leader::Listening::Held(DroppedOnce(Arc::clone(
+                        &dropped,
+                    ))))
                 },
             )
         };
@@ -3123,7 +3322,10 @@ mod tests {
         crate::leader::listening(
             Arc::clone(&server),
             &tokio::runtime::Handle::current(),
-            move |_on_press, _on_lost| Err::<nc_ipc::leader::Listening<()>, _>(told),
+            nc_channel::Channel::Staging.leader(),
+            move |_leader, _on_press, _on_lost| {
+                Err::<nc_ipc::leader::Listening<()>, _>(told.clone())
+            },
         )
         .given_back();
         let held = server.watched.borrow().clone();
@@ -3137,7 +3339,8 @@ mod tests {
         let held = crate::leader::listening(
             Arc::clone(&server),
             &tokio::runtime::Handle::current(),
-            move |_on_press, on_lost| {
+            nc_channel::Channel::Staging.leader(),
+            move |_leader, _on_press, on_lost| {
                 *losing.lock().expect("nothing panics holding it") = Some(on_lost);
                 Ok(nc_ipc::leader::Listening::Held(()))
             },
@@ -3170,6 +3373,555 @@ mod tests {
         tokio::task::spawn_blocking(move || held.given_back())
             .await
             .expect("given back");
+    }
+
+    /// What a test's registrations say: each chord asked for, with what it
+    /// was asked beside, and each given back, in the order it happened.
+    type Said = Arc<std::sync::Mutex<Vec<String>>>;
+
+    /// A registration a test grants, which says when it is given back.
+    struct Granted(String, Said);
+
+    impl Drop for Granted {
+        fn drop(&mut self) {
+            self.1
+                .lock()
+                .expect("nothing panics holding it")
+                .push(format!("back {}", self.0));
+        }
+    }
+
+    /// The press a registration is handed.
+    type Press = Box<dyn Fn() + Send>;
+
+    /// The loss a registration is handed.
+    type Loss = Box<dyn FnOnce(nc_platform::leader::Refused) + Send>;
+
+    /// What a test's registration answers.
+    type Asked = Result<nc_ipc::leader::Listening<Granted>, Refusal>;
+
+    /// Everything said since the last time this was asked.
+    fn said(said: &Said) -> Vec<String> {
+        std::mem::take(&mut *said.lock().expect("nothing panics holding it"))
+    }
+
+    /// A registration that grants every Leader but `taken`, which it refuses
+    /// as another program's, saying each chord asked for and `beside()` then.
+    fn granting(
+        said: &Said,
+        taken: &[&str],
+        beside: impl Fn() -> String + Send + 'static,
+    ) -> impl FnMut(nc_schema::keys::Leader, Press, Loss) -> Asked + Send + 'static {
+        let said = Arc::clone(said);
+        let taken: Vec<String> = taken.iter().map(|chord| (*chord).to_owned()).collect();
+        move |leader, _on_press, _on_lost| {
+            let chord = leader.written();
+            said.lock()
+                .expect("nothing panics holding it")
+                .push(format!("asked {chord}{}", beside()));
+            if taken.contains(&chord) {
+                Err(refusal_of(&nc_platform::leader::Refused::Taken))
+            } else {
+                Ok(nc_ipc::leader::Listening::Held(Granted(
+                    chord,
+                    Arc::clone(&said),
+                )))
+            }
+        }
+    }
+
+    /// The Leader the grammar writes as `chord`.
+    fn leader(chord: &str) -> nc_schema::keys::Leader {
+        nc_schema::keys::Leader::of(nc_schema::keys::Chord::parse(chord).expect("a chord"))
+            .expect("a Leader")
+    }
+
+    /// A Leader a setting changes is asked for beside the one held, and then
+    /// kept in its place or given back.
+    ///
+    /// **With registrations a test grants and refuses**: the Leader held is
+    /// granted again asking nobody; another is asked for with the first still
+    /// held, and given back when the setting drops it; one another program
+    /// holds is refused by its code, the first held still; one kept takes the
+    /// first's place, which is given back only then, and is the Leader held
+    /// from then on; giving the Leader back gives back what is held, and
+    /// nothing is asked of a thread that ended.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_a_setting_changes_is_asked_for_beside_the_one_held_then_kept_or_given_back() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let heard: Said = Arc::default();
+        let held = crate::leader::listening(
+            Arc::clone(&server),
+            &tokio::runtime::Handle::current(),
+            leader("Control+Alt+Space"),
+            granting(&heard, &["Alt+KeyT"], String::new),
+        );
+        let asking = held.asking();
+        let tried = |chord: &'static str| {
+            let asking = asking.clone();
+            async move {
+                tokio::task::spawn_blocking(move || asking.tried(leader(chord)))
+                    .await
+                    .expect("asked")
+            }
+        };
+        assert_eq!(tried("Control+Alt+Space").await, Ok(()));
+        assert_eq!(
+            said(&heard),
+            ["asked Control+Alt+Space"],
+            "the Leader held was asked for twice"
+        );
+        assert_eq!(tried("Alt+KeyB").await, Ok(()));
+        assert_eq!(
+            said(&heard),
+            ["asked Alt+KeyB"],
+            "the Leader held was let go for one tried"
+        );
+        asking.dropped();
+        let taken = tried("Alt+KeyT").await.expect_err("another program's");
+        assert_eq!(taken.code, ErrorCode::ChannelLeaderTaken);
+        assert_eq!(said(&heard), ["back Alt+KeyB", "asked Alt+KeyT"]);
+        assert_eq!(tried("Alt+KeyC").await, Ok(()));
+        asking.kept();
+        assert_eq!(
+            tried("Alt+KeyC").await,
+            Ok(()),
+            "the Leader kept is the one held"
+        );
+        assert_eq!(said(&heard), ["asked Alt+KeyC", "back Control+Alt+Space"]);
+        // One tried and never settled is given back as the next is tried.
+        assert_eq!(tried("Alt+KeyD").await, Ok(()));
+        assert_eq!(tried("Alt+KeyE").await, Ok(()));
+        assert_eq!(
+            said(&heard),
+            ["asked Alt+KeyD", "back Alt+KeyD", "asked Alt+KeyE"]
+        );
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        let mut back = said(&heard);
+        back.sort();
+        assert_eq!(back, ["back Alt+KeyC", "back Alt+KeyE"]);
+        let ended = tried("Alt+KeyF").await.expect_err("the thread ended");
+        assert_eq!(ended.code, ErrorCode::ChannelLeaderUnregistered);
+        assert_eq!(said(&heard), [] as [&str; 0]);
+    }
+
+    /// A Leader refused when the daemon started is asked for again by a
+    /// setting, and one a setting keeps is said held.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_refused_at_the_start_is_asked_for_again_and_one_kept_is_said_held() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let heard: Said = Arc::default();
+        let held = crate::leader::listening(
+            Arc::clone(&server),
+            &tokio::runtime::Handle::current(),
+            leader("Alt+KeyT"),
+            granting(&heard, &["Alt+KeyT"], String::new),
+        );
+        let asking = held.asking();
+        let taken = refusal_of(&nc_platform::leader::Refused::Taken);
+        let again = {
+            let asking = asking.clone();
+            tokio::task::spawn_blocking(move || asking.tried(leader("Alt+KeyT")))
+                .await
+                .expect("asked")
+        };
+        assert_eq!(again, Err(taken.clone()));
+        assert_eq!(said(&heard), ["asked Alt+KeyT", "asked Alt+KeyT"]);
+        assert_eq!(server.watched.borrow().leader, Some(refused_as(&taken)));
+        let granted = {
+            let asking = asking.clone();
+            tokio::task::spawn_blocking(move || asking.tried(leader("Alt+KeyB")))
+                .await
+                .expect("asked")
+        };
+        assert_eq!(granted, Ok(()));
+        assert_eq!(
+            server.watched.borrow().leader,
+            Some(refused_as(&taken)),
+            "a Leader only tried was said held"
+        );
+        asking.kept();
+        let mut watching = server.watched.subscribe();
+        let held_now = Value::object([("held", Value::Bool(true))]);
+        tokio::time::timeout(
+            crate::testing::PATIENCE,
+            watching.wait_for(|watched| watched.leader.as_ref() == Some(&held_now)),
+        )
+        .await
+        .expect("said in time")
+        .expect("held");
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        assert_eq!(said(&heard), ["asked Alt+KeyB", "back Alt+KeyB"]);
+    }
+
+    /// A count of the writes of the keybinding configuration turns to zero
+    /// past the last number the wire writes, as a revision does, and is
+    /// answered only once there is one.
+    #[test]
+    fn the_count_of_the_keys_written_is_answered_once_there_is_one_and_turns_as_a_revision() {
+        let server = a_server(nc_channel::Channel::Staging);
+        assert!(
+            !server
+                .watched
+                .borrow()
+                .state()
+                .to_canonical()
+                .contains("keys")
+        );
+        server.keys_written();
+        server.keys_written();
+        let watched = server.watched.borrow().clone();
+        assert_eq!((watched.revision, watched.keys), (2, 2));
+        assert_eq!(watched.state().to_canonical(), r#"{"keys":2}"#);
+        assert_eq!(
+            super::Watched::next(super::Watched::LAST - 1),
+            super::Watched::LAST
+        );
+        assert_eq!(super::Watched::next(super::Watched::LAST), 0);
+        assert_eq!(super::Watched::next(u64::MAX), 0);
+    }
+
+    /// The install a [`Serving`] was opened over, as its binaries read it.
+    fn found_of(serving: &Serving) -> nc_channel::found::Found {
+        nc_channel::found::Found {
+            install: serving.installed.install.clone(),
+            user: serving.installed.user.clone(),
+            layout: serving.installed.layout.clone(),
+        }
+    }
+
+    /// What `command` with `args` came to, dispatched by the profile's
+    /// person on the kernel.
+    async fn dispatched(
+        serving: &Serving,
+        command: &str,
+        args: &str,
+    ) -> Result<String, nc_kernel::Refusal> {
+        let person = nc_kernel::Caller::new(serving.server.named.person.clone());
+        serving.kernel.dispatch(&person, command, args).await
+    }
+
+    /// A shortcut setting writes the install's keybinding configuration
+    /// through its judge, and each write is counted in the watched state.
+    ///
+    /// **Where the daemon asks the system for nothing**, as a test's install
+    /// does: each of the four settings is read as the keys in force, set, and
+    /// read back; the file holds every choice, as its reader reads it, and
+    /// the count of writes and the watched revision move by one for each set
+    /// and for no read; and a choice the judge refuses — a Leader holding the
+    /// chord modifier — is refused with `[NC-CHAN-0023]`, the file and the
+    /// count left as they were.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_shortcut_setting_writes_the_keybinding_configuration_and_each_write_is_counted() {
+        let serving = Serving::new().await;
+        let found = found_of(&serving);
+        let file = found.layout.keybindings.clone();
+        serving
+            .kernel
+            .keep_shortcuts(Arc::new(crate::environment::Keybindings::new(
+                found.clone(),
+                Arc::downgrade(&serving.server),
+            )));
+        let default = found.install.channel.leader().written();
+        let counted = || {
+            let watched = serving.server.watched.borrow();
+            (watched.revision, watched.keys)
+        };
+        let (revision, _) = counted();
+        assert_eq!(
+            dispatched(&serving, "settings.leader.read", "{}")
+                .await
+                .as_deref(),
+            Ok(format!(r#"{{"leader":"{default}"}}"#).as_str())
+        );
+        assert_eq!(counted(), (revision, 0), "a read was counted as a write");
+        let sets = [
+            ("settings.leader", r#"{"leader":"Control+Alt+KeyK"}"#),
+            ("settings.chord", r#"{"chord":"Super"}"#),
+            (
+                "settings.menu-keys",
+                r#"{"keys":[{"command":"page.help","key":"KeyH"}]}"#,
+            ),
+            (
+                "settings.chords",
+                r#"{"chords":[{"chord":true,"command":"page.close","key":"KeyQ"}]}"#,
+            ),
+        ];
+        for (at, (setting, to)) in (1..).zip(sets) {
+            assert_eq!(
+                dispatched(&serving, &format!("{setting}.set"), to)
+                    .await
+                    .as_deref(),
+                Ok(to),
+                "{setting}"
+            );
+            assert_eq!(counted(), (revision + at, at), "{setting}");
+            assert_eq!(
+                dispatched(&serving, &format!("{setting}.read"), "{}")
+                    .await
+                    .as_deref(),
+                Ok(to),
+                "{setting}"
+            );
+            assert_eq!(
+                counted(),
+                (revision + at, at),
+                "{setting}: a read was counted"
+            );
+        }
+        let written = std::fs::read_to_string(&file).expect("the file");
+        assert!(
+            written.ends_with(r#""chord":"Super","format":1,"leader":"Control+Alt+KeyK"}"#)
+                && written.contains(r#""page.close":["Leader+Chord+KeyQ"]"#)
+                && !written.contains("page.help"),
+            "every choice, and nothing the catalog binds the same: {written}"
+        );
+        let effective = nc_channel::keys::effective(&found);
+        assert!(effective.refused.is_empty(), "{:?}", effective.refused);
+        assert_eq!(effective.leader, leader("Control+Alt+KeyK"));
+        let refused = dispatched(
+            &serving,
+            "settings.leader.set",
+            r#"{"leader":"Alt+Super+KeyK"}"#,
+        )
+        .await
+        .expect_err("it holds its chord modifier");
+        assert_eq!(
+            (refused.kind(), refused.code()),
+            (
+                nc_kernel::RefusalKind::Conflict,
+                ErrorCode::ChannelShortcutLeaderCollides
+            ),
+            "{refused}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), written);
+        assert_eq!(counted(), (revision + 4, 4), "a refused set was counted");
+        serving.closed().await;
+    }
+
+    /// Where the daemon asks the system for the Leader, a Leader a setting
+    /// changes is granted before the file is written, the old one let go only
+    /// after, and one the system refuses refuses the setting.
+    ///
+    /// **With registrations a test grants and refuses, each saying what the
+    /// file held when it was asked**: a new Leader is asked for over the file
+    /// as it stood, and the Leader held is given back once the file holds the
+    /// choice; a setting that leaves the Leader as it is asks for nothing; a
+    /// Leader another program holds refuses the setting with
+    /// `[NC-CHAN-0026]`, naming `[NC-CHAN-0020]`, the file and the count of
+    /// writes left as they were and the Leader held still held; and a write
+    /// the disk refuses gives the Leader just granted back, the one held
+    /// still held.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_a_setting_changes_is_granted_before_it_is_written_and_refused_where_the_system_refuses()
+     {
+        let serving = Serving::new().await;
+        let found = found_of(&serving);
+        let file = found.layout.keybindings.clone();
+        serving
+            .kernel
+            .keep_shortcuts(Arc::new(crate::environment::Keybindings::new(
+                found.clone(),
+                Arc::downgrade(&serving.server),
+            )));
+        let default = found.install.channel.leader();
+        let heard: Said = Arc::default();
+        let read = file.clone();
+        let held = crate::leader::listening(
+            Arc::clone(&serving.server),
+            &tokio::runtime::Handle::current(),
+            default,
+            granting(&heard, &["Alt+KeyT"], move || {
+                format!(
+                    " over {}",
+                    std::fs::read_to_string(&read).unwrap_or_default()
+                )
+            }),
+        );
+        serving.server.leader_held_by(held.asking());
+        let default = default.written();
+        let keys = || serving.server.watched.borrow().keys;
+        // Set, a new Leader is asked for before the file is written.
+        let to = r#"{"leader":"Control+Alt+KeyK"}"#;
+        assert_eq!(
+            dispatched(&serving, "settings.leader.set", to)
+                .await
+                .as_deref(),
+            Ok(to)
+        );
+        let first = r#"{"format":1,"leader":"Control+Alt+KeyK"}"#;
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), first);
+        // The chord modifier alone leaves the Leader as it is.
+        let chord = r#"{"chord":"Super"}"#;
+        assert_eq!(
+            dispatched(&serving, "settings.chord.set", chord)
+                .await
+                .as_deref(),
+            Ok(chord)
+        );
+        let second = r#"{"chord":"Super","format":1,"leader":"Control+Alt+KeyK"}"#;
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), second);
+        assert_eq!(
+            said(&heard),
+            [
+                format!("asked {default} over "),
+                "asked Control+Alt+KeyK over ".to_owned(),
+                format!("back {default}"),
+            ]
+        );
+        assert_eq!(keys(), 2);
+        // Another program's chord refuses the setting.
+        let refused = dispatched(&serving, "settings.leader.set", r#"{"leader":"Alt+KeyT"}"#)
+            .await
+            .expect_err("the system refuses it");
+        assert_eq!(
+            (refused.kind(), refused.code()),
+            (
+                nc_kernel::RefusalKind::Conflict,
+                ErrorCode::ChannelShortcutLeaderUndelivered
+            ),
+            "{refused}"
+        );
+        assert!(
+            refused.sentence().contains("`Alt+KeyT`")
+                && refused
+                    .sentence()
+                    .contains(&format!("[{}]", ErrorCode::ChannelLeaderTaken.code())),
+            "{refused}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), second);
+        assert_eq!(keys(), 2, "a refused set was counted");
+        assert_eq!(said(&heard), [format!("asked Alt+KeyT over {second}")]);
+        // A write the disk refuses gives the Leader just granted back.
+        let beside = std::path::PathBuf::from(format!("{}.new", file.display()));
+        drop(nc_platform::create_private(&beside).expect("a file beside it"));
+        nc_platform::testing::open_to_another_user(&beside).expect("opened to another user");
+        let unsaved = dispatched(&serving, "settings.leader.set", r#"{"leader":"Alt+KeyB"}"#)
+            .await
+            .expect_err("the write is refused");
+        assert_eq!(
+            unsaved.code(),
+            ErrorCode::ChannelShortcutsUnsaved,
+            "{unsaved}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), second);
+        assert_eq!(keys(), 2, "a write that failed was counted");
+        nc_platform::testing::make_private(&beside).expect("private again");
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        assert_eq!(
+            said(&heard),
+            [
+                format!("asked Alt+KeyB over {second}"),
+                "back Alt+KeyB".to_owned(),
+                "back Control+Alt+KeyK".to_owned(),
+            ]
+        );
+        serving.closed().await;
+    }
+
+    /// A Leader the system refused when the daemon started keeps no other
+    /// shortcut setting from being written, and a set of the Leader the
+    /// system refuses again says only that the Leader stands as it was.
+    ///
+    /// **With registrations a test grants and refuses, the channel's own
+    /// Leader taken by another program from the start**: the chord modifier,
+    /// the menu's keys and the chords are each written asking the system for
+    /// nothing; the Leader set to that same chord is asked for again and
+    /// refused with `[NC-CHAN-0026]`, whose sentence claims no Leader
+    /// registered; and the Leader set to a chord the system grants is
+    /// written and held.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leader_refused_at_the_start_keeps_no_other_shortcut_from_being_written() {
+        let serving = Serving::new().await;
+        let found = found_of(&serving);
+        let file = found.layout.keybindings.clone();
+        serving
+            .kernel
+            .keep_shortcuts(Arc::new(crate::environment::Keybindings::new(
+                found.clone(),
+                Arc::downgrade(&serving.server),
+            )));
+        let default = found.install.channel.leader();
+        let written = default.written();
+        let heard: Said = Arc::default();
+        let held = crate::leader::listening(
+            Arc::clone(&serving.server),
+            &tokio::runtime::Handle::current(),
+            default,
+            granting(&heard, &[written.as_str()], String::new),
+        );
+        serving.server.leader_held_by(held.asking());
+        for (command, args) in [
+            ("settings.chord.set", r#"{"chord":"Super"}"#.to_owned()),
+            (
+                "settings.menu-keys.set",
+                r#"{"keys":[{"command":"page.help","key":"KeyY"}]}"#.to_owned(),
+            ),
+            (
+                "settings.chords.set",
+                r#"{"chords":[{"chord":false,"command":"page.help","key":"KeyY"}]}"#.to_owned(),
+            ),
+        ] {
+            let answered = dispatched(&serving, command, &args).await;
+            assert!(answered.is_ok(), "{command}: {answered:?}");
+        }
+        let after = std::fs::read_to_string(&file).expect("the file");
+        assert!(
+            after.contains(r#""chord":"Super""#) && after.contains("KeyY"),
+            "{after}"
+        );
+        assert_eq!(
+            said(&heard),
+            [format!("asked {written}")],
+            "only the start asked"
+        );
+        let again = format!(r#"{{"leader":"{written}"}}"#);
+        let refused = dispatched(&serving, "settings.leader.set", &again)
+            .await
+            .expect_err("the system refuses it again");
+        assert_eq!(
+            refused.code(),
+            ErrorCode::ChannelShortcutLeaderUndelivered,
+            "{refused}"
+        );
+        assert!(
+            refused.sentence().contains("the Leader stands as it was")
+                && !refused
+                    .sentence()
+                    .contains("in force is still the one registered"),
+            "{refused}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).expect("the file"), after);
+        let to = r#"{"leader":"Control+Alt+KeyK"}"#;
+        assert_eq!(
+            dispatched(&serving, "settings.leader.set", to)
+                .await
+                .as_deref(),
+            Ok(to)
+        );
+        assert!(
+            std::fs::read_to_string(&file)
+                .expect("the file")
+                .contains("Control+Alt+KeyK")
+        );
+        tokio::task::spawn_blocking(move || held.given_back())
+            .await
+            .expect("given back");
+        assert_eq!(
+            said(&heard),
+            [
+                format!("asked {written}"),
+                "asked Control+Alt+KeyK".to_owned(),
+                "back Control+Alt+KeyK".to_owned(),
+            ]
+        );
+        serving.closed().await;
     }
 
     /// The variable that tells this test binary, run as a child, to say what

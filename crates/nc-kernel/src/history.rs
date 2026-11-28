@@ -415,8 +415,10 @@ pub(crate) fn left_by(command: &str) -> String {
 /// `agents.grant` and `agents.revoke`, whose change is the profile's
 /// database's (`crate::agents`), so the reverse of a grant is a revocation
 /// and never an undo — but for undo and redo, which are the history itself,
-/// a setting's switch, whose one effect is its entry in its own unit
-/// (`crate::settings::writes_only_its_entry`), and the activation of a
+/// MCP's switch, whose one effect is its entry in its own unit
+/// (`crate::settings::writes_only_its_entry`) — a shortcut setting's set
+/// writes the channel's keybinding configuration, a file outside every unit,
+/// and so does leave it — and the activation of a
 /// surface's node, which changes state only through the command it
 /// dispatches, decided and noted as itself (`crate::ui::dispatches_what_it_shows`):
 /// named by the command, never by its namespace, so the person's undo takes
@@ -1659,10 +1661,18 @@ mod tests {
             "agents.create",
             "agents.grant",
             "agents.revoke",
+            "settings.leader.set",
+            "settings.chord.set",
+            "settings.menu-keys.set",
+            "settings.chords.set",
         ] {
             assert!(leaves_the_machine(&of(name)), "`{name}`");
         }
         for name in [
+            "settings.leader.read",
+            "settings.chord.read",
+            "settings.menu-keys.read",
+            "settings.chords.read",
             "journal.verify",
             "kernel.undo",
             "kernel.redo",

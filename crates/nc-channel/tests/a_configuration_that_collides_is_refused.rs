@@ -15,9 +15,9 @@ use std::path::{Path, PathBuf};
 use nc_catalog::ErrorCode;
 use nc_channel::checkouts::{CHANNELS_MAX, PROFILES_MAX};
 use nc_channel::found::{self, Found};
-use nc_channel::keys::{self, Configuration, Effective, KeysRefused, Part};
+use nc_channel::keys::{self, Change, Configuration, Effective, KeysRefused, Part, Unwritten};
 use nc_channel::{Bases, Channel, Checkout, Install, Namespace, layout};
-use nc_schema::keys::{Binding, Chord, Leader, LeaderPart, LeaderRule, Modifier, Warning};
+use nc_schema::keys::{Binding, Chord, Key, Leader, LeaderPart, LeaderRule, Modifier, Warning};
 
 /// The namespace every install of this suite is relocated under.
 const HERE: &str = "k7";
@@ -1269,4 +1269,439 @@ fn nothing_of_another_channel_is_written_or_removed() {
         let _ = keys::effective(found);
     }
     assert_eq!(scratch.every_entry(), before);
+}
+
+/// What `change` came to for `found` over `catalog`: written where the judge
+/// took it, the file then holding `Ok`'s text and read back as what the
+/// choice said it puts in force; or its refusal, the file left as it was.
+fn set(
+    found: &Found,
+    change: &Change,
+    catalog: &[(String, Vec<Binding>)],
+) -> Result<String, KeysRefused> {
+    let before = std::fs::read(&found.layout.keybindings).ok();
+    match keys::proposed(found, change, catalog) {
+        Ok(proposed) => {
+            assert_eq!(
+                std::fs::read(&found.layout.keybindings).ok(),
+                before,
+                "a choice was written before it was asked to be"
+            );
+            keys::written(found, &proposed).expect("written");
+            let text = std::fs::read_to_string(&found.layout.keybindings).expect("the file");
+            assert_eq!(text, proposed.text());
+            assert!(nc_platform::testing::is_private(&found.layout.keybindings));
+            let read = keys::judged(
+                found,
+                Some(&Configuration::parse(&text).expect("a file its reader reads")),
+                catalog,
+            );
+            assert_eq!(
+                &read,
+                proposed.effective(),
+                "what was written is not in force"
+            );
+            assert!(read.refused.is_empty(), "{:?}", read.refused);
+            Ok(text)
+        }
+        Err(refused) => {
+            assert_eq!(
+                std::fs::read(&found.layout.keybindings).ok(),
+                before,
+                "a refused choice changed the file"
+            );
+            Err(refused)
+        }
+    }
+}
+
+/// A catalog of three commands a test's choices are made over.
+fn a_catalog() -> Vec<(String, Vec<Binding>)> {
+    vec![
+        ("a.one".to_owned(), bound(&["Leader KeyA", "Leader+KeyA"])),
+        ("a.two".to_owned(), bound(&["Leader KeyB"])),
+        ("a.three".to_owned(), Vec::new()),
+    ]
+}
+
+/// A setting changes its own value and the rest of the file stands, and a
+/// choice that is the channel's default is written as no choice.
+///
+/// **From no file to no choice again**: the Leader alone, then the chord
+/// modifier beside it, each written as the grammar writes it; the default
+/// Leader takes the configured one out of the file, and the default chord
+/// modifier leaves the format alone — the file a reader takes for the
+/// defaults. Each write is private, is the text the choice said, and is read
+/// back as the keys it said it puts in force.
+#[test]
+fn a_setting_changes_its_own_value_and_a_default_is_written_as_no_choice() {
+    let scratch = Scratch::new("choice-set");
+    let found = scratch.installed(Channel::Production, HERE);
+    scratch.made(&found.layout.config);
+    let catalog = keys::catalog_bindings();
+    assert_eq!(
+        set(&found, &Change::Leader(chord("Control+Alt+KeyK")), &catalog),
+        Ok(leader_of("Control+Alt+KeyK"))
+    );
+    assert_the_leader(&keys::effective(&found), "Control+Alt+KeyK");
+    assert_eq!(
+        set(&found, &Change::Chord(Modifier::Super), &catalog).as_deref(),
+        Ok(r#"{"chord":"Super","format":1,"leader":"Control+Alt+KeyK"}"#)
+    );
+    let effective = keys::effective(&found);
+    assert_eq!(
+        (effective.leader.chord(), effective.chord),
+        (chord("Control+Alt+KeyK"), Modifier::Super)
+    );
+    assert_eq!(
+        set(
+            &found,
+            &Change::Leader(Channel::Production.leader().chord()),
+            &catalog
+        )
+        .as_deref(),
+        Ok(r#"{"chord":"Super","format":1}"#),
+        "the channel's own Leader was written as a choice"
+    );
+    assert_eq!(
+        set(
+            &found,
+            &Change::Chord(Channel::Production.chord_modifier()),
+            &catalog
+        )
+        .as_deref(),
+        Ok(r#"{"format":1}"#),
+        "the channel's own chord modifier was written as a choice"
+    );
+    assert_the_defaults(&keys::effective(&found));
+}
+
+/// The leader menu's keys replace the menu's table and no other, the chords
+/// the two a held Leader has, and a command bound as the catalog binds it is
+/// left out of the file.
+#[test]
+fn the_menus_keys_and_the_chords_each_replace_their_own_tables() {
+    let scratch = Scratch::new("choice-tables");
+    let found = scratch.installed(Channel::Production, HERE);
+    scratch.made(&found.layout.config);
+    let catalog = a_catalog();
+    let menu = |keys: &[(&str, Key)]| {
+        Change::Menu(
+            keys.iter()
+                .map(|(command, key)| ((*command).to_owned(), *key))
+                .collect(),
+        )
+    };
+    let held = |keys: &[(&str, Key, bool)]| {
+        Change::Held(
+            keys.iter()
+                .map(|(command, key, chord)| ((*command).to_owned(), *key, *chord))
+                .collect(),
+        )
+    };
+    // The menu: `a.one` leaves it and keeps its chord, `a.two` moves, and a
+    // command the catalog does not bind, and one it does not hold, join it.
+    assert_eq!(
+        set(
+            &found,
+            &menu(&[
+                ("a.two", Key::KeyA),
+                ("a.three", Key::KeyC),
+                ("b.new", Key::KeyD)
+            ]),
+            &catalog
+        )
+        .as_deref(),
+        Ok(
+            r#"{"bindings":{"a.one":["Leader+KeyA"],"a.three":["Leader KeyC"],"a.two":["Leader KeyA"],"b.new":["Leader KeyD"]},"format":1}"#
+        )
+    );
+    // The chords: the menu chosen stands, and `a.one`'s chord moves to the
+    // table the chord modifier reaches.
+    assert_eq!(
+        set(
+            &found,
+            &held(&[("a.one", Key::KeyA, true), ("a.two", Key::KeyA, false)]),
+            &catalog
+        )
+        .as_deref(),
+        Ok(
+            r#"{"bindings":{"a.one":["Leader+Chord+KeyA"],"a.three":["Leader KeyC"],"a.two":["Leader KeyA","Leader+KeyA"],"b.new":["Leader KeyD"]},"format":1}"#
+        )
+    );
+    // The catalog's own chords: only the menu's choices are left.
+    assert_eq!(
+        set(&found, &held(&[("a.one", Key::KeyA, false)]), &catalog).as_deref(),
+        Ok(
+            r#"{"bindings":{"a.one":["Leader+KeyA"],"a.three":["Leader KeyC"],"a.two":["Leader KeyA"],"b.new":["Leader KeyD"]},"format":1}"#
+        )
+    );
+    // And the catalog's own menu, in another order: nothing is a choice.
+    assert_eq!(
+        set(
+            &found,
+            &menu(&[("a.two", Key::KeyB), ("a.one", Key::KeyA)]),
+            &catalog
+        )
+        .as_deref(),
+        Ok(r#"{"format":1}"#),
+        "a command bound as the catalog binds it was written as a choice"
+    );
+    // No chord at all unbinds the one the catalog has.
+    assert_eq!(
+        set(&found, &held(&[]), &catalog).as_deref(),
+        Ok(r#"{"bindings":{"a.one":["Leader KeyA"]},"format":1}"#)
+    );
+}
+
+/// A choice that collides is refused with the code of a choice, nothing is
+/// written, and its sentence says the keys in force stand — never a default.
+///
+/// **Each rule, by the judge that reads the file**: a Leader holding the
+/// chord modifier, one with no modifier, one another channel has, a chord
+/// modifier the Leader holds, and one key of one table given twice — to two
+/// commands and to one — each leaving the file as it was.
+#[test]
+fn a_choice_that_collides_is_refused_and_nothing_is_written() {
+    let scratch = Scratch::new("choice-collides");
+    let _production = scratch.installed(Channel::Production, HERE);
+    let found = scratch.installed(Channel::Staging, HERE);
+    scratch.configure(Channel::Production, HERE, &leader_of("Control+Alt+KeyP"));
+    scratch.configure(Channel::Staging, HERE, &leader_of("Control+Alt+KeyK"));
+    let catalog = a_catalog();
+    let refused_as = |change: Change, code: ErrorCode, what: &str| {
+        let refused = set(&found, &change, &catalog).expect_err("refused");
+        assert_eq!(refused.code_of_a_choice(), code, "{refused}");
+        let said = refused.of_a_choice();
+        assert!(said.contains(what), "{said}");
+        assert!(
+            said.ends_with(", so nothing was written and the keys in force stand"),
+            "{said}"
+        );
+        assert!(!said.contains("default"), "{said}");
+        assert!(
+            said.contains(&format!("[{}]", refused.code().code())),
+            "{said}"
+        );
+    };
+    let collides = ErrorCode::ChannelShortcutLeaderCollides;
+    refused_as(
+        Change::Leader(chord("Alt+Shift+KeyK")),
+        collides,
+        &LeaderRule::HoldsTheChordModifier.to_string(),
+    );
+    refused_as(
+        Change::Leader(chord("KeyK")),
+        collides,
+        &LeaderRule::WithoutAModifier.to_string(),
+    );
+    refused_as(
+        Change::Leader(chord("Control+Alt+KeyP")),
+        collides,
+        "it meets production's",
+    );
+    refused_as(
+        Change::Chord(Modifier::Alt),
+        collides,
+        &LeaderRule::HoldsTheChordModifier.to_string(),
+    );
+    let twice = ErrorCode::ChannelShortcutKeyBoundTwice;
+    refused_as(
+        Change::Menu(vec![
+            ("a.one".to_owned(), Key::KeyC),
+            ("a.two".to_owned(), Key::KeyC),
+        ]),
+        twice,
+        "`a.two` and `a.one` are both bound to `Leader KeyC`",
+    );
+    refused_as(
+        Change::Held(vec![
+            ("a.one".to_owned(), Key::KeyC, true),
+            ("a.one".to_owned(), Key::KeyC, true),
+        ]),
+        twice,
+        "`a.one` and `a.one` are both bound to `Leader+Chord+KeyC`",
+    );
+    // The same key in the two tables a held Leader has is two bindings.
+    assert!(
+        set(
+            &found,
+            &Change::Held(vec![
+                ("a.one".to_owned(), Key::KeyC, true),
+                ("a.two".to_owned(), Key::KeyC, false),
+            ]),
+            &catalog
+        )
+        .is_ok()
+    );
+    assert_the_leader(&keys::effective(&found), "Control+Alt+KeyK");
+}
+
+/// Nothing is written that its reader would refuse any part of: a choice
+/// made over a part of the file already refused is refused for that part.
+#[test]
+fn a_choice_over_a_part_already_refused_is_refused_for_that_part() {
+    let scratch = Scratch::new("choice-part");
+    let found = scratch.installed(Channel::Production, HERE);
+    scratch.configure(
+        Channel::Production,
+        HERE,
+        r#"{"bindings":{"a.one":["Leader KeyB"]},"format":1}"#,
+    );
+    let refused = set(
+        &found,
+        &Change::Leader(chord("Control+Alt+KeyK")),
+        &a_catalog(),
+    )
+    .expect_err("the bindings as they stand bind a key twice");
+    assert_eq!(
+        (refused.code_of_a_choice(), refused.part()),
+        (ErrorCode::ChannelShortcutKeyBoundTwice, Part::Bindings),
+        "{refused}"
+    );
+    // The chords leave the menu's collision where it is; the menu's own keys
+    // mend it.
+    assert!(set(&found, &Change::Held(Vec::new()), &a_catalog()).is_err());
+    assert!(
+        set(
+            &found,
+            &Change::Menu(vec![("a.one".to_owned(), Key::KeyA)]),
+            &a_catalog()
+        )
+        .is_ok()
+    );
+    assert!(
+        set(
+            &found,
+            &Change::Leader(chord("Control+Alt+KeyK")),
+            &a_catalog()
+        )
+        .is_ok()
+    );
+}
+
+/// A file its reader refuses is never written over, and a choice past the
+/// file's bound is refused before it is written.
+///
+/// **Each as `[NC-CHAN-0027]`, the file left as it was**: one this build does
+/// not read, a later format among them, one another account can reach, and a
+/// directory another account can reach; and the chords of 146 commands of the
+/// longest name, which the judge would take and the file cannot hold.
+#[test]
+fn a_file_its_reader_refuses_is_never_written_over() {
+    let scratch = Scratch::new("choice-over");
+    let found = scratch.installed(Channel::Production, HERE);
+    let catalog = keys::catalog_bindings();
+    let change = Change::Leader(chord("Control+Alt+KeyK"));
+    let unsaved = |why: &str| {
+        let refused = set(&found, &change, &catalog).expect_err(why);
+        assert_eq!(
+            (refused.code_of_a_choice(), refused.part()),
+            (ErrorCode::ChannelShortcutsUnsaved, Part::Whole),
+            "{why}: {refused}"
+        );
+    };
+    for text in [
+        r#"{"format":2,"leader":"Alt+KeyL"}"#,
+        "not JSON",
+        r#"{"format":1,"more":1}"#,
+    ] {
+        scratch.configure(Channel::Production, HERE, text);
+        unsaved(text);
+    }
+    let file = scratch.configure(Channel::Production, HERE, &leader_of("Control+Alt+KeyL"));
+    for reached in [file, found.layout.config.clone()] {
+        nc_platform::testing::open_to_another_user(&reached).expect("opened to another user");
+        unsaved("a path another account can reach");
+        nc_platform::testing::make_private(&reached).expect("private again");
+    }
+    assert_eq!(
+        set(&found, &change, &catalog),
+        Ok(leader_of("Control+Alt+KeyK"))
+    );
+    let long = |at: usize| format!("{}{at:03}", "c".repeat(nc_schema::NAME_MAX - 3));
+    let many: Vec<(String, Key, bool)> = Key::ALL
+        .into_iter()
+        .enumerate()
+        .flat_map(|(at, key)| [(long(at), key, false), (long(at + 100), key, true)])
+        .collect();
+    assert_eq!(many.len(), 146);
+    let refused = set(&found, &Change::Held(many), &[]).expect_err("past the bound");
+    assert_eq!(
+        refused,
+        KeysRefused::Unreadable(format!("it holds more than {} bytes", keys::BYTES_MAX))
+    );
+    assert_eq!(
+        refused.code_of_a_choice(),
+        ErrorCode::ChannelShortcutsUnsaved
+    );
+}
+
+/// A choice is written through a private file beside the configuration,
+/// into a directory judged this user's alone, and never into one that is
+/// not there.
+///
+/// **What a write that was cut short left** is removed where it is this
+/// user's alone and refused where another account can reach it, the
+/// configuration left as it was; a directory another account can reach, and
+/// one that is not there, are refused before a byte is written; and each
+/// refusal carries `[NC-CHAN-0027]` and says the keys in force stand.
+#[test]
+fn a_choice_is_written_whole_into_a_private_directory_or_not_at_all() {
+    let scratch = Scratch::new("choice-written");
+    let found = scratch.installed(Channel::Production, HERE);
+    let catalog = keys::catalog_bindings();
+    let proposed = keys::proposed(&found, &Change::Leader(chord("Control+Alt+KeyK")), &catalog)
+        .expect("a choice in force");
+    let unwritten = |why: &str| {
+        let refused = keys::written(&found, &proposed).expect_err(why);
+        assert_eq!(refused.code(), ErrorCode::ChannelShortcutsUnsaved, "{why}");
+        let said = refused.to_string();
+        assert!(
+            said.contains(", so the keybinding configuration was not written")
+                && said.ends_with(", and the keys in force stand"),
+            "{said}"
+        );
+        refused
+    };
+    assert!(
+        matches!(unwritten("no directory"), Unwritten::Failed(what) if what.contains("is not there")),
+        "a directory that is not there was written into"
+    );
+    assert!(!found.layout.config.exists(), "the directory was made");
+    scratch.made(&found.layout.config);
+    let file = scratch.configure(Channel::Production, HERE, &leader_of("Control+Alt+KeyL"));
+    let beside = PathBuf::from(format!("{}.new", file.display()));
+    write_private(&beside, b"half a wri");
+    nc_platform::testing::open_to_another_user(&beside).expect("opened to another user");
+    assert!(matches!(
+        unwritten("a file left beside it that another account can reach"),
+        Unwritten::NotPrivate(_)
+    ));
+    assert_eq!(
+        std::fs::read(&beside).expect("left as it was"),
+        b"half a wri"
+    );
+    nc_platform::testing::make_private(&beside).expect("private again");
+    nc_platform::testing::open_to_another_user(&found.layout.config).expect("opened");
+    assert!(matches!(
+        unwritten("a directory another account can reach"),
+        Unwritten::NotPrivate(_)
+    ));
+    nc_platform::testing::make_private(&found.layout.config).expect("private again");
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the file"),
+        leader_of("Control+Alt+KeyL"),
+        "a refused write changed the configuration"
+    );
+    keys::written(&found, &proposed).expect("written over what a cut write left");
+    assert!(
+        !beside.exists(),
+        "the file written through was left beside it"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the file"),
+        leader_of("Control+Alt+KeyK")
+    );
+    assert!(nc_platform::testing::is_private(&file));
 }

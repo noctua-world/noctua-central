@@ -136,6 +136,9 @@ enum Reads {
     /// Cut short after this many entries, as a read stopped by a row it
     /// cannot decode is, and saying so.
     CutShort(usize),
+    /// With the first entry of each page written by another realm's kernel,
+    /// as a store two realms of one machine share reads back.
+    AnothersFirst,
 }
 
 /// A journal store that refuses the entries a test says, and takes the rest —
@@ -216,6 +219,41 @@ impl<S: nc_journal::Store + Send + Sync> nc_journal::Store for Failing<S> {
                 read.entries.truncate(kept);
                 read.stopped_at = Some((
                     u64::try_from(kept).expect("fits"),
+                    "a row this read cannot decode, as the test made it".to_owned(),
+                ));
+            }
+            Ok(read)
+        }
+    }
+
+    fn page(
+        &self,
+        sequence: u64,
+        most: u32,
+    ) -> impl Future<Output = Result<nc_journal::Read, nc_journal::Error>> + Send {
+        let reads = self.told.lock().expect("nothing panics holding it").reads;
+        let read = self.inner.page(sequence, most);
+        async move {
+            if reads == Reads::Refused {
+                return Err(nc_journal::Error::Unavailable(
+                    "the journal's store cannot be read, as the test made it".to_owned(),
+                ));
+            }
+            let mut read = read.await?;
+            if reads == Reads::AnothersFirst
+                && let Some(first) = read.entries.first_mut()
+            {
+                // No kernel here serves a realm called as their keeper is.
+                first.record.realm = the_keeper();
+            }
+            // A page cut short stops at the row past what it kept, counted
+            // from where the page began.
+            if let Reads::CutShort(kept) = reads
+                && read.entries.len() > kept
+            {
+                read.entries.truncate(kept);
+                read.stopped_at = Some((
+                    sequence + u64::try_from(kept).expect("fits"),
                     "a row this read cannot decode, as the test made it".to_owned(),
                 ));
             }
@@ -8495,6 +8533,393 @@ async fn neither_a_frozen_account_nor_a_device_reads_or_switches_mcp(
     }
 }
 
+/// A keeper of a channel's keys a test hands the kernel: it holds the keys in
+/// memory, says each call it was made, and refuses what a test tells it to.
+#[derive(Debug)]
+struct KeptInMemory {
+    /// The keys in force.
+    keys: Mutex<nc_kernel::Keys>,
+    /// Every call made of it, in order: `proposed` or `written`, and the
+    /// shortcut.
+    calls: Mutex<Vec<String>>,
+    /// The code it refuses every proposal with, while a test says one.
+    refuses: Mutex<Option<ErrorCode>>,
+    /// Whether it refuses every write, as a disk that does not answer would.
+    unwritable: Mutex<bool>,
+}
+
+impl KeptInMemory {
+    /// One holding the production channel's Leader, Shift and no binding.
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            keys: Mutex::new(nc_kernel::Keys {
+                leader: nc_schema::keys::Leader::of(
+                    nc_schema::keys::Chord::parse("Alt+Space").expect("a chord"),
+                )
+                .expect("a Leader"),
+                chord: nc_schema::keys::Modifier::Shift,
+                tables: nc_schema::keys::Tables::default(),
+            }),
+            calls: Mutex::default(),
+            refuses: Mutex::default(),
+            unwritable: Mutex::default(),
+        })
+    }
+
+    /// Every call made of it since the last time this was asked.
+    fn calls(&self) -> Vec<String> {
+        std::mem::take(&mut *self.calls.lock().expect("nothing panics holding it"))
+    }
+
+    /// The refusal it makes with `code`.
+    fn refusal(code: ErrorCode) -> Refusal {
+        Refusal::new(RefusalKind::Conflict, code, "the keeper refused".to_owned())
+    }
+}
+
+impl nc_kernel::Shortcuts for KeptInMemory {
+    fn read(&self) -> Result<nc_kernel::Keys, Refusal> {
+        Ok(self.keys.lock().expect("nothing panics holding it").clone())
+    }
+
+    fn proposed(&self, shortcut: &nc_kernel::Shortcut) -> Result<(), Refusal> {
+        self.calls
+            .lock()
+            .expect("nothing panics holding it")
+            .push(format!("proposed {shortcut:?}"));
+        match *self.refuses.lock().expect("nothing panics holding it") {
+            Some(code) => Err(Self::refusal(code)),
+            None => Ok(()),
+        }
+    }
+
+    fn written(&self, shortcut: &nc_kernel::Shortcut) -> Result<nc_kernel::Keys, Refusal> {
+        use nc_schema::keys::{Binding, Table};
+        self.calls
+            .lock()
+            .expect("nothing panics holding it")
+            .push(format!("written {shortcut:?}"));
+        if *self.unwritable.lock().expect("nothing panics holding it") {
+            return Err(Self::refusal(ErrorCode::ChannelShortcutsUnsaved));
+        }
+        let mut keys = self.keys.lock().expect("nothing panics holding it");
+        let bound = |bindings: Vec<(&str, Binding)>| {
+            let each: Vec<(&str, Vec<Binding>)> = bindings
+                .into_iter()
+                .map(|(command, binding)| (command, vec![binding]))
+                .collect();
+            nc_schema::keys::tables(&[], &each).expect("a test binds no key twice")
+        };
+        match shortcut {
+            nc_kernel::Shortcut::Leader(leader) => {
+                keys.leader = nc_schema::keys::Leader::of(*leader).expect("a Leader");
+            }
+            nc_kernel::Shortcut::Chord(chord) => keys.chord = *chord,
+            nc_kernel::Shortcut::Menu(menu) => {
+                keys.tables = bound(
+                    menu.iter()
+                        .map(|(command, key)| {
+                            (
+                                command.as_str(),
+                                Binding {
+                                    table: Table::Menu,
+                                    key: *key,
+                                },
+                            )
+                        })
+                        .collect(),
+                );
+            }
+            nc_kernel::Shortcut::Held(held) => {
+                keys.tables = bound(
+                    held.iter()
+                        .map(|(command, key, chord)| {
+                            let table = if *chord {
+                                Table::HeldWithChord
+                            } else {
+                                Table::Held
+                            };
+                            (command.as_str(), Binding { table, key: *key })
+                        })
+                        .collect(),
+                );
+            }
+        }
+        Ok(keys.clone())
+    }
+}
+
+/// The four shortcut settings: each one's read, its set, what it answers
+/// before any is set, what a test sets it to, and the shortcut that is.
+const SHORTCUTS: [(&str, &str, &str, &str, &str); 4] = [
+    (
+        "settings.leader.read",
+        "settings.leader.set",
+        r#"{"leader":"Alt+Space"}"#,
+        r#"{"leader":"Control+Alt+KeyK"}"#,
+        "Leader(Chord { modifiers: Modifiers(3), key: KeyK })",
+    ),
+    (
+        "settings.chord.read",
+        "settings.chord.set",
+        r#"{"chord":"Shift"}"#,
+        r#"{"chord":"Super"}"#,
+        "Chord(Super)",
+    ),
+    (
+        "settings.menu-keys.read",
+        "settings.menu-keys.set",
+        r#"{"keys":[]}"#,
+        r#"{"keys":[{"command":"page.help","key":"KeyH"}]}"#,
+        r#"Menu([("page.help", KeyH)])"#,
+    ),
+    (
+        "settings.chords.read",
+        "settings.chords.set",
+        r#"{"chords":[]}"#,
+        r#"{"chords":[{"chord":true,"command":"page.close","key":"KeyQ"}]}"#,
+        r#"Held([("page.close", KeyQ, true)])"#,
+    ),
+];
+
+/// A shortcut setting is read and set by a person alone, decided on the
+/// interface's feature, and written only once its entry has landed.
+///
+/// **Over the real pack and world, with a keeper a test holds**
+/// (`NOCTUA.md §12.15`): a kernel told of no keeper refuses all eight
+/// commands with `[NC-CHAN-0027]`; told of one, each read answers the keys
+/// the keeper holds and each set is proposed to it, journaled as allowed on
+/// `Feature::"interface"` under the permit that gives every person their
+/// interface, written by it, and answered as the setting then stands — in a
+/// unit of its own that notes it as having left the machine, so the person's
+/// undo stops at it. **Nothing is written that was not journaled first**: a
+/// choice the keeper refuses is journaled as failed and never written, a
+/// journal that refuses the set's entry withholds the answer and the keeper
+/// is asked to write nothing, and a write the keeper then refuses is the
+/// answer's refusal.
+#[tokio::test]
+async fn a_shortcut_setting_is_read_and_set_by_a_person_alone_and_written_once_journaled() {
+    let (fixture, told) = reference().await;
+    for (read, set, _, to, _) in SHORTCUTS {
+        for (command, args) in [(read, "{}"), (set, to)] {
+            let refused = fixture.as_("ana", command, args).await;
+            assert!(
+                is(
+                    &refused,
+                    RefusalKind::Unavailable,
+                    ErrorCode::ChannelShortcutsUnsaved
+                ),
+                "{command} of a kernel told of no keeper: {refused:?}"
+            );
+        }
+    }
+    let kept = KeptInMemory::new();
+    fixture.kernel.keep_shortcuts(Arc::clone(&kept) as Arc<_>);
+    for setting in SHORTCUTS {
+        a_setting_set_each_way(&fixture, &told, &kept, setting).await;
+    }
+}
+
+/// One shortcut setting taken through every way its set ends, by a child of
+/// the house: refused by the keeper, withheld by the journal, refused at the
+/// write, and made — then read back, journaled as decided, and a step undo
+/// stops at.
+async fn a_setting_set_each_way(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    told: &Arc<Mutex<Told>>,
+    kept: &KeptInMemory,
+    (read, set, before, to, shortcut): (&str, &str, &str, &str, &str),
+) {
+    assert_eq!(
+        fixture.as_("bruno", read, "{}").await.as_deref(),
+        Ok(before)
+    );
+    assert_eq!(kept.calls(), [] as [&str; 0], "{read} asked for a write");
+    // Refused by the keeper: journaled as failed, and never written.
+    *kept.refuses.lock().expect("nothing panics holding it") =
+        Some(ErrorCode::ChannelShortcutKeyBoundTwice);
+    let refused = fixture.as_("bruno", set, to).await;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Conflict,
+            ErrorCode::ChannelShortcutKeyBoundTwice
+        ),
+        "{set}: {refused:?}"
+    );
+    *kept.refuses.lock().expect("nothing panics holding it") = None;
+    assert_eq!(kept.calls(), [format!("proposed {shortcut}")], "{set}");
+    let entries = fixture.entries().await;
+    let entry = dispatched(&entries).pop().expect("journaled");
+    assert_eq!(
+        (command_of(entry).as_deref(), entry.record.result),
+        (Some(set), Outcome::Failed),
+        "{entry:?}"
+    );
+    // A journal that does not take the set's entry: nothing is written.
+    told.lock().expect("nothing panics holding it").refuses =
+        Some(|entry: &Entry| entry.record.action == "Write");
+    let withheld = fixture.as_("bruno", set, to).await;
+    told.lock().expect("nothing panics holding it").refuses = None;
+    assert!(
+        is(
+            &withheld,
+            RefusalKind::Unavailable,
+            ErrorCode::JournalUnavailable
+        ),
+        "{set}: {withheld:?}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [format!("proposed {shortcut}")],
+        "{set} was written with no entry of it journaled"
+    );
+    assert_eq!(
+        fixture.as_("bruno", read, "{}").await.as_deref(),
+        Ok(before)
+    );
+    // A write the keeper refuses is the answer's refusal.
+    *kept.unwritable.lock().expect("nothing panics holding it") = true;
+    let unwritten = fixture.as_("bruno", set, to).await;
+    *kept.unwritable.lock().expect("nothing panics holding it") = false;
+    assert!(
+        is(
+            &unwritten,
+            RefusalKind::Conflict,
+            ErrorCode::ChannelShortcutsUnsaved
+        ),
+        "{set}: {unwritten:?}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [
+            format!("proposed {shortcut}"),
+            format!("written {shortcut}")
+        ]
+    );
+    a_setting_set_and_read_back(fixture, kept, (read, set, to, shortcut)).await;
+}
+
+/// One shortcut setting set by a child of the house as by anyone: proposed
+/// and written once, answered and read back as it stands, journaled as
+/// decided on the interface's feature, and a step undo stops at.
+async fn a_setting_set_and_read_back(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    kept: &KeptInMemory,
+    (read, set, to, shortcut): (&str, &str, &str, &str),
+) {
+    let feature = Some(r#"{"id":"interface","type":"Feature"}"#);
+    let before_it = fixture.entries().await.len();
+    assert_eq!(
+        fixture.as_("bruno", set, to).await.as_deref(),
+        Ok(to),
+        "{set}"
+    );
+    assert_eq!(
+        kept.calls(),
+        [
+            format!("proposed {shortcut}"),
+            format!("written {shortcut}")
+        ]
+    );
+    assert_eq!(fixture.as_("bruno", read, "{}").await.as_deref(), Ok(to));
+    let entries = fixture.entries().await;
+    let ours = dispatched(&entries[before_it..]);
+    assert_eq!(ours.len(), 2, "{ours:#?}");
+    for (entry, command, action) in [(ours[0], set, "Write"), (ours[1], read, "Read")] {
+        assert_eq!(
+            (
+                command_of(entry).as_deref(),
+                entry.record.result,
+                entry.record.action.as_str(),
+                deciding(entry),
+                entity_of(entry).as_deref()
+            ),
+            (
+                Some(command),
+                Outcome::Allowed,
+                action,
+                Some(DRIVES_THE_INTERFACE),
+                feature
+            ),
+            "{entry:?}"
+        );
+    }
+    assert!(ours[0].record.work_unit.is_some(), "{set} ran in no unit");
+    assert_eq!(ours[1].record.work_unit, None, "{read} opened a unit");
+    let undone = fixture.as_("bruno", "kernel.undo", "{}").await;
+    assert!(
+        is(&undone, RefusalKind::Denied, ErrorCode::KernelUndoBarrier),
+        "the file a set wrote is outside every unit, so undo stops at it: {undone:?}"
+    );
+    assert_eq!(fixture.as_("bruno", read, "{}").await.as_deref(), Ok(to));
+}
+
+/// A frozen account and a device are each refused every shortcut setting's
+/// read and set with the code alone, the journal naming what decided it, and
+/// the keeper hears of neither.
+///
+/// **Each holding a grant in the realm, so only the pack refuses them**: the
+/// frozen account by the floor, and the device by the permit's `principal is
+/// User`, which no permit on the interface's feature lets it past.
+#[tokio::test]
+async fn neither_a_frozen_account_nor_a_device_reads_or_sets_a_shortcut() {
+    let (kernel, world) = naming(None).await;
+    let kept = KeptInMemory::new();
+    kernel.keep_shortcuts(Arc::clone(&kept) as Arc<_>);
+    let feature = Some(r#"{"id":"interface","type":"Feature"}"#);
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        for (read, set, _, to, _) in SHORTCUTS {
+            for (command, args) in [(read, "{}"), (set, to)] {
+                let refused = kernel.dispatch(&caller, command, args).await;
+                assert!(
+                    is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                    "{id}: {command}: {refused:?}"
+                );
+                let entries = kernel.journal_for_tests().await.expect("the journal reads");
+                let entry = entries.last().expect("the denial was journaled");
+                assert_eq!(
+                    (
+                        entry.record.principal.as_str(),
+                        entry.record.result,
+                        command_of(entry).as_deref(),
+                        deciding(entry),
+                        entity_of(entry).as_deref()
+                    ),
+                    (id, Outcome::Denied, Some(command), Some(decided), feature),
+                    "{id}: {command}"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        kept.calls(),
+        [] as [&str; 0],
+        "the keeper heard of a call refused"
+    );
+    let ana = Caller::new(world.principal(PrincipalKind::User, "ana").expect("ana"));
+    assert_eq!(
+        kernel
+            .dispatch(&ana, "settings.leader.read", "{}")
+            .await
+            .as_deref(),
+        Ok(r#"{"leader":"Alt+Space"}"#),
+        "a person of the same world is answered"
+    );
+}
+
 /// An undo or a redo that would switch MCP on waits for the person's
 /// confirmation, and one that switches it off does not.
 ///
@@ -10032,6 +10457,13 @@ const FITTING: &[(&str, &str)] = &[
     ("agents.revoke", r#"{"agent":"0000000000000"}"#),
     ("confirmations.list", "{}"),
     ("confirmations.read", r#"{"serial":1}"#),
+    ("dev.agents.read", "{}"),
+    ("dev.journal.read", r#"{"from":0}"#),
+    ("dev.limits.read", "{}"),
+    ("dev.logs.read", r#"{"max":1}"#),
+    ("dev.plugins.read", "{}"),
+    ("dev.policy.read", "{}"),
+    ("dev.sessions.read", "{}"),
     ("drawer.back", "{}"),
     ("drawer.collapse", "{}"),
     ("drawer.expand", "{}"),
@@ -10068,8 +10500,22 @@ const FITTING: &[(&str, &str)] = &[
     ("prompt.ask", r#"{"command":"a.b"}"#),
     ("prompt.clear", "{}"),
     ("prompt.set", r#"{"text":""}"#),
+    ("settings.appearance.read", "{}"),
+    ("settings.appearance.set", r#"{"mode":"system"}"#),
+    ("settings.chord.read", "{}"),
+    ("settings.chord.set", r#"{"chord":"Shift"}"#),
+    ("settings.chords.read", "{}"),
+    ("settings.chords.set", r#"{"chords":[]}"#),
+    ("settings.footer.read", "{}"),
+    ("settings.footer.set", r#"{"visibility":"always"}"#),
+    ("settings.language.read", "{}"),
+    ("settings.language.set", r#"{"language":"system"}"#),
+    ("settings.leader.read", "{}"),
+    ("settings.leader.set", r#"{"leader":"Alt+Space"}"#),
     ("settings.mcp.read", "{}"),
     ("settings.mcp.set", r#"{"on":true}"#),
+    ("settings.menu-keys.read", "{}"),
+    ("settings.menu-keys.set", r#"{"keys":[]}"#),
     ("shell.drag", "{}"),
     ("shell.focus", r#"{"region":"prompt"}"#),
     ("shell.hover", r#"{"by":"pointer"}"#),
@@ -11297,6 +11743,203 @@ async fn the_interface_is_driven_by_a_person_alone_decided_on_its_feature() {
     );
 }
 
+/// A setting of how the interface is shown is set and read by a person alone,
+/// decided on the interface's feature, and is a part of the state every
+/// window follows.
+///
+/// **Over the real pack and world** (`NOCTUA.md §12.15`): each of the three
+/// answers its default until it is set, a set answers the one object it took
+/// and every person's read answers it after, `shell.read` holds all three
+/// under `settings` at a revision each set moved, and a word outside a
+/// setting's list is refused by its schema and moves nothing. Each is decided
+/// by the permit that gives every person the interface — `Read` for the read,
+/// `Write` for the set — journaled once and in no unit, since a setting of
+/// this kind is no step; and a frozen account and a device are refused both.
+#[tokio::test]
+async fn a_setting_of_the_interface_is_set_and_read_by_a_person_alone_in_no_unit() {
+    let (fixture, _) = with(&[], "").await;
+    let settings = [
+        (
+            "settings.footer.read",
+            "settings.footer.set",
+            r#"{"visibility":"always"}"#,
+            r#"{"visibility":"hidden"}"#,
+            r#"{"visibility":"Hidden"}"#,
+        ),
+        (
+            "settings.language.read",
+            "settings.language.set",
+            r#"{"language":"system"}"#,
+            r#"{"language":"pt-BR"}"#,
+            r#"{"language":"fr"}"#,
+        ),
+        (
+            "settings.appearance.read",
+            "settings.appearance.set",
+            r#"{"mode":"system"}"#,
+            r#"{"mode":"dark"}"#,
+            r#"{"mode":"dim"}"#,
+        ),
+    ];
+    for (at, (read, set, first, asked, outside)) in settings.into_iter().enumerate() {
+        assert_eq!(
+            fixture.as_("carla", read, "{}").await.expect("read"),
+            first,
+            "{read}: the default"
+        );
+        assert_eq!(fixture.as_("ana", set, asked).await.expect("set"), asked);
+        assert_eq!(
+            fixture.as_("bruno", read, "{}").await.expect("read"),
+            asked,
+            "{read}: every person's window follows one state"
+        );
+        let refused = fixture.as_("ana", set, outside).await;
+        assert!(
+            matches!(&refused, Err(refusal) if refusal.kind() == RefusalKind::Invalid),
+            "{set}: {refused:?}"
+        );
+        assert_eq!(fixture.as_("ana", read, "{}").await.expect("read"), asked);
+        let (revision, _) = interface(&fixture);
+        assert_eq!(
+            revision,
+            u64::try_from(at).expect("three") + 1,
+            "{set}: one set, one move"
+        );
+    }
+    let read = fixture.as_("ana", "shell.read", "{}").await.expect("read");
+    assert!(
+        read.contains(r#""settings":{"language":"pt-BR","mode":"dark","visibility":"hidden"}"#),
+        "{read}"
+    );
+    let entries = fixture.entries().await;
+    for entry in dispatched(&entries) {
+        let command = command_of(entry).unwrap_or_default();
+        if entry.record.result != Outcome::Allowed {
+            continue;
+        }
+        assert_eq!(deciding(entry), Some(DRIVES_THE_INTERFACE), "{entry:?}");
+        assert_eq!(
+            entity_of(entry).as_deref(),
+            Some(ON_THE_INTERFACE),
+            "{entry:?}"
+        );
+        assert_eq!(entry.record.work_unit, None, "`{command}` ran in a unit");
+        let reads = command == "shell.read" || settings.iter().any(|(read, ..)| *read == command);
+        let action = if reads { "Read" } else { "Write" };
+        assert_eq!(entry.record.action, action, "{entry:?}");
+    }
+    assert_eq!(
+        brackets(&entries),
+        [] as [(&str, Outcome); 0],
+        "no unit was opened"
+    );
+    let before = interface(&fixture);
+    for (kind, id) in [
+        (PrincipalKind::User, "dora"),
+        (PrincipalKind::Device, "ana-laptop"),
+    ] {
+        let caller = Caller::new(fixture.world.principal(kind, id).expect("in the world"));
+        for (read, set, first, _, _) in settings {
+            for (command, args) in [(read, "{}"), (set, first)] {
+                let refused = fixture.kernel.dispatch(&caller, command, args).await;
+                assert!(
+                    is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                    "{id}: {command}: {refused:?}"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        interface(&fixture),
+        before,
+        "nothing refused moved the state"
+    );
+}
+
+/// A plugin sets no setting of how the interface is shown from inside a
+/// command.
+///
+/// **A set that is no step is still a person's own call alone**: ana runs a
+/// command of the reference plugin that writes and one that only reads, each
+/// dispatching one of the three sets as her, and each nested set is refused
+/// with `[NC-KERN-0025]` — although none declares a change — journaled with
+/// the kernel's own sentinel, and the setting reads its default after every
+/// one. A read of the setting is no set, and is answered from inside a read.
+#[tokio::test]
+async fn a_plugin_sets_no_setting_of_the_interface_from_inside_a_command() {
+    let (fixture, _) = reference().await;
+    let settings = [
+        (
+            "settings.footer.read",
+            "settings.footer.set",
+            r#"{"visibility":"always"}"#,
+            r#"{"visibility":"hidden"}"#,
+        ),
+        (
+            "settings.language.read",
+            "settings.language.set",
+            r#"{"language":"system"}"#,
+            r#"{"language":"pt-BR"}"#,
+        ),
+        (
+            "settings.appearance.read",
+            "settings.appearance.set",
+            r#"{"mode":"system"}"#,
+            r#"{"mode":"dark"}"#,
+        ),
+    ];
+    for (read, set, first, asked) in settings {
+        for relay_command in ["reference.relay.write", "reference.relay.read"] {
+            let answered = fixture
+                .as_("ana", relay_command, &relay(set, asked, None))
+                .await
+                .unwrap_or_else(|refused| panic!("{relay_command} answers: {refused}"));
+            let refused = field(&answered, "refused")
+                .into_text()
+                .unwrap_or_else(|| panic!("{relay_command}: `{set}` was not refused: {answered}"));
+            assert!(
+                refused.starts_with(&format!("denied: [{}] ", ErrorCode::KernelOnlyAtTheTop)),
+                "{relay_command}: {set}: {refused}"
+            );
+            assert_eq!(
+                fixture.as_("ana", read, "{}").await.expect("read"),
+                first,
+                "{relay_command}: a plugin's command set `{set}`"
+            );
+        }
+        let answered = fixture
+            .as_("ana", "reference.relay.read", &relay(read, "{}", None))
+            .await
+            .expect("the relay answers");
+        assert_eq!(
+            field(&answered, "answered"),
+            Value::Integer(1),
+            "{answered}"
+        );
+        assert_eq!(text(&answered, "last"), first, "{answered}");
+    }
+    let entries = fixture.entries().await;
+    let sets: Vec<&Entry> = dispatched(&entries)
+        .into_iter()
+        .filter(|entry| {
+            command_of(entry)
+                .is_some_and(|command| settings.iter().any(|(_, set, ..)| *set == command))
+        })
+        .collect();
+    assert_eq!(sets.len(), 6, "{sets:#?}");
+    for entry in sets {
+        assert_eq!(
+            (
+                entry.record.principal.as_str(),
+                entry.record.result,
+                deciding(entry)
+            ),
+            ("ana", Outcome::Denied, Some("kernel.top_level_only")),
+            "{entry:?}"
+        );
+    }
+}
+
 /// A change of the interface the journal did not take is never made, and the
 /// same change the journal takes is.
 ///
@@ -11781,5 +12424,972 @@ async fn a_plugin_drives_the_interface_from_inside_its_unit_as_the_person() {
     assert_eq!(
         (nested.record.principal.as_str(), deciding(nested)),
         ("ana", Some(DRIVES_THE_INTERFACE))
+    );
+}
+
+/// The five reads of how the machine stands, which every person is allowed.
+const DEV_FOR_EVERYONE: [&str; 5] = [
+    "dev.limits.read",
+    "dev.plugins.read",
+    "dev.sessions.read",
+    "dev.agents.read",
+    "dev.policy.read",
+];
+
+/// The two reads of the realm's records, which a guardian alone is allowed.
+const DEV_RECORDS: [&str; 2] = ["dev.logs.read", "dev.journal.read"];
+
+/// The permit that lets a guardian read the realm.
+const READS_THE_REALM: &str = "family.a_guardian_reads_the_realm";
+
+/// The realm, as an entry names it.
+const ON_THE_REALM: &str = r#"{"id":"home","type":"Realm"}"#;
+
+/// The rows `answer` holds under `name`.
+fn rows(answer: &str, name: &str) -> Vec<Value> {
+    field(answer, name)
+        .into_array()
+        .unwrap_or_else(|| panic!("`{name}` of {answer} is not a list"))
+}
+
+/// The field `name` of `row`.
+fn of(row: &Value, name: &str) -> Value {
+    row.clone()
+        .into_object()
+        .and_then(|mut fields| fields.remove(name))
+        .unwrap_or_else(|| panic!("{row:?} holds no `{name}`"))
+}
+
+/// The row of `rows` whose `key` is the text `named`.
+fn row_named(rows: &[Value], key: &str, named: &str) -> Value {
+    rows.iter()
+        .find(|row| of(row, key) == Value::text(named))
+        .unwrap_or_else(|| panic!("no row whose `{key}` is `{named}` in {rows:?}"))
+        .clone()
+}
+
+/// A host a test hands the kernel: the sessions and connections it says it
+/// holds.
+#[derive(Debug)]
+struct Hosted {
+    /// The agent of each session it holds open.
+    sessions: Vec<nc_ids::Snowflake>,
+    /// How many connections it holds open.
+    connections: u64,
+}
+
+impl nc_kernel::Hosting for Hosted {
+    fn sessions(&self) -> Vec<nc_ids::Snowflake> {
+        self.sessions.clone()
+    }
+
+    fn connections(&self) -> u64 {
+        self.connections
+    }
+}
+
+/// Every person of the household reads how the machine stands, decided on
+/// the interface's feature, and a guardian alone reads its records, decided
+/// on the realm.
+///
+/// **Each of the seven, allowed and denied**: a guardian, an adult and a
+/// child are each answered the five, every entry naming `Feature::"interface"`
+/// and the permit that decided it; the two records are a guardian's, an adult
+/// and a child each refused them with the code alone, the journal naming that
+/// no permit matched on the realm. None changes anything, so no entry carries
+/// a unit.
+#[tokio::test]
+async fn the_dev_pages_reads_are_decided_for_a_person_and_the_records_for_a_guardian_alone() {
+    let (fixture, _) = reference().await;
+    for person in ["ana", "bruno", "carla"] {
+        for command in DEV_FOR_EVERYONE {
+            fixture
+                .as_(person, command, "{}")
+                .await
+                .unwrap_or_else(|refused| panic!("{person}: {command}: {refused}"));
+            let entries = fixture.entries().await;
+            let entry = entries.last().expect("the read was journaled");
+            assert_eq!(
+                (
+                    entry.record.principal.as_str(),
+                    entry.record.result,
+                    command_of(entry).as_deref(),
+                    deciding(entry),
+                    entry.record.work_unit
+                ),
+                (
+                    person,
+                    Outcome::Allowed,
+                    Some(command),
+                    Some(DRIVES_THE_INTERFACE),
+                    None
+                )
+            );
+            assert_eq!(entity_of(entry).as_deref(), Some(ON_THE_INTERFACE));
+        }
+        for command in DEV_RECORDS {
+            let answered = fixture.as_(person, command, "{}").await;
+            let entries = fixture.entries().await;
+            let entry = entries.last().expect("the read was journaled");
+            assert_eq!(
+                (
+                    entry.record.principal.as_str(),
+                    command_of(entry).as_deref()
+                ),
+                (person, Some(command))
+            );
+            assert_eq!(entity_of(entry).as_deref(), Some(ON_THE_REALM));
+            assert_eq!(entry.record.work_unit, None);
+            if person == "ana" {
+                answered.unwrap_or_else(|refused| panic!("{command}: {refused}"));
+                assert_eq!(
+                    (entry.record.result, deciding(entry)),
+                    (Outcome::Allowed, Some(READS_THE_REALM))
+                );
+            } else {
+                assert!(
+                    is(&answered, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                    "{person}: {command}: {answered:?}"
+                );
+                assert_eq!(
+                    (entry.record.result, deciding(entry)),
+                    (Outcome::Denied, Some(nc_authz::sentinel::NO_PERMIT_MATCHED))
+                );
+            }
+        }
+    }
+}
+
+/// A frozen account, a device and an agent read no dev page.
+///
+/// Dora's account is suspended, and the floor refuses her whatever a permit
+/// says; ana's laptop is attested and holds a grant, and no permit lets a
+/// device read either; and an agent ana made and granted the interface's
+/// feature is refused all seven in its session, since no permit names an
+/// agent on that feature or on the realm — its person's own grant of it
+/// allows nothing. Each refusal says only the code, each is journaled as
+/// denied, and nothing is answered.
+#[tokio::test]
+async fn a_frozen_account_a_device_and_an_agent_read_no_dev_page() {
+    let (kernel, world) = naming(None).await;
+    let all = DEV_FOR_EVERYONE.iter().chain(&DEV_RECORDS);
+    for (kind, id, decided) in [
+        (
+            PrincipalKind::User,
+            "dora",
+            "family.a_frozen_account_acts_on_nothing",
+        ),
+        (
+            PrincipalKind::Device,
+            "ana-laptop",
+            nc_authz::sentinel::NO_PERMIT_MATCHED,
+        ),
+    ] {
+        let caller = Caller::new(world.principal(kind, id).expect("in the world"));
+        for command in all.clone() {
+            let refused = kernel.dispatch(&caller, command, "{}").await;
+            assert!(
+                is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+                "{id}: {command}: {refused:?}"
+            );
+            let entries = kernel.journal_for_tests().await.expect("the journal reads");
+            let entry = entries.last().expect("the denial was journaled");
+            assert_eq!(
+                (
+                    entry.record.principal.as_str(),
+                    entry.record.result,
+                    command_of(entry).as_deref(),
+                    deciding(entry)
+                ),
+                (id, Outcome::Denied, Some(*command), Some(decided))
+            );
+        }
+    }
+    let (fixture, _) = reference().await;
+    let agent = fixture.agent_of("ana").await;
+    fixture.granted("ana", &agent, "interface", 60).await;
+    let session = fixture.session(&agent, "ana").await;
+    for command in all {
+        let refused = fixture.by(&session, command, "{}").await;
+        assert!(
+            is(&refused, RefusalKind::Denied, ErrorCode::PolicyDenied),
+            "an agent: {command}: {refused:?}"
+        );
+        let entries = fixture.entries().await;
+        let entry = entries.last().expect("the denial was journaled");
+        assert_eq!(who(entry), (agent.id.as_str(), vec!["ana"]), "{command}");
+        assert_eq!(
+            (entry.record.result, command_of(entry).as_deref()),
+            (Outcome::Denied, Some(*command))
+        );
+    }
+}
+
+/// A count, as an answer writes it.
+fn counted(counted: u64) -> Value {
+    Value::Integer(i64::try_from(counted).expect("fits"))
+}
+
+/// Every table the catalog bounds in the local database, in its order.
+fn the_local_tables() -> Vec<&'static nc_catalog::TableLimit> {
+    nc_catalog::TABLES
+        .iter()
+        .filter(|table| table.database == nc_catalog::Database::LocalFile)
+        .collect()
+}
+
+/// The limits read answers every count held against a limit and every table
+/// the local database bounds, with what each holds now.
+///
+/// **Counted, not assumed**: the log's lines are the two the sink kept, a
+/// kernel told of no host says neither of the host's counts, as `null`, the
+/// tables are the catalog's local ones in its order, each with its bound or
+/// `null`, and the units' table holds none and then, after a write, the one
+/// the store counts. **The local journal, which no number bounds, is counted
+/// from the end of its key**: an entry put at sequence 41 past a gap — which
+/// only its trigger keeps out, dropped here as a process of the same user
+/// could — answers forty-two, where reading its rows would answer one.
+#[tokio::test]
+async fn the_limits_read_answers_each_count_and_each_local_table_as_they_stand_now() {
+    let (fixture, _) = reference().await;
+    for _ in 0..2 {
+        fixture
+            .as_("ana", "journal.verify", "{}")
+            .await
+            .expect("a guardian verifies, which is logged");
+    }
+    assert_eq!(fixture.log.lines().len(), 2);
+    let read = || async {
+        fixture
+            .as_("carla", "dev.limits.read", "{}")
+            .await
+            .expect("a member reads the limits")
+    };
+    let first = read().await;
+    assert_eq!(
+        rows(&first, "counts")
+            .iter()
+            .map(|row| (of(row, "limit"), of(row, "used")))
+            .collect::<Vec<_>>(),
+        [
+            (Value::text("daemon.dev_logs_ring_lines"), counted(2)),
+            (Value::text("daemon.ipc_connections_max"), Value::Null),
+            (Value::text("daemon.sessions_max"), Value::Null),
+            (Value::text("kernel.confirmations_pending_max"), counted(0)),
+            (Value::text("kernel.event_queue"), counted(0)),
+        ]
+    );
+    let local = the_local_tables();
+    let tables = rows(&first, "tables");
+    assert_eq!(
+        tables
+            .iter()
+            .map(|row| (of(row, "table"), of(row, "max_rows")))
+            .collect::<Vec<_>>(),
+        local
+            .iter()
+            .map(|table| (
+                Value::text(table.name),
+                table.max_rows.map_or(Value::Null, counted)
+            ))
+            .collect::<Vec<_>>(),
+        "every table the catalog bounds in the local database, in its order"
+    );
+    assert!(local.len() >= 8 && local.iter().any(|table| table.max_rows.is_none()));
+    let units = row_named(&tables, "table", "store_units");
+    assert_eq!(
+        (of(&units, "rows"), of(&units, "strategy")),
+        (counted(0), Value::text("oldest-first"))
+    );
+    assert!(
+        tables.iter().all(|row| of(row, "rows") == counted(0)),
+        "every table is counted, the ones whose trigger refuses a delete among them: {tables:?}"
+    );
+    fixture
+        .as_(
+            "ana",
+            "reference.note.put",
+            &note("photo", Some("a caption")),
+        )
+        .await
+        .expect("ana writes");
+    assert_eq!(count_units(&fixture.store.inner).await, 1);
+    let tables = rows(&read().await, "tables");
+    assert_eq!(
+        of(&row_named(&tables, "table", "store_units"), "rows"),
+        counted(1)
+    );
+    let pool = fixture.store.inner.pool();
+    sqlx::query("DROP TRIGGER local_journal_entries_sequence_is_the_next_one")
+        .execute(pool)
+        .await
+        .expect("whoever can write the file can drop its trigger");
+    sqlx::query(
+        "INSERT INTO main.local_journal_entries (sequence, realm, principal, actor_chain, \
+         action, resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES (41, 'elsewhere', 'principal-1', '[]', 'kernel.test', 'null', ?1, NULL, 1, \
+         NULL, ?2)",
+    )
+    .bind(Outcome::Allowed.as_str())
+    .bind("ab".repeat(32))
+    .execute(pool)
+    .await
+    .expect("an entry past a gap");
+    let tables = rows(&read().await, "tables");
+    assert_eq!(
+        of(
+            &row_named(&tables, "table", "local_journal_entries"),
+            "rows"
+        ),
+        counted(42),
+        "the local journal is counted from the end of its key"
+    );
+}
+
+/// The agents' read answers the two tables that keep agents, each with the
+/// rows it holds and its bound, and no other table.
+#[tokio::test]
+async fn the_agents_read_answers_the_two_tables_of_agents_with_the_rows_they_hold() {
+    let (fixture, _) = reference().await;
+    fixture
+        .store
+        .inner
+        .agents()
+        .keep_agent(&nc_local::AgentRow {
+            agent: fixture.minted(),
+            realm: home(),
+            operator: fixture.principal("ana").id().clone(),
+            label: "kept by a test".to_owned(),
+            budget: 1,
+        })
+        .await
+        .expect("the agent is kept");
+    let bound = |name: &str| {
+        the_local_tables()
+            .iter()
+            .find(|table| table.name == name)
+            .and_then(|table| table.max_rows)
+            .expect("bounded")
+    };
+    let agents = fixture
+        .as_("carla", "dev.agents.read", "{}")
+        .await
+        .expect("a member reads the agents' tables");
+    assert_eq!(
+        agents,
+        format!(
+            r#"{{"tables":[{{"max_rows":{},"rows":0,"strategy":"refuse-at-limit","table":"agent_grants"}},{{"max_rows":{},"rows":1,"strategy":"refuse-at-limit","table":"agents"}}]}}"#,
+            bound("agent_grants"),
+            bound("agents"),
+        )
+    );
+    let limits = fixture
+        .as_("carla", "dev.limits.read", "{}")
+        .await
+        .expect("a member reads the limits");
+    assert_eq!(
+        of(
+            &row_named(&rows(&limits, "tables"), "table", "agents"),
+            "rows"
+        ),
+        counted(1)
+    );
+}
+
+/// The sessions' read answers what the kernel's host says, and nothing of a
+/// kernel told of none.
+///
+/// **A host that says two sessions and three connections is answered as two
+/// and three**, the sessions in the order of their agents whatever order the
+/// host said them in, and the limits read counts the same two and three; a
+/// kernel told of no host answers no session and both counts as `null`,
+/// never as zero.
+#[tokio::test]
+async fn the_sessions_read_answers_what_the_kernels_host_says_and_nothing_of_a_kernel_with_none() {
+    let (fixture, _) = reference().await;
+    let (most, connections) = (
+        nc_catalog::DAEMON.sessions_max,
+        nc_catalog::DAEMON.ipc_connections_max,
+    );
+    let read = |command: &'static str| {
+        let fixture = &fixture;
+        async move {
+            fixture
+                .as_("carla", command, "{}")
+                .await
+                .expect("a member reads it")
+        }
+    };
+    assert_eq!(
+        read("dev.sessions.read").await,
+        format!(
+            r#"{{"connections":null,"connections_max":{connections},"max":{most},"open":null,"sessions":[]}}"#
+        )
+    );
+    let (first, second) = (fixture.minted(), fixture.minted());
+    assert!(first < second);
+    fixture.kernel.hosted_by(Arc::new(Hosted {
+        sessions: vec![second, first],
+        connections: 3,
+    }));
+    assert_eq!(
+        read("dev.sessions.read").await,
+        format!(
+            r#"{{"connections":3,"connections_max":{connections},"max":{most},"open":2,"sessions":[{{"agent":"{}"}},{{"agent":"{}"}}]}}"#,
+            first.to_crockford(),
+            second.to_crockford()
+        )
+    );
+    let counts = rows(&read("dev.limits.read").await, "counts");
+    assert_eq!(
+        (
+            of(
+                &row_named(&counts, "limit", "daemon.ipc_connections_max"),
+                "used"
+            ),
+            of(&row_named(&counts, "limit", "daemon.sessions_max"), "used")
+        ),
+        (counted(3), counted(2))
+    );
+}
+
+/// The limits read counts a call held for a person's confirmation and an
+/// event waiting for delivery, each while it is there.
+///
+/// **One of each, and then none**: with ana's irreversible call held and an
+/// event she published not yet pumped, the two counts are one and one; once
+/// the call is declined and the pump has delivered the event, both are none.
+#[tokio::test]
+async fn the_limits_read_counts_a_call_held_and_an_event_queued_while_they_are() {
+    let (fixture, _) = putting_off().await;
+    let used =
+        |answer: &str, limit: &str| of(&row_named(&rows(answer, "counts"), "limit", limit), "used");
+    let both = |answer: &str| {
+        (
+            used(answer, "kernel.confirmations_pending_max"),
+            used(answer, "kernel.event_queue"),
+        )
+    };
+    let caller = Caller::new(fixture.principal("ana"));
+    let args = note("photo", None);
+    let mut moves = fixture.kernel.pending_moves();
+    let holding = fixture.kernel.dispatch_held(
+        &caller,
+        "reference.irreversible.do",
+        &args,
+        never(),
+        admitted,
+    );
+    let answering = async {
+        let serial = first_held(&mut moves).await;
+        let announced = Value::object([
+            ("note", Value::text("photo")),
+            ("topic", Value::text("reference.noted")),
+        ])
+        .to_canonical();
+        fixture
+            .as_("ana", "reference.event.announce", &announced)
+            .await
+            .expect("ana publishes an event");
+        let while_held = fixture
+            .as_("carla", "dev.limits.read", "{}")
+            .await
+            .expect("a member reads the limits");
+        assert_eq!(both(&while_held), (Value::Integer(1), Value::Integer(1)));
+        fixture
+            .kernel
+            .settle(serial, nc_kernel::Settled::Declined)
+            .expect("the held call is answered");
+    };
+    let (held, ()) = tokio::join!(holding, answering);
+    assert!(
+        is(&held, RefusalKind::Denied, ErrorCode::KernelDeclined),
+        "{held:?}"
+    );
+    assert_eq!(fixture.kernel.pump().await.delivered, 1);
+    let after = fixture
+        .as_("carla", "dev.limits.read", "{}")
+        .await
+        .expect("a member reads the limits");
+    assert_eq!(both(&after), (Value::Integer(0), Value::Integer(0)));
+}
+
+/// The policy read answers the pack and the epoch its own decision was made
+/// under, which its journal entry records too.
+#[tokio::test]
+async fn the_policy_read_answers_the_pack_and_epoch_it_was_decided_under() {
+    let (fixture, _) = reference().await;
+    let answered = fixture
+        .as_("bruno", "dev.policy.read", "{}")
+        .await
+        .expect("a child reads the policy");
+    assert_eq!(
+        answered,
+        format!(r#"{{"epoch":{EPOCH},"pack":"family@1","realm":"home"}}"#)
+    );
+    let entries = fixture.entries().await;
+    let entry = only(&entries, "dev.policy.read");
+    assert_eq!(
+        (
+            entry.record.policy_pack.as_deref(),
+            entry.record.policy_epoch
+        ),
+        (Some("family@1"), Some(EPOCH))
+    );
+    *fixture.mode.lock().expect("nothing panics holding it") = Mode::Epoch(EPOCH + 2);
+    let later = fixture
+        .as_("bruno", "dev.policy.read", "{}")
+        .await
+        .expect("a child reads the policy");
+    assert_eq!(field(&later, "epoch"), Value::Integer(9));
+}
+
+/// A kernel with two plugins loaded by hand: the reference plugin, granted
+/// the store, the timers and the surfaces, and its peer, granted what every
+/// other fixture here grants, in the slot answered.
+async fn two_plugins_the_first_showing() -> (
+    Fixture<Failing<nc_journal::InMemory>>,
+    nc_kernel::PluginSlot,
+) {
+    let (fixture, _) = with(&[], "").await;
+    let shows = PluginManifest::parse(
+        "id = \"noctua:reference\"\nnamespace = \"reference\"\ncapabilities = [\"store\", \
+         \"timers\", \"ui\"]\n",
+    )
+    .expect("a manifest granting the timers and the ui")
+    .described_by(nc_kernel::entries_for_tests("reference"));
+    let component = nc_kernel::component_for_tests("reference");
+    seeded(
+        &fixture.store.inner,
+        "noctua:reference-peer",
+        ACTIVATION,
+        &activating("peer", Variant::Normal),
+    )
+    .await;
+    fixture.kernel.load(shows, &component).await.expect("loads");
+    let peer = fixture
+        .kernel
+        .load(manifest("noctua:reference-peer", "peer", ""), &component)
+        .await
+        .expect("loads");
+    (fixture, peer)
+}
+
+/// The slots a plugins read with `args` answers, and where it says the next
+/// page starts.
+async fn slots_read(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    args: &str,
+) -> (Vec<Value>, Value) {
+    let answered = fixture
+        .as_("carla", "dev.plugins.read", args)
+        .await
+        .expect("a member reads the plugins");
+    (
+        rows(&answered, "plugins")
+            .iter()
+            .map(|row| of(row, "slot"))
+            .collect(),
+        field(&answered, "next"),
+    )
+}
+
+/// The plugins read answers every loaded plugin with what it was granted, a
+/// page at a time, and leaves out a slot unloaded.
+///
+/// **Each by its own manifest**: its slot, identity and namespace, the
+/// commands it declares and the capabilities it was granted, in the
+/// catalog's order. A page of one is full, so the next starts at the slot
+/// after its row; a page that ends says the slot the next plugin loaded
+/// takes, wherever it was asked from; and a slot unloaded is left out and
+/// never given again, so the page that ends past it still says the slot
+/// after it.
+#[tokio::test]
+async fn the_plugins_read_answers_each_loaded_plugin_a_page_at_a_time() {
+    let (fixture, peer) = two_plugins_the_first_showing().await;
+    let registry = fixture.kernel.registry();
+    let declared = |namespace: &str| {
+        let prefix = format!("{namespace}.");
+        let commands = registry
+            .iter()
+            .filter(|command| command.name.starts_with(&prefix))
+            .count();
+        assert!(commands > 0, "{namespace}");
+        Value::Integer(i64::try_from(commands).expect("fits"))
+    };
+    let all = fixture
+        .as_("carla", "dev.plugins.read", "{}")
+        .await
+        .expect("a member reads the plugins");
+    assert_eq!(field(&all, "next"), Value::Integer(2));
+    let listed: Vec<Vec<Value>> = rows(&all, "plugins")
+        .iter()
+        .map(|row| {
+            ["slot", "id", "namespace", "commands", "capabilities"]
+                .map(|name| of(row, name))
+                .to_vec()
+        })
+        .collect();
+    let granted = |names: &[&str]| Value::Array(names.iter().copied().map(Value::text).collect());
+    assert_eq!(
+        listed,
+        [
+            vec![
+                Value::Integer(0),
+                Value::text("noctua:reference"),
+                Value::text("reference"),
+                declared("reference"),
+                granted(&["store", "timers", "ui"])
+            ],
+            vec![
+                Value::Integer(1),
+                Value::text("noctua:reference-peer"),
+                Value::text("peer"),
+                declared("peer"),
+                granted(&["commands.dispatch", "store"])
+            ],
+        ]
+    );
+    let one = |slot: i64| vec![Value::Integer(slot)];
+    for (args, slots, next) in [
+        (r#"{"max":1}"#, one(0), 1),
+        (r#"{"from":1,"max":1}"#, one(1), 2),
+        (r#"{"from":1}"#, one(1), 2),
+        (r#"{"from":2}"#, Vec::new(), 2),
+        (r#"{"from":9}"#, Vec::new(), 2),
+    ] {
+        assert_eq!(
+            slots_read(&fixture, args).await,
+            (slots, Value::Integer(next)),
+            "{args}"
+        );
+    }
+    assert!(fixture.kernel.unload(peer).await);
+    assert_eq!(
+        slots_read(&fixture, "{}").await,
+        (one(0), Value::Integer(2)),
+        "the page ended past the slot unloaded, which no plugin takes again"
+    );
+    assert_eq!(
+        slots_read(&fixture, r#"{"max":1}"#).await,
+        (one(0), Value::Integer(1)),
+        "a full page's next is the slot after its last row"
+    );
+    assert_eq!(
+        slots_read(&fixture, r#"{"from":1}"#).await,
+        (Vec::new(), Value::Integer(2))
+    );
+}
+
+/// The plugins read counts what each plugin holds for it and for no other:
+/// a surface it shows, a timer it set, the lines of its own log, and a kill
+/// of it.
+#[tokio::test]
+async fn the_plugins_read_counts_what_each_plugin_holds_and_how_it_stands() {
+    let (fixture, _) = two_plugins_the_first_showing().await;
+    let standing = || async {
+        let answered = fixture
+            .as_("carla", "dev.plugins.read", "{}")
+            .await
+            .expect("a member reads the plugins");
+        rows(&answered, "plugins")
+            .iter()
+            .map(|row| {
+                [
+                    "generation",
+                    "crashes",
+                    "quarantined",
+                    "last_kill",
+                    "surfaces",
+                    "timers",
+                    "log_lines",
+                ]
+                .map(|name| of(row, name))
+                .to_vec()
+            })
+            .collect::<Vec<_>>()
+    };
+    let none = Value::Integer(0);
+    let idle = vec![
+        none.clone(),
+        none.clone(),
+        Value::Bool(false),
+        Value::Null,
+        none.clone(),
+        none.clone(),
+        none,
+    ];
+    assert_eq!(standing().await, [idle.clone(), idle.clone()]);
+    fixture
+        .as_("ana", "reference.ui.show", &showing("a panel"))
+        .await
+        .expect("the reference plugin shows a surface");
+    assert_eq!(shown(&fixture).len(), 1);
+    fixture
+        .as_("ana", "reference.timer.remind", &a_second())
+        .await
+        .expect("the reference plugin sets a timer");
+    for text in ["one line", "and another"] {
+        let args = Value::object([("note", Value::text("photo")), ("text", Value::text(text))])
+            .to_canonical();
+        fixture
+            .as_("ana", "reference.log.write", &args)
+            .await
+            .expect("the reference plugin writes to its own log");
+    }
+    let trapped = fixture
+        .as_("ana", "reference.abuse.trap", &note("photo", None))
+        .await;
+    assert!(
+        is(&trapped, RefusalKind::Internal, ErrorCode::PluginTrapped),
+        "{trapped:?}"
+    );
+    let one = Value::Integer(1);
+    assert_eq!(
+        standing().await,
+        [
+            vec![
+                one.clone(),
+                one.clone(),
+                Value::Bool(false),
+                Value::text("trapped"),
+                one.clone(),
+                one,
+                Value::Integer(2),
+            ],
+            idle
+        ]
+    );
+}
+
+/// The log read answers the lines the kernel's sink kept, each as it was
+/// written, a page at a time.
+#[tokio::test]
+async fn the_log_read_answers_the_lines_the_sink_kept_a_page_at_a_time() {
+    use nc_kernel::logging::LogSink as _;
+
+    let (fixture, _) = reference().await;
+    for _ in 0..3 {
+        fixture
+            .as_("ana", "journal.verify", "{}")
+            .await
+            .expect("a guardian verifies, which is logged");
+    }
+    let kept = fixture.log.kept(0, usize::MAX);
+    assert_eq!(kept.lines.len(), 3, "{kept:?}");
+    let all = fixture
+        .as_("ana", "dev.logs.read", "{}")
+        .await
+        .expect("a guardian reads the log");
+    let lines = rows(&all, "lines");
+    assert_eq!(
+        lines
+            .iter()
+            .map(|row| (of(row, "serial"), of(row, "line")))
+            .collect::<Vec<_>>(),
+        kept.lines
+            .iter()
+            .map(|(serial, line)| (
+                Value::Integer(i64::try_from(*serial).expect("fits")),
+                Value::text(line.as_str())
+            ))
+            .collect::<Vec<_>>(),
+        "each line under its serial, as the sink wrote it"
+    );
+    let held = i64::try_from(kept.held).expect("fits");
+    assert_eq!(field(&all, "held"), Value::Integer(held));
+    assert_eq!(field(&all, "next"), Value::Integer(held + 1));
+    assert!(
+        kept.lines
+            .iter()
+            .any(|(_, line)| line.contains(r#""_msg":"journal.verified""#)),
+        "{kept:?}"
+    );
+
+    let page = |args: &'static str| {
+        let fixture = &fixture;
+        async move {
+            let answered = fixture
+                .as_("ana", "dev.logs.read", args)
+                .await
+                .expect("a guardian reads the log");
+            (
+                rows(&answered, "lines")
+                    .iter()
+                    .map(|row| of(row, "serial"))
+                    .collect::<Vec<_>>(),
+                field(&answered, "next"),
+            )
+        }
+    };
+    assert_eq!(
+        page(r#"{"max":1}"#).await,
+        (vec![Value::Integer(1)], Value::Integer(2))
+    );
+    assert_eq!(
+        page(r#"{"from":2,"max":2}"#).await,
+        (
+            vec![Value::Integer(2), Value::Integer(3)],
+            Value::Integer(4)
+        )
+    );
+    let past = i64::try_from(fixture.log.lines().len()).expect("fits") + 1;
+    assert_eq!(
+        page(r#"{"from":100000}"#).await,
+        (Vec::new(), Value::Integer(past)),
+        "past the newest line nothing is read, and the next line still is"
+    );
+}
+
+/// The sequences a journal read with `args` answers, where it says the next
+/// page starts, and the entry it says it could not read.
+async fn sequences_read(
+    fixture: &Fixture<Failing<nc_journal::InMemory>>,
+    args: &str,
+) -> (Vec<i64>, Value, Value) {
+    let answered = fixture
+        .as_("ana", "dev.journal.read", args)
+        .await
+        .expect("a guardian reads the journal");
+    (
+        rows(&answered, "entries")
+            .iter()
+            .map(|row| match of(row, "sequence") {
+                Value::Integer(sequence) => sequence,
+                other => panic!("not a sequence: {other:?}"),
+            })
+            .collect(),
+        field(&answered, "next"),
+        field(&answered, "unreadable"),
+    )
+}
+
+/// The journal read answers the realm's entries a page at a time, oldest
+/// first, with the newest sequence and where the next page starts.
+///
+/// **Against the journal itself**: each entry answered is the one the store
+/// holds at that sequence, field for field; a page from inside holds as many
+/// as asked; and one past the end holds none and starts the next where it
+/// was asked.
+#[tokio::test]
+async fn the_journal_read_answers_the_realms_entries_a_page_at_a_time() {
+    let (fixture, _) = reference().await;
+    for person in ["ana", "bruno", "carla"] {
+        let _journaled = fixture.as_(person, "journal.verify", "{}").await;
+    }
+    let before = fixture.entries().await;
+    assert_eq!(before.len(), 3);
+    let all = fixture
+        .as_("ana", "dev.journal.read", "{}")
+        .await
+        .expect("a guardian reads the journal");
+    let entries = rows(&all, "entries");
+    assert_eq!(entries.len(), 3);
+    for (answered, written) in entries.iter().zip(&before) {
+        assert_eq!(
+            [
+                "sequence",
+                "principal",
+                "action",
+                "resource",
+                "result",
+                "hash"
+            ]
+            .map(|name| of(answered, name)),
+            [
+                Value::Integer(i64::try_from(written.sequence).expect("fits")),
+                Value::text(written.record.principal.as_str()),
+                Value::text(written.record.action.as_str()),
+                written.record.resource.clone(),
+                Value::text(written.record.result.as_str()),
+                Value::text(nc_canon::to_hex(&written.hash))
+            ]
+        );
+    }
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| of(entry, "result"))
+            .collect::<Vec<_>>(),
+        [
+            Value::text("allowed"),
+            Value::text("denied"),
+            Value::text("denied")
+        ]
+    );
+    assert_eq!(
+        ["head", "next", "unreadable"].map(|name| field(&all, name)),
+        [Value::Integer(2), Value::Integer(3), Value::Null]
+    );
+    for (args, sequences, next) in [
+        (r#"{"from":1,"max":2}"#, vec![1, 2], 3),
+        (r#"{"max":1}"#, vec![0], 1),
+        (r#"{"from":900}"#, Vec::new(), 900),
+    ] {
+        assert_eq!(
+            sequences_read(&fixture, args).await,
+            (sequences, Value::Integer(next), Value::Null),
+            "{args}"
+        );
+    }
+}
+
+/// The journal read leaves out an entry another realm's kernel wrote, names
+/// one the store could not read, and answers an empty journal as empty.
+///
+/// **Neither is skipped in silence**: the page over a store two realms share
+/// holds this realm's entries alone and its `next` is past them all; the
+/// page a row no reader can decode cuts short stops there, says the row's
+/// sequence, and starts the next past it.
+#[tokio::test]
+async fn the_journal_read_leaves_out_another_realms_entry_and_names_one_it_could_not_read() {
+    let (fixture, told) = reference().await;
+    for _ in 0..3 {
+        fixture
+            .as_("ana", "journal.verify", "{}")
+            .await
+            .expect("a guardian verifies, which is journaled");
+    }
+    let page = r#"{"from":0,"max":3}"#;
+    told.lock().expect("nothing panics holding it").reads = Reads::AnothersFirst;
+    let shared = sequences_read(&fixture, page).await;
+    told.lock().expect("nothing panics holding it").reads = Reads::CutShort(1);
+    let cut = sequences_read(&fixture, page).await;
+    told.lock().expect("nothing panics holding it").reads = Reads::AsWritten;
+    assert_eq!(shared, (vec![1, 2], Value::Integer(3), Value::Null));
+    assert_eq!(cut, (vec![0], Value::Integer(2), Value::Integer(1)));
+    let empty = with(&[], "").await.0;
+    let nothing = empty
+        .as_("ana", "dev.journal.read", "{}")
+        .await
+        .expect("a guardian reads the journal");
+    assert_eq!(
+        nothing,
+        r#"{"entries":[],"head":null,"next":0,"unreadable":null}"#
+    );
+}
+
+/// A journal that cannot be read answers no entry, and says so with the
+/// journal's own code.
+#[tokio::test]
+async fn a_journal_that_cannot_be_read_is_answered_unavailable_and_no_entry_of_it() {
+    let (fixture, told) = reference().await;
+    told.lock().expect("nothing panics holding it").reads = Reads::Refused;
+    let refused = fixture.as_("ana", "dev.journal.read", "{}").await;
+    told.lock().expect("nothing panics holding it").reads = Reads::AsWritten;
+    assert!(
+        is(
+            &refused,
+            RefusalKind::Unavailable,
+            ErrorCode::JournalUnavailable
+        ),
+        "{refused:?}"
+    );
+    let entries = fixture.entries().await;
+    let entry = only(&entries, "dev.journal.read");
+    assert_eq!(entry.record.result, Outcome::Failed);
+    assert_eq!(
+        entry.record.resource.to_canonical(),
+        r#"{"command":"dev.journal.read","entity":{"id":"home","type":"Realm"},"failure":"journal-unreadable"}"#
     );
 }

@@ -1,0 +1,21 @@
+[package]
+name = "nc-markdown"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The one reader of Markdown: a closed subset read into a typed tree, and anything outside it refused by its line and column."
+
+[dependencies]
+# **None, and that is the decision** (`NOCTUA.md §2.3`, Stage 16): the help
+# pages' Markdown is read by code of this tree's own, a closed subset, so no
+# parser's whole language — raw HTML first — reaches a page a person reads.
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice — the same line every
+# member of this workspace carries.
+nc-markdown = { path = "." }
+
+[lints]
+workspace = true

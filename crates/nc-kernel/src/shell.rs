@@ -10,10 +10,11 @@
 //! | pages | every page open in any window or in the drawer: its kind, its topic, the sub-pages it went into and how far it is scrolled |
 //! | drawer | the pages open in it and the one in focus, whether it is collapsed, where a page opened from the leader menu goes, and its share of the height |
 //! | sidebar | whether it is shown |
-//! | footer | whether it is shown now, where the setting hides it |
+//! | footer | whether it is shown now, where the setting hides it: a reveal a Leader tap begins and a keyboard leaving the footer and the drawer ends |
 //! | info line | the message it says, and whether it is expanded |
 //! | prompt | what it holds, and what it asks for: the command list, or a command's parameters |
 //! | seats | each seat's focus, what its pointer hovers, what its keyboard selection is on, which of the two moved last, and what it drags |
+//! | settings | the three settings of how the interface is shown: the language it speaks, whether the footer is always shown, and the light or dark mode |
 //!
 //! A page is one of a closed set of kinds: `home`, `settings`, `help`, `dev`
 //! and `surface` go anywhere, `settings`, `help` and `dev` with a topic or
@@ -35,6 +36,24 @@
 //! step, and an undo passes over every one to the person's last real change.
 //! Each is journaled once all the same, its entry naming the command and the
 //! feature and never the arguments.
+//!
+//! **Three settings are a part of this state** ([`Setting`], `NOCTUA.md
+//! §12.15`): `settings.language`, `settings.footer` and `settings.appearance`,
+//! each a `.read` answering the one object its `.set` takes whole — the
+//! language the interface speaks, the system's or one the catalog ships; the
+//! footer always shown, or hidden until it is asked for (§12.3); and the mode,
+//! the system's, light or dark (§9.6). They depart from a setting kept as an
+//! entry of the store (`crate::settings`) in what they are: each is how the
+//! interface is shown and nothing a command reads, so its value is held here
+//! with the rest of what a window shows, reaches every window with the state
+//! it follows, is kept with it between starts, and its set is no step — a
+//! read on `Feature::"interface"` like every change of this module's, never
+//! on a feature of its own name, with no undo to take it back and the setting
+//! set again as the way back. A set still runs at the top of a call tree
+//! alone (`crate::registry::only_at_the_top`), so no plugin's command changes
+//! how a person's interface speaks. Each value is one of a closed list of
+//! words, the first its default, and a word outside it is refused, from a
+//! command and from a saved state alike.
 //!
 //! **What a command changes is held until its call tree ends** (`crate::units`'
 //! `Later`): the state it leaves is the call tree's, read back by every command
@@ -77,13 +96,12 @@
 //! leader` and a hotkey do the same: with the leader menu open in the drawer of
 //! the seat's window, shown, a tap sends the next page opened to the other
 //! region; with the seat's keyboard on the prompt line of a window that is
-//! shown, the footer shown, it opens the leader menu in the drawer; otherwise
-//! — the window hidden with the menu open in it, or the footer hidden with
-//! the keyboard on its prompt line, included — it shows the window and puts
-//! the seat's keyboard on the prompt line. Every tap shows the footer
-//! (§12.3). **A tap never hides the interface**: §12.8 gives a tap no such
-//! rule, and a menu or a prompt line no one sees never keeps a tap from
-//! showing it.
+//! shown — a line seen however the footer is set, since a folded footer opens
+//! around the keyboard inside it — it opens the leader menu in the drawer;
+//! otherwise — the window hidden with the menu open in it included — it shows
+//! the window and puts the seat's keyboard on the prompt line. Every tap shows
+//! the footer (§12.3). **A tap never hides the interface**: §12.8 gives a tap
+//! no such rule, and a menu no one sees never keeps a tap from showing it.
 //!
 //! # What this answers (`NOCTUA.md §2.4`)
 //!
@@ -115,7 +133,12 @@ pub(crate) const KEY: &str = "shell.state";
 
 /// The shape of the state this build writes and reads: a saved state naming
 /// any other is set aside.
-pub(crate) const SHAPE: i64 = 1;
+///
+/// **A change of what a saved state holds is a new shape**, so a state an
+/// earlier build kept is set aside as that build's, logged with the shape it
+/// named, and never as one of this build's that breaks a rule: shape 1 held
+/// no settings of how the interface is shown, and shape 2 holds the three.
+pub(crate) const SHAPE: i64 = 2;
 
 /// The most characters a topic, a hover's or a drag's target and a parameter's
 /// name may hold, which every schema naming one declares.
@@ -440,6 +463,161 @@ pub(crate) enum Asking {
     },
 }
 
+/// The word a setting that follows the system is written as.
+const SYSTEM: &str = "system";
+/// Every word the language setting may be: the system's, then the tag of
+/// every locale the catalog ships, in its order — which a test holds to
+/// `nc_catalog::Locale::ALL`, so a locale added there is a word added here.
+const LANGUAGES: [&str; 3] = [
+    SYSTEM,
+    nc_catalog::Locale::En.tag(),
+    nc_catalog::Locale::PtBR.tag(),
+];
+/// The footer setting's word for a footer always shown.
+const ALWAYS: &str = "always";
+/// The footer setting's word for a footer hidden until it is asked for.
+const HIDDEN: &str = "hidden";
+/// The one field of the language setting's object.
+const LANGUAGE: &str = "language";
+/// The one field of the footer setting's object.
+const VISIBILITY: &str = "visibility";
+/// The one field of the appearance setting's object.
+const MODE: &str = "mode";
+
+/// A setting whose value is a part of the interface's state
+/// (`NOCTUA.md §12.15`): how the interface is shown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Setting {
+    /// `settings.language`: the language the interface speaks (§10.9).
+    Language,
+    /// `settings.footer`: whether the footer is always shown (§12.3).
+    Footer,
+    /// `settings.appearance`: the light or dark mode (§9.6).
+    Appearance,
+}
+
+impl Setting {
+    /// Every one, in the order `§12.15` names them.
+    pub(crate) const ALL: [Self; 3] = [Self::Footer, Self::Language, Self::Appearance];
+
+    /// The one field of its object, in what its read answers, what its set
+    /// takes and what the state writes.
+    pub(crate) const fn field(self) -> &'static str {
+        match self {
+            Self::Language => LANGUAGE,
+            Self::Footer => VISIBILITY,
+            Self::Appearance => MODE,
+        }
+    }
+
+    /// Every word it may be, its default first.
+    ///
+    /// The language is the system's — the environment's, then English, as the
+    /// interface resolves it — or the tag of a locale the catalog ships; the
+    /// footer is always shown, or hidden until the Leader or the pointer asks
+    /// for it; the mode is the system's, light or dark.
+    pub(crate) const fn words(self) -> &'static [&'static str] {
+        match self {
+            Self::Language => &LANGUAGES,
+            Self::Footer => &[ALWAYS, HIDDEN],
+            Self::Appearance => &[SYSTEM, "light", "dark"],
+        }
+    }
+
+    /// Where in its list the word `written` is, and nowhere for any other.
+    fn one_of(self, written: &str) -> Option<usize> {
+        self.words().iter().position(|word| *word == written)
+    }
+
+    /// The command that reads it.
+    const fn read(self) -> Verb {
+        match self {
+            Self::Language => Verb::SettingsLanguageRead,
+            Self::Footer => Verb::SettingsFooterRead,
+            Self::Appearance => Verb::SettingsAppearanceRead,
+        }
+    }
+
+    /// The command that sets it.
+    const fn set(self) -> Verb {
+        match self {
+            Self::Language => Verb::SettingsLanguageSet,
+            Self::Footer => Verb::SettingsFooterSet,
+            Self::Appearance => Verb::SettingsAppearanceSet,
+        }
+    }
+
+    /// The setting `verb` reads or sets, if it is one's command.
+    fn of(verb: Verb) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|setting| setting.read() == verb || setting.set() == verb)
+    }
+}
+
+/// What each setting of the interface's is: a word of its own list, the
+/// first until a person chooses another.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Chosen {
+    language: &'static str,
+    visibility: &'static str,
+    mode: &'static str,
+}
+
+impl Default for Chosen {
+    fn default() -> Self {
+        Self {
+            language: SYSTEM,
+            visibility: ALWAYS,
+            mode: SYSTEM,
+        }
+    }
+}
+
+impl Chosen {
+    /// What `setting` is.
+    const fn word_of(self, setting: Setting) -> &'static str {
+        match setting {
+            Setting::Language => self.language,
+            Setting::Footer => self.visibility,
+            Setting::Appearance => self.mode,
+        }
+    }
+
+    /// Makes `setting` the word `written`, where it is one of its list.
+    fn choose(&mut self, setting: Setting, written: &str) -> Option<()> {
+        let word = setting
+            .one_of(written)
+            .and_then(|at| setting.words().get(at).copied())?;
+        match setting {
+            Setting::Language => self.language = word,
+            Setting::Footer => self.visibility = word,
+            Setting::Appearance => self.mode = word,
+        }
+        Some(())
+    }
+
+    /// The settings as the state writes them, and as a read answers one:
+    /// each under its field.
+    fn to_value(self) -> Value {
+        Value::object(
+            Setting::ALL.map(|setting| (setting.field(), Value::text(self.word_of(setting)))),
+        )
+    }
+
+    /// The settings `value` writes, each a word of its list and nothing
+    /// beside them.
+    fn read_back(value: &Value) -> Option<Self> {
+        let mut fields = Fields::of(value)?;
+        let mut chosen = Self::default();
+        for setting in Setting::ALL {
+            chosen.choose(setting, &fields.text(setting.field())?)?;
+        }
+        fields.done()?;
+        Some(chosen)
+    }
+}
+
 /// The interface's state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct State {
@@ -453,6 +631,8 @@ pub(crate) struct State {
     draft: String,
     asking: Option<Asking>,
     seats: BTreeMap<u64, Seat>,
+    /// The three settings of how the interface is shown.
+    settings: Chosen,
     /// The identifier the next window or page is given.
     next: u64,
 }
@@ -479,6 +659,7 @@ impl Default for State {
             draft: String::new(),
             asking: None,
             seats: BTreeMap::new(),
+            settings: Chosen::default(),
             next: 2,
         }
     }
@@ -605,11 +786,17 @@ pub(crate) enum Verb {
     PromptSet,
     PromptAsk,
     PromptClear,
+    SettingsFooterRead,
+    SettingsFooterSet,
+    SettingsLanguageRead,
+    SettingsLanguageSet,
+    SettingsAppearanceRead,
+    SettingsAppearanceSet,
 }
 
 impl Verb {
     /// Every one: the only place one is made.
-    pub(crate) const ALL: [Self; 41] = [
+    pub(crate) const ALL: [Self; 47] = [
         Self::ShellRead,
         Self::ShellFocus,
         Self::ShellHover,
@@ -651,6 +838,12 @@ impl Verb {
         Self::PromptSet,
         Self::PromptAsk,
         Self::PromptClear,
+        Self::SettingsFooterRead,
+        Self::SettingsFooterSet,
+        Self::SettingsLanguageRead,
+        Self::SettingsLanguageSet,
+        Self::SettingsAppearanceRead,
+        Self::SettingsAppearanceSet,
     ];
 
     /// The name of the command it is, as the catalog declares it.
@@ -697,7 +890,24 @@ impl Verb {
             Self::PromptSet => "prompt.set",
             Self::PromptAsk => "prompt.ask",
             Self::PromptClear => "prompt.clear",
+            Self::SettingsFooterRead => "settings.footer.read",
+            Self::SettingsFooterSet => "settings.footer.set",
+            Self::SettingsLanguageRead => "settings.language.read",
+            Self::SettingsLanguageSet => "settings.language.set",
+            Self::SettingsAppearanceRead => "settings.appearance.read",
+            Self::SettingsAppearanceSet => "settings.appearance.set",
         }
+    }
+
+    /// Whether it changes nothing: `shell.read`, and a setting's read.
+    pub(crate) const fn is_a_read(self) -> bool {
+        matches!(
+            self,
+            Self::ShellRead
+                | Self::SettingsFooterRead
+                | Self::SettingsLanguageRead
+                | Self::SettingsAppearanceRead
+        )
     }
 
     /// Every argument it reads, by the name its schema declares.
@@ -721,7 +931,13 @@ impl Verb {
             | Self::InfoClear
             | Self::InfoExpand
             | Self::InfoCollapse
-            | Self::PromptClear => &[],
+            | Self::PromptClear
+            | Self::SettingsFooterRead
+            | Self::SettingsLanguageRead
+            | Self::SettingsAppearanceRead => &[],
+            Self::SettingsFooterSet => &[VISIBILITY],
+            Self::SettingsLanguageSet => &[LANGUAGE],
+            Self::SettingsAppearanceSet => &[MODE],
             Self::ShellFocus => &[SEAT, WINDOW, REGION],
             Self::ShellHover => &[SEAT, BY, TARGET],
             Self::ShellDrag => &[SEAT, TARGET],
@@ -952,6 +1168,14 @@ pub(crate) fn ran<E: Environment>(
     if verb == Verb::ShellRead {
         return Ok(the_read(shared, held.as_ref()).to_canonical());
     }
+    let setting = Setting::of(verb);
+    if let Some(setting) = setting.filter(|_| verb.is_a_read()) {
+        let chosen = held.map_or_else(
+            || dispatch::lock(&shared.shell).state.settings,
+            |held| held.state.settings,
+        );
+        return Ok(answered(setting, chosen));
+    }
     let Held { mut state, base } = held.unwrap_or_else(|| {
         let cell = dispatch::lock(&shared.shell);
         Held {
@@ -961,11 +1185,20 @@ pub(crate) fn ran<E: Environment>(
     });
     changed(&mut state, verb, args, &Now { shared })
         .map_err(|refusal| Failure::new(refusal, "shell-refused"))?;
-    let answer = Value::object([("shell", state.to_value())]).to_canonical();
+    let answer = setting.map_or_else(
+        || Value::object([("shell", state.to_value())]).to_canonical(),
+        |setting| answered(setting, state.settings),
+    );
     dispatch::lock(tree)
         .later_mut()
         .hold_shell(Held { state, base });
     Ok(answer)
+}
+
+/// What a setting's read answers, and its set once made: the one object the
+/// set takes whole, `{"<field>":"<word>"}`.
+fn answered(setting: Setting, chosen: Chosen) -> String {
+    Value::object([(setting.field(), Value::text(chosen.word_of(setting)))]).to_canonical()
 }
 
 /// What `shell.read` answers: the kernel's state at the revision it is at, or,
@@ -992,7 +1225,11 @@ fn the_read<E: Environment>(shared: &Shared<E>, held: Option<&Held>) -> Value {
 /// **No keyboard is left on a drawer that shows nothing open**: whatever the
 /// command, a seat's keyboard on the drawer once it is emptied or collapsed
 /// goes back to its window's prompt line ([`State::drawer_shut`]), so a
-/// window never holds a keyboard on a part it does not draw.
+/// window never holds a keyboard on a part it does not draw. **And no reveal
+/// outlives the last keyboard on the footer**: whatever the command, a
+/// keyboard moved — where the window says it went, to the sidebar, or gone
+/// with the window it was in — with none left on the footer or the drawer
+/// lets a footer its setting hides go ([`State::footer_let_go`]).
 ///
 /// # Errors
 ///
@@ -1003,6 +1240,7 @@ pub(crate) fn changed(
     args: &serde_json::Value,
     known: &dyn Known,
 ) -> Result<(), Refusal> {
+    let keyboards = state.keyboards();
     let mut next = state.clone();
     Change {
         state: &mut next,
@@ -1011,6 +1249,9 @@ pub(crate) fn changed(
     }
     .made(verb)?;
     next.drawer_shut();
+    if next.keyboards() != keyboards {
+        next.footer_let_go();
+    }
     *state = next;
     Ok(())
 }
@@ -1027,7 +1268,13 @@ impl Change<'_> {
     /// Makes the change `verb` asks for.
     fn made(&mut self, verb: Verb) -> Result<(), Refusal> {
         match verb {
-            Verb::ShellRead => Ok(()),
+            Verb::ShellRead
+            | Verb::SettingsFooterRead
+            | Verb::SettingsLanguageRead
+            | Verb::SettingsAppearanceRead => Ok(()),
+            Verb::SettingsFooterSet => self.chosen(Setting::Footer),
+            Verb::SettingsLanguageSet => self.chosen(Setting::Language),
+            Verb::SettingsAppearanceSet => self.chosen(Setting::Appearance),
             Verb::ShellFocus => self.focus(),
             Verb::ShellHover => self.hover(),
             Verb::ShellDrag => self.drag(),
@@ -1144,6 +1391,42 @@ impl Change<'_> {
                 self.state.close_in_drawer(Kind::Commands);
             }
             _ => {}
+        }
+        Ok(())
+    }
+
+    /// A setting's set: `setting` made the word its one field names, a word
+    /// of its list — which the schema lists too, so one outside it is the
+    /// arguments' own refusal, `[NC-VAL-0002]`.
+    fn chosen(&mut self, setting: Setting) -> Result<(), Refusal> {
+        let field = setting.field();
+        let written = self
+            .optional_text(field)?
+            .ok_or_else(|| invalid(format!("`{field}` is required, and was not given")))?
+            .to_owned();
+        self.state
+            .settings
+            .choose(setting, &written)
+            .ok_or_else(|| {
+                invalid(format!(
+                    "`{field}` is none of {}",
+                    setting
+                        .words()
+                        .iter()
+                        .map(|word| format!("`{word}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ))
+            })?;
+        if setting == Setting::Footer {
+            // Chosen always, the footer is shown now, so the next tap's rule
+            // reads the line as seen; chosen hidden, it hides now unless a
+            // keyboard holds it (§12.3).
+            if self.state.settings.visibility == ALWAYS {
+                self.state.footer = true;
+            } else {
+                self.state.footer_let_go();
+            }
         }
         Ok(())
     }
@@ -1379,29 +1662,37 @@ impl Change<'_> {
     /// open in a window hidden — by `window.hide`, or by closing the last one
     /// — shows nothing, so the tap is rule 1's and shows the window, rather
     /// than flip where a page no one sees goes. The prompt's: the seat's
-    /// keyboard on the prompt line of a window shown, and the footer that
-    /// holds the line shown — with `footer.hide` the line is not seen, so the
-    /// tap is rule 1's and shows the footer, rather than open a menu over a
-    /// line no one sees. **Every tap shows the footer** (§12.3).
+    /// keyboard on the prompt line of a window shown, **a line seen whatever
+    /// the state's "shown now" says** — a footer is always shown, or it is the
+    /// design system's folding footer, which opens while a keyboard is inside
+    /// it — so a keyboard a click or Tab put there under `hidden`, or one
+    /// `footer.hide` left there, is one tap from the menu, as rule 2 says.
+    /// **Every tap shows the footer** (§12.3), **and leaves the seat's
+    /// keyboard on it or on the drawer**: rule 1's on the prompt line, rule
+    /// 2's on the menu it opens, and the menu's flip on the menu, wherever the
+    /// keyboard was — the menu is where the next key chooses the page the flip
+    /// sends — so the reveal a tap begins under `hidden` is one a keyboard
+    /// holds, and ends as every other does once that keyboard leaves.
     fn leader_tap(&mut self) -> Result<(), Refusal> {
         let seat = self.seat()?;
         let window = self.state.current(seat);
         let shown = self.state.window(window)?.shown;
         // A hidden footer appears when the Leader is pressed, whichever rule
-        // the tap follows; the prompt's rule asks whether it was shown before.
-        let footer = core::mem::replace(&mut self.state.footer, true);
+        // the tap follows.
+        self.state.footer = true;
         if shown && self.state.leader_open() {
             self.state.drawer.flipped = !self.state.drawer.flipped;
+            self.state.seat_mut(seat).focus = Some(Focus {
+                window,
+                region: Region::Drawer,
+            });
             return Ok(());
         }
         let on_the_prompt = Focus {
             window,
             region: Region::Prompt,
         };
-        if shown
-            && footer
-            && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt)
-        {
+        if shown && self.state.seats.get(&seat).and_then(|held| held.focus) == Some(on_the_prompt) {
             self.state
                 .opened(Kind::Leader, None, Place::Drawer, window)?;
             self.state.seat_mut(seat).focus = Some(Focus {
@@ -1925,6 +2216,48 @@ impl State {
         }
     }
 
+    /// Every seat's keyboard that is on a part of a window, by seat: what a
+    /// command compares to tell whether it moved one ([`changed`]).
+    fn keyboards(&self) -> Vec<(u64, Focus)> {
+        self.seats
+            .iter()
+            .filter_map(|(id, seat)| seat.focus.map(|focus| (*id, focus)))
+            .collect()
+    }
+
+    /// Whether a seat's keyboard is on the footer — on one of its three lines
+    /// — or on the drawer: what holds a hidden footer shown (§12.3).
+    fn holds_the_footer(&self) -> bool {
+        self.seats.values().any(|seat| {
+            seat.focus.is_some_and(|focus| {
+                matches!(
+                    focus.region,
+                    Region::Prompt | Region::Info | Region::Modeline | Region::Drawer
+                )
+            })
+        })
+    }
+
+    /// A footer its setting hides, hidden again once no keyboard holds it.
+    ///
+    /// **"Shown now" is a reveal where the setting hides the footer**: a Leader
+    /// tap or `footer.show` shows it, it stays while a seat's keyboard is on
+    /// the footer or the drawer, and a keyboard moved with none left on them
+    /// ends it — moved where the window says it went or by a command, or gone
+    /// with the window it was in ([`changed`]). A tap leaves its seat's
+    /// keyboard on one of them; `footer.show` moves none, so a reveal it
+    /// begins with none there stands until a keyboard moves. That is what
+    /// §12.3 asks for focus, decided here so every window folds it at once.
+    /// The pointer's part, and a keyboard's inside the footer it is on, are
+    /// the design system's folding footer's own, which opens under a pointer
+    /// or around a focus whatever this says. A footer always shown is left as
+    /// it is.
+    fn footer_let_go(&mut self) {
+        if self.settings.visibility == HIDDEN {
+            self.footer = self.footer && self.holds_the_footer();
+        }
+    }
+
     /// Hides the sidebar, every seat whose keyboard was on it going back to
     /// its window's workspace area.
     fn sidebar_hidden(&mut self) {
@@ -2071,6 +2404,7 @@ impl State {
             ("info", Value::object(info)),
             ("prompt", self.prompt_value()),
             ("seats", self.seats_value()),
+            ("settings", self.settings.to_value()),
             ("next", count(self.next)),
         ])
     }
@@ -2223,6 +2557,7 @@ impl State {
             .iter()
             .map(Seat::read)
             .collect::<Option<Vec<_>>>()?;
+        let settings = Chosen::read_back(top.take("settings")?)?;
         let next = top.id("next")?;
         top.done()?;
         let unique = pages.len();
@@ -2240,6 +2575,7 @@ impl State {
             draft,
             asking,
             seats,
+            settings,
             next,
         };
         (state.pages.len() == unique && state.seats.len() == seat_count && state.holds())
@@ -2925,11 +3261,7 @@ mod tests {
             let read: BTreeSet<&str> = verb.reads().iter().copied().collect();
             assert_eq!(takes, read, "`{name}` declares {:?}", declared.arguments);
             assert_eq!(declared.arguments.len(), verb.reads().len(), "`{name}`");
-            let action = if verb == Verb::ShellRead {
-                "Read"
-            } else {
-                "Write"
-            };
+            let action = if verb.is_a_read() { "Read" } else { "Write" };
             assert_eq!(
                 (
                     declared.action,
@@ -2948,6 +3280,10 @@ mod tests {
         let families = [
             "shell", "window", "leader", "page", "drawer", "sidebar", "footer", "info", "prompt",
         ];
+        // The settings' namespace is shared with the settings kept in the
+        // store and in the keybinding configuration (`crate::settings`), so
+        // of it the three settings of this module are named one by one.
+        let settings = ["footer", "language", "appearance"];
         let declared: BTreeSet<&str> = nc_catalog::COMMANDS
             .iter()
             .map(|command| command.name)
@@ -2955,6 +3291,9 @@ mod tests {
                 families
                     .iter()
                     .any(|family| name.starts_with(&format!("{family}.")))
+                    || settings
+                        .iter()
+                        .any(|setting| name.starts_with(&format!("settings.{setting}.")))
             })
             .collect();
         let verbs: BTreeSet<&str> = Verb::ALL.iter().map(|verb| verb.name()).collect();
@@ -2966,6 +3305,175 @@ mod tests {
                 "`{family}.` is a namespace the kernel keeps"
             );
         }
+    }
+
+    /// Each of the three settings is one word of its own closed list, its
+    /// first until a person sets another, and a word outside it changes
+    /// nothing.
+    ///
+    /// **The list is held three ways to one source**: what a set takes and
+    /// refuses, what the command's schema lists — in the same order — and,
+    /// for the language, the tags of the locales the catalog ships after
+    /// `system`. A read answers the one object its set takes whole, and so
+    /// does a set once made.
+    #[test]
+    fn each_setting_of_the_interface_is_one_word_of_its_own_list() {
+        use super::{Chosen, Setting, answered};
+        let first = State::default();
+        assert_eq!(first.settings, Chosen::default());
+        let fields: Vec<&str> = Setting::ALL.map(Setting::field).to_vec();
+        assert_eq!(fields, ["visibility", "language", "mode"]);
+        assert_eq!(
+            Setting::Language.words(),
+            ["system", "en", "pt-BR"],
+            "`system`, then every locale the catalog ships"
+        );
+        let shipped: Vec<&str> = core::iter::once("system")
+            .chain(nc_catalog::Locale::ALL.iter().map(|locale| locale.tag()))
+            .collect();
+        assert_eq!(
+            Setting::Language.words(),
+            shipped,
+            "a locale the catalog ships is a language a person may choose"
+        );
+        assert_eq!(Setting::Footer.words(), ["always", "hidden"]);
+        assert_eq!(Setting::Appearance.words(), ["system", "light", "dark"]);
+        for setting in Setting::ALL {
+            let (field, words) = (setting.field(), setting.words());
+            assert_eq!(
+                first.settings.word_of(setting),
+                words[0],
+                "{field}: the default"
+            );
+            assert_eq!(
+                answered(setting, first.settings),
+                format!("{{\"{field}\":\"{}\"}}", words[0])
+            );
+            let listed: Vec<String> = schema(setting.set().name())["properties"][field]["enum"]
+                .as_array()
+                .expect("a closed list")
+                .iter()
+                .map(|word| word.as_str().expect("a word").to_owned())
+                .collect();
+            assert_eq!(listed, words, "`{}`", setting.set().name());
+            assert_eq!(
+                (setting.read().name(), setting.set().name()),
+                (
+                    format!("settings.{}.read", name_of(setting)).as_str(),
+                    format!("settings.{}.set", name_of(setting)).as_str()
+                )
+            );
+            assert!(setting.read().is_a_read() && !setting.set().is_a_read());
+            assert_eq!(Setting::of(setting.read()), Some(setting));
+            assert_eq!(Setting::of(setting.set()), Some(setting));
+            for word in words {
+                let set = ran(&first, setting.set(), &json!({ field: word }));
+                assert_eq!(set.settings.word_of(setting), *word);
+                assert_eq!(
+                    answered(setting, set.settings),
+                    format!("{{\"{field}\":\"{word}\"}}")
+                );
+                // One setting set leaves the other two, and the rest of the
+                // state, as they were.
+                for other in Setting::ALL {
+                    if other != setting {
+                        assert_eq!(set.settings.word_of(other), first.settings.word_of(other));
+                    }
+                }
+                let mut rest = set.clone();
+                rest.settings = first.settings;
+                if setting == Setting::Footer {
+                    // What is shown now follows the footer's setting, as
+                    // `a_hidden_footer_shown_by_a_tap_hides_again_once_no_keyboard_holds_it`
+                    // holds.
+                    rest.footer = first.footer;
+                }
+                assert_eq!(rest, first);
+                // A read changes nothing.
+                assert_eq!(ran(&set, setting.read(), &json!({})), set);
+            }
+            for other in [
+                json!("System"),
+                json!("fr"),
+                json!(""),
+                json!(1),
+                json!(null),
+            ] {
+                let refusal = refused(&first, setting.set(), &json!({ field: other }));
+                assert_eq!(
+                    (refusal.kind(), refusal.code()),
+                    (RefusalKind::Invalid, ErrorCode::ValidationArgumentsInvalid),
+                    "{field}: {other}"
+                );
+            }
+            let missing = refused(&first, setting.set(), &json!({}));
+            assert_eq!(missing.code(), ErrorCode::ValidationArgumentsInvalid);
+        }
+        assert_eq!(Setting::of(Verb::FooterHide), None);
+        assert_eq!(Setting::of(Verb::ShellRead), None);
+        assert!(Verb::ShellRead.is_a_read() && !Verb::FooterHide.is_a_read());
+    }
+
+    /// The word a setting's two commands are named by.
+    const fn name_of(setting: super::Setting) -> &'static str {
+        match setting {
+            super::Setting::Language => "language",
+            super::Setting::Footer => "footer",
+            super::Setting::Appearance => "appearance",
+        }
+    }
+
+    /// A saved state's settings are read only as words of their lists, each
+    /// there and nothing beside them.
+    #[test]
+    fn a_saved_states_settings_are_read_only_as_words_of_their_lists() {
+        use super::Chosen;
+        let chosen = Chosen {
+            language: "pt-BR",
+            visibility: "hidden",
+            mode: "dark",
+        };
+        assert_eq!(Chosen::read_back(&chosen.to_value()), Some(chosen));
+        assert_eq!(
+            chosen.to_value().to_canonical(),
+            r#"{"language":"pt-BR","mode":"dark","visibility":"hidden"}"#
+        );
+        let with = |field: &str, value: Option<Value>| {
+            let mut fields: Vec<(&str, Value)> = [
+                ("language", Value::text("pt-BR")),
+                ("mode", Value::text("dark")),
+                ("visibility", Value::text("hidden")),
+            ]
+            .into_iter()
+            .filter(|(name, _)| *name != field)
+            .collect();
+            fields.extend(value.map(|value| (field, value)));
+            Value::object(fields)
+        };
+        assert_eq!(
+            Chosen::read_back(&with("mode", Some(Value::text("dark")))),
+            Some(chosen)
+        );
+        for field in ["language", "visibility", "mode"] {
+            assert_eq!(Chosen::read_back(&with(field, None)), None, "no {field}");
+            for other in [Value::text("Dark"), Value::text(""), Value::Bool(true)] {
+                assert_eq!(
+                    Chosen::read_back(&with(field, Some(other))),
+                    None,
+                    "{field}"
+                );
+            }
+        }
+        assert_eq!(Chosen::read_back(&with("more", Some(Value::Null))), None);
+        assert_eq!(Chosen::read_back(&Value::Null), None);
+        // And the state is set aside whole with them.
+        let state = State {
+            settings: chosen,
+            ..State::default()
+        };
+        let text = snapshot(&state);
+        assert_eq!(unkept(&text), Ok(state));
+        assert!(unkept(&text.replace("\"mode\":\"dark\"", "\"mode\":\"dim\"")).is_err());
     }
 
     /// The schema of `command`, read off the catalog.
@@ -3110,10 +3618,8 @@ mod tests {
     /// the page opened then goes to the drawer, closing the menu and the flip
     /// with it. A tap with the keyboard on the prompt of a hidden window shows
     /// it rather than open the menu, one with the menu open in a window hidden
-    /// or closed shows it rather than flip, one with the keyboard on the
-    /// prompt line of a footer hidden shows the footer rather than open the
-    /// menu, every tap shows the footer, and the seat a tap names is the one
-    /// that moves.
+    /// or closed shows it rather than flip, every tap shows the footer, and
+    /// the seat a tap names is the one that moves.
     #[test]
     fn a_leader_tap_follows_the_three_rules_and_never_hides_the_interface() {
         let hidden = ran(&State::default(), Verb::FooterHide, &json!({}));
@@ -3175,29 +3681,8 @@ mod tests {
             let flipped = ran(&shown, Verb::LeaderTap, &json!({}));
             assert!(flipped.drawer.flipped, "{}", hiding.name());
         }
-        // **Nor does a prompt line no one sees** (§12.3, §12.8 rule 1): with
-        // the footer hidden and the keyboard left on its prompt line in a
-        // window shown, a tap shows the footer and opens no menu, and the tap
-        // after it, the line now seen, opens the menu. With the menu open and
-        // the footer hidden, a tap flips and shows the footer.
-        let unseen = ran(&first, Verb::FooterHide, &json!({}));
-        assert!(window(&unseen, 1).shown && !unseen.footer);
-        assert_eq!(
-            unseen.seats[&1].focus.map(|focus| focus.region),
-            Some(Region::Prompt)
-        );
-        let footer_shown = ran(&unseen, Verb::LeaderTap, &json!({}));
-        assert!(footer_shown.footer && window(&footer_shown, 1).shown);
-        assert!(
-            footer_shown.drawer.pages.is_empty(),
-            "a tap opened the menu over a prompt line no one saw"
-        );
-        assert_eq!(
-            footer_shown.seats[&1].focus.map(|focus| focus.region),
-            Some(Region::Prompt)
-        );
-        let seen = ran(&footer_shown, Verb::LeaderTap, &json!({}));
-        assert!(seen.leader_open() && seen.footer);
+        // With the menu open and the footer hidden, a tap flips and shows the
+        // footer.
         let menu_seen = ran(&second, Verb::FooterHide, &json!({}));
         let flipped = ran(&menu_seen, Verb::LeaderTap, &json!({}));
         assert!(
@@ -3213,6 +3698,61 @@ mod tests {
             other.seats[&2].focus.map(|focus| focus.region),
             Some(Region::Prompt)
         );
+    }
+
+    /// One tap opens the leader menu from a prompt line the keyboard is on,
+    /// however the footer is set.
+    ///
+    /// **A prompt line the keyboard is on is seen** (§12.3, §12.8 rule 2): a
+    /// footer is always shown, or it is the design system's folding footer,
+    /// open while a keyboard is inside it — so the state's "shown now" false,
+    /// by `footer.hide` under either setting or by the keyboard reaching the
+    /// line by a click or Tab under `hidden`, which begins no reveal, is no
+    /// reason for a tap to show a line the person already sees and open
+    /// nothing. The tap opens the menu, gives it the keyboard and shows the
+    /// footer.
+    #[test]
+    fn a_tap_opens_the_menu_from_a_prompt_line_the_keyboard_is_on_however_the_footer_is_set() {
+        let first = ran(&State::default(), Verb::LeaderTap, &json!({}));
+        let hidden_setting = json!({"visibility": "hidden"});
+        let folded = ran(&first, Verb::SettingsFooterSet, &hidden_setting);
+        let away = ran(
+            &ran(&first, Verb::ShellFocus, &json!({"region": "workspace"})),
+            Verb::SettingsFooterSet,
+            &hidden_setting,
+        );
+        assert!(!away.footer, "the setting hidden left the footer shown");
+        for (how, unseen) in [
+            (
+                "`footer.hide` always",
+                ran(&first, Verb::FooterHide, &json!({})),
+            ),
+            (
+                "`footer.hide` hidden",
+                ran(&folded, Verb::FooterHide, &json!({})),
+            ),
+            (
+                "the keyboard reaching the line hidden",
+                ran(&away, Verb::ShellFocus, &json!({"region": "prompt"})),
+            ),
+        ] {
+            assert!(window(&unseen, 1).shown && !unseen.footer, "{how}");
+            assert_eq!(
+                unseen.seats[&1].focus.map(|focus| focus.region),
+                Some(Region::Prompt),
+                "{how}"
+            );
+            let tapped = ran(&unseen, Verb::LeaderTap, &json!({}));
+            assert!(
+                tapped.leader_open() && tapped.footer && window(&tapped, 1).shown,
+                "{how}: a tap left the menu shut over a prompt line the person saw"
+            );
+            assert_eq!(
+                tapped.seats[&1].focus.map(|focus| focus.region),
+                Some(Region::Drawer),
+                "{how}"
+            );
+        }
     }
 
     /// Each command of a leader menu's entry that opens a page leaves the
@@ -3931,6 +4471,189 @@ mod tests {
         );
     }
 
+    /// A footer the setting hides is a reveal: shown by a tap, kept while a
+    /// keyboard is on the footer or the drawer, and hidden again once none is.
+    ///
+    /// **§12.3's rule for focus, each clause by a state it alone decides**:
+    /// choosing `hidden` with no keyboard on the footer hides it now, and with
+    /// one on the prompt line keeps it; a tap shows it and puts the keyboard on
+    /// the prompt line, where it stays shown; the keyboard on the drawer or on
+    /// another line of the footer keeps it; the keyboard on the workspace area
+    /// or the sidebar hides it — unless another seat's keyboard is still on
+    /// the footer; a keyboard coming back shows nothing a tap did not; and
+    /// chosen `always`, it is shown now and no keyboard leaving hides it.
+    #[test]
+    fn a_hidden_footer_shown_by_a_tap_hides_again_once_no_keyboard_holds_it() {
+        let hidden = json!({"visibility": "hidden"});
+        let away = json!({"region": "workspace"});
+        let chosen = ran(&State::default(), Verb::SettingsFooterSet, &hidden);
+        assert!(
+            !chosen.footer,
+            "the setting hidden leaves the footer shown now"
+        );
+        let on_the_prompt = ran(
+            &State::default(),
+            Verb::ShellFocus,
+            &json!({"region": "prompt"}),
+        );
+        assert!(
+            ran(&on_the_prompt, Verb::SettingsFooterSet, &hidden).footer,
+            "the setting hidden hides a footer a keyboard is on"
+        );
+        let tapped = ran(&chosen, Verb::LeaderTap, &json!({}));
+        assert!(tapped.footer, "a tap leaves a hidden footer hidden");
+        for region in ["prompt", "info", "modeline", "drawer"] {
+            assert!(
+                ran(&tapped, Verb::ShellFocus, &json!({"region": region})).footer,
+                "the keyboard on the {region} hides the footer"
+            );
+        }
+        for region in ["workspace", "sidebar"] {
+            let left = ran(&tapped, Verb::ShellFocus, &json!({"region": region}));
+            assert!(
+                !left.footer,
+                "the keyboard on the {region} keeps the footer shown"
+            );
+            assert!(
+                !ran(&left, Verb::ShellFocus, &json!({"region": "prompt"})).footer,
+                "a keyboard coming back shows the footer"
+            );
+        }
+        let two = ran(
+            &tapped,
+            Verb::ShellFocus,
+            &json!({"seat": 2, "region": "prompt"}),
+        );
+        let one_left = ran(&two, Verb::ShellFocus, &away);
+        assert!(one_left.footer, "another seat on the prompt line let it go");
+        assert!(
+            !ran(
+                &one_left,
+                Verb::ShellFocus,
+                &json!({"seat": 2, "region": "workspace"})
+            )
+            .footer,
+            "the last seat to leave kept it shown"
+        );
+        let always = ran(
+            &ran(&tapped, Verb::ShellFocus, &away),
+            Verb::SettingsFooterSet,
+            &json!({"visibility": "always"}),
+        );
+        assert!(always.footer, "chosen always, the footer is not shown now");
+        assert!(
+            ran(
+                &ran(&always, Verb::ShellFocus, &json!({"region": "prompt"})),
+                Verb::ShellFocus,
+                &away
+            )
+            .footer,
+            "a keyboard leaving hid a footer always shown"
+        );
+    }
+
+    /// A hidden footer is let go however the last keyboard leaves it.
+    ///
+    /// **A command is judged as the window is**: one that moves the keyboard
+    /// to the sidebar, or closes the window it was in, lets the footer go as a
+    /// keyboard the window moves does —
+    /// unless another seat's keyboard is still on the footer — and
+    /// `footer.show`, beginning a reveal no keyboard holds, is kept by a
+    /// command that moves no keyboard and ended by one that moves a keyboard
+    /// anywhere but the footer. **A tap's reveal is always held**: one that
+    /// flips the menu, the keyboard gone from it to the workspace area, puts
+    /// the keyboard back on the menu, and the keyboard leaving it again lets
+    /// the footer go.
+    #[test]
+    fn a_hidden_footer_is_let_go_however_the_last_keyboard_leaves_it() {
+        let chosen = ran(
+            &State::default(),
+            Verb::SettingsFooterSet,
+            &json!({"visibility": "hidden"}),
+        );
+        let tapped = ran(&chosen, Verb::LeaderTap, &json!({}));
+        let workspace = json!({"region": "workspace"});
+        let off_the_menu = ran(
+            &ran(&tapped, Verb::LeaderTap, &json!({})),
+            Verb::ShellFocus,
+            &workspace,
+        );
+        assert!(off_the_menu.leader_open() && !off_the_menu.footer);
+        let flipped = ran(&off_the_menu, Verb::LeaderTap, &json!({}));
+        assert!(flipped.drawer.flipped && flipped.footer);
+        assert_eq!(
+            flipped.seats[&1].focus,
+            Some(Focus {
+                window: 1,
+                region: Region::Drawer
+            }),
+            "a tap that flipped the menu left the keyboard off it"
+        );
+        assert!(
+            !ran(&flipped, Verb::ShellFocus, &workspace).footer,
+            "the keyboard leaving the menu a flip gave it kept the footer shown"
+        );
+        let sidebar = ran(&tapped, Verb::SidebarCycle, &json!({}));
+        assert!(sidebar.footer, "the sidebar shown moved no keyboard");
+        let on_the_sidebar = ran(&sidebar, Verb::SidebarCycle, &json!({}));
+        assert_eq!(
+            on_the_sidebar.seats[&1].focus.map(|focus| focus.region),
+            Some(Region::Sidebar)
+        );
+        assert!(
+            !on_the_sidebar.footer,
+            "the keyboard moved to the sidebar by a command kept the footer shown"
+        );
+        let in_the_second = ran(
+            &ran(&chosen, Verb::WindowOpen, &json!({})),
+            Verb::ShellFocus,
+            &json!({"window": 2, "region": "workspace"}),
+        );
+        let tapped_there = ran(&in_the_second, Verb::LeaderTap, &json!({}));
+        assert_eq!(
+            tapped_there.seats[&1].focus,
+            Some(Focus {
+                window: 2,
+                region: Region::Prompt
+            })
+        );
+        assert!(tapped_there.footer);
+        let closed = ran(&tapped_there, Verb::WindowClose, &json!({"window": 2}));
+        assert!(closed.seats[&1].focus.is_none());
+        assert!(
+            !closed.footer,
+            "the window the keyboard was in closed, and the footer stayed shown"
+        );
+        let other_seat = ran(
+            &tapped_there,
+            Verb::ShellFocus,
+            &json!({"seat": 2, "window": 1, "region": "prompt"}),
+        );
+        assert!(
+            ran(&other_seat, Verb::WindowClose, &json!({"window": 2})).footer,
+            "another seat on the prompt line let it go"
+        );
+        let asked = ran(&chosen, Verb::FooterShow, &json!({}));
+        assert!(asked.footer, "`footer.show` began no reveal");
+        assert!(
+            ran(&asked, Verb::InfoSay, &json!({"text": "kept"})).footer,
+            "a command that moved no keyboard ended a reveal"
+        );
+        assert!(
+            ran(
+                &asked,
+                Verb::ShellHover,
+                &json!({"seat": 2, "by": "pointer", "target": "modeline.glyph"})
+            )
+            .footer,
+            "a seat come with its pointer alone moved a keyboard"
+        );
+        assert!(
+            !ran(&asked, Verb::ShellFocus, &json!({"region": "sidebar"})).footer,
+            "a keyboard moved with none on the footer kept a reveal"
+        );
+    }
+
     /// Each seat keeps its own focus, hover, selection and drag, and which of
     /// its pointer and its keyboard moved last.
     #[test]
@@ -4040,6 +4763,9 @@ mod tests {
             (Verb::LeaderTap, json!({})),
             (Verb::DrawerCollapse, json!({})),
             (Verb::FooterHide, json!({})),
+            (Verb::SettingsFooterSet, json!({"visibility": "hidden"})),
+            (Verb::SettingsLanguageSet, json!({"language": "pt-BR"})),
+            (Verb::SettingsAppearanceSet, json!({"mode": "dark"})),
         ] {
             state = ran(&state, verb, &args);
         }
@@ -4071,8 +4797,19 @@ mod tests {
             draft,
             asking,
             seats,
+            settings,
             next,
         } = varied();
+        let super::Chosen {
+            language,
+            visibility,
+            mode,
+        } = settings;
+        assert!(
+            language != first.settings.language
+                && visibility != first.settings.visibility
+                && mode != first.settings.mode
+        );
         assert!(
             windows != first.windows
                 && pages != first.pages
@@ -4543,6 +5280,32 @@ mod tests {
             .collect()
     }
 
+    /// A state an earlier build kept is set aside as that build's.
+    ///
+    /// **What a saved state holds is its shape's**: the build before the
+    /// interface's settings kept the state without them, under shape 1, and
+    /// that state is named by a shape this build does not write — so it is
+    /// logged as an older build's, never as one of this build's own that
+    /// breaks a rule.
+    #[test]
+    fn a_state_kept_before_the_settings_is_set_aside_as_an_earlier_builds() {
+        let mut earlier: serde_json::Value =
+            serde_json::from_str(&snapshot(&varied())).expect("the snapshot is JSON");
+        earlier["shell"]
+            .as_object_mut()
+            .expect("the state is an object")
+            .remove("settings")
+            .expect("the state holds its settings");
+        earlier["shape"] = json!(1);
+        let found = unkept(&earlier.to_string()).expect_err("an earlier build's state");
+        assert_eq!(found, 1, "the shape it named");
+        assert_ne!(
+            i64::try_from(found).ok(),
+            Some(SHAPE),
+            "a state without the settings named this build's own shape"
+        );
+    }
+
     /// A kept state of another shape, or not one this module writes, is set
     /// aside and never read as one.
     ///
@@ -4557,21 +5320,17 @@ mod tests {
     fn a_kept_state_of_another_shape_or_not_one_this_module_writes_is_set_aside() {
         let kept = snapshot(&varied());
         let shell = varied().to_value().to_canonical();
-        assert_eq!(
-            unkept(&kept.replacen("\"shape\":1", "\"shape\":0", 1)),
-            Err(0)
-        );
-        assert_eq!(
-            unkept(&kept.replacen("\"shape\":1", "\"shape\":7", 1)),
-            Err(7)
-        );
+        let this = format!("\"shape\":{SHAPE}");
+        assert_eq!(unkept(&kept.replacen(&this, "\"shape\":0", 1)), Err(0));
+        assert_eq!(unkept(&kept.replacen(&this, "\"shape\":7", 1)), Err(7));
         assert_eq!(unkept("not json"), Err(0));
         assert_eq!(unkept(r#"{"shape":"1"}"#), Err(0));
+        let own = u64::try_from(SHAPE).expect("a shape is a count");
         assert_eq!(
-            unkept(&format!(r#"{{"other":1,"shape":1,"shell":{shell}}}"#)),
-            Err(1)
+            unkept(&format!(r#"{{"other":1,"shape":{SHAPE},"shell":{shell}}}"#)),
+            Err(own)
         );
-        assert_eq!(unkept(r#"{"shape":1}"#), Err(1));
+        assert_eq!(unkept(&format!(r#"{{"shape":{SHAPE}}}"#)), Err(own));
         let edits = rule_breakers();
         for (at, (rule, edit)) in edits.iter().enumerate() {
             let mut state = varied();
@@ -4583,7 +5342,7 @@ mod tests {
                 .map(|(rule, _)| rule)
                 .collect();
             assert_eq!(broken, [rule.as_str()], "edit {at}: {state:?}");
-            assert_eq!(unkept(&snapshot(&state)), Err(1), "edit {at}: {rule}");
+            assert_eq!(unkept(&snapshot(&state)), Err(own), "edit {at}: {rule}");
         }
         let named: BTreeSet<&str> = edits.iter().map(|(rule, _)| rule.as_str()).collect();
         let state = varied();

@@ -91,6 +91,104 @@ In `pt-BR`:
 {"name":"confirmations_read","description":"Mostrar uma chamada que aguarda confirmação, com os argumentos com que rodaria.\n\nMostra a chamada que o Noctua segura sob o número dado até que uma pessoa a confirme na janela do Noctua: o comando, os argumentos com que rodaria, a pessoa cuja confirmação ela aguarda, o agente que a pediu, quando foi um agente, e quando a espera termina. Um número sob o qual nada mais aguarda é recusado. Não altera nada.","inputSchema":{"type":"object","properties":{"serial":{"type":"integer","minimum":1}},"required":["serial"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `dev.agents.read`
+
+In `en`:
+
+```json
+{"name":"dev_agents_read","description":"Show how full the tables that keep agents and their grants are.\n\nShows the two tables of this machine's database that keep the agents people made and the grants they gave them: the rows each holds and the bound at which a new agent or a new grant is refused. It counts rows and shows no agent; listing your agents is its own command. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_agents_read","description":"Mostrar o quanto as tabelas que guardam agentes e suas concessões estão cheias.\n\nMostra as duas tabelas do banco de dados desta máquina que guardam os agentes que as pessoas criaram e as concessões que lhes deram: as linhas que cada uma guarda e o limite em que um novo agente ou uma nova concessão é recusado. Conta linhas e não mostra nenhum agente; listar os seus agentes é um comando próprio. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.journal.read`
+
+In `en`:
+
+```json
+{"name":"dev_journal_read","description":"Read a page of the realm's journal, entry by entry.\n\nReads a page of the realm's journal from the entry you name, oldest first: who asked, for whom, which command, on what, how it was decided and by which policy, in which unit of work, and when. It says where the next page starts and which entry is the newest, and names an entry it could not read instead of skipping it. It changes nothing; verifying the journal's chain is its own command.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_journal_read","description":"Ler uma página do journal do realm, entrada por entrada.\n\nLê uma página do journal do realm a partir da entrada que você indicar, da mais antiga para a mais nova: quem pediu, em nome de quem, qual comando, sobre o quê, como foi decidido e por qual política, em qual unidade de trabalho e quando. Diz onde a próxima página começa e qual é a entrada mais nova, e nomeia uma entrada que não conseguiu ler em vez de pulá-la. Não altera nada; verificar a cadeia do journal é um comando próprio.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.limits.read`
+
+In `en`:
+
+```json
+{"name":"dev_limits_read","description":"Show how full each bounded table and count on this machine is.\n\nLists each table of this machine's database with the rows it holds and the bound it declares, and each count the local server keeps against a limit — agents' sessions, connections, calls waiting for confirmation, log lines kept — with how many are in use now. A bound counted for each plugin or each unit is shown beside the whole table's rows, which it does not bound. Limits that are a size or a time have no use to show; the limits page lists them. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_limits_read","description":"Mostrar o quanto cada tabela e contagem limitada desta máquina está cheia.\n\nLista cada tabela do banco de dados desta máquina com as linhas que ela guarda e o limite que declara, e cada contagem que o servidor local mantém contra um limite — sessões de agentes, conexões, chamadas aguardando confirmação, linhas de log guardadas — com quantas estão em uso agora. Um limite contado por plugin ou por unidade aparece ao lado das linhas da tabela inteira, que ele não limita. Limites que são um tamanho ou um tempo não têm uso a mostrar; a página de limites os lista. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.logs.read`
+
+In `en`:
+
+```json
+{"name":"dev_logs_read","description":"Read the newest log lines this machine's local server recorded.\n\nReads a page of the lines the local server on this machine recorded since it started, oldest first, each under the number it was recorded at, and says where the next page starts, so reading again from there follows the log as it grows. Only the newest lines are kept, in memory. A line holds an event's name, its level and its declared fields — codes, counts and identifiers, never text a person wrote. It changes nothing.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_logs_read","description":"Ler as linhas de log mais novas que o servidor local desta máquina registrou.\n\nLê uma página das linhas que o servidor local desta máquina registrou desde que iniciou, da mais antiga para a mais nova, cada uma sob o número em que foi registrada, e diz onde a próxima página começa, de modo que ler de novo a partir dali acompanha o log enquanto ele cresce. Só as linhas mais novas são guardadas, em memória. Uma linha traz o nome de um evento, seu nível e seus campos declarados — códigos, contagens e identificadores, nunca texto que uma pessoa escreveu. Não altera nada.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.plugins.read`
+
+In `en`:
+
+```json
+{"name":"dev_plugins_read","description":"List each loaded plugin with what it was granted and what it uses.\n\nLists the plugins the local server loaded, a page at a time: each one's identity and namespace, the capabilities it was granted, how many commands it declares, the surfaces and timers it holds, the lines its own log keeps, how often it was stopped and started again, why it was last stopped, and whether it is quarantined. It changes nothing.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_plugins_read","description":"Listar cada plugin carregado com o que lhe foi concedido e o que ele usa.\n\nLista os plugins que o servidor local carregou, uma página por vez: a identidade e o namespace de cada um, as capacidades que lhe foram concedidas, quantos comandos declara, as superfícies e os temporizadores que mantém, as linhas que o seu próprio log guarda, quantas vezes foi parado e iniciado de novo, por que foi parado da última vez e se está em quarentena. Não altera nada.","inputSchema":{"type":"object","properties":{"from":{"type":"integer","minimum":0},"max":{"type":"integer","minimum":1,"maximum":256}},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.policy.read`
+
+In `en`:
+
+```json
+{"name":"dev_policy_read","description":"Show the realm's policy pack, its version and its policy epoch.\n\nShows which policy pack decides what may be done in this realm: the pack and its version, as the realm pins it and the local server carries it, and the realm's policy epoch, which moves each time its permissions change. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_policy_read","description":"Mostrar o pacote de políticas do realm, sua versão e sua época.\n\nMostra qual pacote de políticas decide o que pode ser feito neste realm: o pacote e a sua versão, como o realm o fixa e o servidor local o carrega, e a época de políticas do realm, que avança cada vez que suas permissões mudam. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `dev.sessions.read`
+
+In `en`:
+
+```json
+{"name":"dev_sessions_read","description":"List the agents' sessions the local server holds open now.\n\nShows each session an agent holds open on the local server, by the agent's identifier, with how many sessions and connections are open and the most the server allows of each. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"dev_sessions_read","description":"Listar as sessões de agentes que o servidor local mantém abertas agora.\n\nMostra cada sessão que um agente mantém aberta no servidor local, pelo identificador do agente, com quantas sessões e conexões estão abertas e o máximo que o servidor permite de cada uma. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
 ## `drawer.back`
 
 In `en`:
@@ -180,13 +278,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"footer_show","description":"Show the footer's three lines now, even where the setting hides it.\n\nShows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"footer_show","description":"Show the footer's three lines now, even where the setting hides it.\n\nShows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"footer_show","description":"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\n\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"footer_show","description":"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\n\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `info.clear`
@@ -595,6 +693,174 @@ In `pt-BR`:
 {"name":"prompt_set","description":"Definir o que a linha do prompt contém, como se fosse digitado ali.\n\nDefine o texto da linha do prompt, a última linha do rodapé. Um texto que começa com ponto e vírgula ou dois-pontos abre a lista de comandos na gaveta, e o resto dele filtra a lista.","inputSchema":{"type":"object","properties":{"text":{"type":"string","maxLength":4096}},"required":["text"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
+## `settings.appearance.read`
+
+In `en`:
+
+```json
+{"name":"settings_appearance_read","description":"Show whether the Noctua window is chosen light or dark.\n\nAnswers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_appearance_read","description":"Mostrar se a janela do Noctua foi escolhida clara ou escura.\n\nResponde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.appearance.set`
+
+In `en`:
+
+```json
+{"name":"settings_appearance_set","description":"Choose a light or a dark Noctua window, or your system's mode.\n\nChooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_appearance_set","description":"Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.\n\nEscolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"mode":{"type":"string","enum":["system","light","dark"]}},"required":["mode"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.chord.read`
+
+In `en`:
+
+```json
+{"name":"settings_chord_read","description":"Show the key held with the Leader for more shortcuts.\n\nAnswers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_chord_read","description":"Mostrar a tecla pressionada com o Leader para mais atalhos.\n\nResponde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.chord.set`
+
+In `en`:
+
+```json
+{"name":"settings_chord_set","description":"Choose the key held with the Leader for more shortcuts.\n\nChanges the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had.","inputSchema":{"type":"object","properties":{"chord":{"type":"string","minLength":1,"maxLength":16}},"required":["chord"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_chord_set","description":"Escolher a tecla pressionada com o Leader para mais atalhos.\n\nMuda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha.","inputSchema":{"type":"object","properties":{"chord":{"type":"string","minLength":1,"maxLength":16}},"required":["chord"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `settings.chords.read`
+
+In `en`:
+
+```json
+{"name":"settings_chords_read","description":"Show each key pressed with the Leader held and what it runs.\n\nAnswers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_chords_read","description":"Mostrar cada tecla pressionada com o Leader e o que ela executa.\n\nResponde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.chords.set`
+
+In `en`:
+
+```json
+{"name":"settings_chords_set","description":"Choose each key pressed with the Leader held and what it runs.\n\nReplaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.","inputSchema":{"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_chords_set","description":"Escolher cada tecla pressionada com o Leader e o que ela executa.\n\nSubstitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.","inputSchema":{"type":"object","properties":{"chords":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16},"chord":{"type":"boolean"}},"required":["command","key","chord"],"additionalProperties":false},"maxItems":146}},"required":["chords"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `settings.footer.read`
+
+In `en`:
+
+```json
+{"name":"settings_footer_read","description":"Show whether the footer is always shown.\n\nAnswers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_footer_read","description":"Mostrar se o rodapé fica sempre visível.\n\nResponde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.footer.set`
+
+In `en`:
+
+```json
+{"name":"settings_footer_set","description":"Keep the footer always shown, or hidden until needed.\n\nChooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_footer_set","description":"Manter o rodapé sempre visível, ou oculto até ser necessário.\n\nEscolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"visibility":{"type":"string","enum":["always","hidden"]}},"required":["visibility"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.language.read`
+
+In `en`:
+
+```json
+{"name":"settings_language_read","description":"Show the language chosen for the Noctua window.\n\nAnswers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_language_read","description":"Mostrar o idioma escolhido para a janela do Noctua.\n\nResponde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.language.set`
+
+In `en`:
+
+```json
+{"name":"settings_language_set","description":"Choose the language for the Noctua window.\n\nChooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.","inputSchema":{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_language_set","description":"Escolher o idioma para a janela do Noctua.\n\nEscolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.","inputSchema":{"type":"object","properties":{"language":{"type":"string","enum":["system","en","pt-BR"]}},"required":["language"],"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.leader.read`
+
+In `en`:
+
+```json
+{"name":"settings_leader_read","description":"Show the keys that reach Noctua from anywhere.\n\nAnswers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_leader_read","description":"Mostrar as teclas que chamam o Noctua de qualquer lugar.\n\nResponde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.leader.set`
+
+In `en`:
+
+```json
+{"name":"settings_leader_set","description":"Choose the keys that reach Noctua from anywhere.\n\nChanges the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had.","inputSchema":{"type":"object","properties":{"leader":{"type":"string","minLength":1,"maxLength":64}},"required":["leader"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_leader_set","description":"Escolher as teclas que chamam o Noctua de qualquer lugar.\n\nMuda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha.","inputSchema":{"type":"object","properties":{"leader":{"type":"string","minLength":1,"maxLength":64}},"required":["leader"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
 ## `settings.mcp.read`
 
 In `en`:
@@ -621,6 +887,34 @@ In `pt-BR`:
 
 ```json
 {"name":"settings_mcp_set","description":"Deixar clientes MCP agirem aqui como agentes, ou impedi-los.\n\nLiga ou desliga o MCP nesta instalação do Noctua, e em nenhuma outra. Enquanto está desligado, nenhum cliente MCP entra; enquanto está ligado, um cliente age só como um agente que você criou e autorizou, nunca como você. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação, e ligá-lo aguarda você confirmar na janela do Noctua. Desfazer o deixa como estava; quando isso o ligaria, o desfazer também aguarda você confirmar na janela do Noctua.","inputSchema":{"type":"object","properties":{"on":{"type":"boolean"}},"required":["on"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+## `settings.menu-keys.read`
+
+In `en`:
+
+```json
+{"name":"settings_menu-keys_read","description":"Show each key of the leader menu and what it runs.\n\nAnswers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_menu-keys_read","description":"Mostrar cada tecla do menu do Leader e o que ela executa.\n\nResponde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+```
+
+## `settings.menu-keys.set`
+
+In `en`:
+
+```json
+{"name":"settings_menu-keys_set","description":"Choose each key of the leader menu and what it runs.\n\nReplaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.","inputSchema":{"type":"object","properties":{"keys":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16}},"required":["command","key"],"additionalProperties":false},"maxItems":73}},"required":["keys"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
+```
+
+In `pt-BR`:
+
+```json
+{"name":"settings_menu-keys_set","description":"Escolher cada tecla do menu do Leader e o que ela executa.\n\nSubstitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.","inputSchema":{"type":"object","properties":{"keys":{"type":"array","items":{"type":"object","properties":{"command":{"type":"string","minLength":1,"maxLength":96},"key":{"type":"string","minLength":1,"maxLength":16}},"required":["command","key"],"additionalProperties":false},"maxItems":73}},"required":["keys"],"additionalProperties":false},"annotations":{"readOnlyHint":false}}
 ```
 
 ## `shell.drag`

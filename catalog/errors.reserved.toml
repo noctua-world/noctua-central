@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "a1e73ef1a481ea809fc36523f166586b2e6427af2cbc967f84f793cd3b503f16"
-count = 187
+checksum = "3f5ed4ee39a1de74012d5e94c9215a2773e2c763b582e81e7b7a6ea08cd086d1"
+count = 192
 
 [reserved]
 "NC-AI-0001" = "error.ai.no-such-agent — warning — retryable:false — params:[] — An agent was named that the asking person did not make: none is held under that identifier, it is another person's, or its operator is not a person"
@@ -56,6 +56,11 @@ count = 187
 "NC-CHAN-0020" = "error.channel.leader-taken — warning — retryable:true — params:[] — Another program holds the channel's Leader, so it was not registered for Noctua, or the registration held was lost to that program"
 "NC-CHAN-0021" = "error.channel.leader-no-session — warning — retryable:false — params:[] — The process is in no graphical session that registers a global key for it, so the channel's Leader was not registered"
 "NC-CHAN-0022" = "error.channel.leader-unregistered — error — retryable:true — params:[] — The system could not be asked for the channel's Leader, or the registration held stopped delivering, so the Leader is not registered"
+"NC-CHAN-0023" = "error.channel.shortcut-leader-collides — error — retryable:false — params:[] — The Leader or the chord modifier a shortcut setting was asked for breaks a rule of the Leader's, or could not be judged against another channel's, so nothing was written and the keys in force stand"
+"NC-CHAN-0024" = "error.channel.shortcut-key-bound-twice — error — retryable:false — params:[] — The keys a shortcut setting was asked for bind one key of one table twice, so nothing was written and the keys in force stand"
+"NC-CHAN-0025" = "error.channel.shortcut-key-reserved — error — retryable:false — params:[] — A shortcut setting was asked for a key, a chord, a modifier or a command's name the keybinding grammar does not write — a key it keeps out of every shortcut among them — so nothing was written and the keys in force stand"
+"NC-CHAN-0026" = "error.channel.shortcut-leader-undelivered — error — retryable:true — params:[] — The system did not grant the Leader a shortcut setting was asked for — another program holds it, or the system could not be asked — so nothing was written and the Leader in force is still the one registered"
+"NC-CHAN-0027" = "error.channel.shortcuts-unsaved — error — retryable:true — params:[] — A shortcut setting could not be read or saved: the keybinding configuration as it stands is not one that is written over, the choice is past the file's bound, the disk did not answer, or no configuration is kept where it was asked; nothing was changed"
 "NC-CLI-0001" = "error.cli.command-line-unreadable — warning — retryable:false — params:[] — A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
 "NC-CLI-0002" = "error.cli.token-not-private — critical — retryable:false — params:[] — The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
 "NC-CLI-0003" = "error.cli.token-unreadable — error — retryable:true — params:[] — The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"

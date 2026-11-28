@@ -21,6 +21,8 @@ pub struct Catalog {
     pub notifications: Vec<Notification>,
     /// Every transactional email.
     pub emails: Vec<Email>,
+    /// Every text the interface itself says.
+    pub interface: Vec<InterfaceText>,
     /// Every safety limit and tunable.
     pub limits: Limits,
     /// Every command, with the metadata a dispatcher needs.
@@ -207,6 +209,32 @@ pub struct Email {
     pub params: Vec<String>,
 }
 
+// --- interface.toml ---
+
+/// `catalog/interface.toml`, whole: its texts, and no other key.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct InterfaceFile {
+    #[serde(default, rename = "text")]
+    pub(crate) texts: Vec<InterfaceText>,
+}
+
+/// One text the interface itself says (`NOCTUA.md §12`): a sentence, a word or
+/// a control's name that is no command's and no error's.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct InterfaceText {
+    /// Stable, dotted, and what the generated handle is named after.
+    pub id: String,
+    /// The i18n key of the text: `interface.` and the id.
+    pub text: String,
+    /// The placeholders the text may interpolate.
+    #[serde(default)]
+    pub params: Vec<String>,
+    /// Where the interface shows it, in one English sentence.
+    pub shown: String,
+}
+
 // --- limits.toml ---
 
 /// Every safety limit and tunable (`NOCTUA.md §15.8`).
@@ -369,6 +397,8 @@ pub struct KernelLimits {
     /// How much of the height the drawer shares with the workspace area it
     /// may take.
     pub shell_drawer_share_max: u32,
+    /// How many rows one page of what the dev pages read may hold.
+    pub dev_page_max: u32,
 }
 
 /// What one kernel limit is counted in.
@@ -497,6 +527,7 @@ impl KernelLimits {
             shell_window_min_width,
             shell_window_min_height,
             shell_drawer_share_max,
+            dev_page_max,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -842,6 +873,11 @@ impl KernelLimits {
                 bounds: "How much of the height the drawer shares with the workspace area it \
                          may take",
             },
+            narrow(
+                "dev_page_max",
+                dev_page_max,
+                "How many rows one page of what the dev pages read may hold",
+            ),
         ]
     }
 }
@@ -892,6 +928,8 @@ pub struct DaemonLimits {
     pub stop_within_ms: u64,
     /// How long `stop` waits for a daemon it signalled to end.
     pub kill_within_ms: u64,
+    /// How many of its newest log lines the daemon keeps in memory.
+    pub dev_logs_ring_lines: u32,
 }
 
 impl DaemonLimits {
@@ -924,6 +962,7 @@ impl DaemonLimits {
             start_within_ms,
             stop_within_ms,
             kill_within_ms,
+            dev_logs_ring_lines,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -1037,6 +1076,13 @@ impl DaemonLimits {
                 Unit::Milliseconds,
                 "How long `stop` waits for a daemon it signalled to end",
             ),
+            NamedLimit {
+                name: "dev_logs_ring_lines",
+                value: u64::from(dev_logs_ring_lines),
+                wide: false,
+                unit: Unit::Count,
+                bounds: "How many of its newest log lines the daemon keeps in memory",
+            },
         ]
     }
 }

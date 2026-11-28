@@ -103,4 +103,5 @@ pub mod seat;
 pub mod sheet;
 pub mod sidebar;
 pub mod surface;
+pub mod text;
 pub mod theme;

@@ -259,6 +259,7 @@ pub(crate) mod tests {
             draft: String::new(),
             asking: None,
             seats: BTreeMap::new(),
+            settings: crate::mirror::Settings::default(),
             next: 6,
         }
     }

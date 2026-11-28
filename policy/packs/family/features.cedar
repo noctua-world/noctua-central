@@ -155,7 +155,11 @@ permit (
 // for the person's confirmation (`confirmations.`), of the surfaces plugins
 // show and who rendered each (`surfaces.`), and of the step their next undo
 // takes back (`kernel.history`); and a click on a surface, `surfaces.activate`,
-// is `Write` here, the command it runs decided again as itself. **A person, and only a person:
+// is `Write` here, the command it runs decided again as itself. So are the
+// five reads of how the platform on their machine stands, which the dev pages
+// show (`dev.limits.read`, `dev.plugins.read`, `dev.sessions.read`,
+// `dev.agents.read`, `dev.policy.read`; `NOCTUA.md §12.16`): counts, names
+// and versions, and nothing a person wrote. **A person, and only a person:
 // `principal is User` is this permit's own constraint.** An agent drives no
 // interface — no permit names `Agent` on this feature, so the agent's half of
 // every question about it is refused, and a person's grant of it to an agent

@@ -2167,6 +2167,135 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "command.dev.agents.read.description",
+        [
+            "Show how full the tables that keep agents and their grants are.",
+            "Mostrar o quanto as tabelas que guardam agentes e suas concessões estão cheias.",
+        ],
+    ),
+    (
+        "command.dev.agents.read.paragraph",
+        [
+            "Shows the two tables of this machine's database that keep the agents people made and the grants they gave them: the rows each holds and the bound at which a new agent or a new grant is refused. It counts rows and shows no agent; listing your agents is its own command. It changes nothing.",
+            "Mostra as duas tabelas do banco de dados desta máquina que guardam os agentes que as pessoas criaram e as concessões que lhes deram: as linhas que cada uma guarda e o limite em que um novo agente ou uma nova concessão é recusado. Conta linhas e não mostra nenhum agente; listar os seus agentes é um comando próprio. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.agents.read.title",
+        [
+            "Show agents' tables in use",
+            "Mostrar o uso das tabelas de agentes",
+        ],
+    ),
+    (
+        "command.dev.journal.read.description",
+        [
+            "Read a page of the realm's journal, entry by entry.",
+            "Ler uma página do journal do realm, entrada por entrada.",
+        ],
+    ),
+    (
+        "command.dev.journal.read.paragraph",
+        [
+            "Reads a page of the realm's journal from the entry you name, oldest first: who asked, for whom, which command, on what, how it was decided and by which policy, in which unit of work, and when. It says where the next page starts and which entry is the newest, and names an entry it could not read instead of skipping it. It changes nothing; verifying the journal's chain is its own command.",
+            "Lê uma página do journal do realm a partir da entrada que você indicar, da mais antiga para a mais nova: quem pediu, em nome de quem, qual comando, sobre o quê, como foi decidido e por qual política, em qual unidade de trabalho e quando. Diz onde a próxima página começa e qual é a entrada mais nova, e nomeia uma entrada que não conseguiu ler em vez de pulá-la. Não altera nada; verificar a cadeia do journal é um comando próprio.",
+        ],
+    ),
+    (
+        "command.dev.journal.read.title",
+        ["Browse the journal", "Navegar pelo journal"],
+    ),
+    (
+        "command.dev.limits.read.description",
+        [
+            "Show how full each bounded table and count on this machine is.",
+            "Mostrar o quanto cada tabela e contagem limitada desta máquina está cheia.",
+        ],
+    ),
+    (
+        "command.dev.limits.read.paragraph",
+        [
+            "Lists each table of this machine's database with the rows it holds and the bound it declares, and each count the local server keeps against a limit — agents' sessions, connections, calls waiting for confirmation, log lines kept — with how many are in use now. A bound counted for each plugin or each unit is shown beside the whole table's rows, which it does not bound. Limits that are a size or a time have no use to show; the limits page lists them. It changes nothing.",
+            "Lista cada tabela do banco de dados desta máquina com as linhas que ela guarda e o limite que declara, e cada contagem que o servidor local mantém contra um limite — sessões de agentes, conexões, chamadas aguardando confirmação, linhas de log guardadas — com quantas estão em uso agora. Um limite contado por plugin ou por unidade aparece ao lado das linhas da tabela inteira, que ele não limita. Limites que são um tamanho ou um tempo não têm uso a mostrar; a página de limites os lista. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.limits.read.title",
+        ["Show limits in use", "Mostrar limites em uso"],
+    ),
+    (
+        "command.dev.logs.read.description",
+        [
+            "Read the newest log lines this machine's local server recorded.",
+            "Ler as linhas de log mais novas que o servidor local desta máquina registrou.",
+        ],
+    ),
+    (
+        "command.dev.logs.read.paragraph",
+        [
+            "Reads a page of the lines the local server on this machine recorded since it started, oldest first, each under the number it was recorded at, and says where the next page starts, so reading again from there follows the log as it grows. Only the newest lines are kept, in memory. A line holds an event's name, its level and its declared fields — codes, counts and identifiers, never text a person wrote. It changes nothing.",
+            "Lê uma página das linhas que o servidor local desta máquina registrou desde que iniciou, da mais antiga para a mais nova, cada uma sob o número em que foi registrada, e diz onde a próxima página começa, de modo que ler de novo a partir dali acompanha o log enquanto ele cresce. Só as linhas mais novas são guardadas, em memória. Uma linha traz o nome de um evento, seu nível e seus campos declarados — códigos, contagens e identificadores, nunca texto que uma pessoa escreveu. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.logs.read.title",
+        ["Read the live log", "Ler o log ao vivo"],
+    ),
+    (
+        "command.dev.plugins.read.description",
+        [
+            "List each loaded plugin with what it was granted and what it uses.",
+            "Listar cada plugin carregado com o que lhe foi concedido e o que ele usa.",
+        ],
+    ),
+    (
+        "command.dev.plugins.read.paragraph",
+        [
+            "Lists the plugins the local server loaded, a page at a time: each one's identity and namespace, the capabilities it was granted, how many commands it declares, the surfaces and timers it holds, the lines its own log keeps, how often it was stopped and started again, why it was last stopped, and whether it is quarantined. It changes nothing.",
+            "Lista os plugins que o servidor local carregou, uma página por vez: a identidade e o namespace de cada um, as capacidades que lhe foram concedidas, quantos comandos declara, as superfícies e os temporizadores que mantém, as linhas que o seu próprio log guarda, quantas vezes foi parado e iniciado de novo, por que foi parado da última vez e se está em quarentena. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.plugins.read.title",
+        ["Show loaded plugins", "Mostrar plugins carregados"],
+    ),
+    (
+        "command.dev.policy.read.description",
+        [
+            "Show the realm's policy pack, its version and its policy epoch.",
+            "Mostrar o pacote de políticas do realm, sua versão e sua época.",
+        ],
+    ),
+    (
+        "command.dev.policy.read.paragraph",
+        [
+            "Shows which policy pack decides what may be done in this realm: the pack and its version, as the realm pins it and the local server carries it, and the realm's policy epoch, which moves each time its permissions change. It changes nothing.",
+            "Mostra qual pacote de políticas decide o que pode ser feito neste realm: o pacote e a sua versão, como o realm o fixa e o servidor local o carrega, e a época de políticas do realm, que avança cada vez que suas permissões mudam. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.policy.read.title",
+        ["Show the policy pack", "Mostrar o pacote de políticas"],
+    ),
+    (
+        "command.dev.sessions.read.description",
+        [
+            "List the agents' sessions the local server holds open now.",
+            "Listar as sessões de agentes que o servidor local mantém abertas agora.",
+        ],
+    ),
+    (
+        "command.dev.sessions.read.paragraph",
+        [
+            "Shows each session an agent holds open on the local server, by the agent's identifier, with how many sessions and connections are open and the most the server allows of each. It changes nothing.",
+            "Mostra cada sessão que um agente mantém aberta no servidor local, pelo identificador do agente, com quantas sessões e conexões estão abertas e o máximo que o servidor permite de cada uma. Não altera nada.",
+        ],
+    ),
+    (
+        "command.dev.sessions.read.title",
+        ["Show agents' sessions", "Mostrar sessões de agentes"],
+    ),
+    (
         "command.drawer.back.description",
         [
             "Leave a sub-page of the drawer's page, or close that page if it has none.",
@@ -2284,8 +2413,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.footer.show.paragraph",
         [
-            "Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.",
-            "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.",
+            "Shows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.",
+            "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.",
         ],
     ),
     (
@@ -2818,6 +2947,228 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Type into the prompt line", "Digitar na linha do prompt"],
     ),
     (
+        "command.settings.appearance.read.description",
+        [
+            "Show whether the Noctua window is chosen light or dark.",
+            "Mostrar se a janela do Noctua foi escolhida clara ou escura.",
+        ],
+    ),
+    (
+        "command.settings.appearance.read.paragraph",
+        [
+            "Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.",
+            "Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.appearance.read.title",
+        ["Read the appearance", "Ler a aparência"],
+    ),
+    (
+        "command.settings.appearance.set.description",
+        [
+            "Choose a light or a dark Noctua window, or your system's mode.",
+            "Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.",
+        ],
+    ),
+    (
+        "command.settings.appearance.set.paragraph",
+        [
+            "Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.appearance.set.title",
+        ["Change the appearance", "Alterar a aparência"],
+    ),
+    (
+        "command.settings.chord.read.description",
+        [
+            "Show the key held with the Leader for more shortcuts.",
+            "Mostrar a tecla pressionada com o Leader para mais atalhos.",
+        ],
+    ),
+    (
+        "command.settings.chord.read.paragraph",
+        [
+            "Answers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing.",
+            "Responde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.chord.read.title",
+        ["Read the added key", "Ver a tecla acrescentada"],
+    ),
+    (
+        "command.settings.chord.set.description",
+        [
+            "Choose the key held with the Leader for more shortcuts.",
+            "Escolher a tecla pressionada com o Leader para mais atalhos.",
+        ],
+    ),
+    (
+        "command.settings.chord.set.paragraph",
+        [
+            "Changes the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had.",
+            "Muda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.chord.set.title",
+        ["Change the added key", "Mudar a tecla acrescentada"],
+    ),
+    (
+        "command.settings.chords.read.description",
+        [
+            "Show each key pressed with the Leader held and what it runs.",
+            "Mostrar cada tecla pressionada com o Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.chords.read.paragraph",
+        [
+            "Answers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing.",
+            "Responde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.chords.read.title",
+        ["Read the chords", "Ver as combinações"],
+    ),
+    (
+        "command.settings.chords.set.description",
+        [
+            "Choose each key pressed with the Leader held and what it runs.",
+            "Escolher cada tecla pressionada com o Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.chords.set.paragraph",
+        [
+            "Replaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.",
+            "Substitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.chords.set.title",
+        ["Change the chords", "Mudar as combinações"],
+    ),
+    (
+        "command.settings.footer.read.description",
+        [
+            "Show whether the footer is always shown.",
+            "Mostrar se o rodapé fica sempre visível.",
+        ],
+    ),
+    (
+        "command.settings.footer.read.paragraph",
+        [
+            "Answers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.",
+            "Responde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.footer.read.title",
+        [
+            "Read the footer's visibility",
+            "Ler a visibilidade do rodapé",
+        ],
+    ),
+    (
+        "command.settings.footer.set.description",
+        [
+            "Keep the footer always shown, or hidden until needed.",
+            "Manter o rodapé sempre visível, ou oculto até ser necessário.",
+        ],
+    ),
+    (
+        "command.settings.footer.set.paragraph",
+        [
+            "Chooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.footer.set.title",
+        [
+            "Change the footer's visibility",
+            "Alterar a visibilidade do rodapé",
+        ],
+    ),
+    (
+        "command.settings.language.read.description",
+        [
+            "Show the language chosen for the Noctua window.",
+            "Mostrar o idioma escolhido para a janela do Noctua.",
+        ],
+    ),
+    (
+        "command.settings.language.read.paragraph",
+        [
+            "Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.",
+            "Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.",
+        ],
+    ),
+    (
+        "command.settings.language.read.title",
+        ["Read the language", "Ler o idioma"],
+    ),
+    (
+        "command.settings.language.set.description",
+        [
+            "Choose the language for the Noctua window.",
+            "Escolher o idioma para a janela do Noctua.",
+        ],
+    ),
+    (
+        "command.settings.language.set.paragraph",
+        [
+            "Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.",
+            "Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.",
+        ],
+    ),
+    (
+        "command.settings.language.set.title",
+        ["Change the language", "Alterar o idioma"],
+    ),
+    (
+        "command.settings.leader.read.description",
+        [
+            "Show the keys that reach Noctua from anywhere.",
+            "Mostrar as teclas que chamam o Noctua de qualquer lugar.",
+        ],
+    ),
+    (
+        "command.settings.leader.read.paragraph",
+        [
+            "Answers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing.",
+            "Responde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.leader.read.title",
+        ["Read the Leader", "Ver o Leader"],
+    ),
+    (
+        "command.settings.leader.set.description",
+        [
+            "Choose the keys that reach Noctua from anywhere.",
+            "Escolher as teclas que chamam o Noctua de qualquer lugar.",
+        ],
+    ),
+    (
+        "command.settings.leader.set.paragraph",
+        [
+            "Changes the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had.",
+            "Muda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.leader.set.title",
+        ["Change the Leader", "Mudar o Leader"],
+    ),
+    (
         "command.settings.mcp.read.description",
         [
             "Show whether this installation of Noctua lets MCP clients in.",
@@ -2852,6 +3203,48 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.settings.mcp.set.title",
         ["Switch MCP on or off", "Ligar ou desligar o MCP"],
+    ),
+    (
+        "command.settings.menu-keys.read.description",
+        [
+            "Show each key of the leader menu and what it runs.",
+            "Mostrar cada tecla do menu do Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.paragraph",
+        [
+            "Answers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing.",
+            "Responde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.title",
+        [
+            "Read the leader menu's keys",
+            "Ver as teclas do menu do Leader",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.description",
+        [
+            "Choose each key of the leader menu and what it runs.",
+            "Escolher cada tecla do menu do Leader e o que ela executa.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.paragraph",
+        [
+            "Replaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.",
+            "Substitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.",
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.title",
+        [
+            "Change the leader menu's keys",
+            "Mudar as teclas do menu do Leader",
+        ],
     ),
     (
         "command.shell.drag.description",
@@ -3383,6 +3776,41 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "This copy of Noctua has no file saying which installation it is, so it stopped before doing anything. Install Noctua again.",
             "Esta cópia do Noctua não tem o arquivo que diz qual instalação ela é, então parou antes de fazer qualquer coisa. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-key-bound-twice",
+        [
+            "Two of the shortcuts you chose use the same key in the same list, so nothing was changed. Give each one a key of its own.",
+            "Dois dos atalhos que você escolheu usam a mesma tecla na mesma lista, então nada foi alterado. Dê a cada um uma tecla própria.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-key-reserved",
+        [
+            "A key you chose cannot be part of a shortcut, so nothing was changed. Choose a letter, a digit, a punctuation key, Space, Tab, Enter, Backspace, an arrow, one of the six keys above the arrows or F1 to F12.",
+            "Uma tecla que você escolheu não pode fazer parte de um atalho, então nada foi alterado. Escolha uma letra, um dígito, uma tecla de pontuação, Espaço, Tab, Enter, Backspace, uma seta, uma das seis teclas acima das setas ou de F1 a F12.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-leader-collides",
+        [
+            "The Leader and the key added to it, as you chose them, clash with each other or with another installation of Noctua, so nothing was changed. Choose another Leader or another added key.",
+            "O Leader e a tecla acrescentada a ele, como você os escolheu, conflitam entre si ou com outra instalação do Noctua, então nada foi alterado. Escolha outro Leader ou outra tecla acrescentada.",
+        ],
+    ),
+    (
+        "error.channel.shortcut-leader-undelivered",
+        [
+            "The system did not give Noctua the Leader you chose, because another program already uses those keys or the system could not be asked, so nothing was changed and your shortcuts stay as they were. Free the keys in that program, or choose another Leader.",
+            "O sistema não entregou ao Noctua o Leader que você escolheu, porque outro programa já usa essas teclas ou o sistema não pôde ser consultado, então nada foi alterado e seus atalhos continuam como estavam. Libere as teclas nesse programa ou escolha outro Leader.",
+        ],
+    ),
+    (
+        "error.channel.shortcuts-unsaved",
+        [
+            "Noctua could not save your keyboard shortcut settings, so nothing was changed. Your shortcut file may be one another account can change, one this version of Noctua cannot read or too large, or its disk may be full or disconnected. Check the file and its disk, then try again.",
+            "O Noctua não conseguiu salvar suas configurações de atalhos de teclado, então nada foi alterado. Seu arquivo de atalhos pode ser um que outra conta consegue alterar, um que esta versão do Noctua não lê ou grande demais, ou o disco dele pode estar cheio ou desconectado. Verifique o arquivo e o disco dele e tente de novo.",
         ],
     ),
     (
@@ -4498,6 +4926,113 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ["Google Chrome", "Google Chrome"],
     ),
     (
+        "interface.alert.countdown-one",
+        [
+            "Restoring in {count} second",
+            "Restaurando em {count} segundo",
+        ],
+    ),
+    (
+        "interface.alert.countdown-other",
+        [
+            "Restoring in {count} seconds",
+            "Restaurando em {count} segundos",
+        ],
+    ),
+    (
+        "interface.alert.not-running",
+        [
+            "The local server is not running",
+            "O servidor local não está em execução",
+        ],
+    ),
+    (
+        "interface.alert.restore-now",
+        ["Restore now", "Restaurar agora"],
+    ),
+    ("interface.alert.start", ["Start", "Iniciar"]),
+    (
+        "interface.alert.stopped",
+        [
+            "The local server is stopped",
+            "O servidor local está parado",
+        ],
+    ),
+    (
+        "interface.channel.development",
+        ["Development", "Desenvolvimento"],
+    ),
+    ("interface.channel.staging", ["Staging", "Homologação"]),
+    (
+        "interface.confirm.asked-by-agent",
+        ["Asked by the agent {agent}", "Pedido pelo agente {agent}"],
+    ),
+    (
+        "interface.confirm.asked-by-you",
+        [
+            "Asked by you, from outside this window",
+            "Pedido por você, de fora desta janela",
+        ],
+    ),
+    ("interface.confirm.confirm", ["Confirm", "Confirmar"]),
+    ("interface.confirm.decline", ["Decline", "Recusar"]),
+    (
+        "interface.confirm.irreversible",
+        ["This cannot be undone", "Isto não pode ser desfeito"],
+    ),
+    ("interface.connection.offline", ["Offline", "Sem conexão"]),
+    ("interface.connection.online", ["Online", "Conectado"]),
+    (
+        "interface.history.nothing-to-undo",
+        ["There is nothing to undo", "Não há nada para desfazer"],
+    ),
+    (
+        "interface.history.undo-of-an-agent",
+        [
+            "Undo takes back: {step} (made by the agent {agent})",
+            "Desfazer reverte: {step} (feito pelo agente {agent})",
+        ],
+    ),
+    (
+        "interface.history.undo-takes-back",
+        ["Undo takes back: {step}", "Desfazer reverte: {step}"],
+    ),
+    (
+        "interface.leader.bind",
+        [
+            "Bind {chord} in your compositor to run: {command}",
+            "Associe {chord} no seu compositor para executar: {command}",
+        ],
+    ),
+    ("interface.part.footer", ["Footer", "Rodapé"]),
+    (
+        "interface.prompt.nothing-handles",
+        [
+            "Nothing handles this text here. Press the Leader to list what you can do.",
+            "Nada trata este texto aqui. Pressione a tecla Leader para listar o que você pode fazer.",
+        ],
+    ),
+    ("interface.prompt.send", ["Send", "Enviar"]),
+    ("interface.seat.numbered", ["Seat {seat}", "Posto {seat}"]),
+    ("interface.settings.appearance.dark", ["Dark", "Escuro"]),
+    ("interface.settings.appearance.light", ["Light", "Claro"]),
+    (
+        "interface.settings.appearance.system",
+        ["The system's mode", "O modo do sistema"],
+    ),
+    (
+        "interface.settings.footer.always",
+        ["Always shown", "Sempre visível"],
+    ),
+    (
+        "interface.settings.footer.hidden",
+        ["Hidden until needed", "Oculto até ser necessário"],
+    ),
+    (
+        "interface.settings.language.system",
+        ["The system's language", "O idioma do sistema"],
+    ),
+    (
         "notification.catalog.mechanism.body",
         [
             "Hello {name}. This message exists so that Noctua can check its own notifications reach you correctly.",
@@ -4947,6 +5482,27 @@ pub const KEYS: &[&str] = &[
     "command.confirmations.read.description",
     "command.confirmations.read.paragraph",
     "command.confirmations.read.title",
+    "command.dev.agents.read.description",
+    "command.dev.agents.read.paragraph",
+    "command.dev.agents.read.title",
+    "command.dev.journal.read.description",
+    "command.dev.journal.read.paragraph",
+    "command.dev.journal.read.title",
+    "command.dev.limits.read.description",
+    "command.dev.limits.read.paragraph",
+    "command.dev.limits.read.title",
+    "command.dev.logs.read.description",
+    "command.dev.logs.read.paragraph",
+    "command.dev.logs.read.title",
+    "command.dev.plugins.read.description",
+    "command.dev.plugins.read.paragraph",
+    "command.dev.plugins.read.title",
+    "command.dev.policy.read.description",
+    "command.dev.policy.read.paragraph",
+    "command.dev.policy.read.title",
+    "command.dev.sessions.read.description",
+    "command.dev.sessions.read.paragraph",
+    "command.dev.sessions.read.title",
     "command.drawer.back.description",
     "command.drawer.back.paragraph",
     "command.drawer.back.title",
@@ -5055,12 +5611,54 @@ pub const KEYS: &[&str] = &[
     "command.prompt.set.description",
     "command.prompt.set.paragraph",
     "command.prompt.set.title",
+    "command.settings.appearance.read.description",
+    "command.settings.appearance.read.paragraph",
+    "command.settings.appearance.read.title",
+    "command.settings.appearance.set.description",
+    "command.settings.appearance.set.paragraph",
+    "command.settings.appearance.set.title",
+    "command.settings.chord.read.description",
+    "command.settings.chord.read.paragraph",
+    "command.settings.chord.read.title",
+    "command.settings.chord.set.description",
+    "command.settings.chord.set.paragraph",
+    "command.settings.chord.set.title",
+    "command.settings.chords.read.description",
+    "command.settings.chords.read.paragraph",
+    "command.settings.chords.read.title",
+    "command.settings.chords.set.description",
+    "command.settings.chords.set.paragraph",
+    "command.settings.chords.set.title",
+    "command.settings.footer.read.description",
+    "command.settings.footer.read.paragraph",
+    "command.settings.footer.read.title",
+    "command.settings.footer.set.description",
+    "command.settings.footer.set.paragraph",
+    "command.settings.footer.set.title",
+    "command.settings.language.read.description",
+    "command.settings.language.read.paragraph",
+    "command.settings.language.read.title",
+    "command.settings.language.set.description",
+    "command.settings.language.set.paragraph",
+    "command.settings.language.set.title",
+    "command.settings.leader.read.description",
+    "command.settings.leader.read.paragraph",
+    "command.settings.leader.read.title",
+    "command.settings.leader.set.description",
+    "command.settings.leader.set.paragraph",
+    "command.settings.leader.set.title",
     "command.settings.mcp.read.description",
     "command.settings.mcp.read.paragraph",
     "command.settings.mcp.read.title",
     "command.settings.mcp.set.description",
     "command.settings.mcp.set.paragraph",
     "command.settings.mcp.set.title",
+    "command.settings.menu-keys.read.description",
+    "command.settings.menu-keys.read.paragraph",
+    "command.settings.menu-keys.read.title",
+    "command.settings.menu-keys.set.description",
+    "command.settings.menu-keys.set.paragraph",
+    "command.settings.menu-keys.set.title",
     "command.shell.drag.description",
     "command.shell.drag.paragraph",
     "command.shell.drag.title",
@@ -5143,6 +5741,11 @@ pub const KEYS: &[&str] = &[
     "error.channel.manifest-unreadable",
     "error.channel.namespace-malformed",
     "error.channel.no-manifest",
+    "error.channel.shortcut-key-bound-twice",
+    "error.channel.shortcut-key-reserved",
+    "error.channel.shortcut-leader-collides",
+    "error.channel.shortcut-leader-undelivered",
+    "error.channel.shortcuts-unsaved",
     "error.channel.unknown",
     "error.cli.answer-unreadable",
     "error.cli.checkout-unknown",
@@ -5304,6 +5907,35 @@ pub const KEYS: &[&str] = &[
     "external-identifier.google-chrome.description",
     "external-identifier.google-chrome.paragraph",
     "external-identifier.google-chrome.title",
+    "interface.alert.countdown-one",
+    "interface.alert.countdown-other",
+    "interface.alert.not-running",
+    "interface.alert.restore-now",
+    "interface.alert.start",
+    "interface.alert.stopped",
+    "interface.channel.development",
+    "interface.channel.staging",
+    "interface.confirm.asked-by-agent",
+    "interface.confirm.asked-by-you",
+    "interface.confirm.confirm",
+    "interface.confirm.decline",
+    "interface.confirm.irreversible",
+    "interface.connection.offline",
+    "interface.connection.online",
+    "interface.history.nothing-to-undo",
+    "interface.history.undo-of-an-agent",
+    "interface.history.undo-takes-back",
+    "interface.leader.bind",
+    "interface.part.footer",
+    "interface.prompt.nothing-handles",
+    "interface.prompt.send",
+    "interface.seat.numbered",
+    "interface.settings.appearance.dark",
+    "interface.settings.appearance.light",
+    "interface.settings.appearance.system",
+    "interface.settings.footer.always",
+    "interface.settings.footer.hidden",
+    "interface.settings.language.system",
     "notification.catalog.mechanism.body",
     "notification.catalog.mechanism.title",
 ];
@@ -5554,6 +6186,122 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "argumentos",
                 "detalhes",
             ],
+        ],
+    ),
+    (
+        "command.dev.agents.read.tags",
+        [
+            &["agents", "grants", "tables", "rows", "bounds", "dev"],
+            &[
+                "agentes",
+                "concessões",
+                "tabelas",
+                "linhas",
+                "limites",
+                "dev",
+            ],
+        ],
+    ),
+    (
+        "command.dev.journal.read.tags",
+        [
+            &[
+                "journal", "audit", "history", "entries", "browse", "dev", "records",
+            ],
+            &[
+                "journal",
+                "auditoria",
+                "histórico",
+                "entradas",
+                "navegar",
+                "dev",
+                "registros",
+            ],
+        ],
+    ),
+    (
+        "command.dev.limits.read.tags",
+        [
+            &[
+                "limits", "bounds", "usage", "tables", "rows", "dev", "capacity",
+            ],
+            &[
+                "limites",
+                "uso",
+                "tabelas",
+                "linhas",
+                "dev",
+                "capacidade",
+                "ocupação",
+            ],
+        ],
+    ),
+    (
+        "command.dev.logs.read.tags",
+        [
+            &["logs", "log", "live", "errors", "events", "dev", "tail"],
+            &[
+                "logs",
+                "log",
+                "ao vivo",
+                "erros",
+                "eventos",
+                "dev",
+                "acompanhar",
+            ],
+        ],
+    ),
+    (
+        "command.dev.plugins.read.tags",
+        [
+            &[
+                "plugins",
+                "loaded",
+                "capabilities",
+                "resources",
+                "restarts",
+                "dev",
+                "quarantine",
+            ],
+            &[
+                "plugins",
+                "carregados",
+                "capacidades",
+                "recursos",
+                "reinícios",
+                "dev",
+                "quarentena",
+            ],
+        ],
+    ),
+    (
+        "command.dev.policy.read.tags",
+        [
+            &[
+                "policy",
+                "pack",
+                "version",
+                "epoch",
+                "realm",
+                "dev",
+                "authorization",
+            ],
+            &[
+                "política",
+                "pacote",
+                "versão",
+                "época",
+                "realm",
+                "dev",
+                "autorização",
+            ],
+        ],
+    ),
+    (
+        "command.dev.sessions.read.tags",
+        [
+            &["sessions", "agents", "mcp", "connections", "open", "dev"],
+            &["sessões", "agentes", "mcp", "conexões", "abertas", "dev"],
         ],
     ),
     (
@@ -5942,6 +6690,265 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
         ],
     ),
     (
+        "command.settings.appearance.read.tags",
+        [
+            &[
+                "appearance",
+                "theme",
+                "dark mode",
+                "light mode",
+                "interface",
+                "settings",
+            ],
+            &[
+                "aparência",
+                "tema",
+                "modo escuro",
+                "modo claro",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.appearance.set.tags",
+        [
+            &[
+                "appearance",
+                "theme",
+                "dark mode",
+                "light mode",
+                "colours",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "aparência",
+                "tema",
+                "modo escuro",
+                "modo claro",
+                "cores",
+                "interface",
+                "ajustes",
+                "alterar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chord.read.tags",
+        [
+            &[
+                "chord",
+                "added key",
+                "modifier",
+                "shift",
+                "shortcut",
+                "keyboard",
+                "settings",
+            ],
+            &[
+                "tecla acrescentada",
+                "modificador",
+                "shift",
+                "atalho",
+                "teclado",
+                "configurações",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chord.set.tags",
+        [
+            &[
+                "chord",
+                "added key",
+                "modifier",
+                "shift",
+                "shortcut",
+                "keyboard",
+                "settings",
+                "change",
+            ],
+            &[
+                "tecla acrescentada",
+                "modificador",
+                "shift",
+                "atalho",
+                "teclado",
+                "configurações",
+                "mudar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chords.read.tags",
+        [
+            &[
+                "chords",
+                "held",
+                "shortcuts",
+                "keys",
+                "keyboard",
+                "settings",
+            ],
+            &[
+                "combinações",
+                "pressionado",
+                "atalhos",
+                "teclas",
+                "teclado",
+                "configurações",
+            ],
+        ],
+    ),
+    (
+        "command.settings.chords.set.tags",
+        [
+            &[
+                "chords",
+                "held",
+                "shortcuts",
+                "keys",
+                "keyboard",
+                "settings",
+                "change",
+                "rebind",
+            ],
+            &[
+                "combinações",
+                "pressionado",
+                "atalhos",
+                "teclas",
+                "teclado",
+                "configurações",
+                "mudar",
+                "reatribuir",
+            ],
+        ],
+    ),
+    (
+        "command.settings.footer.read.tags",
+        [
+            &[
+                "footer",
+                "visibility",
+                "hide the footer",
+                "interface",
+                "settings",
+            ],
+            &[
+                "rodapé",
+                "visibilidade",
+                "ocultar o rodapé",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.footer.set.tags",
+        [
+            &[
+                "footer",
+                "visibility",
+                "hide the footer",
+                "show the footer",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "rodapé",
+                "visibilidade",
+                "ocultar o rodapé",
+                "mostrar o rodapé",
+                "interface",
+                "ajustes",
+                "alterar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.language.read.tags",
+        [
+            &[
+                "language",
+                "locale",
+                "english",
+                "portuguese",
+                "interface",
+                "settings",
+            ],
+            &[
+                "idioma",
+                "língua",
+                "inglês",
+                "português",
+                "interface",
+                "ajustes",
+            ],
+        ],
+    ),
+    (
+        "command.settings.language.set.tags",
+        [
+            &[
+                "language",
+                "locale",
+                "english",
+                "portuguese",
+                "translate",
+                "interface",
+                "settings",
+                "change",
+            ],
+            &[
+                "idioma",
+                "língua",
+                "inglês",
+                "português",
+                "traduzir",
+                "interface",
+                "ajustes",
+                "alterar",
+            ],
+        ],
+    ),
+    (
+        "command.settings.leader.read.tags",
+        [
+            &[
+                "leader", "shortcut", "keys", "keyboard", "settings", "hotkey",
+            ],
+            &[
+                "leader",
+                "atalho",
+                "teclas",
+                "teclado",
+                "configurações",
+                "tecla de atalho",
+            ],
+        ],
+    ),
+    (
+        "command.settings.leader.set.tags",
+        [
+            &[
+                "leader", "shortcut", "keys", "keyboard", "settings", "hotkey", "change",
+            ],
+            &[
+                "leader",
+                "atalho",
+                "teclas",
+                "teclado",
+                "configurações",
+                "tecla de atalho",
+                "mudar",
+            ],
+        ],
+    ),
+    (
         "command.settings.mcp.read.tags",
         [
             &[
@@ -5980,6 +6987,52 @@ const TAGS: &[(&str, [&[&str]; 2])] = &[
                 "desligar",
                 "ferramentas de ia",
                 "protocolo de contexto",
+            ],
+        ],
+    ),
+    (
+        "command.settings.menu-keys.read.tags",
+        [
+            &[
+                "leader menu",
+                "keys",
+                "shortcuts",
+                "keyboard",
+                "settings",
+                "menu",
+            ],
+            &[
+                "menu do leader",
+                "teclas",
+                "atalhos",
+                "teclado",
+                "configurações",
+                "menu",
+            ],
+        ],
+    ),
+    (
+        "command.settings.menu-keys.set.tags",
+        [
+            &[
+                "leader menu",
+                "keys",
+                "shortcuts",
+                "keyboard",
+                "settings",
+                "menu",
+                "change",
+                "rebind",
+            ],
+            &[
+                "menu do leader",
+                "teclas",
+                "atalhos",
+                "teclado",
+                "configurações",
+                "menu",
+                "mudar",
+                "reatribuir",
             ],
         ],
     ),

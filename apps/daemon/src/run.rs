@@ -301,6 +301,10 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
     // Asked where the daemon is the process that asks for the Leader, and
     // given back before the drain, so no press is heard once a stop began.
     let leader = crate::leader::listened(found, &server, &tokio::runtime::Handle::current());
+    // A Leader a setting changes is asked of the thread that holds this one.
+    if let Some(leader) = &leader {
+        server.leader_held_by(leader.asking());
+    }
     server.stopping().await;
     if let Some(leader) = leader {
         let _ = tokio::task::spawn_blocking(move || leader.given_back()).await;
@@ -410,6 +414,15 @@ async fn opened(started: Started<'_>, server: &Arc<Server>) -> Result<Option<Ope
         log: Arc::clone(&log),
     };
     let kernel = Arc::new(environment::kernel(layout, store.clone(), opening).await?);
+    // The channel's choice of keys is its keybinding configuration, which
+    // the shortcut settings read and write from here on.
+    kernel.keep_shortcuts(Arc::new(environment::Keybindings::new(
+        found.clone(),
+        Arc::downgrade(server),
+    )));
+    // What the server holds open is what the kernel's dev pages answer of
+    // the agents' sessions and the connections.
+    kernel.hosted_by(Arc::new(environment::Host::new(Arc::downgrade(server))));
     let loaded = plugins::load(&kernel, &layout.plugins, &found.user, &log).await;
     let refused = loaded
         .iter()

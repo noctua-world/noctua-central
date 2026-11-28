@@ -287,6 +287,29 @@ pub trait Store {
     /// it and it is named by hand.
     fn from(&self, sequence: u64) -> impl Future<Output = Result<Read, Error>> + Send;
 
+    /// At most `most` entries from `sequence` onwards, in order, stopping at
+    /// a row this code cannot read as [`Store::from`] does.
+    ///
+    /// **What a reader that pages asks, so no page costs the whole history.**
+    /// [`Store::from`] answers every entry to the end, which a verification
+    /// needs and a browser of the history must not pay for each page it
+    /// shows: a store answers this in work bounded by `most`, never by how
+    /// long its history is. No entries is the answer past the end, and for a
+    /// `most` of zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unavailable`] when the store cannot be reached, and
+    /// [`Error::Unstorable`] when `sequence` is past what a store can hold —
+    /// the conversion is `Postgres::page`'s first statement, as it is
+    /// `Postgres::from`'s.
+    ///
+    /// **And [`Error::Refused`], reached through `unavailable`** as every
+    /// read of a store reaches it: a missing privilege or a table that is not
+    /// there is not retryable, and is named here by hand for the reason
+    /// [`Store::tail`] gives.
+    fn page(&self, sequence: u64, most: u32) -> impl Future<Output = Result<Read, Error>> + Send;
+
     /// How `realm` closed `unit`: [`Outcome::UnitCommitted`] or
     /// [`Outcome::UnitAborted`], or `None` while this realm's history holds no
     /// closing bracket for it.
@@ -1510,7 +1533,7 @@ mod verdict_tests {
             // that are exactly `/// # Errors` once trimmed, which is what
             // `grep -rhx '\s*/// # Errors' crates/nc-journal/src | wc -l`
             // counts — a scan that reads fewer has narrowed.
-            sections == 24,
+            sections == 25,
             "{sections} `# Errors` section(s) in this crate, which is not the tree this \
              is about"
         );

@@ -25,6 +25,15 @@ use nc_log::Event;
 pub trait LogSink: core::fmt::Debug + Send + Sync + 'static {
     /// Writes `event`.
     fn record(&self, event: &impl Event);
+
+    /// At most `most` of the lines the sink kept in memory, from the serial
+    /// `from` on, the oldest first: what `dev.logs.read` answers
+    /// (`crate::dev`).
+    ///
+    /// **Required, and never defaulted to none**: a sink that wraps another
+    /// and forgot this would answer an empty log for one that keeps its
+    /// lines. A sink that keeps none says so itself.
+    fn kept(&self, from: u64, most: usize) -> nc_log::Kept;
 }
 
 /// A sink behind an `Arc` is a sink: one log, written by the kernel and read
@@ -33,6 +42,10 @@ impl<T: LogSink> LogSink for std::sync::Arc<T> {
     fn record(&self, event: &impl Event) {
         T::record(self, event);
     }
+
+    fn kept(&self, from: u64, most: usize) -> nc_log::Kept {
+        T::kept(self, from, most)
+    }
 }
 
 impl LogSink for std::sync::Mutex<nc_log::Log> {
@@ -40,6 +53,12 @@ impl LogSink for std::sync::Mutex<nc_log::Log> {
         self.lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .record(event);
+    }
+
+    fn kept(&self, from: u64, most: usize) -> nc_log::Kept {
+        self.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .kept(from, most)
     }
 }
 
@@ -138,6 +157,33 @@ impl LogSink for Captured {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(line);
     }
+
+    /// Every line captured, as a log that keeps them all would answer: each
+    /// under the serial it was captured at, from 1, its text the canonical
+    /// object of its name, as `_msg`, and its fields.
+    fn kept(&self, from: u64, most: usize) -> nc_log::Kept {
+        let lines = self.lines();
+        let held = u64::try_from(lines.len()).unwrap_or(u64::MAX);
+        let first = from.clamp(1, held + 1);
+        let read: Vec<(u64, String)> = (first..)
+            .zip(
+                lines
+                    .into_iter()
+                    .skip(usize::try_from(first - 1).unwrap_or(usize::MAX)),
+            )
+            .take(most)
+            .map(|(serial, line)| {
+                let mut fields = line.fields;
+                fields.insert("_msg".to_owned(), nc_canon::Value::text(line.name));
+                (serial, nc_canon::Value::Object(fields).to_canonical())
+            })
+            .collect();
+        nc_log::Kept {
+            next: first + u64::try_from(read.len()).unwrap_or(u64::MAX),
+            lines: read,
+            held,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -185,6 +231,35 @@ mod tests {
             }
         });
         (format!("http://127.0.0.1:{port}/insert"), received)
+    }
+
+    /// A log behind a mutex and an `Arc` answers the lines it kept, as the
+    /// daemon's sink is asked them.
+    ///
+    /// **Through both wrappers**, since a kernel's sink in a daemon is the
+    /// two together: a wrapper that answered for itself would answer no line
+    /// of a log that keeps them.
+    #[test]
+    fn a_log_behind_a_mutex_and_an_arc_answers_the_lines_it_kept() {
+        let log = nc_log::Log::open(
+            nc_log::Origin {
+                service: nc_log::literal!("kernel-test"),
+                version: nc_log::literal!("9.9.9"),
+            },
+            "http://127.0.0.1:1/insert",
+        )
+        .expect("a store on this machine")
+        .keeping(4);
+        let event = nc_log::events::JournalBroken {
+            sequence: 3,
+            code: nc_catalog::ErrorCode::JournalUnavailable,
+        };
+        let line = log.line(&event);
+        let sink = std::sync::Arc::new(std::sync::Mutex::new(log));
+        sink.record(&event);
+        sink.record(&event);
+        let kept = sink.kept(2, 8);
+        assert_eq!((kept.lines, kept.next, kept.held), (vec![(2, line)], 3, 2));
     }
 
     /// The sink a daemon opens a kernel with ships what the kernel records to

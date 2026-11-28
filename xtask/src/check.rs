@@ -7909,7 +7909,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 58] = [
+const SUITES: [(&str, &str); 59] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -8014,6 +8014,9 @@ const SUITES: [(&str, &str); 58] = [
     // other line tests drive `Log::line` against hand-written events declared
     // inside `lib.rs`, so they construct none of the generated event structs.
     ("nc-log", "every_event_reaches_the_store.rs"),
+    // The Markdown subset's corpus replayed row by row, every rule held to a
+    // row that refuses by it: it touches no disk and spawns nothing.
+    ("nc-markdown", "the_corpus_is_the_subset.rs"),
     ("nc-policy", "an_entity_type_is_a_name_cedar_parses.rs"),
     ("nc-policy", "the_denial_gate_fires.rs"),
     ("nc-prune", "in_postgres.rs"),
@@ -8143,7 +8146,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1106] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1107] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8291,6 +8294,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1106] = [
     "the tag `{}` opens as a release tag does, and {why}",
     "the thread writing gh's input panicked",
     "the tree holds changes no commit has ({}), and a release is made from HEAD and the files it writes. Commit them, or put them aside, and run the release again",
+    "the {CHANGELOG} this release would write is outside the Markdown this tree reads, at {refused}: an install carries it as a page, so nothing was written",
     "this tool could not find itself to run the gate: {error}. Nothing was written",
     "this tree has no .git of its own, and a release is computed from the history: the tags and the commits between them. Release from a clone",
     "this tree is at `{}`, and {why}. A version is written by the release; set it back by hand to the last one it wrote",
@@ -11459,7 +11463,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 819] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 818] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11542,7 +11546,6 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 819] = [
     "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that open with no permission; a release fires on a push to `staging` or `main` alone",
     // The release: what it prints that is not a verdict, the requests it
     // hands GitHub, and the changelog's own prose.
-    "  What to do: {note}\n",
     "# Changelog\n\nWhat each release of this repository adds, changes, fixes, speeds up, secures and removes, newest first (`NOCTUA.md §22.4`). `cargo xtask release` writes this file whole from the conventional commits between the release tags every time it makes a release, so an edit by hand is gone at the next one.\n",
     "#{} is merged, by merge commit: its checks had passed already",
     "Cargo.lock rebuilt, and every file read back as written",
@@ -13685,7 +13688,7 @@ fn a_step_that_did_not_run(opened: &[String]) -> Result<(), String> {
 /// twice. What a census of a private surface is for is telling a
 /// reviewer that the surface grew, and a phantom entry in it is an entry nobody
 /// can go and read.
-const DOORS: usize = 23;
+const DOORS: usize = 24;
 
 /// Whether a count taken from the tree disagrees with the number written down.
 ///
@@ -17780,7 +17783,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 24);
+        assert_eq!(members_of(root()), 26);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17969,7 +17972,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 24] = [
+    const SOURCE_ROOTS: [(&str, usize); 26] = [
         // The two stand-ins `[patch.crates-io]` puts in place of `wry`'s
         // dependencies, each one library.
         ("dirs", 1),
@@ -17990,6 +17993,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-kernel", 11),
         ("nc-local", 4),
         ("nc-log", 2),
+        // The one reader of Markdown, with the suite of its corpus; and the
+        // pages an install carries, one library.
+        ("nc-markdown", 2),
+        ("nc-pages", 1),
         ("nc-platform", 1),
         ("nc-plugin-reference", 1),
         ("nc-policy", 3),
@@ -20035,7 +20042,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 270] = [
+    const DOCUMENTED: [(&str, usize, usize); 276] = [
         ("cli/args.rs", 53, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/checkouts.rs", 22, 14),
@@ -20060,15 +20067,15 @@ mod the_frozen_path_rule {
             3,
         ),
         ("daemon/a_recycled_pid_is_never_signalled.rs", 9, 3),
-        ("daemon/agent_sessions.rs", 65, 3),
+        ("daemon/agent_sessions.rs", 66, 3),
         ("daemon/channels_side_by_side.rs", 13, 5),
         ("daemon/desktop.rs", 36, 5),
         ("daemon/device.rs", 22, 5),
-        ("daemon/environment.rs", 25, 18),
-        ("daemon/every_command_from_the_cli.rs", 45, 2),
+        ("daemon/environment.rs", 33, 27),
+        ("daemon/every_command_from_the_cli.rs", 47, 2),
         ("daemon/exit_codes.rs", 27, 3),
         ("daemon/ipc_refusals.rs", 7, 0),
-        ("daemon/leader.rs", 8, 2),
+        ("daemon/leader.rs", 14, 3),
         ("daemon/lib.rs", 7, 16),
         ("daemon/main.rs", 17, 6),
         ("daemon/mark.rs", 27, 15),
@@ -20077,28 +20084,29 @@ mod the_frozen_path_rule {
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 24, 1),
         ("daemon/schedule.rs", 18, 2),
-        ("daemon/server.rs", 149, 30),
+        ("daemon/server.rs", 173, 32),
         ("daemon/serves_its_kernel.rs", 28, 3),
         ("daemon/testing.rs", 45, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("daemon/the_stop_mark_silences_every_restorer.rs", 37, 3),
+        ("daemon/the_stop_mark_silences_every_restorer.rs", 38, 3),
         ("desktop/assets.rs", 21, 3),
         ("desktop/client.rs", 13, 1),
         ("desktop/commands.rs", 35, 6),
         ("desktop/drawer.rs", 62, 4),
         ("desktop/following_the_daemon.rs", 5, 2),
-        ("desktop/footer.rs", 97, 4),
-        ("desktop/host.rs", 124, 14),
+        ("desktop/footer.rs", 96, 4),
+        ("desktop/host.rs", 127, 14),
         ("desktop/keys.rs", 29, 3),
-        ("desktop/lib.rs", 0, 14),
+        ("desktop/lib.rs", 0, 15),
         ("desktop/main.rs", 23, 6),
-        ("desktop/mirror.rs", 88, 18),
+        ("desktop/mirror.rs", 101, 22),
         ("desktop/page.rs", 20, 1),
         ("desktop/seat.rs", 12, 1),
         ("desktop/sheet.rs", 1, 0),
         ("desktop/sidebar.rs", 14, 2),
         ("desktop/surface.rs", 67, 19),
+        ("desktop/text.rs", 4, 1),
         ("desktop/the_window_follows_its_daemon.rs", 22, 5),
         ("desktop/the_window_opens_hidden.rs", 6, 3),
         ("desktop/theme.rs", 21, 2),
@@ -20112,18 +20120,18 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 40, 15),
-        ("nc-catalog-compiler/emit.rs", 37, 15),
+        ("nc-catalog-compiler/docs.rs", 44, 15),
+        ("nc-catalog-compiler/emit.rs", 38, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 17),
-        ("nc-catalog-compiler/load.rs", 64, 18),
+        ("nc-catalog-compiler/load.rs", 69, 18),
         ("nc-catalog-compiler/messages.rs", 21, 3),
         ("nc-catalog-compiler/metadata.rs", 25, 2),
-        ("nc-catalog-compiler/model.rs", 64, 20),
+        ("nc-catalog-compiler/model.rs", 66, 20),
         ("nc-catalog-compiler/problem.rs", 4, 9),
         ("nc-catalog-compiler/registries.rs", 42, 4),
         ("nc-catalog-compiler/surfaces.rs", 15, 1),
-        ("nc-catalog-compiler/the_gates_fire.rs", 127, 111),
+        ("nc-catalog-compiler/the_gates_fire.rs", 133, 111),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             18,
@@ -20137,19 +20145,20 @@ mod the_frozen_path_rule {
         ("nc-catalog/events.rs", 6, 3),
         ("nc-catalog/external_identifiers.rs", 7, 1),
         ("nc-catalog/i18n.rs", 16, 1),
-        ("nc-catalog/lib.rs", 0, 11),
+        ("nc-catalog/interface.rs", 6, 1),
+        ("nc-catalog/lib.rs", 0, 12),
         ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
         ("nc-catalog/wiki.rs", 6, 2),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            42,
+            50,
             3,
         ),
         ("nc-channel/checkouts.rs", 41, 11),
         ("nc-channel/found.rs", 18, 10),
-        ("nc-channel/keys.rs", 40, 11),
+        ("nc-channel/keys.rs", 57, 20),
         ("nc-channel/lib.rs", 61, 17),
         ("nc-channel/record.rs", 15, 10),
         ("nc-channel/stopped.rs", 4, 6),
@@ -20186,12 +20195,12 @@ mod the_frozen_path_rule {
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
-        ("nc-journal/lib.rs", 72, 23),
-        ("nc-journal/memory.rs", 22, 12),
-        ("nc-journal/postgres.rs", 21, 12),
-        ("nc-journal/tampering.rs", 69, 64),
+        ("nc-journal/lib.rs", 73, 23),
+        ("nc-journal/memory.rs", 23, 13),
+        ("nc-journal/postgres.rs", 21, 13),
+        ("nc-journal/tampering.rs", 69, 68),
         ("nc-journal/the_declared_command.rs", 1, 1),
-        ("nc-journal/unit.rs", 30, 40),
+        ("nc-journal/unit.rs", 30, 43),
         ("nc-kernel/activation.rs", 32, 68),
         ("nc-kernel/agents.rs", 54, 18),
         ("nc-kernel/backend.rs", 36, 40),
@@ -20202,8 +20211,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/builtin.rs", 73, 13),
         ("nc-kernel/capabilities.rs", 10, 16),
         ("nc-kernel/capability.rs", 13, 8),
-        ("nc-kernel/confirmations.rs", 19, 2),
-        ("nc-kernel/dispatch.rs", 153, 32),
+        ("nc-kernel/confirmations.rs", 20, 3),
+        ("nc-kernel/dev.rs", 47, 1),
+        ("nc-kernel/dispatch.rs", 154, 32),
         ("nc-kernel/engine.rs", 23, 9),
         ("nc-kernel/entries.rs", 27, 13),
         ("nc-kernel/events.rs", 16, 10),
@@ -20220,42 +20230,45 @@ mod the_frozen_path_rule {
         ("nc-kernel/host/timers.rs", 1, 7),
         ("nc-kernel/host/ui.rs", 5, 7),
         ("nc-kernel/isolation.rs", 71, 47),
-        ("nc-kernel/lib.rs", 69, 60),
+        ("nc-kernel/lib.rs", 71, 61),
         ("nc-kernel/limits.rs", 18, 19),
-        ("nc-kernel/logging.rs", 11, 10),
+        ("nc-kernel/logging.rs", 14, 12),
         ("nc-kernel/manifest.rs", 32, 19),
         ("nc-kernel/net.rs", 30, 13),
         ("nc-kernel/net.rs", 75, 25),
         ("nc-kernel/net/ureq.rs", 51, 24),
         ("nc-kernel/pump.rs", 10, 2),
-        ("nc-kernel/registry.rs", 66, 25),
+        ("nc-kernel/registry.rs", 67, 25),
         ("nc-kernel/session.rs", 35, 7),
-        ("nc-kernel/settings.rs", 27, 1),
-        ("nc-kernel/shell.rs", 212, 35),
+        ("nc-kernel/settings.rs", 55, 2),
+        ("nc-kernel/shell.rs", 245, 39),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 316, 87),
+        ("nc-kernel/the_decision_point.rs", 353, 96),
         ("nc-kernel/the_reference_plugin_activates.rs", 15, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 77, 64),
+        ("nc-kernel/the_rest_of_the_world.rs", 77, 65),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 97, 16),
         ("nc-kernel/units.rs", 117, 18),
-        ("nc-kernel/units_and_history.rs", 166, 48),
+        ("nc-kernel/units_and_history.rs", 166, 49),
         ("nc-kernel/where_a_blob_is.rs", 40, 37),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 54, 15),
         ("nc-local/agents.rs", 42, 11),
-        ("nc-local/journal.rs", 26, 11),
-        ("nc-local/lib.rs", 12, 10),
-        ("nc-local/open.rs", 19, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
+        ("nc-local/journal.rs", 26, 12),
+        ("nc-local/lib.rs", 13, 10),
+        ("nc-local/open.rs", 32, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 71, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 89, 12),
+        ("nc-local/store.rs", 95, 16),
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 33, 165),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
-        ("nc-log/lib.rs", 22, 27),
+        ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
+        ("nc-markdown/lib.rs", 75, 9),
+        ("nc-markdown/the_corpus_is_the_subset.rs", 13, 0),
+        ("nc-pages/lib.rs", 13, 2),
         ("nc-platform/clipboard.rs", 16, 11),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/leader.rs", 52, 8),
@@ -20276,10 +20289,10 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 66, 25),
         ("nc-policy/value.rs", 4, 9),
         ("nc-prune/in_postgres.rs", 45, 21),
-        ("nc-prune/in_sqlite.rs", 18, 7),
+        ("nc-prune/in_sqlite.rs", 20, 7),
         ("nc-prune/lib.rs", 50, 45),
         ("nc-prune/postgres.rs", 21, 10),
-        ("nc-prune/sqlite.rs", 20, 6),
+        ("nc-prune/sqlite.rs", 22, 6),
         ("nc-schema/descriptor.rs", 14, 17),
         ("nc-schema/entry.rs", 53, 42),
         ("nc-schema/keys.rs", 93, 21),
@@ -20307,13 +20320,13 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 235, 13),
+        ("xtask/release.rs", 242, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/sha256.rs", 13, 1),
         ("xtask/store.rs", 29, 4),
         ("xtask/tailwind.rs", 28, 1),
-        ("xtask/the_pages_reach_the_catalog.rs", 60, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 43, 22),
+        ("xtask/the_pages_reach_the_catalog.rs", 63, 20),
+        ("xtask/the_registry_reaches_the_code.rs", 50, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -23100,8 +23113,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 937 scratches this tree
-    /// builds, 849 of the 937 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 961 scratches this tree
+    /// builds, 873 of the 961 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -23167,7 +23180,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 76] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 77] = [
         ("cli/checkouts.rs", 6, 6),
         ("cli/chosen.rs", 6, 6),
         ("cli/client.rs", 1, 1),
@@ -23201,7 +23214,7 @@ mod the_frozen_path_rule {
         ("desktop/main.rs", 2, 2),
         ("desktop/the_window_opens_hidden.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 274, 274),
+        ("nc-catalog-compiler/the_gates_fire.rs", 282, 282),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -23209,8 +23222,8 @@ mod the_frozen_path_rule {
         ),
         (
             "nc-channel/a_configuration_that_collides_is_refused.rs",
-            21,
-            21,
+            27,
+            27,
         ),
         ("nc-channel/checkouts.rs", 2, 2),
         ("nc-channel/found.rs", 9, 9),
@@ -23226,8 +23239,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 28, 28),
-        ("nc-local/open.rs", 4, 4),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
+        ("nc-local/open.rs", 6, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 47, 47),
+        ("nc-local/store.rs", 2, 2),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/clipboard.rs", 2, 2),
         ("nc-platform/lib.rs", 32, 32),
@@ -23235,7 +23249,7 @@ mod the_frozen_path_rule {
         ("nc-platform/service.rs", 7, 7),
         ("nc-platform/x11.rs", 10, 10),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
-        ("nc-prune/in_sqlite.rs", 13, 13),
+        ("nc-prune/in_sqlite.rs", 15, 15),
         ("xtask/build.rs", 9, 9),
         ("xtask/check.rs", 44, 32),
         ("xtask/corpus.rs", 15, 15),
@@ -26276,7 +26290,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 24990;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25871;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26295,7 +26309,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 7862;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 8301;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -26312,7 +26326,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2694;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 2843;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -26329,7 +26343,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [249, 38, 64, 66, 109];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [272, 43, 72, 74, 118];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -26346,7 +26360,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 32584;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33626;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26364,7 +26378,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 799;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 863;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -26400,8 +26414,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **799 of 32,584 are accepted by the first-line
-    /// rule alone, and 526 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **863 of 33,626 are accepted by the first-line
+    /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -26422,8 +26436,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **249 ascending sorts, 38 descending, 64
-    /// swaps, 66 rotations and 109 reversals** — so the reversal is one of its
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **272 ascending sorts, 43 descending, 72
+    /// swaps, 74 rotations and 118 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -26433,7 +26447,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **2694 of
+    /// this tree offers, **2843 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -29055,7 +29069,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 819;
+    const THE_REST_IT_SAYS: usize = 818;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -33896,7 +33910,7 @@ mod the_frozen_path_rule {
     /// a registry and an entry, in a format, or the build fails with
     /// `wiki-misplaced`, `wiki-orphan` or `wiki-format-unknown`. What is
     /// asserted below is that `i18n` holds nothing but files.
-    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 12] = [
+    const WHAT_MAY_SIT_IN_THE_CATALOG: [&str; 13] = [
         // The registries the compiler reads.
         "capabilities.toml",
         "categories.toml",
@@ -33904,6 +33918,7 @@ mod the_frozen_path_rule {
         "emails.toml",
         "errors.toml",
         "external-identifiers.toml",
+        "interface.toml",
         "limits.toml",
         "log-events.toml",
         "notifications.toml",
@@ -33958,7 +33973,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 21] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 22] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -33971,10 +33986,16 @@ mod the_frozen_path_rule {
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
         // The tables `crates/` holds, each a corpus a suite beside it replays:
-        // what Denote returned, and the fuzzy core's rule — the second by its
-        // path, so a copy of the rule anywhere else is refused.
+        // what Denote returned, the fuzzy core's rule and the Markdown subset —
+        // the last two by their paths, so a copy of either rule anywhere else
+        // is refused.
         ("crates", "tsv", "denote-corpus.tsv"),
         ("crates", "tsv", "crates/nc-fuzzy/tests/fuzzy-corpus.tsv"),
+        (
+            "crates",
+            "tsv",
+            "crates/nc-markdown/tests/markdown-corpus.tsv",
+        ),
         // The kernel's copy of the reference world, which is the one WIT file
         // this repository holds: a second one is a second world a plugin could
         // be generated from. **By its path, not its name**, which is what a row
@@ -34758,6 +34779,7 @@ mod every_report_wire {
                     "fn f() { let x = SystemTime(); }\n",
                 ),
                 ("crates/nc-canon/src/", ""),
+                ("crates/nc-markdown/src/", ""),
                 ("crates/nc-schema/src/", ""),
                 ("xtask/src/build.rs", "//! nothing.\n"),
                 ("apps/cli/src/args.rs", "//! nothing.\n"),
@@ -35224,7 +35246,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 71] = [
+    const NOT_MUTATED: [(&str, &str); 72] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -35598,6 +35620,15 @@ mod the_meta_gate {
              case file both of the rule's implementations are held to, and a \
              weakening of this reader would remove evidence rather than uncover \
              an undecided clause",
+        ),
+        (
+            "crates/nc-markdown/tests/the_corpus_is_the_subset.rs",
+            "a suite: the subset's corpus beside it replayed row by row against \
+             `crates/nc-markdown/src/lib.rs`, which the runner edits under the \
+             crate's own command, every rule held to a row that refuses by it. \
+             The corpus is the case file the reader is held to, and a weakening \
+             of this reader of it would remove evidence rather than uncover an \
+             undecided clause",
         ),
         (
             "crates/nc-ids/tests/against_denote.rs",
@@ -38860,7 +38891,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 284,
+            walked, 290,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -38900,7 +38931,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3378] = [
+    static OPERATORS: [(&str, &str, &str); 3709] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -39118,6 +39149,81 @@ Options:
             "naming",
             "read",
             "a reading says whether the name was already canonical",
+        ),
+        ("release", "the_entry", "a subject is written as text"),
+        (
+            "release",
+            "the_entry",
+            "a subject begins an item only where no scope comes first",
+        ),
+        ("release", "the_entry", "a scope is written as text"),
+        ("release", "the_entry", "a note is written as text"),
+        (
+            "release",
+            "as_text",
+            "a number opening an entry numbers no list",
+        ),
+        (
+            "release",
+            "as_text",
+            "three backticks opening an entry open no fence",
+        ),
+        (
+            "release",
+            "as_text",
+            "punctuation opening an entry opens no block",
+        ),
+        ("release", "as_text", "a code span the words close is kept"),
+        (
+            "release",
+            "as_text",
+            "a backtick that closes nothing is escaped",
+        ),
+        ("release", "as_text", "a `<` in a commit's words is no tag"),
+        (
+            "release",
+            "escaped_in_text",
+            "a backslash in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "an asterisk in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "an underscore in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a bracket in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a closing bracket in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "an ampersand in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a tilde in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a dollar sign in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "of_the_subset",
+            "a changelog the reader refuses is refused",
         ),
         (
             "release",
@@ -43937,6 +44043,16 @@ Options:
         (
             "kernel_registry",
             "only_at_the_top",
+            "a set that is no step runs below the top of a tree",
+        ),
+        (
+            "kernel_registry",
+            "only_at_the_top",
+            "a change decided as a read runs below the top of a tree",
+        ),
+        (
+            "kernel_registry",
+            "only_at_the_top",
             "only a setting's namespace keeps its switch at the top",
         ),
         (
@@ -44462,7 +44578,7 @@ Options:
         ),
         (
             "local_store",
-            "open",
+            "opening",
             "a file is judged on a connection that writes nothing",
         ),
         (
@@ -45461,6 +45577,11 @@ Options:
         (
             "kernel_shell",
             "leader_tap",
+            "a tap that flips the menu gives the menu the keyboard",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
             "the menu's rule comes before the prompt's",
         ),
         (
@@ -45473,12 +45594,62 @@ Options:
             "leader_tap",
             "a tap opens the menu only from a window that is shown",
         ),
+        ("kernel_shell", "leader_tap", "a tap shows the footer"),
         (
             "kernel_shell",
-            "leader_tap",
-            "a tap opens the menu only from a prompt line the footer shows",
+            "footer_let_go",
+            "a footer always shown is left as it is",
         ),
-        ("kernel_shell", "leader_tap", "a tap shows the footer"),
+        (
+            "kernel_shell",
+            "footer_let_go",
+            "a keyboard coming back shows nothing a tap did not",
+        ),
+        (
+            "kernel_shell",
+            "footer_let_go",
+            "a hidden footer is let go once no keyboard holds it",
+        ),
+        (
+            "kernel_shell",
+            "changed",
+            "a keyboard moved off the footer lets a hidden footer go",
+        ),
+        (
+            "kernel_shell",
+            "changed",
+            "a command that moves no keyboard keeps a reveal",
+        ),
+        (
+            "kernel_shell",
+            "keyboards",
+            "a seat whose keyboard is on nothing has moved none",
+        ),
+        (
+            "kernel_shell",
+            "holds_the_footer",
+            "a keyboard on the drawer holds a hidden footer",
+        ),
+        (
+            "kernel_shell",
+            "holds_the_footer",
+            "a keyboard on any line of the footer holds it",
+        ),
+        (
+            "kernel_shell",
+            "holds_the_footer",
+            "any seat's keyboard holds a hidden footer",
+        ),
+        (
+            "kernel_shell",
+            "chosen",
+            "the footer chosen always is shown now",
+        ),
+        (
+            "kernel_shell",
+            "chosen",
+            "the footer chosen hidden hides now unless a keyboard holds it",
+        ),
         (
             "kernel_shell",
             "direction",
@@ -48921,7 +49092,7 @@ Options:
         ),
         (
             "local_store",
-            "open",
+            "opening",
             "an open waits for its profile's lock off the threads that poll it",
         ),
         (
@@ -50625,6 +50796,207 @@ Options:
         (
             "daemon_leader",
             "listening",
+            "a Leader tried is asked for with the one held still held",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "the Leader held already is asked of nobody",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader refused at the start is asked for again",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader tried and never settled is given back as the next is tried",
+        ),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader kept takes the place of the one held",
+        ),
+        ("daemon_leader", "listening", "a Leader kept is said held"),
+        (
+            "daemon_leader",
+            "listening",
+            "a Leader dropped is given back",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a file its reader refuses is never written over",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "the channel's own Leader is written as no choice",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "the channel's own chord modifier is written as no choice",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a choice is held to the file's bound before it is written",
+        ),
+        (
+            "channel_keys",
+            "proposed",
+            "a choice any part of which is refused is not one to write",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "a change replaces its own tables and no other",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "a command bound as the catalog binds it is left out of the file",
+        ),
+        (
+            "channel_keys",
+            "rebound",
+            "what the file binds a command to stands over the catalog's",
+        ),
+        (
+            "channel_keys",
+            "bound",
+            "a chord says which of a held Leader's two tables it is in",
+        ),
+        (
+            "channel_keys",
+            "written",
+            "a choice is written only into a directory judged this user's alone",
+        ),
+        (
+            "channel_keys",
+            "written",
+            "what a cut write left is judged before it is removed",
+        ),
+        (
+            "channel_keys",
+            "code_of_a_choice",
+            "a key bound twice refuses a choice with a code of its own",
+        ),
+        (
+            "channel_keys",
+            "of_a_choice",
+            "a refused choice says the keys in force stand and never a default",
+        ),
+        (
+            "kernel_settings",
+            "answered",
+            "the menu's keys are the menu's table and the chords the other two",
+        ),
+        (
+            "kernel_settings",
+            "answered",
+            "a chord says whether the chord modifier is held as well",
+        ),
+        (
+            "kernel_settings",
+            "asked_shortcut",
+            "a shortcut names a command by a name a command can have",
+        ),
+        (
+            "kernel_settings",
+            "asked_shortcut",
+            "what a refusal repeats of a shortcut is escaped and cut",
+        ),
+        (
+            "kernel_settings",
+            "shortcut_proposed",
+            "a choice is judged by its keeper before it is journaled",
+        ),
+        (
+            "kernel_builtin",
+            "name",
+            "a shortcut setting's read is not its set",
+        ),
+        (
+            "kernel_dispatch",
+            "written_once_journaled",
+            "a shortcut is written only once its entry has landed",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader a setting changes is asked of the system before it is written",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "only a set of the Leader asks the system for it",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader refused claims no Leader still registered",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader granted is kept once the file is written",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a write that failed gives the Leader granted back",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "each write of the configuration is told to the server",
+        ),
+        (
+            "daemon_environment",
+            "judged",
+            "a choice that collides is a conflict and one unsaved is not",
+        ),
+        (
+            "daemon_environment",
+            "written",
+            "a Leader the system refuses has a code of its own",
+        ),
+        (
+            "daemon_server",
+            "keys_written",
+            "a write of the configuration moves the watched revision",
+        ),
+        (
+            "daemon_server",
+            "keys_written",
+            "a write of the configuration is counted",
+        ),
+        (
+            "daemon_server",
+            "keys_said",
+            "the count of the keys written is answered only once there is one",
+        ),
+        (
+            "desktop_mirror",
+            "watched_shell",
+            "a count of the keys written that is not above zero refuses the state",
+        ),
+        (
+            "desktop_mirror",
+            "watched",
+            "the mirror's count of the keys written is the state's read last",
+        ),
+        (
+            "desktop_host",
+            "reads_the_keys_again",
+            "the keys are read again when the count is another, whichever way it moved",
+        ),
+        (
+            "daemon_leader",
+            "listening",
             "a registration lost is told as a refusal",
         ),
         ("daemon_leader", "listening", "a press heard is tapped"),
@@ -50635,7 +51007,7 @@ Options:
         ),
         (
             "daemon_server",
-            "moved",
+            "next",
             "a revision turns to zero after the wire's largest integer",
         ),
         (
@@ -54114,6 +54486,1113 @@ Options:
             "channel",
             "layout",
             "the webview keeps its own under the install's cache",
+        ),
+        (
+            "kernel_dev",
+            "page",
+            "a page that says no size holds `dev_page_max` rows",
+        ),
+        (
+            "kernel_dev",
+            "page",
+            "a page that says no start starts at the start",
+        ),
+        (
+            "kernel_dev",
+            "budget",
+            "a page's rows are held to half a payload",
+        ),
+        (
+            "kernel_dev",
+            "fitting",
+            "rows that fill the budget exactly are all kept",
+        ),
+        (
+            "kernel_dev",
+            "fitting",
+            "the first row is answered whatever its size",
+        ),
+        ("kernel_dev", "fitting", "the first row left out is named"),
+        (
+            "kernel_dev",
+            "strategy",
+            "a strategy is answered by its own word",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "only the local database's tables are answered",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "the agents' read answers the tables of agents alone",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "a table no number bounds is counted from the end of its key",
+        ),
+        (
+            "kernel_dev",
+            "counted_to_the_end",
+            "only a table no number bounds is counted from its end",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "a table is answered with the rows it holds",
+        ),
+        (
+            "kernel_dev",
+            "tables",
+            "a table is answered with the bound the catalog declares",
+        ),
+        (
+            "kernel_dev",
+            "counted",
+            "a count nothing says is null and one said is itself",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the log's lines are counted against the ring's bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the connections are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the sessions are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the calls held are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "counts",
+            "the events queued are counted against their own bound",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the lines counted are the ones the sink keeps",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the connections counted are the host's",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "the sessions counted are the host's",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "a call held for a confirmation is counted while it is held",
+        ),
+        (
+            "kernel_dev",
+            "limits",
+            "an event queued is counted until it is delivered",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the sessions are answered in the order of their agents",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the sessions open are counted",
+        ),
+        (
+            "kernel_dev",
+            "open_sessions",
+            "the connections open are the host's",
+        ),
+        (
+            "kernel_dev",
+            "policy",
+            "the epoch answered is the one the read was decided under",
+        ),
+        (
+            "kernel_dev",
+            "policy",
+            "the pack answered is the one the read was decided under",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page of plugins starts at the slot asked",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page of plugins holds no more than it was asked",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a full page's next is the slot after its last row",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "a page that ended says the slot the next plugin takes",
+        ),
+        ("kernel_dev", "plugins", "a plugin's commands are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "a plugin's own log lines are counted",
+        ),
+        ("kernel_dev", "plugins", "a plugin's timers are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "a surface is counted for the plugin that holds it",
+        ),
+        (
+            "kernel_dev",
+            "plugins",
+            "the instance that runs is answered",
+        ),
+        ("kernel_dev", "plugins", "a plugin's kills are counted"),
+        (
+            "kernel_dev",
+            "plugins",
+            "why a plugin was last killed is answered",
+        ),
+        (
+            "kernel_dev",
+            "logs",
+            "a page of the log starts at the serial asked",
+        ),
+        (
+            "kernel_dev",
+            "logs",
+            "a page of the log holds no more than it was asked",
+        ),
+        ("kernel_dev", "logs", "the lines kept are counted"),
+        (
+            "kernel_dev",
+            "entry",
+            "an entry is answered with whom it was asked for",
+        ),
+        (
+            "kernel_dev",
+            "entry",
+            "an entry is answered with the policy that decided it",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page of the journal starts at the sequence asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page of the journal holds no more than it was asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a journal that cannot be read is unavailable",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "a page past the end starts the next where it was asked",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "the next page starts past the last entry read",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "an entry another realm's kernel wrote is left out",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "an entry the store could not read is named",
+        ),
+        (
+            "kernel_dev",
+            "journal",
+            "the next page starts past an entry that could not be read",
+        ),
+        ("kernel_dev", "journal", "the newest sequence is answered"),
+        (
+            "kernel_confirmations",
+            "waiting",
+            "the calls held are counted",
+        ),
+        (
+            "kernel_logging",
+            "LogSink for std::sync::Arc",
+            "a sink behind an `Arc` answers the lines its log kept",
+        ),
+        (
+            "kernel_logging",
+            "LogSink for std::sync::Mutex",
+            "a log behind a mutex answers the lines it kept",
+        ),
+        ("memory", "page", "a page starts where it was asked"),
+        ("memory", "page", "a page holds no more than it was asked"),
+        (
+            "journal_store",
+            "page",
+            "a page starts where the store likes",
+        ),
+        (
+            "journal_store",
+            "page",
+            "a page comes back in whatever order the heap holds",
+        ),
+        (
+            "journal_store",
+            "page",
+            "a page holds as many rows as the store likes",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal starts where the file likes",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal comes back newest first",
+        ),
+        (
+            "local_journal",
+            "page",
+            "a page of the local journal holds as many rows as the file likes",
+        ),
+        (
+            "prune_sqlite",
+            "rows",
+            "a reader's count is of the database's own table",
+        ),
+        (
+            "prune_sqlite",
+            "rows",
+            "a reader's count is the number counted",
+        ),
+        (
+            "prune_sqlite",
+            "rows_to_the_end",
+            "a dense table's count is its last key plus one",
+        ),
+        (
+            "prune_sqlite",
+            "rows_to_the_end",
+            "a dense table holding none is counted as none",
+        ),
+        (
+            "prune_sqlite",
+            "rows_to_the_end",
+            "the end of a key is read of the database's own table",
+        ),
+        (
+            "log_root",
+            "record",
+            "a line past the bound takes the oldest one's place",
+        ),
+        (
+            "log_root",
+            "record",
+            "a line is kept under the serial it was recorded at",
+        ),
+        (
+            "log_root",
+            "record",
+            "the line kept is the line the store is sent",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a read of the ring starts at the serial asked",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a start before the oldest line kept begins at it",
+        ),
+        (
+            "log_root",
+            "kept",
+            "a read of the ring takes as many lines as asked",
+        ),
+        (
+            "log_root",
+            "kept",
+            "the next read starts past the last line read",
+        ),
+        ("log_root", "kept", "the ring says how many lines it keeps"),
+        (
+            "daemon_environment",
+            "sink",
+            "the daemon's sink keeps its newest lines",
+        ),
+        (
+            "daemon_environment",
+            "sink",
+            "the daemon's ring holds `dev_logs_ring_lines` lines",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "the log an install opens keeps its lines",
+        ),
+        (
+            "daemon_environment",
+            "Hosting for Host",
+            "the host answers the sessions its server holds",
+        ),
+        (
+            "daemon_environment",
+            "Hosting for Host",
+            "the host answers the connections its server holds",
+        ),
+        (
+            "daemon_server",
+            "opened",
+            "a session opened is listed by its agent",
+        ),
+        (
+            "daemon_server",
+            "Drop for Opened",
+            "a session that ended is listed no more",
+        ),
+        (
+            "daemon_server",
+            "open_connections",
+            "the connections answered are the ones counted",
+        ),
+        ("markdown", "parse", "a tab is a control character, refused"),
+        (
+            "markdown",
+            "is_a_control",
+            "a line separator is refused as a control character is",
+        ),
+        (
+            "markdown",
+            "is_a_control",
+            "a paragraph separator is refused as a control character is",
+        ),
+        ("markdown", "parse", "a line ending in a space is refused"),
+        (
+            "markdown",
+            "parse",
+            "a trailing space's column counts characters",
+        ),
+        ("markdown", "marker", "a bullet is a hyphen and a space"),
+        (
+            "markdown",
+            "marker",
+            "a hyphen alone is an item holding nothing",
+        ),
+        (
+            "markdown",
+            "marker",
+            "a number and a parenthesis is a marker of another kind",
+        ),
+        (
+            "markdown",
+            "marker",
+            "an ordered marker holds nine digits at most",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "containers nest to the bound and no further",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a comment is read only before the first block",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a comment is read only outside every container",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "only a paragraph is followed at once by a list",
+        ),
+        (
+            "markdown",
+            "blocks",
+            "a list follows a paragraph at once only in a list item",
+        ),
+        (
+            "markdown",
+            "is_a_comment",
+            "a comment holds no two hyphens inside it",
+        ),
+        (
+            "markdown",
+            "block",
+            "a line beginning with a space begins no block",
+        ),
+        ("markdown", "block", "a fence of tildes is refused"),
+        ("markdown", "block", "a line of equals signs is refused"),
+        ("markdown", "block", "two hyphens are no thematic break"),
+        (
+            "markdown",
+            "block",
+            "a thematic break of another shape is refused",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of hyphens is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of underscores is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of asterisks is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break's marks may have spaces between them",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break holds nothing but its marks and spaces",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break is three marks at least",
+        ),
+        ("markdown", "is_a_break", "two marks are no thematic break"),
+        (
+            "markdown",
+            "fence",
+            "a fence names a word of the closed list, whole",
+        ),
+        (
+            "markdown",
+            "fence",
+            "a fence is closed by as many backticks as opened it",
+        ),
+        (
+            "markdown",
+            "heading",
+            "a heading opens with six `#` at most",
+        ),
+        ("markdown", "heading", "a space follows a heading's `#`"),
+        ("markdown", "heading", "no `#` closes a heading"),
+        (
+            "markdown",
+            "heading",
+            "one space follows a heading's `#`, and no more",
+        ),
+        (
+            "markdown",
+            "quote",
+            "a quote's text begins past its mark and one space",
+        ),
+        ("markdown", "quote", "a quote holds something"),
+        (
+            "markdown",
+            "list",
+            "an ordered item is numbered one past the one before it",
+        ),
+        (
+            "markdown",
+            "list",
+            "a list ends where a marker of another kind begins",
+        ),
+        (
+            "markdown",
+            "list",
+            "a list ends at a thematic break where its next item would be",
+        ),
+        (
+            "markdown",
+            "cells",
+            "an escaped bar is the bar, in a code span too",
+        ),
+        ("markdown", "cells", "a row ends with a bar"),
+        ("markdown", "cells", "a row holds a cell"),
+        (
+            "markdown",
+            "table",
+            "a delimiter cell holds three hyphens at least",
+        ),
+        ("markdown", "table", "a delimiter cell holds hyphens alone"),
+        (
+            "markdown",
+            "table",
+            "every row holds as many cells as the header",
+        ),
+        (
+            "markdown",
+            "paragraph",
+            "a line of hyphens under a paragraph is refused",
+        ),
+        (
+            "markdown",
+            "begins_a_block",
+            "a line of tildes under a paragraph begins a block",
+        ),
+        (
+            "markdown",
+            "begins_a_block",
+            "a thematic break under a paragraph begins a block",
+        ),
+        (
+            "markdown",
+            "list",
+            "an item's further lines begin under its own text",
+        ),
+        ("markdown", "paragraph", "a block begins after a blank line"),
+        (
+            "markdown",
+            "closing_ticks",
+            "a code span is closed by a run exactly as long",
+        ),
+        (
+            "markdown",
+            "stepped_over",
+            "a search for a closing mark steps over an escape whole",
+        ),
+        (
+            "markdown",
+            "stepped_over",
+            "a search for a closing mark steps over a code span whole",
+        ),
+        (
+            "markdown",
+            "closing_stars",
+            "emphasis is closed by a run as long as opened it",
+        ),
+        (
+            "markdown",
+            "closing_stars",
+            "emphasis is closed only by a right-flanking run",
+        ),
+        (
+            "markdown",
+            "closing_stars",
+            "a run a reader may read as closing or not closes nothing",
+        ),
+        (
+            "markdown",
+            "left_flanking",
+            "a run before whitespace is not left-flanking",
+        ),
+        (
+            "markdown",
+            "left_flanking",
+            "punctuation after a run needs whitespace or punctuation before it",
+        ),
+        (
+            "markdown",
+            "right_flanking",
+            "a run after whitespace is not right-flanking",
+        ),
+        (
+            "markdown",
+            "right_flanking",
+            "punctuation before a run needs whitespace or punctuation after it",
+        ),
+        (
+            "markdown",
+            "underscore_opens",
+            "an underscore opens only where it is left-flanking",
+        ),
+        (
+            "markdown",
+            "underscore_opens",
+            "an underscore that is right-flanking too opens only after punctuation",
+        ),
+        (
+            "markdown",
+            "underscore_opens",
+            "an underscore after punctuation opens though right-flanking",
+        ),
+        (
+            "markdown",
+            "tilde_strikes",
+            "a run of `~` that may close strikethrough is refused",
+        ),
+        (
+            "markdown",
+            "tilde_strikes",
+            "a run of `~` that may open strikethrough is refused",
+        ),
+        (
+            "markdown",
+            "of",
+            "a symbol Rust counts as a letter is read both ways",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a circled Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a squared Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a negative circled Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "is_a_lettered_symbol",
+            "a negative squared Latin letter is a symbol",
+        ),
+        (
+            "markdown",
+            "read_as",
+            "a character a reader may class either way is read both ways",
+        ),
+        (
+            "markdown",
+            "flanked",
+            "a run is read as every reader reads it, or as neither",
+        ),
+        ("markdown", "closing_bracket", "no link holds a link"),
+        ("markdown", "span", "a code span of spaces alone keeps them"),
+        ("markdown", "is_a_slug", "an anchor is lower case"),
+        (
+            "markdown",
+            "target",
+            "an address names a host after its scheme",
+        ),
+        ("markdown", "target", "an address holds no quotation mark"),
+        (
+            "markdown",
+            "target",
+            "an address holds no opening angle bracket",
+        ),
+        (
+            "markdown",
+            "target",
+            "an address holds no closing angle bracket",
+        ),
+        ("markdown", "target", "an address holds no apostrophe"),
+        ("markdown", "target", "an address holds no backslash"),
+        ("markdown", "target", "an address holds no backtick"),
+        (
+            "markdown",
+            "target",
+            "an address holds no opening parenthesis",
+        ),
+        ("markdown", "target", "an anchor is held to its shape"),
+        (
+            "markdown",
+            "target",
+            "a path's segment opens with a letter or a digit",
+        ),
+        (
+            "markdown",
+            "target",
+            "a path holds only what a file's name does",
+        ),
+        (
+            "markdown",
+            "target",
+            "a path ends as a text this tree links does",
+        ),
+        ("markdown", "entity", "an entity ends in a semicolon"),
+        (
+            "markdown",
+            "entity",
+            "an entity outside the three is refused",
+        ),
+        (
+            "markdown",
+            "inlines",
+            "a backslash escapes ASCII punctuation alone",
+        ),
+        (
+            "markdown",
+            "starred",
+            "three asterisks in a row are refused",
+        ),
+        ("markdown", "starred", "emphasis holds no emphasis"),
+        ("markdown", "starred", "strong holds no strong"),
+        (
+            "markdown",
+            "starred",
+            "an asterisk opens only where every reader reads it as opening",
+        ),
+        (
+            "markdown",
+            "starred",
+            "an asterisk before a space opens nothing",
+        ),
+        ("markdown", "linked", "a link shows something"),
+        ("markdown", "linked", "a link's target is closed"),
+        ("markdown", "inlines", "a closing bracket alone is refused"),
+        ("markdown", "inlines", "an image is refused"),
+        ("markdown", "inlines", "a closing tag is raw HTML"),
+        (
+            "markdown",
+            "inlines",
+            "an underscore run is text only where no reader opens emphasis with it",
+        ),
+        ("markdown", "inlines", "an underscore run is read whole"),
+        (
+            "markdown",
+            "inlines",
+            "a run of `~` beside a word is refused",
+        ),
+        ("markdown", "inlines", "a run of `~` is read whole"),
+        (
+            "markdown",
+            "text_of",
+            "a block's text is refused where math may open in it",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math is closed only by a `$` no whitespace precedes",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math holds something between its two `$`",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "math is opened only by a `$` no whitespace follows",
+        ),
+        (
+            "markdown",
+            "spaces_math",
+            "beside a `$`, a space alone is whitespace",
+        ),
+        (
+            "markdown",
+            "opening_math",
+            "an escaped `$` and one in a code span open no math",
+        ),
+        (
+            "embedded_pages",
+            "page",
+            "a page is found by its whole name",
+        ),
+        (
+            "embedded_pages",
+            "generated",
+            "a page generated from a registry is a dev page",
+        ),
+        (
+            "embedded_pages",
+            "title",
+            "a page with no heading is titled by its name",
+        ),
+        (
+            "embedded_pages",
+            "plain",
+            "a title says what its marks hold",
+        ),
+        ("desktop_text", "said", "a text is said in the locale asked"),
+        (
+            "desktop_text",
+            "said_with",
+            "a text's parameters are filled",
+        ),
+        (
+            "desktop_text",
+            "said_with",
+            "a text whose parameter is missing is said by its id",
+        ),
+        (
+            "kernel_shell",
+            "words",
+            "a footer always shown is the default",
+        ),
+        (
+            "kernel_shell",
+            "LANGUAGES",
+            "the language is the system's, then every locale shipped",
+        ),
+        (
+            "kernel_shell",
+            "one_of",
+            "a setting's word is read as written",
+        ),
+        (
+            "kernel_shell",
+            "read_back",
+            "a saved state's settings hold nothing beside their three",
+        ),
+        (
+            "kernel_shell",
+            "made",
+            "the footer's set chooses the footer's setting",
+        ),
+        (
+            "kernel_shell",
+            "made",
+            "the appearance's set chooses the appearance",
+        ),
+        (
+            "kernel_shell",
+            "is_a_read",
+            "a setting's read changes nothing, and is declared a read",
+        ),
+        (
+            "kernel_shell",
+            "word_of",
+            "each setting answers its own word",
+        ),
+        (
+            "desktop_mirror",
+            "chosen",
+            "the language chosen is the locale it names",
+        ),
+        (
+            "desktop_mirror",
+            "read",
+            "the settings hold nothing this build does not read",
+        ),
+        (
+            "desktop_mirror",
+            "Visibility",
+            "the footer hidden is read as hidden",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the footer folds where its setting hides it",
+        ),
+        (
+            "desktop_footer",
+            "TheFooter",
+            "a folding footer is drawn as one",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the staging channel is said by its own word",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the footer is named in the window's locale",
+        ),
+        (
+            "desktop_footer",
+            "TheFooter",
+            "the connection's glyph is named for a screen reader",
+        ),
+        (
+            "desktop_footer",
+            "view",
+            "the connection is said in the window's locale",
+        ),
+        (
+            "desktop_footer",
+            "rows",
+            "a seat is named by the seat's word in the window's locale",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "the interface's registry holds a text",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text is named as a handle can be",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text is keyed by its own name",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text's key is in its namespace",
+        ),
+        (
+            "loader",
+            "check_interface",
+            "an interface text says where it is shown",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "an interface text's name is two words at least",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "a word of an interface text's name opens with a letter",
+        ),
+        (
+            "loader",
+            "names_an_interface_text",
+            "an interface text's name is lower case",
+        ),
+        (
+            "loader",
+            "every_reference",
+            "an interface text claims its sentence",
+        ),
+        (
+            "loader",
+            "declared_params",
+            "an interface text's sentence is held to what it declares",
+        ),
+        (
+            "loader",
+            "interface_texts",
+            "the interface's texts are checked as they are read",
+        ),
+        (
+            "compiler_metadata",
+            "judged_text",
+            "a wiki text in Markdown is held to the subset",
+        ),
+        (
+            "compiler_metadata",
+            "judged_text",
+            "a wiki text in another format is not read as Markdown",
+        ),
+        (
+            "compiler",
+            "compile",
+            "a page outside the subset is never written",
+        ),
+        (
+            "pages",
+            "outside_the_subset",
+            "a text outside the subset is reported at its line",
+        ),
+        ("pages", "words", "a bracket in a person's words is escaped"),
+        (
+            "pages",
+            "words",
+            "an asterisk in a person's words is escaped",
+        ),
+        (
+            "pages",
+            "words",
+            "an underscore in a person's words is escaped",
+        ),
+        (
+            "pages",
+            "words",
+            "an ampersand in a person's words is escaped",
+        ),
+        (
+            "pages",
+            "words",
+            "a backslash in a person's words is escaped first",
+        ),
+        (
+            "pages",
+            "words",
+            "a closing bracket in a person's words is escaped",
+        ),
+        ("pages", "words", "a bar in a person's words is escaped"),
+        ("pages", "words", "a tilde in a person's words is escaped"),
+        (
+            "pages",
+            "words",
+            "a dollar sign in a person's words is escaped",
+        ),
+        ("pages", "words", "a `<` in a person's words is no tag"),
+        (
+            "compiler_surfaces",
+            "on_each_keyboard",
+            "a key's label is a person's words",
+        ),
+        (
+            "compiler_surfaces",
+            "keybindings",
+            "a chord a system keeps is a person's words",
+        ),
+        (
+            "local_open",
+            "begun",
+            "a database is made under its creation name, never the store's",
+        ),
+        (
+            "local_open",
+            "begun",
+            "what an open stopped while making the database left is taken away",
+        ),
+        (
+            "local_open",
+            "begun",
+            "the companions an open stopped while making left are taken away before SQLite sees \
+             the file",
+        ),
+        (
+            "local_open",
+            "begun",
+            "a link at the creation name is refused, never removed",
+        ),
+        (
+            "local_open",
+            "companions_of",
+            "a companion is held to the rule before it is counted as there",
+        ),
+        (
+            "local_open",
+            "put_in_place",
+            "a file left beside the new database keeps it from the store's name",
+        ),
+        (
+            "local_open",
+            "private_file_in",
+            "a companion of the store's name with no database is refused",
+        ),
+        (
+            "local_store",
+            "opening",
+            "a database this open made is put at its name before it is judged",
+        ),
+        (
+            "local_store",
+            "open_with",
+            "an open goes on in a task of its own when its caller stops awaiting it",
+        ),
+        (
+            "local_open",
+            "made",
+            "the profile is held on the thread that makes its file until the file is in place",
+        ),
+        (
+            "local_open",
+            "made",
+            "a new file is turned into a write-ahead log before it is renamed",
         ),
     ];
 

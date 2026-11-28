@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 28] = [
+const COVERED: [&str; 30] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -79,6 +79,8 @@ const COVERED: [&str; 28] = [
     "crates/nc-kernel/src",
     "crates/nc-local/src",
     "crates/nc-log/src",
+    "crates/nc-markdown/src",
+    "crates/nc-pages/src",
     "crates/nc-platform/src",
     "crates/nc-policy/src",
     "crates/nc-prune/src",
@@ -1245,7 +1247,7 @@ pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 19] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 21] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
@@ -1257,6 +1259,8 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 19] = [
     "crates/nc-kernel/",
     "crates/nc-local/",
     "crates/nc-log/",
+    "crates/nc-markdown/",
+    "crates/nc-pages/",
     "crates/nc-platform/",
     "crates/nc-policy/",
     "crates/nc-prune/",
@@ -4530,10 +4534,11 @@ pub(crate) struct Asserted {
 /// is the reading a row records and no walk makes.
 pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `query` is `COLUMNS`, a constant of the same file, with a `FROM` and an
-    // `ORDER BY` written beside it; nothing a caller passes reaches the text.
+    // `ORDER BY` written beside it — and, for a page, a `LIMIT` whose number
+    // is bound; nothing a caller passes reaches the text.
     Asserted {
         file: "crates/nc-journal/src/postgres.rs",
-        calls: 2,
+        calls: 3,
         from: &["query"],
     },
     // Schema and role names the suite builds from its own constants and the
@@ -4570,11 +4575,14 @@ pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `pragma_table_info` and put through the same function. `unheld` is the
     // `NOT EXISTS` of each table holding the table's rows by a `RESTRICT`
     // reference, every name in it read from `pragma_foreign_key_list` and put
-    // through `identifier` too, and `key` again.
+    // through `identifier` too, and `key` again. The count a reader is shown
+    // (`rows`) names `quoted` alone, and the end of a dense table's key
+    // (`rows_to_the_end`) `quoted` and `column`, the key's name put through
+    // `identifier` as well, both from the catalog.
     Asserted {
         file: "crates/nc-prune/src/sqlite.rs",
-        calls: 2,
-        from: &["key", "ordered", "quoted", "unheld"],
+        calls: 4,
+        from: &["column", "key", "ordered", "quoted", "unheld"],
     },
     // The decision point's schemas, one per test, each named from a literal,
     // the process id and the test's own word, dropped and created in one loop
@@ -10361,6 +10369,7 @@ mod tests {
             "// nothing here",
         );
         std::fs::create_dir_all(root.join("crates/nc-canon/src")).expect("a writable scratch");
+        std::fs::create_dir_all(root.join("crates/nc-markdown/src")).expect("a writable scratch");
         std::fs::create_dir_all(root.join("crates/nc-schema/src")).expect("a writable scratch");
         std::fs::create_dir_all(root.join("xtask/src")).expect("a writable scratch");
         // `EMITS` names a directory that must exist for the walk to run at all;
@@ -10747,7 +10756,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 22] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 24] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -10761,6 +10770,8 @@ mod tests {
         "crates/nc-kernel",
         "crates/nc-local",
         "crates/nc-log",
+        "crates/nc-markdown",
+        "crates/nc-pages",
         "crates/nc-platform",
         "crates/nc-policy",
         "crates/nc-prune",
@@ -10781,7 +10792,7 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 19] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 21] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
@@ -10793,6 +10804,8 @@ mod tests {
         "crates/nc-kernel/",
         "crates/nc-local/",
         "crates/nc-log/",
+        "crates/nc-markdown/",
+        "crates/nc-pages/",
         "crates/nc-platform/",
         "crates/nc-policy/",
         "crates/nc-prune/",
@@ -13335,6 +13348,8 @@ mod tests {
                 "crates/nc-kernel/src",
                 "crates/nc-local/src",
                 "crates/nc-log/src",
+                "crates/nc-markdown/src",
+                "crates/nc-pages/src",
                 "crates/nc-platform/src",
                 "crates/nc-policy/src",
                 "crates/nc-prune/src",

@@ -481,6 +481,14 @@ shell_text_bytes = 4_096
 shell_window_min_width = 320
 shell_window_min_height = 240
 shell_drawer_share_max = 49
+# How many rows one page of what the dev pages read may hold (`NOCTUA.md
+# §12.16`, `§15.3`): the plugins loaded, the lines of the daemon's own log and
+# the entries of the journal are each read a page at a time, `dev.plugins.read`,
+# `dev.logs.read` and `dev.journal.read`, and this is the most rows one answer
+# holds and the maximum each schema declares for `max`, which a test beside the
+# commands holds equal. A page ends earlier where its text would pass half of
+# `payload_bytes`, so no answer is refused for its size.
+dev_page_max = 256
 
 # --- The daemon (§11.1, §16.2) ---
 #
@@ -605,3 +613,9 @@ stop_within_ms = 65_000
 # process its PID record was held to — asked to end, then killed — before it
 # says the stop did not finish.
 kill_within_ms = 5_000
+# How many of its newest log lines the daemon keeps in memory for the dev
+# pages' live log (`NOCTUA.md §12.16`, `§15.4`): this machine's lines, each the
+# one line the central log is sent, read by `dev.logs.read` a page at a time. A
+# line past the bound takes the oldest one's place, and nothing is kept between
+# starts. The central log's own retention is its store's (`[stores.central_log]`).
+dev_logs_ring_lines = 4_096

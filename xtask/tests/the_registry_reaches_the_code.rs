@@ -1182,6 +1182,243 @@ fn every_notification_and_email_carries_its_keys_and_its_params() {
     }
 }
 
+/// Every handle of the interface's texts is documented by a sentence naming
+/// its id.
+///
+/// **A sentence, where an email's handle is documented by its bare id**: a
+/// doc block opening with a lower-case id reads to the doc-block rule as a
+/// continuation, which would need a row for every text. The id in it is the
+/// registry's, read from the file the compiler wrote.
+#[test]
+fn every_interface_handle_is_documented_by_a_sentence_naming_its_id() {
+    let catalog = catalog();
+    let file = "crates/nc-catalog/src/interface.rs";
+    let generated = std::fs::read_to_string(root().join(file)).expect("the crate is generated");
+    let mut checked = 0_usize;
+    for entry in &catalog.interface {
+        let variant = nc_catalog_compiler::camel(&entry.id.replace('.', "_"));
+        let at = generated
+            .find(&format!("\n    {variant},"))
+            .unwrap_or_else(|| panic!("`{variant}` is a variant of the generated enum"));
+        let above = the_doc_block_above(&generated, at);
+        assert_eq!(
+            the_summary_line_of(&above),
+            format!("/// The text `{}`.", entry.id),
+            "`{variant}` in `{file}`"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, catalog.interface.len());
+    assert!(checked > 1, "one text cannot tell two doc lines apart");
+}
+
+/// Every text of the interface's own reaches the code as a handle carrying
+/// its id, its key, its parameters and where it is shown, and the handles are
+/// the registry's texts and no other.
+#[test]
+fn every_interface_text_carries_its_key_its_params_and_where_it_is_shown() {
+    let catalog = catalog();
+    assert!(!catalog.interface.is_empty(), "nothing was compared");
+    for entry in &catalog.interface {
+        let generated = nc_catalog::interface::Text::ALL
+            .iter()
+            .find(|handle| handle.id() == entry.id)
+            .unwrap_or_else(|| panic!("`{}` never reached the code", entry.id));
+        assert_eq!(generated.key(), entry.text, "{}", entry.id);
+        assert_eq!(generated.params(), entry.params, "{}", entry.id);
+        assert_eq!(generated.shown(), entry.shown, "{}", entry.id);
+        // And the sentence it names is one every locale holds.
+        for locale in nc_catalog::Locale::ALL {
+            assert!(
+                nc_catalog::message(generated.key(), *locale).is_some(),
+                "`{}` has no {} sentence",
+                entry.id,
+                locale.tag()
+            );
+        }
+    }
+    let ids: Vec<&str> = nc_catalog::interface::Text::ALL
+        .iter()
+        .map(|handle| handle.id())
+        .collect();
+    assert!(ids.is_sorted(), "the handles are in id order: {ids:?}");
+    assert_eq!(ids.len(), catalog.interface.len());
+}
+
+/// The texts of the interface's own whose part the desktop has not drawn
+/// yet, each beside the part that will say it.
+///
+/// **A list that only shrinks**: a text a part of the desktop says is taken
+/// off it, and one that stays on it once said fails
+/// [`every_interface_text_is_said_by_the_desktop_or_waits_for_its_part`], so
+/// a text whose part is already drawn cannot sit unused.
+const WAITING_FOR_THEIR_PART: [(&str, &str); 23] = [
+    (
+        "alert.countdown-one",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.countdown-other",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.not-running",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.restore-now",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.start",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "alert.stopped",
+        "the daemon alert line, the desktop's second chain's",
+    ),
+    (
+        "confirm.asked-by-agent",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.asked-by-you",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.confirm",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.decline",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "confirm.irreversible",
+        "the confirmation surface, the desktop's second chain's",
+    ),
+    (
+        "connection.online",
+        "a realm's server reached, which nothing says before Stage 22",
+    ),
+    (
+        "history.nothing-to-undo",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "history.undo-of-an-agent",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "history.undo-takes-back",
+        "the undo notice, the desktop's second chain's",
+    ),
+    (
+        "prompt.nothing-handles",
+        "the prompt's send control and what it sends",
+    ),
+    ("prompt.send", "the prompt's send control and what it sends"),
+    ("settings.appearance.dark", "the settings pages"),
+    ("settings.appearance.light", "the settings pages"),
+    ("settings.appearance.system", "the settings pages"),
+    ("settings.footer.always", "the settings pages"),
+    ("settings.footer.hidden", "the settings pages"),
+    ("settings.language.system", "the settings pages"),
+];
+
+/// The desktop's own code, each source up to its tests: what a window can
+/// say.
+fn the_desktops_code() -> String {
+    let directory = root().join("apps/desktop/src");
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&directory)
+        .expect("the desktop's sources are read")
+        .map(|entry| entry.expect("an entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect();
+    sources.sort();
+    assert!(!sources.is_empty(), "no source of the desktop was read");
+    sources
+        .iter()
+        .map(|path| {
+            let text = std::fs::read_to_string(path).expect("a source is read");
+            text.split("#[cfg(test)]")
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// Whether `code` names `word` whole: not as a part of a longer name.
+fn names_whole(code: &str, word: &str) -> bool {
+    let continues = |character: Option<char>| {
+        character.is_some_and(|character| character.is_ascii_alphanumeric() || character == '_')
+    };
+    code.match_indices(word).any(|(at, _)| {
+        !continues(code[..at].chars().next_back())
+            && !continues(code[at + word.len()..].chars().next())
+    })
+}
+
+/// Every text of the interface's own is said by the desktop, or waits for a
+/// part the desktop has not drawn.
+///
+/// **Said is named by its handle in the desktop's own code**, its tests left
+/// out: a text the registry holds and no part says is published and shown
+/// nowhere, which is how a glyph's spoken name went unwired while the glyph
+/// was drawn. A text waits only on [`WAITING_FOR_THEIR_PART`], and a text on
+/// that list that a part says fails, so the list shrinks as the parts arrive.
+#[test]
+fn every_interface_text_is_said_by_the_desktop_or_waits_for_its_part() {
+    let code = the_desktops_code();
+    let mut said = 0_usize;
+    for text in nc_catalog::interface::Text::ALL {
+        let handle = format!("{text:?}");
+        let waits = WAITING_FOR_THEIR_PART
+            .iter()
+            .find(|(id, _)| *id == text.id())
+            .map(|(_, part)| *part);
+        match (names_whole(&code, &handle), waits) {
+            (true, None) => said += 1,
+            (false, Some(_)) => {}
+            (true, Some(part)) => panic!(
+                "`{}` is said by the desktop, so it waits for {part} no longer: take it off \
+                 `WAITING_FOR_THEIR_PART`",
+                text.id()
+            ),
+            (false, None) => panic!(
+                "`{}` ({handle}) is said by no part of the desktop: say it where its part draws \
+                 it, or name the part it waits for in `WAITING_FOR_THEIR_PART`",
+                text.id()
+            ),
+        }
+    }
+    for (id, _) in WAITING_FOR_THEIR_PART {
+        assert!(
+            nc_catalog::interface::Text::ALL
+                .iter()
+                .any(|text| text.id() == id),
+            "`{id}` waits for its part and is no text of the registry"
+        );
+    }
+    assert!(
+        WAITING_FOR_THEIR_PART.is_sorted(),
+        "the texts waiting are in id order"
+    );
+    assert!(said > 1, "the desktop says no text: nothing was compared");
+}
+
+/// A name is found whole, never inside a longer one.
+#[test]
+fn a_handle_is_found_whole_and_never_inside_a_longer_name() {
+    assert!(names_whole("Worded::PartFooter,", "PartFooter"));
+    assert!(names_whole("PartFooter", "PartFooter"));
+    assert!(!names_whole("Worded::PartFooterLine", "PartFooter"));
+    assert!(!names_whole("APartFooter", "PartFooter"));
+    assert!(!names_whole("_PartFooter", "PartFooter"));
+    assert!(!names_whole("", "PartFooter"));
+}
+
 #[test]
 fn every_command_carries_what_a_dispatcher_decides_on() {
     // `mutating` and `reversibility` are read by undo, by the journal and by the
@@ -2501,6 +2738,7 @@ fn the_interfaces_limits_are_the_ones_declared(catalog: &Catalog) {
         generated.shell_drawer_share_max,
         declared.shell_drawer_share_max
     );
+    assert_eq!(generated.dev_page_max, declared.dev_page_max);
 }
 
 #[test]
@@ -2600,7 +2838,7 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     // written out above and never published.
     assert_eq!(
         declared.each().len(),
-        57,
+        58,
         "a kernel limit was added or lost"
     );
 }
@@ -2636,9 +2874,10 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     assert_eq!(generated.start_within_ms, declared.start_within_ms);
     assert_eq!(generated.stop_within_ms, declared.stop_within_ms);
     assert_eq!(generated.kill_within_ms, declared.kill_within_ms);
+    assert_eq!(generated.dev_logs_ring_lines, declared.dev_logs_ring_lines);
     assert_eq!(
         declared.each().len(),
-        17,
+        18,
         "a daemon limit was added or lost"
     );
 }
@@ -2971,6 +3210,7 @@ fn every_generated_module_names_the_registry_it_came_from() {
         ("errors.rs", "catalog/errors.toml"),
         ("notifications.rs", "catalog/notifications.toml"),
         ("emails.rs", "catalog/emails.toml"),
+        ("interface.rs", "catalog/interface.toml"),
         ("limits.rs", "catalog/limits.toml"),
         ("commands.rs", "catalog/commands.toml"),
         ("events.rs", "catalog/log-events.toml"),
@@ -3084,7 +3324,7 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
     // these already has a per-entry test walking the other way: the two together
     // are a bijection, and either alone is not.
     let catalog = catalog();
-    let counted: [(&str, usize, usize); 11] = [
+    let counted: [(&str, usize, usize); 12] = [
         (
             "commands",
             nc_catalog::COMMANDS.len(),
@@ -3117,6 +3357,11 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
             catalog.notifications.len(),
         ),
         ("emails", nc_catalog::Email::ALL.len(), catalog.emails.len()),
+        (
+            "interface texts",
+            nc_catalog::interface::Text::ALL.len(),
+            catalog.interface.len(),
+        ),
         (
             "bounded tables",
             nc_catalog::TABLES.len(),

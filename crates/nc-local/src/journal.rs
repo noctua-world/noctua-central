@@ -246,6 +246,41 @@ impl nc_journal::Store for LocalJournal {
         })
     }
 
+    async fn page(&self, sequence: u64, most: u32) -> Result<Read, Error> {
+        let from = signed("sequence", sequence)?;
+        // **`LIMIT` is the bound, in the statement**: the rows past `most`
+        // are never read from the file, so a page costs what it answers and
+        // not what the history holds. The primary key orders it.
+        let rows = sqlx::query(
+            "SELECT sequence, realm, principal, actor_chain, action, resource, result, \
+             deciding_policy, policy_pack, policy_epoch, grant_used, work_unit, recorded_at, \
+             prev_hash, hash FROM main.local_journal_entries WHERE sequence >= ?1 \
+             ORDER BY sequence LIMIT ?2",
+        )
+        .bind(from)
+        .bind(i64::from(most))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| refused("reading a page of the journal", &error))?;
+        // The rows before a bad one are kept, and the bad one is named, as
+        // `from` reads them.
+        let mut entries = Vec::with_capacity(rows.len());
+        let mut stopped_at = None;
+        for row in &rows {
+            match entry_from(row) {
+                Ok(entry) => entries.push(entry),
+                Err(why) => {
+                    stopped_at = Some(where_it_stopped(row, why));
+                    break;
+                }
+            }
+        }
+        Ok(Read {
+            entries,
+            stopped_at,
+        })
+    }
+
     async fn unit_closing(
         &self,
         realm: &OpaqueId,

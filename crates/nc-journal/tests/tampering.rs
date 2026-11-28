@@ -872,6 +872,12 @@ impl nc_journal::Store for ShortStore {
             .truncate(usize::try_from(self.1).unwrap_or(usize::MAX));
         Ok(read)
     }
+    async fn page(&self, sequence: u64, most: u32) -> Result<nc_journal::Read, nc_journal::Error> {
+        let mut read = self.0.store().page(sequence, most).await?;
+        read.entries
+            .truncate(usize::try_from(self.1).unwrap_or(usize::MAX));
+        Ok(read)
+    }
     async fn unit_opened(
         &self,
         realm: &nc_ids::OpaqueId,
@@ -925,6 +931,9 @@ impl nc_journal::Store for ForgetfulStore {
     }
     async fn from(&self, sequence: u64) -> Result<nc_journal::Read, nc_journal::Error> {
         self.0.store().from(sequence).await
+    }
+    async fn page(&self, sequence: u64, most: u32) -> Result<nc_journal::Read, nc_journal::Error> {
+        self.0.store().page(sequence, most).await
     }
     async fn unit_opened(
         &self,
@@ -983,6 +992,9 @@ impl nc_journal::Store for FailingStore {
     }
     async fn from(&self, sequence: u64) -> Result<nc_journal::Read, nc_journal::Error> {
         self.inner.from(sequence).await
+    }
+    async fn page(&self, sequence: u64, most: u32) -> Result<nc_journal::Read, nc_journal::Error> {
+        self.inner.page(sequence, most).await
     }
     async fn unit_opened(
         &self,
@@ -1149,6 +1161,27 @@ impl nc_journal::Store for TailIsOneBehind {
             .entries
             .iter()
             .filter(|entry| entry.sequence >= sequence)
+            .cloned()
+            .collect();
+        async move {
+            Ok(nc_journal::Read {
+                entries: answer,
+                stopped_at: None,
+            })
+        }
+    }
+
+    fn page(
+        &self,
+        sequence: u64,
+        most: u32,
+    ) -> impl core::future::Future<Output = Result<nc_journal::Read, nc_journal::Error>> + Send
+    {
+        let answer: Vec<Entry> = self
+            .entries
+            .iter()
+            .filter(|entry| entry.sequence >= sequence)
+            .take(usize::try_from(most).unwrap_or(usize::MAX))
             .cloned()
             .collect();
         async move {

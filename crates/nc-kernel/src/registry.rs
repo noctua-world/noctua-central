@@ -94,9 +94,10 @@ use crate::{LoadProblem, PluginSlot};
 
 /// The namespaces the kernel keeps for its own commands: its own, and the
 /// interface's state's (`crate::shell`).
-pub const RESERVED: [&str; 17] = [
+pub const RESERVED: [&str; 18] = [
     "agents",
     "confirmations",
+    "dev",
     "drawer",
     "footer",
     "info",
@@ -116,9 +117,18 @@ pub const RESERVED: [&str; 17] = [
 
 /// The namespaces whose changes decide what may act for a person.
 ///
-/// A command of the kernel's own in one of them that changes state runs only
-/// at the top of a call tree, as the person's own call (`[NC-KERN-0025]`).
+/// A command of the kernel's own in one of them that changes state, or is
+/// decided under any action but [`READ`], runs only at the top of a call tree,
+/// as the person's own call (`[NC-KERN-0025]`).
 const ONLY_AT_THE_TOP: [&str; 2] = ["agents", "settings"];
+
+/// The action a command that changes nothing is decided under.
+///
+/// A setting of how the interface is shown (`crate::shell::Setting`) is set
+/// by a command that is no step and so declares no change (`mutating =
+/// false`), and is decided under `Write` all the same: what keeps it at the
+/// top of a call tree is that it is decided as a change.
+const READ: &str = "Read";
 
 /// The one action a plugin's command may select the whole realm under.
 const THE_REALM_IS_READ_WITH: &str = "Read";
@@ -807,13 +817,15 @@ fn in_a_reserved_namespace(name: &str) -> bool {
 
 /// Whether `command` runs only at the top of a call tree.
 ///
-/// It does when it is the kernel's own, changes state, and sits in one of
+/// It does when it is the kernel's own, changes state or is decided under an
+/// action other than [`READ`] — a set of a setting of how the interface is
+/// shown, which is no step, included — and sits in one of
 /// [`ONLY_AT_THE_TOP`]'s namespaces: a read of a setting and the list of a
 /// person's agents run anywhere, and undo and redo are the history's own
 /// (`crate::history::is_history`).
 pub(crate) fn only_at_the_top(command: &RegisteredCommand) -> bool {
     command.owner == Owner::Kernel
-        && command.mutating
+        && (command.mutating || command.action != READ)
         && ONLY_AT_THE_TOP.contains(&first_segment(&command.name))
 }
 
@@ -1109,7 +1121,11 @@ mod tests {
     /// that are neither — the history's rule is its own; and a plugin's
     /// command, however it is named. **And each namespace by a command of its
     /// own**: the switch, and each of the three that make, grant and end an
-    /// agent.
+    /// agent. **A set that is no step is a change all the same**: the three
+    /// settings of how the interface is shown declare no change and are kept
+    /// at the top by the action they are decided under, while their reads are
+    /// answered anywhere; and a change decided as a read is kept there by the
+    /// change it declares.
     #[test]
     fn only_a_setting_or_an_agent_change_of_the_kernels_own_runs_at_the_top_alone() {
         let listed = Registry::from_catalog().listed();
@@ -1122,6 +1138,13 @@ mod tests {
         };
         for name in [
             "settings.mcp.set",
+            "settings.leader.set",
+            "settings.chord.set",
+            "settings.menu-keys.set",
+            "settings.chords.set",
+            "settings.footer.set",
+            "settings.language.set",
+            "settings.appearance.set",
             "agents.create",
             "agents.grant",
             "agents.revoke",
@@ -1130,6 +1153,13 @@ mod tests {
         }
         for name in [
             "settings.mcp.read",
+            "settings.leader.read",
+            "settings.chord.read",
+            "settings.menu-keys.read",
+            "settings.chords.read",
+            "settings.footer.read",
+            "settings.language.read",
+            "settings.appearance.read",
             "agents.list",
             "kernel.undo",
             "kernel.redo",
@@ -1138,6 +1168,12 @@ mod tests {
         ] {
             assert!(!only_at_the_top(&of(name)), "`{name}`");
         }
+        let mut changing = of("settings.mcp.read");
+        changing.mutating = true;
+        assert!(
+            only_at_the_top(&changing),
+            "a change of a setting's, decided as a read"
+        );
         let mut plugins = of("settings.mcp.set");
         plugins.owner = Owner::Plugin(PluginSlot(0));
         assert!(

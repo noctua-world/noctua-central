@@ -307,6 +307,292 @@ Arguments:
   --serial <whole number, at least 1>  required
 ```
 
+## `dev.agents.read`
+
+In `en`:
+
+```text
+dev.agents.read — Show agents' tables in use
+Show how full the tables that keep agents and their grants are.
+
+Shows the two tables of this machine's database that keep the agents people made and the grants they gave them: the rows each holds and the bound at which a new agent or a new grant is refused. It counts rows and shows no agent; listing your agents is its own command. It changes nothing.
+
+Categories: none
+Tags: agents, grants, tables, rows, bounds, dev
+
+Usage:
+  noctua dev.agents.read [arguments]
+  noctua dev.agents.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.agents.read — Mostrar o uso das tabelas de agentes
+Mostrar o quanto as tabelas que guardam agentes e suas concessões estão cheias.
+
+Mostra as duas tabelas do banco de dados desta máquina que guardam os agentes que as pessoas criaram e as concessões que lhes deram: as linhas que cada uma guarda e o limite em que um novo agente ou uma nova concessão é recusado. Conta linhas e não mostra nenhum agente; listar os seus agentes é um comando próprio. Não altera nada.
+
+Categories: none
+Tags: agentes, concessões, tabelas, linhas, limites, dev
+
+Usage:
+  noctua dev.agents.read [arguments]
+  noctua dev.agents.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.journal.read`
+
+In `en`:
+
+```text
+dev.journal.read — Browse the journal
+Read a page of the realm's journal, entry by entry.
+
+Reads a page of the realm's journal from the entry you name, oldest first: who asked, for whom, which command, on what, how it was decided and by which policy, in which unit of work, and when. It says where the next page starts and which entry is the newest, and names an entry it could not read instead of skipping it. It changes nothing; verifying the journal's chain is its own command.
+
+Categories: none
+Tags: journal, audit, history, entries, browse, dev, records
+
+Usage:
+  noctua dev.journal.read [arguments]
+  noctua dev.journal.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.journal.read — Navegar pelo journal
+Ler uma página do journal do realm, entrada por entrada.
+
+Lê uma página do journal do realm a partir da entrada que você indicar, da mais antiga para a mais nova: quem pediu, em nome de quem, qual comando, sobre o quê, como foi decidido e por qual política, em qual unidade de trabalho e quando. Diz onde a próxima página começa e qual é a entrada mais nova, e nomeia uma entrada que não conseguiu ler em vez de pulá-la. Não altera nada; verificar a cadeia do journal é um comando próprio.
+
+Categories: none
+Tags: journal, auditoria, histórico, entradas, navegar, dev, registros
+
+Usage:
+  noctua dev.journal.read [arguments]
+  noctua dev.journal.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.limits.read`
+
+In `en`:
+
+```text
+dev.limits.read — Show limits in use
+Show how full each bounded table and count on this machine is.
+
+Lists each table of this machine's database with the rows it holds and the bound it declares, and each count the local server keeps against a limit — agents' sessions, connections, calls waiting for confirmation, log lines kept — with how many are in use now. A bound counted for each plugin or each unit is shown beside the whole table's rows, which it does not bound. Limits that are a size or a time have no use to show; the limits page lists them. It changes nothing.
+
+Categories: none
+Tags: limits, bounds, usage, tables, rows, dev, capacity
+
+Usage:
+  noctua dev.limits.read [arguments]
+  noctua dev.limits.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.limits.read — Mostrar limites em uso
+Mostrar o quanto cada tabela e contagem limitada desta máquina está cheia.
+
+Lista cada tabela do banco de dados desta máquina com as linhas que ela guarda e o limite que declara, e cada contagem que o servidor local mantém contra um limite — sessões de agentes, conexões, chamadas aguardando confirmação, linhas de log guardadas — com quantas estão em uso agora. Um limite contado por plugin ou por unidade aparece ao lado das linhas da tabela inteira, que ele não limita. Limites que são um tamanho ou um tempo não têm uso a mostrar; a página de limites os lista. Não altera nada.
+
+Categories: none
+Tags: limites, uso, tabelas, linhas, dev, capacidade, ocupação
+
+Usage:
+  noctua dev.limits.read [arguments]
+  noctua dev.limits.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.logs.read`
+
+In `en`:
+
+```text
+dev.logs.read — Read the live log
+Read the newest log lines this machine's local server recorded.
+
+Reads a page of the lines the local server on this machine recorded since it started, oldest first, each under the number it was recorded at, and says where the next page starts, so reading again from there follows the log as it grows. Only the newest lines are kept, in memory. A line holds an event's name, its level and its declared fields — codes, counts and identifiers, never text a person wrote. It changes nothing.
+
+Categories: none
+Tags: logs, log, live, errors, events, dev, tail
+
+Usage:
+  noctua dev.logs.read [arguments]
+  noctua dev.logs.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.logs.read — Ler o log ao vivo
+Ler as linhas de log mais novas que o servidor local desta máquina registrou.
+
+Lê uma página das linhas que o servidor local desta máquina registrou desde que iniciou, da mais antiga para a mais nova, cada uma sob o número em que foi registrada, e diz onde a próxima página começa, de modo que ler de novo a partir dali acompanha o log enquanto ele cresce. Só as linhas mais novas são guardadas, em memória. Uma linha traz o nome de um evento, seu nível e seus campos declarados — códigos, contagens e identificadores, nunca texto que uma pessoa escreveu. Não altera nada.
+
+Categories: none
+Tags: logs, log, ao vivo, erros, eventos, dev, acompanhar
+
+Usage:
+  noctua dev.logs.read [arguments]
+  noctua dev.logs.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.plugins.read`
+
+In `en`:
+
+```text
+dev.plugins.read — Show loaded plugins
+List each loaded plugin with what it was granted and what it uses.
+
+Lists the plugins the local server loaded, a page at a time: each one's identity and namespace, the capabilities it was granted, how many commands it declares, the surfaces and timers it holds, the lines its own log keeps, how often it was stopped and started again, why it was last stopped, and whether it is quarantined. It changes nothing.
+
+Categories: none
+Tags: plugins, loaded, capabilities, resources, restarts, dev, quarantine
+
+Usage:
+  noctua dev.plugins.read [arguments]
+  noctua dev.plugins.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+In `pt-BR`:
+
+```text
+dev.plugins.read — Mostrar plugins carregados
+Listar cada plugin carregado com o que lhe foi concedido e o que ele usa.
+
+Lista os plugins que o servidor local carregou, uma página por vez: a identidade e o namespace de cada um, as capacidades que lhe foram concedidas, quantos comandos declara, as superfícies e os temporizadores que mantém, as linhas que o seu próprio log guarda, quantas vezes foi parado e iniciado de novo, por que foi parado da última vez e se está em quarentena. Não altera nada.
+
+Categories: none
+Tags: plugins, carregados, capacidades, recursos, reinícios, dev, quarentena
+
+Usage:
+  noctua dev.plugins.read [arguments]
+  noctua dev.plugins.read -- '<one JSON object>'
+
+Arguments:
+  --from <whole number, at least 0>
+  --max <whole number, from 1 to 256>
+```
+
+## `dev.policy.read`
+
+In `en`:
+
+```text
+dev.policy.read — Show the policy pack
+Show the realm's policy pack, its version and its policy epoch.
+
+Shows which policy pack decides what may be done in this realm: the pack and its version, as the realm pins it and the local server carries it, and the realm's policy epoch, which moves each time its permissions change. It changes nothing.
+
+Categories: none
+Tags: policy, pack, version, epoch, realm, dev, authorization
+
+Usage:
+  noctua dev.policy.read [arguments]
+  noctua dev.policy.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.policy.read — Mostrar o pacote de políticas
+Mostrar o pacote de políticas do realm, sua versão e sua época.
+
+Mostra qual pacote de políticas decide o que pode ser feito neste realm: o pacote e a sua versão, como o realm o fixa e o servidor local o carrega, e a época de políticas do realm, que avança cada vez que suas permissões mudam. Não altera nada.
+
+Categories: none
+Tags: política, pacote, versão, época, realm, dev, autorização
+
+Usage:
+  noctua dev.policy.read [arguments]
+  noctua dev.policy.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `dev.sessions.read`
+
+In `en`:
+
+```text
+dev.sessions.read — Show agents' sessions
+List the agents' sessions the local server holds open now.
+
+Shows each session an agent holds open on the local server, by the agent's identifier, with how many sessions and connections are open and the most the server allows of each. It changes nothing.
+
+Categories: none
+Tags: sessions, agents, mcp, connections, open, dev
+
+Usage:
+  noctua dev.sessions.read [arguments]
+  noctua dev.sessions.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+dev.sessions.read — Mostrar sessões de agentes
+Listar as sessões de agentes que o servidor local mantém abertas agora.
+
+Mostra cada sessão que um agente mantém aberta no servidor local, pelo identificador do agente, com quantas sessões e conexões estão abertas e o máximo que o servidor permite de cada uma. Não altera nada.
+
+Categories: none
+Tags: sessões, agentes, mcp, conexões, abertas, dev
+
+Usage:
+  noctua dev.sessions.read [arguments]
+  noctua dev.sessions.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
 ## `drawer.back`
 
 In `en`:
@@ -555,7 +841,7 @@ In `en`:
 footer.show — Show the footer
 Show the footer's three lines now, even where the setting hides it.
 
-Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.
+Shows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.
 
 Categories: none
 Tags: footer, show, modeline, prompt, interface
@@ -574,7 +860,7 @@ In `pt-BR`:
 footer.show — Mostrar o rodapé
 Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.
 
-Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.
+Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.
 
 Categories: none
 Tags: rodapé, mostrar, linha de modo, prompt, interface
@@ -1791,6 +2077,486 @@ Arguments:
   --text <text, at most 4096 characters>  required
 ```
 
+## `settings.appearance.read`
+
+In `en`:
+
+```text
+settings.appearance.read — Read the appearance
+Show whether the Noctua window is chosen light or dark.
+
+Answers the mode chosen for the Noctua window, in this installation of Noctua: your system's, light or dark. It is your system's until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: appearance, theme, dark mode, light mode, interface, settings
+
+Usage:
+  noctua settings.appearance.read [arguments]
+  noctua settings.appearance.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.appearance.read — Ler a aparência
+Mostrar se a janela do Noctua foi escolhida clara ou escura.
+
+Responde o modo escolhido para a janela do Noctua, nesta instalação do Noctua: o do seu sistema, claro ou escuro. É o do seu sistema até você escolher outro. Não altera nada.
+
+Categories: noctua.settings
+Tags: aparência, tema, modo escuro, modo claro, interface, ajustes
+
+Usage:
+  noctua settings.appearance.read [arguments]
+  noctua settings.appearance.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.appearance.set`
+
+In `en`:
+
+```text
+settings.appearance.set — Change the appearance
+Choose a light or a dark Noctua window, or your system's mode.
+
+Chooses the mode for the Noctua window, in this installation of Noctua and in no other: light, dark, or whichever your system prefers. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: appearance, theme, dark mode, light mode, colours, interface, settings, change
+
+Usage:
+  noctua settings.appearance.set [arguments]
+  noctua settings.appearance.set -- '<one JSON object>'
+
+Arguments:
+  --mode <one of: system, light, dark>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.appearance.set — Alterar a aparência
+Escolher uma janela do Noctua clara ou escura, ou o modo do seu sistema.
+
+Escolhe o modo para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: claro, escuro, ou o que o seu sistema preferir. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: aparência, tema, modo escuro, modo claro, cores, interface, ajustes, alterar
+
+Usage:
+  noctua settings.appearance.set [arguments]
+  noctua settings.appearance.set -- '<one JSON object>'
+
+Arguments:
+  --mode <one of: system, light, dark>  required
+```
+
+## `settings.chord.read`
+
+In `en`:
+
+```text
+settings.chord.read — Read the added key
+Show the key held with the Leader for more shortcuts.
+
+Answers the key that, held with the Leader, reaches a second set of shortcuts in this installation of Noctua. It is Shift until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: chord, added key, modifier, shift, shortcut, keyboard, settings
+
+Usage:
+  noctua settings.chord.read [arguments]
+  noctua settings.chord.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.chord.read — Ver a tecla acrescentada
+Mostrar a tecla pressionada com o Leader para mais atalhos.
+
+Responde qual tecla, pressionada junto com o Leader, alcança um segundo conjunto de atalhos nesta instalação do Noctua. É Shift até você escolher outra. Não muda nada.
+
+Categories: noctua.settings
+Tags: tecla acrescentada, modificador, shift, atalho, teclado, configurações
+
+Usage:
+  noctua settings.chord.read [arguments]
+  noctua settings.chord.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.chord.set`
+
+In `en`:
+
+```text
+settings.chord.set — Change the added key
+Choose the key held with the Leader for more shortcuts.
+
+Changes the key that, held with the Leader, reaches a second set of shortcuts, in this installation of Noctua and in no other: one of Control, Alt, Shift and Super. It is refused when the Leader already holds it, or when the Leader held with it would be another installation's Leader. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the key you had.
+
+Categories: noctua.settings
+Tags: chord, added key, modifier, shift, shortcut, keyboard, settings, change
+
+Usage:
+  noctua settings.chord.set [arguments]
+  noctua settings.chord.set -- '<one JSON object>'
+
+Arguments:
+  --chord <text, from 1 to 16 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.chord.set — Mudar a tecla acrescentada
+Escolher a tecla pressionada com o Leader para mais atalhos.
+
+Muda a tecla que, pressionada junto com o Leader, alcança um segundo conjunto de atalhos, nesta instalação do Noctua e em nenhuma outra: uma entre Control, Alt, Shift e Super. É recusada quando o Leader já a inclui, ou quando o Leader com ela seria o Leader de outra instalação. Uma escolha recusada não muda nada. Só você pode mudá-la, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha a tecla que você tinha.
+
+Categories: noctua.settings
+Tags: tecla acrescentada, modificador, shift, atalho, teclado, configurações, mudar
+
+Usage:
+  noctua settings.chord.set [arguments]
+  noctua settings.chord.set -- '<one JSON object>'
+
+Arguments:
+  --chord <text, from 1 to 16 characters>  required
+```
+
+## `settings.chords.read`
+
+In `en`:
+
+```text
+settings.chords.read — Read the chords
+Show each key pressed with the Leader held and what it runs.
+
+Answers every key that acts while the Leader is held in this installation of Noctua, each beside the command it runs and whether the added key is held as well: Noctua's own keys, with your choices over them. It changes nothing.
+
+Categories: noctua.settings
+Tags: chords, held, shortcuts, keys, keyboard, settings
+
+Usage:
+  noctua settings.chords.read [arguments]
+  noctua settings.chords.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.chords.read — Ver as combinações
+Mostrar cada tecla pressionada com o Leader e o que ela executa.
+
+Responde todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.
+
+Categories: noctua.settings
+Tags: combinações, pressionado, atalhos, teclas, teclado, configurações
+
+Usage:
+  noctua settings.chords.read [arguments]
+  noctua settings.chords.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.chords.set`
+
+In `en`:
+
+```text
+settings.chords.set — Change the chords
+Choose each key pressed with the Leader held and what it runs.
+
+Replaces every key that acts while the Leader is held in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs and whether the added key is held as well. A command you leave out has no chord. One key runs one command, so a key given twice the same way is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.
+
+Categories: noctua.settings
+Tags: chords, held, shortcuts, keys, keyboard, settings, change, rebind
+
+Usage:
+  noctua settings.chords.set [arguments]
+  noctua settings.chords.set -- '<one JSON object>'
+
+Arguments:
+  --chords <a JSON object>  (repeated, once for each item, at most 146 items)  required
+```
+
+In `pt-BR`:
+
+```text
+settings.chords.set — Mudar as combinações
+Escolher cada tecla pressionada com o Leader e o que ela executa.
+
+Substitui todas as teclas que agem enquanto o Leader está pressionado nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa e se a tecla acrescentada também é pressionada. Um comando que você deixar de fora fica sem combinação. Uma tecla executa um comando só, então uma tecla informada duas vezes do mesmo jeito é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.
+
+Categories: noctua.settings
+Tags: combinações, pressionado, atalhos, teclas, teclado, configurações, mudar, reatribuir
+
+Usage:
+  noctua settings.chords.set [arguments]
+  noctua settings.chords.set -- '<one JSON object>'
+
+Arguments:
+  --chords <a JSON object>  (repeated, once for each item, at most 146 items)  required
+```
+
+## `settings.footer.read`
+
+In `en`:
+
+```text
+settings.footer.read — Read the footer's visibility
+Show whether the footer is always shown.
+
+Answers whether the footer of the Noctua window is always shown or stays hidden until you ask for it, in this installation of Noctua. It is always shown until you choose otherwise. It changes nothing.
+
+Categories: noctua.settings
+Tags: footer, visibility, hide the footer, interface, settings
+
+Usage:
+  noctua settings.footer.read [arguments]
+  noctua settings.footer.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.footer.read — Ler a visibilidade do rodapé
+Mostrar se o rodapé fica sempre visível.
+
+Responde se o rodapé da janela do Noctua fica sempre visível ou permanece oculto até você pedir, nesta instalação do Noctua. Ele fica sempre visível até você escolher outra coisa. Não altera nada.
+
+Categories: noctua.settings
+Tags: rodapé, visibilidade, ocultar o rodapé, interface, ajustes
+
+Usage:
+  noctua settings.footer.read [arguments]
+  noctua settings.footer.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.footer.set`
+
+In `en`:
+
+```text
+settings.footer.set — Change the footer's visibility
+Keep the footer always shown, or hidden until needed.
+
+Chooses whether the footer of the Noctua window is always shown or stays hidden, in this installation of Noctua and in no other. Hidden, it comes back when you press the Leader or move the pointer to the bottom edge of the window, and goes away again when you leave it. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: footer, visibility, hide the footer, show the footer, interface, settings, change
+
+Usage:
+  noctua settings.footer.set [arguments]
+  noctua settings.footer.set -- '<one JSON object>'
+
+Arguments:
+  --visibility <one of: always, hidden>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.footer.set — Alterar a visibilidade do rodapé
+Manter o rodapé sempre visível, ou oculto até ser necessário.
+
+Escolhe se o rodapé da janela do Noctua fica sempre visível ou permanece oculto, nesta instalação do Noctua e em nenhuma outra. Oculto, ele volta quando você pressiona a tecla Leader ou leva o ponteiro até a borda inferior da janela, e some de novo quando você sai dele. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: rodapé, visibilidade, ocultar o rodapé, mostrar o rodapé, interface, ajustes, alterar
+
+Usage:
+  noctua settings.footer.set [arguments]
+  noctua settings.footer.set -- '<one JSON object>'
+
+Arguments:
+  --visibility <one of: always, hidden>  required
+```
+
+## `settings.language.read`
+
+In `en`:
+
+```text
+settings.language.read — Read the language
+Show the language chosen for the Noctua window.
+
+Answers the language chosen for the Noctua window in this installation of Noctua: your system's language, or one you chose. It is your system's until you choose another. It changes nothing.
+
+Categories: noctua.settings
+Tags: language, locale, english, portuguese, interface, settings
+
+Usage:
+  noctua settings.language.read [arguments]
+  noctua settings.language.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.language.read — Ler o idioma
+Mostrar o idioma escolhido para a janela do Noctua.
+
+Responde o idioma escolhido para a janela do Noctua nesta instalação do Noctua: o idioma do seu sistema, ou um que você escolheu. É o do seu sistema até você escolher outro. Não altera nada.
+
+Categories: noctua.settings
+Tags: idioma, língua, inglês, português, interface, ajustes
+
+Usage:
+  noctua settings.language.read [arguments]
+  noctua settings.language.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.language.set`
+
+In `en`:
+
+```text
+settings.language.set — Change the language
+Choose the language for the Noctua window.
+
+Chooses the language for the Noctua window, in this installation of Noctua and in no other: your system's language, English or Brazilian Portuguese. Where your system's language is neither, your system's means English. The choice is kept until you change it, and undo does not take it back: choose again instead.
+
+Categories: noctua.settings
+Tags: language, locale, english, portuguese, translate, interface, settings, change
+
+Usage:
+  noctua settings.language.set [arguments]
+  noctua settings.language.set -- '<one JSON object>'
+
+Arguments:
+  --language <one of: system, en, pt-BR>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.language.set — Alterar o idioma
+Escolher o idioma para a janela do Noctua.
+
+Escolhe o idioma para a janela do Noctua, nesta instalação do Noctua e em nenhuma outra: o idioma do seu sistema, inglês ou português do Brasil. Quando o idioma do seu sistema não é nenhum dos dois, o do seu sistema quer dizer inglês. A escolha é mantida até você mudá-la, e desfazer não a reverte: escolha de novo.
+
+Categories: noctua.settings
+Tags: idioma, língua, inglês, português, traduzir, interface, ajustes, alterar
+
+Usage:
+  noctua settings.language.set [arguments]
+  noctua settings.language.set -- '<one JSON object>'
+
+Arguments:
+  --language <one of: system, en, pt-BR>  required
+```
+
+## `settings.leader.read`
+
+In `en`:
+
+```text
+settings.leader.read — Read the Leader
+Show the keys that reach Noctua from anywhere.
+
+Answers the Leader in use in this installation of Noctua: the keys that show Noctua from anywhere on the computer, written as their places on the keyboard. It changes nothing.
+
+Categories: noctua.settings
+Tags: leader, shortcut, keys, keyboard, settings, hotkey
+
+Usage:
+  noctua settings.leader.read [arguments]
+  noctua settings.leader.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.leader.read — Ver o Leader
+Mostrar as teclas que chamam o Noctua de qualquer lugar.
+
+Responde qual é o Leader em uso nesta instalação do Noctua: as teclas que mostram o Noctua de qualquer lugar do computador, escritas pela posição delas no teclado. Não muda nada.
+
+Categories: noctua.settings
+Tags: leader, atalho, teclas, teclado, configurações, tecla de atalho
+
+Usage:
+  noctua settings.leader.read [arguments]
+  noctua settings.leader.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.leader.set`
+
+In `en`:
+
+```text
+settings.leader.set — Change the Leader
+Choose the keys that reach Noctua from anywhere.
+
+Changes the Leader of this installation of Noctua, and of no other. The Leader needs at least one of Control, Alt, Shift and Super held with its key, and it is refused when it would clash with the key added to it or with another installation's Leader, or when the system does not give it to Noctua. A refused choice changes nothing. Only you can change it, asking directly, never from inside another action. Undo stops at this step: to go back, choose the Leader you had.
+
+Categories: noctua.settings
+Tags: leader, shortcut, keys, keyboard, settings, hotkey, change
+
+Usage:
+  noctua settings.leader.set [arguments]
+  noctua settings.leader.set -- '<one JSON object>'
+
+Arguments:
+  --leader <text, from 1 to 64 characters>  required
+```
+
+In `pt-BR`:
+
+```text
+settings.leader.set — Mudar o Leader
+Escolher as teclas que chamam o Noctua de qualquer lugar.
+
+Muda o Leader desta instalação do Noctua, e de nenhuma outra. O Leader precisa de pelo menos uma entre Control, Alt, Shift e Super pressionada junto com a tecla dele, e é recusado quando conflitaria com a tecla acrescentada a ele ou com o Leader de outra instalação, ou quando o sistema não o entrega ao Noctua. Uma escolha recusada não muda nada. Só você pode mudá-lo, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, escolha o Leader que você tinha.
+
+Categories: noctua.settings
+Tags: leader, atalho, teclas, teclado, configurações, tecla de atalho, mudar
+
+Usage:
+  noctua settings.leader.set [arguments]
+  noctua settings.leader.set -- '<one JSON object>'
+
+Arguments:
+  --leader <text, from 1 to 64 characters>  required
+```
+
 ## `settings.mcp.read`
 
 In `en`:
@@ -1869,6 +2635,86 @@ Usage:
 
 Arguments:
   --on  (a boolean: true when given alone, `=false` says false)  required
+```
+
+## `settings.menu-keys.read`
+
+In `en`:
+
+```text
+settings.menu-keys.read — Read the leader menu's keys
+Show each key of the leader menu and what it runs.
+
+Answers every key of the leader menu in use in this installation of Noctua, each beside the command it runs: Noctua's own keys, with your choices over them. It changes nothing.
+
+Categories: noctua.settings
+Tags: leader menu, keys, shortcuts, keyboard, settings, menu
+
+Usage:
+  noctua settings.menu-keys.read [arguments]
+  noctua settings.menu-keys.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+In `pt-BR`:
+
+```text
+settings.menu-keys.read — Ver as teclas do menu do Leader
+Mostrar cada tecla do menu do Leader e o que ela executa.
+
+Responde todas as teclas do menu do Leader em uso nesta instalação do Noctua, cada uma ao lado do comando que executa: as teclas do próprio Noctua, com as suas escolhas por cima. Não muda nada.
+
+Categories: noctua.settings
+Tags: menu do leader, teclas, atalhos, teclado, configurações, menu
+
+Usage:
+  noctua settings.menu-keys.read [arguments]
+  noctua settings.menu-keys.read -- '<one JSON object>'
+
+Arguments:
+  none
+```
+
+## `settings.menu-keys.set`
+
+In `en`:
+
+```text
+settings.menu-keys.set — Change the leader menu's keys
+Choose each key of the leader menu and what it runs.
+
+Replaces every key of the leader menu in this installation of Noctua, and in no other, with the keys you give, each beside the command it runs. A command you leave out is not in the menu. One key runs one command, so a key given twice is refused, and a refused choice changes nothing. Only you can change them, asking directly, never from inside another action. Undo stops at this step: to go back, give the keys you had.
+
+Categories: noctua.settings
+Tags: leader menu, keys, shortcuts, keyboard, settings, menu, change, rebind
+
+Usage:
+  noctua settings.menu-keys.set [arguments]
+  noctua settings.menu-keys.set -- '<one JSON object>'
+
+Arguments:
+  --keys <a JSON object>  (repeated, once for each item, at most 73 items)  required
+```
+
+In `pt-BR`:
+
+```text
+settings.menu-keys.set — Mudar as teclas do menu do Leader
+Escolher cada tecla do menu do Leader e o que ela executa.
+
+Substitui todas as teclas do menu do Leader nesta instalação do Noctua, e em nenhuma outra, pelas teclas que você informar, cada uma ao lado do comando que executa. Um comando que você deixar de fora não aparece no menu. Uma tecla executa um comando só, então uma tecla informada duas vezes é recusada, e uma escolha recusada não muda nada. Só você pode mudá-las, pedindo diretamente, nunca de dentro de outra ação. Desfazer para neste passo: para voltar, informe as teclas que você tinha.
+
+Categories: noctua.settings
+Tags: menu do leader, teclas, atalhos, teclado, configurações, menu, mudar, reatribuir
+
+Usage:
+  noctua settings.menu-keys.set [arguments]
+  noctua settings.menu-keys.set -- '<one JSON object>'
+
+Arguments:
+  --keys <a JSON object>  (repeated, once for each item, at most 73 items)  required
 ```
 
 ## `shell.drag`

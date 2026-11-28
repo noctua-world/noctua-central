@@ -1,0 +1,282 @@
+# The Markdown subset, as rows its reader replays.
+#
+# crates/nc-markdown/tests/the_corpus_is_the_subset.rs replays every row
+# against the reader. A row is a claim about the subset, so a change to the
+# subset changes a row in the same edit, and a row nobody can explain is a
+# defect in the subset or in the row. Every rule the reader refuses by has a
+# row here that refuses by it, which that suite holds.
+#
+# Tab-separated, one row per line; a line opening with # is a comment, and a
+# blank line is nothing.
+#
+#   accept  SOURCE  TREE            SOURCE is read as TREE
+#   refuse  SOURCE  LINE:COLUMN  RULE   SOURCE is refused there, by the rule of that word
+#
+# In SOURCE, a backslash and n writes a line feed, t a tab, r a carriage
+# return, a second backslash the backslash itself, and u with a hexadecimal
+# code point in braces any character. No other backslash is read, so a
+# backslash the Markdown itself holds is written twice.
+#
+# A TREE is written as the suite prints one, and is compared as text: blocks
+# and inlines joined by one space, each holding what is inside it in square
+# brackets. h1 to h6, p, code: and the fence's word, ul, ol: and its first
+# number, li, quote, table with head, row and cell, and hr are blocks; a text
+# in quotation marks, code and a text, em, strong, and link: with web, page or
+# anchor and its target are inlines. Inside quotation marks a backslash, a
+# quotation mark and a line feed are escaped as Rust writes them.
+#
+# A LINE and a COLUMN are counted from one, the column in characters.
+
+# What the subset holds.
+accept	# Title	h1["Title"]
+accept	###### Deep	h6["Deep"]
+accept	# A `code` and *more*	h1["A " code"code" " and " em["more"]]
+accept	one line	p["one line"]
+accept	two lines\nof one paragraph	p["two lines of one paragraph"]
+accept	a\n\nb	p["a"] p["b"]
+accept	<!-- a comment -->\n<!-- another -->\n\n# Title	h1["Title"]
+accept	```\ncode\n```	code:["code\n"]
+accept	```json\n{"a": 1}\n\n  indented\n```	code:json["{\"a\": 1}\n\n  indented\n"]
+accept	````text\n```\ninside\n```\n````	code:text["```\ninside\n```\n"]
+accept	- one\n- two	ul[li[p["one"]] li[p["two"]]]
+accept	- one\n\n- two	ul[li[p["one"]] li[p["two"]]]
+accept	- item\n  goes on\n\n  a second paragraph	ul[li[p["item goes on"] p["a second paragraph"]]]
+accept	- outer\n  - inner\n  - inner two\n- next	ul[li[p["outer"] ul[li[p["inner"]] li[p["inner two"]]]] li[p["next"]]]
+accept	1. one\n2. two	ol:1[li[p["one"]] li[p["two"]]]
+accept	7. seven\n8. eight	ol:7[li[p["seven"]] li[p["eight"]]]
+accept	10. ten\n    under ten	ol:10[li[p["ten under ten"]]]
+accept	- a\n\n1. b	ul[li[p["a"]]] ol:1[li[p["b"]]]
+accept	- ```sh\n  ls\n  ```	ul[li[code:sh["ls\n"]]]
+accept	> quoted	quote[p["quoted"]]
+accept	> one\n> two\n>\n> three	quote[p["one two"] p["three"]]
+accept	> - a\n> - b	quote[ul[li[p["a"]] li[p["b"]]]]
+accept	> > nested	quote[quote[p["nested"]]]
+accept	| a | b |\n|---|---|	table[head[cell["a"] cell["b"]]]
+accept	| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |	table[head[cell["a"] cell["b"]] row[cell["1"] cell["2"]] row[cell["3"] cell["4"]]]
+accept	| | Key |\n|---|---|\n| | `k` |	table[head[cell[] cell["Key"]] row[cell[] cell[code"k"]]]
+accept	| a |\n|-----|\n| x \\| y |	table[head[cell["a"]] row[cell["x | y"]]]
+accept	| a |\n|---|\n| `x\\|y` |	table[head[cell["a"]] row[cell[code"x|y"]]]
+accept	| a |\n|---|\n| C:\\\\\\| |	table[head[cell["a"]] row[cell["C:\\|"]]]
+accept	---	hr
+accept	a\n\n---\n\nb	p["a"] hr p["b"]
+accept	_ _	p["_ _"]
+accept	a - - -	p["a - - -"]
+accept	a\n\n__ __ x	p["a"] p["__ __ x"]
+accept	*em* and **strong**	p[em["em"] " and " strong["strong"]]
+accept	**strong *em* strong**	p[strong["strong " em["em"] " strong"]]
+accept	*em **strong** em*	p[em["em " strong["strong"] " em"]]
+accept	a*b*c	p["a" em["b"] "c"]
+accept	`code`	p[code"code"]
+accept	`` a ` b ``	p[code"a ` b"]
+accept	` padded `	p[code"padded"]
+accept	`~~a~~`	p[code"~~a~~"]
+accept	a ~ b	p["a ~ b"]
+accept	a ~~ b	p["a ~~ b"]
+accept	\\~a\\~	p["~a~"]
+accept	costs $5 and $10	p["costs $5 and $10"]
+accept	a $ b $ c	p["a $ b $ c"]
+accept	a $ b$	p["a $ b$"]
+accept	$$	p["$$"]
+accept	\\$x\\$	p["$x$"]
+accept	`$x$` and `$`y$	p[code"$x$" " and " code"$" "y$"]
+accept	`  `	p[code"  "]
+accept	[text](https://example.org/a?b=1#c)	p[link:web"https://example.org/a?b=1#c"["text"]]
+accept	[the *verbs*](cli.md#verbs)	p[link:page"cli.md"#"verbs"["the " em["verbs"]]]
+accept	[the manual](AGENTS.md)	p[link:page"AGENTS.md"["the manual"]]
+accept	[redo](kernel.undo.md#redo)	p[link:page"kernel.undo.md"#"redo"["redo"]]
+accept	[stops](#when-it-stops)	p[link:anchor"when-it-stops"["stops"]]
+accept	[plain](a.txt)	p[link:page"a.txt"["plain"]]
+# An address GitHub's Markdown links where it is written bare, and a name of
+# an emoji between colons, which it draws as the emoji, are text here: the two
+# constructs of another reader that are read, never refused.
+accept	see https://example.org/a now	p["see https://example.org/a now"]
+accept	see http://example.org/a now	p["see http://example.org/a now"]
+accept	see ftp://example.org/a now	p["see ftp://example.org/a now"]
+accept	see www.example.org now	p["see www.example.org now"]
+accept	write to a@example.org now	p["write to a@example.org now"]
+accept	a :smile: b and 10:30:45	p["a :smile: b and 10:30:45"]
+accept	\\* \\_ \\[ \\] \\` \\\\ \\< \\# \\&	p["* _ [ ] ` \\ < # &"]
+accept	&lt;b&gt; &amp; AT&T a & b &nope	p["<b> & AT&T a & b &nope"]
+accept	2 < 3 and 3 > 2 and a <- b	p["2 < 3 and 3 > 2 and a <- b"]
+accept	snake_case and a_b_c and trailing_	p["snake_case and a_b_c and trailing_"]
+accept	1.5 is a number and 2026 was a year	p["1.5 is a number and 2026 was a year"]
+accept	a line ending in a colon:\nthen text	p["a line ending in a colon: then text"]
+accept	é ação 日本語	p["é ação 日本語"]
+accept	- outer\n\n  - inner	ul[li[p["outer"] ul[li[p["inner"]]]]]
+accept	1. first\n   - under it\n2. second	ol:1[li[p["first"] ul[li[p["under it"]]]] li[p["second"]]]
+accept	-dash and -5 are text	p["-dash and -5 are text"]
+accept	123456789. nine digits	ol:123456789[li[p["nine digits"]]]
+accept	9. a\n10. b\n\n    c	ol:9[li[p["a"]] li[p["b"] p["c"]]]
+accept	` a `` b `	p[code"a `` b"]
+accept	*a \\* b*	p[em["a * b"]]
+accept	*a `*` b*	p[em["a " code"*" " b"]]
+accept	a _ b	p["a _ b"]
+accept	a__b, a_b. and (x_) and é_ü and x_«y	p["a__b, a_b. and (x_) and é_ü and x_«y"]
+accept	*(b)* and a *b* c	p[em["(b)"] " and a " em["b"] " c"]
+accept	*Ⓐ* and a*\u{24ea}*b	p[em["Ⓐ"] " and a" em["⓪"] "b"]
+
+# What is outside it, each refused where it is read.
+refuse	- a\n  ```\n  x\n  ```	2:3	joined
+refuse	a\tb	1:2	control
+refuse	a\rb	1:2	control
+refuse	a\u{7}b	1:2	control
+refuse	_\u{2028}b_	1:2	control
+refuse	a\u{2029}b	1:2	control
+refuse	trailing 	1:9	trailing
+refuse	 indented	1:1	indent
+refuse	- a\n   three under two	2:3	joined
+refuse	9. a\n10. b\n\n   c	4:1	indent
+refuse	9. a\n10. b\n   - c	3:1	joined
+refuse	<b>raw</b>	1:1	html
+refuse	text <b>raw</b>	1:6	html
+refuse	text <https://example.org>	1:6	html
+refuse	a </b>	1:3	html
+refuse	a <!-- comment -->	1:3	html
+refuse	# T\n\n<!-- late -->	3:1	html
+refuse	<!-- a -- b -->	1:1	html
+refuse	<!-- open	1:1	html
+refuse	```js\nx\n```	1:4	info
+refuse	~~~\nx\n~~~	1:1	info
+refuse	```\nnever closed	1:1	fence
+refuse	````\nx\n```	1:1	fence
+refuse	#Title	1:2	heading
+refuse	####### seven	1:1	heading
+refuse	#  two spaces	1:3	heading
+refuse	# closed #	1:3	heading
+refuse	Title\n=====	2:1	setext
+refuse	Title\n-----	2:1	setext
+refuse	=====	1:1	setext
+refuse	----	1:1	break
+refuse	***	1:1	break
+refuse	___	1:1	break
+refuse	_ _ _	1:1	break
+refuse	__ _	1:1	break
+refuse	-- -	1:1	break
+refuse	--- -	1:1	break
+refuse	- - -	1:1	break
+refuse	* * *	1:1	break
+refuse	> _ _ _	1:3	break
+refuse	- _ _ _	1:3	break
+refuse	1. _ _ _	1:4	break
+# A thematic break is read before a list item, so a line of one where the
+# list's next item would be ends the list: never an item holding a rule.
+refuse	- a\n- ---	2:1	joined
+refuse	- a\n\n- ---	3:1	break
+refuse	> - a\n> - ---	2:3	joined
+refuse	1. a\n   - b\n   - ---	3:4	joined
+refuse	>quoted	1:2	quote
+refuse	>	1:1	quote
+refuse	* star	1:1	marker
+refuse	+ plus	1:1	marker
+refuse	1) paren	1:1	marker
+refuse	-	1:1	item
+refuse	1.	1:1	item
+refuse	1. one\n3. three	2:1	numbering
+refuse	1. one\n1. one	2:1	numbering
+refuse	12345678901. long	1:1	marker
+refuse	| a |	1:1	table
+refuse	| a |\n|---|\n| b	3:2	table
+refuse	| a |\n|:--|	2:2	delimiter
+refuse	| a |\n|--|	2:2	delimiter
+refuse	| a | b |\n|---|---|\n| 1 |	3:1	cells
+refuse	| a |\n|---|---|	2:1	cells
+refuse	# T\ntext	2:1	joined
+refuse	text\n# T	2:1	joined
+refuse	text\n- item	2:1	joined
+refuse	text\n> quote	2:1	joined
+refuse	text\n| a |	2:1	joined
+refuse	a\n___	2:1	joined
+refuse	a\n-- -	2:1	joined
+refuse	a\n***	2:1	joined
+refuse	- a\nlazy	2:1	joined
+refuse	> a\nlazy	2:1	joined
+refuse	```\nx\n```\ntext	4:1	joined
+refuse	- a\n1. b	2:1	joined
+refuse	> > > > > > > > > deep	1:19	deep
+refuse	- - - - - - - - - - deep	1:19	deep
+refuse	a\\b	1:2	escape
+refuse	a\\	1:2	escape
+refuse	`open	1:1	code
+refuse	``open`	1:1	code
+refuse	***both***	1:1	stars
+refuse	**open	1:1	star
+refuse	2 * 3	1:3	star
+refuse	*open	1:1	star
+refuse	* loose*	1:1	marker
+refuse	*a *b* c*	1:4	nested
+refuse	**a **b** c**	1:5	nested
+refuse	_emphasis_	1:1	underscore
+refuse	a _b_	1:3	underscore
+refuse	(_b_)	1:2	underscore
+refuse	"_hello_"	1:2	underscore
+refuse	a-_b_-c	1:3	underscore
+refuse	\u{a0}_a_	1:2	underscore
+refuse	»_a	1:2	underscore
+refuse	__init__	1:1	underscore
+refuse	a*(b)*c	1:2	star
+refuse	*a (b)*c	1:1	star
+refuse	a*b→*c	1:2	star
+refuse	a*→b*	1:2	star
+refuse	*a→*b*	1:1	star
+refuse	a*Ⓐ*b	1:2	star
+refuse	a**Ⓐ**b	1:2	star
+refuse	a*\u{1f130}*b	1:2	star
+refuse	a*\u{1f150}*b	1:2	star
+refuse	a*\u{1f170}*b	1:2	star
+refuse	a*(b)* c	1:2	star
+refuse	a "_" b	1:4	underscore
+refuse	~~a~~	1:1	tilde
+refuse	~a~	1:1	tilde
+refuse	a ~~b~~ c	1:3	tilde
+refuse	a~ b	1:2	tilde
+refuse	a ~~~b~~~	1:3	tilde
+refuse	$x$	1:1	dollar
+refuse	use $HOME/$PATH here	1:5	dollar
+refuse	$$x$$	1:1	dollar
+refuse	$5/$10	1:1	dollar
+refuse	$a $b$	1:1	dollar
+refuse	a *$b* c$	1:4	dollar
+refuse	$`a`$	1:1	dollar
+refuse	$`*$a`	1:1	dollar
+refuse	# $x$	1:3	dollar
+refuse	| a |\n|---|\n| $x$ |	3:3	dollar
+refuse	a\nb $c\nd$	2:3	dollar
+# A reader of math counts a space alone as whitespace beside a `$`: a `$`
+# beside any other space opens and closes math there, a price written with a
+# no-break space after its currency's sign among them.
+refuse	$a\u{a0}$	1:1	dollar
+refuse	$\u{3000}a$	1:1	dollar
+refuse	De R$\u{a0}5,00 a R$\u{a0}10,00	1:5	dollar
+refuse	a\n~~~	2:1	joined
+refuse	[text]	1:1	bracket
+refuse	[text](	1:7	target
+refuse	[text](https://example.org	1:7	target
+refuse	]	1:1	bracket
+refuse	[a [b](README.md)](AGENTS.md)	1:1	bracket
+refuse	[](README.md)	1:1	bracket
+refuse	[ref]: https://example.org	1:1	bracket
+refuse	[a](http://example.org)	1:4	target
+refuse	[a](javascript:alert(1))	1:4	target
+refuse	[a](/etc/passwd)	1:4	target
+refuse	[a](a.md "title")	1:4	target
+refuse	[a](a.html)	1:4	target
+refuse	![alt](README.md)	1:1	image
+refuse	&copy;	1:1	entity
+refuse	&#60;	1:1	entity
+refuse	&nbsp;	1:1	entity
+refuse	```\n\tx\n```	2:1	control
+refuse	1234567890. ten digits	1:1	marker
+refuse	> <!-- c -->	1:3	html
+refuse	# T\n- item	2:1	joined
+refuse	- ```\n  x\n  ```\n  - y	4:3	joined
+refuse	--	1:1	break
+refuse	|\n|---|	1:1	table
+refuse	*a * b*	1:4	nested
+refuse	a * b*	1:3	star
+
+# A source outside the subset in two places is refused at the first the
+# reader meets, which is not always the first in the source: every line's
+# control characters and the space at its end are read before any block, and
+# a block's shape before the text inside it.
+refuse	<b>\n\nlater 	3:6	trailing
+refuse	|<b>|\n|---|\n|a|b|	3:1	cells

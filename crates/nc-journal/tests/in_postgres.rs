@@ -1539,6 +1539,23 @@ async fn the_two_stores_agree_about_the_brackets(
              and a kernel opening recovers what that answer names"
         );
     }
+    // **And every page of the history**: from its start, from inside it and
+    // from past its end, of no entry, of one, of fewer than there are and of
+    // more — a browser of the journal pages through either store.
+    for (from, most) in [(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 8), (9, 4)] {
+        assert_eq!(
+            memory.page(from, most).await.expect("readable"),
+            postgres.page(from, most).await.expect("readable"),
+            "`{name}`: the two stores disagree about the page of {most} from {from}"
+        );
+    }
+    // A page of everything is the history, in the store whose `from` and
+    // `page` are two statements.
+    assert_eq!(
+        postgres.page(0, u32::MAX).await.expect("readable"),
+        postgres.from(0).await.expect("readable"),
+        "`{name}`: a page wide enough for the whole history is not the history"
+    );
 }
 
 /// The scripts both stores are driven through, written out rather than derived.
@@ -3902,6 +3919,16 @@ async fn a_sequence_past_the_signed_range_is_refused_rather_than_cast() {
     // And on the read path, where there is no record at all.
     let error = store
         .from(u64::MAX)
+        .await
+        .expect_err("a sequence PostgreSQL cannot hold is not one");
+    assert_eq!(
+        error.code(),
+        nc_catalog::ErrorCode::JournalUnstorable,
+        "{error}"
+    );
+    // A page is asked from a sequence as well, and refuses the same number.
+    let error = store
+        .page(u64::MAX, 1)
         .await
         .expect_err("a sequence PostgreSQL cannot hold is not one");
     assert_eq!(
@@ -6467,6 +6494,20 @@ async fn a_read_starts_where_it_was_asked_and_comes_back_in_order() {
         read(0).await,
         vec![0, 1, 2, 3],
         "the read came back in the order the heap holds rather than in sequence order"
+    );
+    // **And a page, which is cut after it is ordered**: the two entries from
+    // the second on, where the heap's order would answer the last two.
+    assert_eq!(
+        store
+            .page(1, 2)
+            .await
+            .expect("reads")
+            .entries
+            .iter()
+            .map(|entry| entry.sequence)
+            .collect::<Vec<u64>>(),
+        vec![1, 2],
+        "the page came back in the order the heap holds rather than in sequence order"
     );
     // **And the two single-row reads, which order by the same column.**
     // `tail()`'s is pinned by `a_row_can_only_land_where_the_next_one_goes`;

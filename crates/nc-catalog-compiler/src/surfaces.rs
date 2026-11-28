@@ -246,7 +246,7 @@ pub(crate) fn keybindings(catalog: &Catalog, surfaces: &Surfaces) -> String {
             "| {} | {} | {} | {} |",
             keyboard_named(kept.keyboard),
             cell(kept.system),
-            cell(&kept.chord.written_for(kept.keyboard)),
+            words(&kept.chord.written_for(kept.keyboard)),
             cell(kept.source)
         );
     }
@@ -325,7 +325,7 @@ const fn keyboard_named(keyboard: Keyboard) -> &'static str {
 /// what `written` says for it.
 fn on_each_keyboard(written: impl Fn(Keyboard) -> String) -> String {
     Keyboard::ALL
-        .map(|keyboard| cell(&written(keyboard)))
+        .map(|keyboard| words(&written(keyboard)))
         .join(" | ")
 }
 

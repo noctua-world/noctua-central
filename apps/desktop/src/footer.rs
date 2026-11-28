@@ -55,13 +55,16 @@
 //! the only state there is without one; the focused page's identity, since no
 //! page declares one until pages are drawn; the prompt's send control, and
 //! what typing `;`, `:` and `/` and sending do, which arrive with the command
-//! list; and a word naming the connection, the channel and a seat in each
-//! locale, which arrives with the interface's own texts — the channel is
-//! shown by the word its manifest writes, and a seat by its number.
+//! list. **Its own words are the interface's texts** ([`crate::text`]): the
+//! footer's name for a screen reader and the channel's word are said in the
+//! window's locale from `catalog/interface.toml`. **Its visibility is the
+//! footer's setting** (`settings.footer`, §12.15), read from the state: always
+//! shown, or the design system's folding footer, shown as the state says.
 
 use dioxus::prelude::*;
 use nc_canon::Value;
 use nc_catalog::Locale;
+use nc_catalog::interface::Text as Worded;
 use nc_channel::Channel;
 use noctua_design::{
     Button, ButtonSize, ButtonTone, ButtonVariant, Footer, FooterCorner, FooterCornerSide,
@@ -69,12 +72,7 @@ use noctua_design::{
     TextSize, TextTone, TextWeight,
 };
 
-use crate::mirror::{By, Seat, Shell};
-
-/// The name the footer is given for a screen reader: the product's, which
-/// no locale translates, until the interface's own texts arrive in both
-/// locales.
-pub const NAME: &str = crate::host::TITLE;
+use crate::mirror::{By, Seat, Shell, Visibility};
 
 /// The prompt's name, as a script finds it: its root's `data-nd-prompt`, and
 /// its text area's id after `nd-prompt-`.
@@ -191,8 +189,9 @@ pub fn about(target: &str, locale: Locale) -> About {
 /// of the info line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hover {
-    /// The seat's number, where the state holds more than one seat.
-    pub seat: Option<u64>,
+    /// The seat's name in the window's locale — `Seat 2`, `Posto 2` — where
+    /// the state holds more than one seat.
+    pub seat: Option<String>,
     /// Which of its hands: the pointer, or the keyboard.
     pub by: By,
     /// What it is on.
@@ -231,14 +230,23 @@ pub struct Info {
 /// What the footer shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct View {
+    /// The footer's name for a screen reader, in the window's locale.
+    pub named: String,
+    /// Whether the footer's setting hides it until it is asked for.
+    pub folds: bool,
     /// Whether the state shows the footer now.
     pub shown: bool,
     /// `sidebar.show`'s display name, the modeline's first glyph's.
     pub sidebar: String,
     /// The focused page's identity, where it declares one.
     pub page: Option<Identity>,
-    /// The channel's word, where it is not production.
-    pub channel: Option<&'static str>,
+    /// The channel's word in the window's locale, where it is not
+    /// production.
+    pub channel: Option<String>,
+    /// The connection's word in the window's locale, which names its glyph
+    /// for a screen reader: offline, the only state there is without a
+    /// realm's server.
+    pub connection: String,
     /// The drawer indicator, while the drawer is collapsed with something
     /// open in it.
     pub drawer: Option<Indicator>,
@@ -281,7 +289,13 @@ fn rows(shell: &Shell, locale: Locale) -> Vec<Row> {
     let several = shell.seats.len() > 1;
     let hover = |number: u64, by: By, target: &str| {
         Row::Hover(Hover {
-            seat: several.then_some(number),
+            seat: several.then(|| {
+                crate::text::said_with(
+                    Worded::SeatNumbered,
+                    locale,
+                    &[("seat", &number.to_string())],
+                )
+            }),
             by,
             about: about(target, locale),
         })
@@ -318,13 +332,17 @@ pub fn view(shell: Option<&Shell>, context: Context) -> View {
             label: title_of(Action::ExpandDrawer.command(), locale),
         });
     View {
+        named: crate::text::said(Worded::PartFooter, locale),
+        folds: shell.is_some_and(|shell| shell.settings.footer == Visibility::Hidden),
         shown: shell.is_none_or(|shell| shell.footer),
         sidebar: title_of(Action::ShowSidebar.command(), locale),
         page: None,
         channel: match context.channel {
             Channel::Production => None,
-            other => Some(other.word()),
+            Channel::Staging => Some(crate::text::said(Worded::ChannelStaging, locale)),
+            Channel::Development(_) => Some(crate::text::said(Worded::ChannelDevelopment, locale)),
         },
+        connection: crate::text::said(Worded::ConnectionOffline, locale),
         drawer,
         info: Info {
             expanded: shell.is_some_and(|shell| shell.expanded),
@@ -359,17 +377,24 @@ const fn glyph_of(by: By) -> IconDrawing {
 #[component]
 pub fn TheFooter(view: View) -> Element {
     let View {
+        named,
+        folds,
         shown,
         sidebar,
         page,
         channel,
+        connection,
         drawer,
         info,
         prompt,
         controls,
     } = view;
     rsx! {
-        Footer { class: "overflow-hidden", label: NAME, visibility: FooterVisibility::Always, shown,
+        Footer {
+            class: "overflow-hidden",
+            label: named,
+            visibility: if folds { FooterVisibility::Auto } else { FooterVisibility::Always },
+            shown,
             FooterCorner { side: FooterCornerSide::Start }
             FooterLine { kind: FooterLineKind::Modeline,
                 Button {
@@ -389,7 +414,7 @@ pub fn TheFooter(view: View) -> Element {
                 if let Some(channel) = channel {
                     Text { size: TextSize::Caption, tone: TextTone::Muted, "{channel}" }
                 }
-                Icon { icon: IconDrawing::CLOUD_OFF, size: IconSize::Small }
+                Icon { icon: IconDrawing::CLOUD_OFF, size: IconSize::Small, label: connection }
                 if let Some(drawer) = drawer {
                     Button {
                         variant: ButtonVariant::Transparent,
@@ -477,7 +502,7 @@ fn InfoLine(info: Info) -> Element {
 }
 
 /// One row of the info line, as it is said: a message, or a hover — its
-/// seat's number where there are several, its hand's glyph, and what it is on.
+/// seat's name where there are several, its hand's glyph, and what it is on.
 #[component]
 fn Said(row: Row) -> Element {
     match row {
@@ -806,6 +831,7 @@ mod tests {
             draft: String::new(),
             asking: None,
             seats: BTreeMap::new(),
+            settings: crate::mirror::Settings::default(),
             next: 2,
         }
     }
@@ -934,7 +960,10 @@ mod tests {
             );
             assert!(
                 written.contains("role=\"group\"")
-                    && written.contains(&format!("aria-label=\"{}\"", super::NAME)),
+                    && written.contains(&format!(
+                        "aria-label=\"{}\"",
+                        crate::text::said(nc_catalog::interface::Text::PartFooter, Locale::En)
+                    )),
                 "{written}"
             );
         }
@@ -954,20 +983,26 @@ mod tests {
         }
     }
 
-    /// Until its setting exists the footer is always shown, and the state's
-    /// own "shown now" is written for the folded footer the setting will
-    /// choose.
+    /// The footer's visibility is its setting's: always shown until a
+    /// person hides it, then the design system's folding footer — and the
+    /// state's own "shown now" is written on it either way.
     #[test]
-    fn the_footer_is_always_shown_until_its_setting_exists() {
+    fn the_footers_visibility_is_its_settings() {
         let mut shell = first_run();
-        for shown in [true, false] {
-            shell.footer = shown;
-            let written = drawn(&shell, production(Locale::En));
-            assert_eq!(values(&written, "data-nd-visibility"), ["always"]);
-            assert_eq!(
-                values(&written, "data-nd-shown"),
-                [if shown { "true" } else { "false" }]
-            );
+        for (setting, visibility) in [
+            (crate::mirror::Visibility::Always, "always"),
+            (crate::mirror::Visibility::Hidden, "auto"),
+        ] {
+            shell.settings.footer = setting;
+            for shown in [true, false] {
+                shell.footer = shown;
+                let written = drawn(&shell, production(Locale::En));
+                assert_eq!(values(&written, "data-nd-visibility"), [visibility]);
+                assert_eq!(
+                    values(&written, "data-nd-shown"),
+                    [if shown { "true" } else { "false" }]
+                );
+            }
         }
         let before = markup(&view(None, production(Locale::En)));
         assert_eq!(values(&before, "data-nd-shown"), ["true"], "{before}");
@@ -1086,23 +1121,31 @@ mod tests {
 
     /// The line's end, in order: no realm and no person, since none exists;
     /// the channel's word where it is not production; the connection state,
-    /// offline; and the drawer indicator last, a glyph and the number of
-    /// pages open in the collapsed drawer, the control `drawer.expand`.
+    /// offline, a glyph a screen reader is told as the connection's word in
+    /// the window's locale; and the drawer indicator last, a glyph and the
+    /// number of pages open in the collapsed drawer, the control
+    /// `drawer.expand`.
     #[test]
     fn the_modelines_end_is_the_channel_the_connection_and_the_drawer() {
         let shell = everything();
-        for (channel, word) in [
-            (Channel::Production, None),
-            (Channel::Staging, Some("staging")),
-            (development(), Some("development")),
+        for (channel, locale, word, offline) in [
+            (Channel::Production, Locale::En, None, "Offline"),
+            (Channel::Staging, Locale::En, Some("Staging"), "Offline"),
+            (development(), Locale::En, Some("Development"), "Offline"),
+            (
+                Channel::Staging,
+                Locale::PtBR,
+                Some("Homologação"),
+                "Sem conexão",
+            ),
+            (
+                development(),
+                Locale::PtBR,
+                Some("Desenvolvimento"),
+                "Sem conexão",
+            ),
         ] {
-            let written = drawn(
-                &shell,
-                Context {
-                    locale: Locale::En,
-                    channel,
-                },
-            );
+            let written = drawn(&shell, Context { locale, channel });
             let modeline = line(&written, "modeline");
             let end = modeline
                 .split_once("<div class=\"flex-1\"></div>")
@@ -1121,7 +1164,7 @@ mod tests {
                 "the count, and the channel where it is not production: {end}"
             );
             match word {
-                None => assert!(!end.contains("staging") && !end.contains("development")),
+                None => assert!(!end.contains("Staging") && !end.contains("Development")),
                 Some(word) => {
                     let at = end.find(&format!(">{word}</span>")).expect("the channel");
                     assert!(at < connection, "{end}");
@@ -1129,8 +1172,11 @@ mod tests {
             }
             assert_eq!(
                 values(end, "aria-label"),
-                [title_of("drawer.expand", Locale::En).as_str()]
+                [offline, title_of("drawer.expand", locale).as_str()]
             );
+            let glyph = element(&end[..drawer], "<svg");
+            assert_eq!(values(glyph, "role"), ["img"], "{glyph}");
+            assert!(!glyph.contains("aria-hidden"), "{glyph}");
             assert!(end.trim_end().ends_with("</span></div></div>"), "{end}");
         }
     }
@@ -1355,16 +1401,23 @@ mod tests {
         idle.seats.insert(1, seat(By::Pointer, None, None));
         idle.seats
             .insert(2, seat(By::Keyboard, None, Some("second")));
-        let rows = view(Some(&idle), production(Locale::En)).info.rows;
-        assert_eq!(
-            rows,
-            [Row::Hover(Hover {
-                seat: Some(2),
-                by: By::Keyboard,
-                about: About::Said("second".to_owned()),
-            })],
-            "the first seat on something"
-        );
+        for (locale, named) in [(Locale::En, "Seat 2"), (Locale::PtBR, "Posto 2")] {
+            let built = view(Some(&idle), production(locale));
+            assert_eq!(
+                built.info.rows,
+                [Row::Hover(Hover {
+                    seat: Some(named.to_owned()),
+                    by: By::Keyboard,
+                    about: About::Said("second".to_owned()),
+                })],
+                "the first seat on something, named in the window's locale"
+            );
+            let written = markup(&built);
+            assert!(
+                line(&written, "info").contains(&format!(">{named}</span>")),
+                "{written}"
+            );
+        }
     }
 
     /// One line by default: one row at most, whatever the state holds.
@@ -1424,29 +1477,32 @@ mod tests {
         }
     }
 
-    /// With several seats each hover row names its seat, by its number; with
-    /// one it names none.
+    /// With several seats each hover row names its seat, by the seat's word
+    /// and its number in the window's locale; with one it names none.
     #[test]
     fn each_hover_row_names_its_seat_where_there_are_several() {
         let mut shell = everything();
         shell.message = None;
         shell.expanded = true;
-        let rows = view(Some(&shell), production(Locale::En)).info.rows;
-        let seats: Vec<Option<u64>> = rows
-            .iter()
-            .map(|row| match row {
-                Row::Hover(hover) => hover.seat,
-                Row::Message(_) => None,
-            })
-            .collect();
-        assert_eq!(seats, [Some(1), Some(1), Some(2)]);
-        let written = drawn(&shell, production(Locale::En));
-        let info = line(&written, "info");
-        for number in ["1", "2"] {
-            assert!(
-                info.contains(&format!("data-nd-numeric=\"true\">{number}</span>")),
-                "{info}"
-            );
+        for (locale, word) in [(Locale::En, "Seat"), (Locale::PtBR, "Posto")] {
+            let rows = view(Some(&shell), production(locale)).info.rows;
+            let seats: Vec<Option<String>> = rows
+                .iter()
+                .map(|row| match row {
+                    Row::Hover(hover) => hover.seat.clone(),
+                    Row::Message(_) => None,
+                })
+                .collect();
+            let named = |number: u64| Some(format!("{word} {number}"));
+            assert_eq!(seats, [named(1), named(1), named(2)]);
+            let written = drawn(&shell, production(locale));
+            let info = line(&written, "info");
+            for number in ["1", "2"] {
+                assert!(
+                    info.contains(&format!("data-nd-numeric=\"true\">{word} {number}</span>")),
+                    "{info}"
+                );
+            }
         }
         shell.seats.remove(&2);
         let rows = view(Some(&shell), production(Locale::En)).info.rows;
@@ -1596,8 +1652,12 @@ mod tests {
             "12.3",
             "Visibility is a setting (§12.15)",
             Held::Partly(
-                the_footer_is_always_shown_until_its_setting_exists,
-                "the setting that folds the footer, with the settings pages",
+                the_footers_visibility_is_its_settings,
+                "the setting's page, with the settings pages; a tap's reveal and its end once no \
+                 keyboard is on the footer or the drawer are the kernel's \
+                 (`crates/nc-kernel/src/shell.rs`, \
+                 a_hidden_footer_shown_by_a_tap_hides_again_once_no_keyboard_holds_it), and a \
+                 pointer opening the folded footer is the design system's own suite's",
             ),
         ),
         (
@@ -2643,10 +2703,13 @@ mod tests {
         assert_eq!(
             built,
             View {
+                named: "Rodapé".to_owned(),
+                folds: false,
                 shown: true,
                 sidebar: "Mostrar a barra lateral".to_owned(),
                 page: None,
                 channel: None,
+                connection: "Sem conexão".to_owned(),
                 drawer: None,
                 info: Info {
                     expanded: false,

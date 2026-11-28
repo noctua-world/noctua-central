@@ -50,9 +50,12 @@ use crate::relative_to;
 /// `nc-canon` is here with the emitter because the chain and the catalog both
 /// hash what it writes: a digest that differs between runs is the same defect
 /// one layer down, and it verifies on one side and not the other.
-pub(crate) const EMITS: [&str; 9] = [
+pub(crate) const EMITS: [&str; 10] = [
     "crates/nc-catalog-compiler/src",
     "crates/nc-canon/src",
+    // The one reader of Markdown, which the compiler holds every wiki text and
+    // every page it emits to: whether the catalog compiles is its answer too.
+    "crates/nc-markdown/src",
     // The judge the compiler holds every command to: it decides whether the
     // catalog compiles at all, so a clock or an unordered map in it is a build
     // that passes on one run and refuses on the next.
@@ -103,6 +106,7 @@ pub(crate) const EMITS: [&str; 9] = [
 pub(crate) const EMITS_UNDER: &[&str] = &[
     "crates/nc-catalog-compiler/src",
     "crates/nc-canon/src",
+    "crates/nc-markdown/src",
     "crates/nc-schema/src",
     // **And the file, which is otherwise free slack.** A floor counting every
     // entry of `EMITS` but this file while the walk reads them all gives a

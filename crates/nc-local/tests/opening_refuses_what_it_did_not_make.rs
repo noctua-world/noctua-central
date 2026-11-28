@@ -106,6 +106,12 @@ async fn a_missing_directory_and_file_are_created_private() {
             .all(|name| name.starts_with(nc_local::FILE_NAME)),
         "the owner probe was left behind: {names:?}"
     );
+    assert!(
+        !names
+            .iter()
+            .any(|name| name.starts_with(nc_local::CREATION_NAME)),
+        "what the file was made under was left beside it: {names:?}"
+    );
     let lock = profile.join(nc_local::LOCK_NAME);
     assert_eq!(
         names.iter().any(|name| name == nc_local::LOCK_NAME),
@@ -1542,10 +1548,12 @@ fn copied(from: impl AsRef<Path>, to: &Path) {
 
 /// A profile holding the file and a `-wal` with committed frames that were
 /// never checkpointed — what a process killed after a commit leaves — made by
-/// running `statements` through a writer still open when the two are copied.
+/// running `statements` through a writer still open when the two are copied,
+/// to `file_name` and its `-wal` there.
 async fn a_profile_with_frames_in_its_wal(
     scratch: &Scratch,
     name: &str,
+    file_name: &str,
     setup: &[&'static str],
     statements: &[&'static str],
 ) -> PathBuf {
@@ -1576,7 +1584,7 @@ async fn a_profile_with_frames_in_its_wal(
     std::fs::create_dir(&profile).expect("a directory");
     private(&profile);
     for suffix in ["", "-wal"] {
-        let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
+        let to = profile.join(format!("{file_name}{suffix}"));
         copied(format!("{}{suffix}", file.display()), &to);
         private(&to);
     }
@@ -1597,6 +1605,7 @@ async fn another_applications_wal_file_is_refused_and_left_as_it_stood() {
     let profile = a_profile_with_frames_in_its_wal(
         &scratch,
         "profile",
+        nc_local::FILE_NAME,
         &[
             "PRAGMA application_id = 42",
             "CREATE TABLE theirs (x INTEGER)",
@@ -1764,6 +1773,252 @@ async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     );
 }
 
+/// A profile made private in the scratch under `name`, holding nothing.
+fn an_empty_profile(scratch: &Scratch, name: &str) -> PathBuf {
+    let profile = scratch.0.join(name);
+    std::fs::create_dir(&profile).expect("a directory");
+    private(&profile);
+    profile
+}
+
+/// What a write that did not finish leaves of a file it was the first write
+/// of — as turning a new file into a write-ahead log is — at `file_name` in
+/// `profile`, beside the hot rollback journal it was writing through, both
+/// private.
+///
+/// **Made by a writer still in its transaction**, with pages spilled into the
+/// file past a cache of one page, and copied before it rolls back: what a
+/// process killed in the middle of that write leaves. What it writes is
+/// another application's, so a file that is the store only because the open
+/// went on from it is refused as that.
+async fn the_first_write_stopped(scratch: &Scratch, profile: &Path, file_name: &str) {
+    let source = scratch.0.join(format!("first-write-{file_name}"));
+    std::fs::create_dir(&source).expect("a directory");
+    let file = source.join(nc_local::FILE_NAME);
+    std::fs::write(&file, b"").expect("a new, empty file");
+    let mut writer = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(&file)
+        .create_if_missing(false)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Delete)
+        .connect()
+        .await
+        .expect("a new file in rollback mode");
+    for statement in [
+        "PRAGMA cache_size = 1",
+        "BEGIN",
+        "PRAGMA application_id = 42",
+        "CREATE TABLE theirs (x BLOB)",
+        "INSERT INTO theirs SELECT randomblob(4000) FROM (WITH RECURSIVE n(i) AS \
+         (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200) SELECT i FROM n)",
+    ] {
+        sqlx::query(statement)
+            .execute(&mut writer)
+            .await
+            .expect("written");
+    }
+    for suffix in ["", "-journal"] {
+        let to = profile.join(format!("{file_name}{suffix}"));
+        copied(format!("{}{suffix}", file.display()), &to);
+        private(&to);
+    }
+    sqlx::query("ROLLBACK")
+        .execute(&mut writer)
+        .await
+        .expect("rolled back");
+    writer.close().await.expect("closes");
+}
+
+/// A file turned into a write-ahead log and closed, holding what `setup`
+/// writes, at `file_name` in `profile` with nothing beside it, private.
+async fn a_closed_wal_file(profile: &Path, file_name: &str, setup: &[&'static str]) {
+    let file = profile.join(file_name);
+    let mut writer = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(&file)
+        .create_if_missing(true)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .connect()
+        .await
+        .expect("a WAL database");
+    for statement in setup {
+        sqlx::query(*statement)
+            .execute(&mut writer)
+            .await
+            .expect("written");
+    }
+    writer.close().await.expect("closes");
+    private(&file);
+}
+
+/// The first write of a new file stopped at the store's own name, beside its
+/// hot rollback journal — what a daemon of an earlier build killed as it
+/// turned its new file into a write-ahead log left — is still refused, and
+/// left byte for byte.
+///
+/// **Refused, not repaired, at the store's name**: the test below makes the
+/// same leftover under the creation name, where the next open takes it away.
+#[tokio::test]
+async fn the_first_write_of_a_new_file_stopped_at_the_stores_name_is_refused_and_left_as_it_stood()
+{
+    let scratch = Scratch::new("first-write-at-its-name");
+    let profile = an_empty_profile(&scratch, "profile");
+    the_first_write_stopped(&scratch, &profile, nc_local::FILE_NAME).await;
+    let before = as_it_stands(&profile);
+    let error = refused(&profile).await;
+    assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
+    assert!(error.to_string().contains("rollback journal"), "{error}");
+    left_as_it_stood(&profile, &before);
+}
+
+/// What an open stopped at any point of making a database left under the
+/// creation name is taken away by the next open, which makes the database
+/// again and opens it fresh: the file alone, as it was made; the file in the
+/// middle of its first write, beside a hot rollback journal; the file turned
+/// into a write-ahead log, beside a `-wal` holding frames; and the file
+/// turned and closed, never renamed.
+///
+/// **What it holds against**: a daemon killed as it started, which on the
+/// Windows runner left the store's own file beside a hot journal and every
+/// start after it refused `NC-DB-0007` — and an open that went on from the
+/// leftover instead of making the file again, which would be refused here as
+/// another application's, since each leftover but the first holds one.
+#[tokio::test]
+async fn what_an_open_stopped_while_making_the_database_left_is_made_again_and_opens_fresh() {
+    let scratch = Scratch::new("stopped-making");
+    let foreign: [&'static str; 2] = [
+        "PRAGMA application_id = 42",
+        "CREATE TABLE theirs (x INTEGER)",
+    ];
+    let alone = an_empty_profile(&scratch, "alone");
+    let file = alone.join(nc_local::CREATION_NAME);
+    std::fs::write(&file, b"").expect("the file as it was made");
+    private(&file);
+    let writing = an_empty_profile(&scratch, "writing");
+    the_first_write_stopped(&scratch, &writing, nc_local::CREATION_NAME).await;
+    let logged = a_profile_with_frames_in_its_wal(
+        &scratch,
+        "logged",
+        nc_local::CREATION_NAME,
+        &foreign,
+        &["INSERT INTO theirs VALUES (1), (2), (3)"],
+    )
+    .await;
+    let closed = an_empty_profile(&scratch, "closed");
+    a_closed_wal_file(&closed, nc_local::CREATION_NAME, &foreign).await;
+    for (stage, profile, beside) in [
+        ("the file alone", alone, &[][..]),
+        ("its first write", writing, &["-journal"][..]),
+        ("its log", logged, &["-wal"][..]),
+        ("turned and closed", closed, &[][..]),
+    ] {
+        let left = names_in(&profile);
+        let expected: Vec<String> = std::iter::once(String::new())
+            .chain(beside.iter().map(|suffix| (*suffix).to_owned()))
+            .map(|suffix| format!("{}{suffix}", nc_local::CREATION_NAME))
+            .collect();
+        assert_eq!(left, expected, "{stage}: not what such an open leaves");
+        let store = LocalStore::open(&profile)
+            .await
+            .unwrap_or_else(|error| panic!("{stage}: {error}"));
+        let mut connection = store.pool().acquire().await.expect("a connection");
+        let found = schema::found_in(&mut connection).await.expect("readable");
+        assert_eq!(schema::judge(&found), Ok(()), "{stage}");
+        let application: i32 = sqlx::query_scalar("PRAGMA main.application_id")
+            .fetch_one(&mut *connection)
+            .await
+            .expect("readable");
+        assert_eq!(application, schema::APPLICATION_ID, "{stage}");
+        drop(connection);
+        store.close().await;
+        let names = names_in(&profile);
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.starts_with(nc_local::CREATION_NAME)),
+            "{stage}: what the earlier open left is still there: {names:?}"
+        );
+        assert!(
+            testing::is_as_created(&profile.join(nc_local::FILE_NAME)),
+            "{stage}: the store's file"
+        );
+    }
+}
+
+/// A link at the creation name, or at a companion's name beside it, is refused.
+///
+/// As the store's own would be, and left with what it points at as they
+/// stood: nothing is removed through one, and nothing made at the store's
+/// name.
+#[tokio::test]
+async fn a_link_at_the_creation_name_is_refused_and_left_as_it_stood() {
+    let scratch = Scratch::new("creation-link");
+    let elsewhere = scratch.0.join("elsewhere");
+    std::fs::write(&elsewhere, b"a file somebody keeps").expect("a file");
+    for suffix in ["", "-journal", "-wal", "-shm"] {
+        let profile = an_empty_profile(&scratch, &format!("profile{suffix}"));
+        let link = profile.join(format!("{}{suffix}", nc_local::CREATION_NAME));
+        testing::link_file(&elsewhere, &link).expect("a link");
+        let before = names_in(&profile);
+        let error = refused(&profile).await;
+        assert_eq!(
+            error.code(),
+            ErrorCode::DbLocalOpenRefused,
+            "`{suffix}`: {error}"
+        );
+        assert!(
+            error.to_string().contains("symbolic link"),
+            "`{suffix}`: {error}"
+        );
+        let after: Vec<String> = names_in(&profile)
+            .into_iter()
+            .filter(|name| !is_the_lock_file(name))
+            .collect();
+        assert_eq!(after, before, "`{suffix}`: the profile was changed");
+        assert!(
+            std::fs::symlink_metadata(&link).is_ok_and(|link| link.file_type().is_symlink()),
+            "`{suffix}`: the link was taken away"
+        );
+        assert_eq!(
+            std::fs::read(&elsewhere).expect("readable"),
+            b"a file somebody keeps",
+            "`{suffix}`: what the link points at was written"
+        );
+    }
+}
+
+/// A companion of the store's file where there is no file is refused as
+/// one this build did not leave, and left as it stood: nothing is made
+/// beside it, under the store's name or the creation name.
+///
+/// **What it holds against**: SQLite reading a log, or rolling a journal
+/// back, into the file made new beside it, or that file refused at once
+/// as one beside a hot journal under a message saying nothing was changed.
+#[tokio::test]
+async fn a_companion_with_no_database_is_refused_and_left_as_it_stood() {
+    let scratch = Scratch::new("companion-alone");
+    for suffix in ["-journal", "-wal", "-shm"] {
+        let profile = an_empty_profile(&scratch, &format!("profile{suffix}"));
+        let companion = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
+        std::fs::write(&companion, b"left beside a file somebody took away").expect("a file");
+        private(&companion);
+        let before = as_it_stands(&profile);
+        let error = refused(&profile).await;
+        assert_eq!(
+            error.code(),
+            ErrorCode::DbLocalSchemaUnexpected,
+            "`{suffix}`: {error}"
+        );
+        assert!(
+            error.to_string().contains("no database"),
+            "`{suffix}`: {error}"
+        );
+        assert!(
+            as_it_stands(&profile) == before,
+            "`{suffix}`: something was made or changed beside it: {:?}",
+            names_in(&profile)
+        );
+    }
+}
+
 /// Opens `profile` from `threads` threads at once, each with a runtime of its
 /// own, and answers every failure.
 fn opened_at_once(profile: &Path, threads: usize) -> Vec<String> {
@@ -1819,7 +2074,10 @@ fn a_fresh_profile_opened_from_several_threads_at_once_opens_every_time() {
 }
 
 /// A profile whose file was made and never migrated — what a process stopped
-/// between the two leaves — opened by several at once, opens for every one.
+/// between the two leaves: of this build, an empty database turned into a
+/// write-ahead log and put at its name; of an earlier one, which made the file
+/// at its name, an empty file — opened by several at once, opens for every
+/// one.
 ///
 /// **What it holds against**: forty-nine of a hundred and twenty opens failing
 /// — a migration applied twice at once, and a history read after another open's
@@ -1833,9 +2091,17 @@ fn an_unmigrated_file_opened_from_several_threads_at_once_opens_every_time() {
         let profile = scratch.profile();
         std::fs::create_dir(&profile).expect("a directory");
         private(&profile);
-        let file = profile.join(nc_local::FILE_NAME);
-        std::fs::write(&file, b"").expect("an empty file");
-        private(&file);
+        if round % 2 == 0 {
+            let file = profile.join(nc_local::FILE_NAME);
+            std::fs::write(&file, b"").expect("an empty file");
+            private(&file);
+        } else {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a runtime")
+                .block_on(a_closed_wal_file(&profile, nc_local::FILE_NAME, &[]));
+        }
         failed.extend(opened_at_once(&profile, 4));
     }
     assert!(

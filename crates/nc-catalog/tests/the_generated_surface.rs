@@ -870,7 +870,7 @@ fn a_registry_entry_is_sealed_against_construction() {
 fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
     // Every generated enum, at the top of the body for the reason `SEALED` is
     // at the top of its own: clippy refuses an item after a statement.
-    const OPEN: [&str; 13] = [
+    const OPEN: [&str; 14] = [
         // A host function names the one it asks for, so a capability added is a
         // compile error at every `match` over them rather than one arm short.
         "Capability",
@@ -885,6 +885,9 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
         "Reversibility",
         "Severity",
         "Strategy",
+        // An interface text's handle, which the interface matches on to say
+        // one: a text added is a variant no existing `match` covers.
+        "Text",
         // A format a renderer matches on, so a format added is a compile error
         // at every renderer rather than a text shown as another format.
         "WikiFormat",

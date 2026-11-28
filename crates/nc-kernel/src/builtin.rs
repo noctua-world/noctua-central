@@ -6,8 +6,9 @@
 //! `naming.propose`, `naming.read`, `kernel.find`, `settings.mcp.read`,
 //! `settings.mcp.set`, `agents.create`, `agents.list`, `agents.grant`,
 //! `agents.revoke`, `confirmations.list`, `confirmations.read`,
-//! `surfaces.list`, `surfaces.read`, `surfaces.activate` and
-//! `kernel.history`, and every command of the interface's state; the
+//! `surfaces.list`, `surfaces.read`, `surfaces.activate`,
+//! `kernel.history` and the seven reads of `dev.`, and every command of the
+//! interface's state; the
 //! registry gives every one to the kernel (`crate::registry`), the decision
 //! point decides each as it decides a plugin's command — journaled, run in a
 //! unit when it changes state — and [`Builtin`] is what runs it once it is
@@ -97,6 +98,16 @@
 //! activation runs and why one of a tree an agent rendered is refused.
 //! **`kernel.history` names the next undo** on the same feature, and
 //! `crate::history` says how.
+//!
+//! **`dev.limits.read`, `dev.plugins.read`, `dev.sessions.read`,
+//! `dev.agents.read` and `dev.policy.read` are what the dev pages read of
+//! this machine** (`NOCTUA.md §12.16`), `Read` on `Feature::"interface"`,
+//! which the family pack gives every person of the realm
+//! (`family.a_member_drives_the_interface`); **`dev.logs.read` and
+//! `dev.journal.read` are its records**, `Read` on the realm, which the pack
+//! gives a guardian alone (`family.a_guardian_reads_the_realm`). `crate::dev`
+//! says what each answers, how every answer is bounded and why none has a
+//! feature of its own.
 //!
 //! **`agents.create`, `agents.list`, `agents.grant` and `agents.revoke` are a
 //! person's agents** (`NOCTUA.md §14.6`), `Write`, `Read`, `Grant` and `Revoke`
@@ -193,6 +204,11 @@ pub(crate) enum Builtin {
     McpRead,
     /// `settings.mcp.set`: MCP switched on or off (`crate::settings`).
     McpSet,
+    /// A shortcut setting's read: the keys in force (`crate::settings`).
+    ShortcutRead(crate::settings::Which),
+    /// A shortcut setting's set: the channel's choice of keys changed
+    /// (`crate::settings`).
+    ShortcutSet(crate::settings::Which),
     /// `agents.create`: an agent made (`crate::agents`).
     AgentsCreate,
     /// `agents.list`: the asker's agents (`crate::agents`).
@@ -218,6 +234,22 @@ pub(crate) enum Builtin {
     /// `kernel.history`: the step the person's next undo takes back
     /// (`crate::history`).
     History,
+    /// `dev.limits.read`: every bound with a use to show (`crate::dev`).
+    DevLimits,
+    /// `dev.plugins.read`: every loaded plugin (`crate::dev`).
+    DevPlugins,
+    /// `dev.sessions.read`: the agents' sessions held open (`crate::dev`).
+    DevSessions,
+    /// `dev.agents.read`: the tables of agents against their bounds
+    /// (`crate::dev`).
+    DevAgents,
+    /// `dev.policy.read`: the realm's policy pack and epoch (`crate::dev`).
+    DevPolicy,
+    /// `dev.logs.read`: the host's own log, a page at a time (`crate::dev`).
+    DevLogs,
+    /// `dev.journal.read`: the realm's journal, a page at a time
+    /// (`crate::dev`).
+    DevJournal,
 }
 
 impl Builtin {
@@ -227,8 +259,8 @@ impl Builtin {
     ///
     /// So a variant left out of it is one the build never constructs, which
     /// the workspace's lints refuse, and one in it is found by its name.
-    const ALL: [Self; 19 + crate::shell::Verb::ALL.len()] = {
-        let mut all = [Self::Verify; 19 + crate::shell::Verb::ALL.len()];
+    const ALL: [Self; 34 + crate::shell::Verb::ALL.len()] = {
+        let mut all = [Self::Verify; 34 + crate::shell::Verb::ALL.len()];
         let mut at = 0;
         while at < Self::OWN.len() {
             all[at] = Self::OWN[at];
@@ -243,7 +275,7 @@ impl Builtin {
     };
 
     /// The kernel's own, which [`Builtin::ALL`] begins with.
-    const OWN: [Self; 19] = [
+    const OWN: [Self; 34] = [
         Self::Verify,
         Self::Prune,
         Self::Undo,
@@ -253,6 +285,14 @@ impl Builtin {
         Self::Find,
         Self::McpRead,
         Self::McpSet,
+        Self::ShortcutRead(crate::settings::Which::Leader),
+        Self::ShortcutSet(crate::settings::Which::Leader),
+        Self::ShortcutRead(crate::settings::Which::Chord),
+        Self::ShortcutSet(crate::settings::Which::Chord),
+        Self::ShortcutRead(crate::settings::Which::MenuKeys),
+        Self::ShortcutSet(crate::settings::Which::MenuKeys),
+        Self::ShortcutRead(crate::settings::Which::Chords),
+        Self::ShortcutSet(crate::settings::Which::Chords),
         Self::AgentsCreate,
         Self::AgentsList,
         Self::AgentsGrant,
@@ -263,6 +303,13 @@ impl Builtin {
         Self::SurfacesRead,
         Self::SurfacesActivate,
         Self::History,
+        Self::DevLimits,
+        Self::DevPlugins,
+        Self::DevSessions,
+        Self::DevAgents,
+        Self::DevPolicy,
+        Self::DevLogs,
+        Self::DevJournal,
     ];
 
     /// The name of the command it runs, as the catalog declares it.
@@ -277,6 +324,8 @@ impl Builtin {
             Self::Find => crate::find::FIND,
             Self::McpRead => crate::settings::MCP_READ,
             Self::McpSet => crate::settings::MCP_SET,
+            Self::ShortcutRead(which) => which.read(),
+            Self::ShortcutSet(which) => which.set(),
             Self::AgentsCreate => crate::agents::CREATE,
             Self::AgentsList => crate::agents::LIST,
             Self::AgentsGrant => crate::agents::GRANT,
@@ -288,6 +337,13 @@ impl Builtin {
             Self::SurfacesRead => crate::ui::READ,
             Self::SurfacesActivate => crate::ui::ACTIVATE,
             Self::History => crate::history::HISTORY,
+            Self::DevLimits => crate::dev::LIMITS,
+            Self::DevPlugins => crate::dev::PLUGINS,
+            Self::DevSessions => crate::dev::SESSIONS,
+            Self::DevAgents => crate::dev::AGENTS,
+            Self::DevPolicy => crate::dev::POLICY,
+            Self::DevLogs => crate::dev::LOGS,
+            Self::DevJournal => crate::dev::JOURNAL,
         }
     }
 

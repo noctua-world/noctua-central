@@ -86,6 +86,7 @@
 //! which is the interface's.
 
 use core::fmt;
+use std::collections::BTreeMap;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -93,8 +94,8 @@ use nc_canon::Value;
 use nc_catalog::ErrorCode;
 use nc_platform::{Judged, Kind, User};
 use nc_schema::keys::{
-    self, Binding, Chord, Claim, KeyBoundTwice, Keyboard, Leader, LeaderPart, LeaderRule, Modifier,
-    Tables, Verdict, Warning,
+    self, Binding, Chord, Claim, Key, KeyBoundTwice, Keyboard, Leader, LeaderPart, LeaderRule,
+    Modifier, Table, Tables, Verdict, Warning,
 };
 
 use crate::checkouts::{Unlisted, installed_checkouts, named};
@@ -408,9 +409,42 @@ impl KeysRefused {
     }
 }
 
-impl fmt::Display for KeysRefused {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "[{}] ", self.code().code())?;
+impl KeysRefused {
+    /// The catalog code of this as the refusal of a choice a setting
+    /// proposed ([`proposed`]), which was never written: one for each thing a
+    /// person does about it.
+    ///
+    /// A rule of the Leader's, and another channel's file the Leader could not
+    /// be judged against, are `[NC-CHAN-0023]`; a key of one table bound
+    /// twice, `[NC-CHAN-0024]`; and the file as it stands, or a choice past
+    /// its bound, `[NC-CHAN-0027]`.
+    #[must_use]
+    pub const fn code_of_a_choice(&self) -> ErrorCode {
+        match self {
+            Self::NotPrivate(_) | Self::Unavailable(_) | Self::Unreadable(_) => {
+                ErrorCode::ChannelShortcutsUnsaved
+            }
+            Self::Leader { .. } | Self::Unjudged(_) => ErrorCode::ChannelShortcutLeaderCollides,
+            Self::KeyBoundTwice(_) => ErrorCode::ChannelShortcutKeyBoundTwice,
+        }
+    }
+
+    /// The refusal of a choice a setting proposed, which was never written:
+    /// what was refused, with the code [`fmt::Display`] says it by, and then
+    /// that nothing was written and the keys in force stand — never that a
+    /// default does, since what stands is whatever was in force before.
+    #[must_use]
+    pub fn of_a_choice(&self) -> String {
+        format!(
+            "{} [{}], so nothing was written and the keys in force stand",
+            Said(self),
+            self.code().code()
+        )
+    }
+
+    /// What was refused, and why: the sentence between the code and what
+    /// stands in its place.
+    fn said(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotPrivate(what) => write!(
                 formatter,
@@ -459,6 +493,22 @@ impl fmt::Display for KeysRefused {
                  judged against that channel's"
             )?,
         }
+        Ok(())
+    }
+}
+
+/// What a refusal says was refused, without its code and what stands.
+struct Said<'a>(&'a KeysRefused);
+
+impl fmt::Display for Said<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.said(formatter)
+    }
+}
+
+impl fmt::Display for KeysRefused {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "[{}] {}", self.code().code(), Said(self))?;
         formatter.write_str(match self.part() {
             Part::Whole => ", and the channel's defaults stand",
             Part::Leader => ", and the channel's default Leader and chord modifier stand",
@@ -670,6 +720,308 @@ pub fn catalog_bindings() -> Vec<(String, Vec<Binding>)> {
             )
         })
         .collect()
+}
+
+/// One change a person's settings make to their choice of keys
+/// (`NOCTUA.md §12.8`, `§12.15`): one setting's whole value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Change {
+    /// The channel's Leader.
+    Leader(Chord),
+    /// The chord modifier.
+    Chord(Modifier),
+    /// The leader menu's keys: every key of the menu's table, beside the
+    /// command it runs, in place of every one in force.
+    Menu(Vec<(String, Key)>),
+    /// The chords: every key pressed with the Leader held, beside the command
+    /// it runs and whether the chord modifier is held as well, in place of
+    /// every one in force.
+    Held(Vec<(String, Key, bool)>),
+}
+
+/// The tables a change of bindings replaces whole, and every binding it puts
+/// in them, beside the command each runs.
+type Bound<'a> = (&'static [Table], Vec<(&'a str, Binding)>);
+
+impl Change {
+    /// The tables this replaces whole, and every binding it puts in them, in
+    /// the order it names them; nothing for a change of the Leader part.
+    fn bound(&self) -> Option<Bound<'_>> {
+        match self {
+            Self::Leader(_) | Self::Chord(_) => None,
+            Self::Menu(keys) => Some((
+                &[Table::Menu],
+                keys.iter()
+                    .map(|(command, key)| {
+                        (
+                            command.as_str(),
+                            Binding {
+                                table: Table::Menu,
+                                key: *key,
+                            },
+                        )
+                    })
+                    .collect(),
+            )),
+            Self::Held(keys) => Some((
+                &[Table::Held, Table::HeldWithChord],
+                keys.iter()
+                    .map(|(command, key, with_chord)| {
+                        let table = if *with_chord {
+                            Table::HeldWithChord
+                        } else {
+                            Table::Held
+                        };
+                        (command.as_str(), Binding { table, key: *key })
+                    })
+                    .collect(),
+            )),
+        }
+    }
+}
+
+/// A choice of keys judged in force whole and not yet written: what
+/// [`proposed`] answers and [`written`] writes.
+///
+/// **Sealed**: one is made by [`proposed`] alone, so every one held is a file
+/// its reader reads and refuses no part of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Proposed {
+    /// The file to write: the configuration's canonical form.
+    text: String,
+    /// The keys it puts in force.
+    effective: Effective,
+}
+
+impl Proposed {
+    /// The keys this puts in force once it is written.
+    #[must_use]
+    pub const fn effective(&self) -> &Effective {
+        &self.effective
+    }
+
+    /// The file this is written as.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+}
+
+/// Why a choice of keys judged in force was not written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unwritten {
+    /// The file left beside the configuration by a write that was cut short,
+    /// or the directory holding both, is not this user's alone; the text
+    /// names the path and what it is.
+    NotPrivate(String),
+    /// The filesystem did not answer; the text says what was being done and
+    /// what it answered.
+    Failed(String),
+}
+
+impl Unwritten {
+    /// The catalog code this maps to: `[NC-CHAN-0027]`, whichever it is.
+    #[must_use]
+    pub const fn code(&self) -> ErrorCode {
+        match self {
+            Self::NotPrivate(_) | Self::Failed(_) => ErrorCode::ChannelShortcutsUnsaved,
+        }
+    }
+}
+
+impl fmt::Display for Unwritten {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotPrivate(what) => write!(
+                formatter,
+                "{what}, so the keybinding configuration was not written: another account \
+                 could have put it there"
+            )?,
+            Self::Failed(what) => write!(
+                formatter,
+                "{what}, so the keybinding configuration was not written"
+            )?,
+        }
+        formatter.write_str(", and the keys in force stand")
+    }
+}
+
+impl std::error::Error for Unwritten {}
+
+/// The choice `change` makes of `found`'s install's keys, over the
+/// configuration its file holds now and `catalog`, judged as [`effective`]
+/// judges the file — and refused unless every part of it is in force.
+///
+/// **Nothing is written**: this is the call a writer makes before it writes,
+/// and [`written`] the one that writes what it answered.
+///
+/// **One setting changes, and the rest of the file stands.** A Leader or a
+/// chord modifier takes the place of the one configured; the leader menu's
+/// keys, or the chords, take the place of every binding in force in their
+/// tables — the menu's, or the two a held Leader has — while each command
+/// keeps what it is bound to in the others. **A choice that is the default is
+/// written as no choice**: a Leader that is the channel's own, a chord
+/// modifier that is its own, and a command bound as the catalog binds it are
+/// left out of the file, so setting what was read where nothing was
+/// configured configures nothing, and a default is never judged against
+/// another channel as a claim.
+///
+/// # Errors
+///
+/// What [`effective`] would report of the file as it stands — one that is not
+/// this user's alone, that the disk did not answer for, or that this build
+/// does not read, a later format among them, is refused rather than written
+/// over — and the first refusal the judge makes of the choice: a rule of the
+/// Leader's, another channel's file that cannot be judged, a key of one table
+/// bound twice, and a choice past the file's bound.
+pub fn proposed(
+    found: &Found,
+    change: &Change,
+    catalog: &[(String, Vec<Binding>)],
+) -> Result<Proposed, KeysRefused> {
+    let own = match read(&found.layout.config, &found.layout.keybindings, &found.user) {
+        Ok(None) => Configuration {
+            leader: None,
+            chord: None,
+            bindings: None,
+        },
+        Ok(Some(text)) => Configuration::parse(&text)?,
+        Err(unread) => return Err(unread.refused()),
+    };
+    let default = default_of(found.install.channel);
+    let chosen = match change {
+        Change::Leader(leader) => Configuration {
+            leader: (*leader != default.leader.chord()).then_some(*leader),
+            ..own
+        },
+        Change::Chord(chord) => Configuration {
+            chord: (*chord != default.chord).then_some(*chord),
+            ..own
+        },
+        Change::Menu(_) | Change::Held(_) => Configuration {
+            bindings: rebound(own.bindings(), change, catalog),
+            ..own
+        },
+    };
+    // **Read back by the file's own reader**, so the choice is held to the
+    // file's bound and written as the text that reader takes.
+    let chosen = Configuration::parse(&chosen.to_canonical())?;
+    let mut effective = judged(found, Some(&chosen), catalog);
+    if effective.refused.is_empty() {
+        Ok(Proposed {
+            text: chosen.to_canonical(),
+            effective,
+        })
+    } else {
+        Err(effective.refused.swap_remove(0))
+    }
+}
+
+/// The bindings a configuration holds once `change` replaces its tables in
+/// what `configured` and `catalog` bind: each command whose bindings are not
+/// the catalog's, beside them, and nothing when every command's are.
+///
+/// **Nothing is dropped for being said twice**: a key the change names twice
+/// in one table is kept twice, for the judge to refuse.
+fn rebound(
+    configured: Option<&[(String, Vec<Binding>)]>,
+    change: &Change,
+    catalog: &[(String, Vec<Binding>)],
+) -> Option<Vec<(String, Vec<Binding>)>> {
+    let (replaced, put) = change.bound()?;
+    // Every command either names, each with what it is bound to before the
+    // change: the configuration's choice where it names the command, the
+    // catalog's otherwise.
+    let mut bound: BTreeMap<&str, Vec<Binding>> = BTreeMap::new();
+    for (command, bindings) in catalog {
+        bound
+            .entry(command.as_str())
+            .or_insert_with(|| bindings.clone());
+    }
+    for (command, bindings) in configured.unwrap_or_default().iter().rev() {
+        bound.insert(command.as_str(), bindings.clone());
+    }
+    for bindings in bound.values_mut() {
+        bindings.retain(|binding| !replaced.contains(&binding.table));
+    }
+    for (command, binding) in put {
+        bound.entry(command).or_default().push(binding);
+    }
+    let defaults: BTreeMap<&str, &[Binding]> = catalog
+        .iter()
+        .rev()
+        .map(|(command, bindings)| (command.as_str(), bindings.as_slice()))
+        .collect();
+    let chosen: Vec<(String, Vec<Binding>)> = bound
+        .into_iter()
+        .filter_map(|(command, mut bindings)| {
+            bindings.sort_unstable();
+            let mut default = defaults.get(command).copied().unwrap_or_default().to_vec();
+            default.sort_unstable();
+            (bindings != default).then(|| (command.to_owned(), bindings))
+        })
+        .collect();
+    (!chosen.is_empty()).then_some(chosen)
+}
+
+/// The name of the file a write of `file` is made in, beside it.
+fn beside(file: &Path) -> PathBuf {
+    let mut name = file.as_os_str().to_owned();
+    name.push(".new");
+    PathBuf::from(name)
+}
+
+/// Writes `proposed` as `found`'s install's keybinding configuration:
+/// through a private file beside it, synced and renamed over it, and the
+/// directory synced, so the file holds all of the choice or what it held
+/// before.
+///
+/// **Only into a directory that is this user's alone**, judged before a byte
+/// is written, and never made here: the configuration directory is its
+/// profile's, which the daemon made. A file an interrupted write left beside
+/// the configuration is removed once it is judged this user's alone; one
+/// another account can reach is refused, left as it was.
+///
+/// # Errors
+///
+/// [`Unwritten::NotPrivate`] for a directory or such a file another account
+/// can reach, and [`Unwritten::Failed`] when the directory is not there or
+/// the file could not be made, written, renamed or synced.
+pub fn written(found: &Found, proposed: &Proposed) -> Result<(), Unwritten> {
+    use std::io::Write as _;
+    let (directory, file) = (&found.layout.config, &found.layout.keybindings);
+    let beside = beside(file);
+    let judged = |path: &Path, kind: Kind| match nc_platform::judge(path, kind, &found.user) {
+        Ok(()) => Ok(true),
+        Err(Judged::Failed(failed)) if failed.error().kind() == std::io::ErrorKind::NotFound => {
+            Ok(false)
+        }
+        Err(Judged::Refused(refused)) => Err(Unwritten::NotPrivate(refused.to_string())),
+        Err(Judged::Failed(failed)) => Err(Unwritten::Failed(failed.to_string())),
+    };
+    let failed = |path: &Path, doing: &str, error: std::io::Error| {
+        Unwritten::Failed(format!(
+            "`{}` could not be {doing}: {error}",
+            path.display()
+        ))
+    };
+    if !judged(directory, Kind::Directory)? {
+        return Err(Unwritten::Failed(format!(
+            "`{}`, the configuration directory, is not there",
+            directory.display()
+        )));
+    }
+    if judged(&beside, Kind::File)? {
+        std::fs::remove_file(&beside).map_err(|error| failed(&beside, "removed", error))?;
+    }
+    let mut made =
+        nc_platform::create_private(&beside).map_err(|error| failed(&beside, "made", error))?;
+    made.write_all(proposed.text.as_bytes())
+        .and_then(|()| made.sync_all())
+        .map_err(|error| failed(&beside, "written", error))?;
+    drop(made);
+    std::fs::rename(&beside, file).map_err(|error| failed(&beside, "renamed", error))?;
+    nc_platform::sync_directory(directory).map_err(|error| failed(directory, "synced", error))
 }
 
 /// A channel's default Leader part: its Leader and its chord modifier.
@@ -1015,6 +1367,51 @@ mod tests {
                 "{said}"
             );
             assert!(said.to_string().contains(what), "{said}");
+        }
+    }
+
+    /// A set refused for the file as it stands is told as the file's, never
+    /// as the disk's alone.
+    ///
+    /// **One code answers a file another account can reach, one this build
+    /// does not read, a choice past the file's bound and a disk that did not
+    /// answer** — `[NC-CHAN-0027]`, from a choice and from a write alike — and
+    /// its message is what the window says of it (`crate::keys` leaves the
+    /// detail to the sentence), so in every locale it names the file as well
+    /// as the disk: a person whose file another account could change is told
+    /// to look at the file.
+    #[test]
+    fn a_set_refused_for_the_file_is_told_as_the_files() {
+        let what = "`/scratch/keybindings.json`".to_owned();
+        for refused in [
+            KeysRefused::NotPrivate(what.clone()),
+            KeysRefused::Unavailable(what.clone()),
+            KeysRefused::Unreadable(what.clone()),
+        ] {
+            assert_eq!(
+                refused.code_of_a_choice(),
+                ErrorCode::ChannelShortcutsUnsaved,
+                "{refused}"
+            );
+        }
+        for unwritten in [
+            super::Unwritten::NotPrivate(what.clone()),
+            super::Unwritten::Failed(what.clone()),
+        ] {
+            assert_eq!(unwritten.code(), ErrorCode::ChannelShortcutsUnsaved);
+        }
+        for (locale, file, disk) in [
+            (nc_catalog::Locale::En, "file", "disk"),
+            (nc_catalog::Locale::PtBR, "arquivo", "disco"),
+        ] {
+            let told =
+                nc_catalog::message(ErrorCode::ChannelShortcutsUnsaved.message_key(), locale)
+                    .expect("a message in every locale");
+            assert!(
+                told.contains(file) && told.contains(disk),
+                "{}: {told}",
+                locale.tag()
+            );
         }
     }
 

@@ -587,7 +587,7 @@ the units of work its writes are kept in,
 that is stopped, `supervisor.rs`, what a plugin may ask of the network
 and what sends it, `net.rs` and `ureq.rs`, a person's own history,
 `history.rs`, the commands the catalog gives the kernel to run, `builtin.rs`,
-the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, the interface's own state, `shell.rs`, the calls held for a person's confirmation, `confirmations.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
+the registry filtered by the fuzzy core, `find.rs`, the channel's settings, `settings.rs`, the interface's own state, `shell.rs`, the calls held for a person's confirmation, `confirmations.rs`, what the dev pages read of this machine, `dev.rs`, a person's agents, `agents.rs`, what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
@@ -622,11 +622,14 @@ the MCP server `noctua mcp` serves a client with, `mcp.rs`,
 the desktop interface's `main.rs`, `mirror.rs`, `page.rs`, its footer, `footer.rs`, its
 theme, `theme.rs`, the paths its protocol answers, `assets.rs`, `host.rs` and `client.rs`,
 its keys, `keys.rs`, its command list, `commands.rs`, its drawer, `drawer.rs`, its
-sidebar, `sidebar.rs`, the surfaces it draws, `surface.rs`, and its seats, `seat.rs`,
+sidebar, `sidebar.rs`, the surfaces it draws, `surface.rs`, its seats, `seat.rs`, and
+its own texts as it says them, `text.rs`,
 the desktop's sheet, `tailwind.rs`,
 `nc-prune`'s `sqlite.rs`,
 `local.rs`, which builds that database's schema from its migrations, and the fuzzy
-core's `lib.rs`, `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, and restores **all of them** before each mutation: its first multi-file version
+core's `lib.rs`, `fold.rs`, `query.rs`, `align.rs`, `score.rs` and `rank.rs`, the one
+reader of Markdown, `nc-markdown`'s `lib.rs`, and the pages an install carries,
+`nc-pages`' `lib.rs`, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.
 
