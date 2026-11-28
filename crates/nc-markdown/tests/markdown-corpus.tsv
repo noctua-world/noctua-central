@@ -59,6 +59,9 @@ accept	| a |\n|---|\n| `x\\|y` |	table[head[cell["a"]] row[cell[code"x|y"]]]
 accept	| a |\n|---|\n| C:\\\\\\| |	table[head[cell["a"]] row[cell["C:\\|"]]]
 accept	---	hr
 accept	a\n\n---\n\nb	p["a"] hr p["b"]
+accept	_ _	p["_ _"]
+accept	a - - -	p["a - - -"]
+accept	a\n\n__ __ x	p["a"] p["__ __ x"]
 accept	*em* and **strong**	p[em["em"] " and " strong["strong"]]
 accept	**strong *em* strong**	p[strong["strong " em["em"] " strong"]]
 accept	*em **strong** em*	p[em["em " strong["strong"] " em"]]
@@ -66,6 +69,10 @@ accept	a*b*c	p["a" em["b"] "c"]
 accept	`code`	p[code"code"]
 accept	`` a ` b ``	p[code"a ` b"]
 accept	` padded `	p[code"padded"]
+accept	`~~a~~`	p[code"~~a~~"]
+accept	a ~ b	p["a ~ b"]
+accept	a ~~ b	p["a ~~ b"]
+accept	\\~a\\~	p["~a~"]
 accept	`  `	p[code"  "]
 accept	[text](https://example.org/a?b=1#c)	p[link:web"https://example.org/a?b=1#c"["text"]]
 accept	[the *verbs*](cli.md#verbs)	p[link:page"cli.md"#"verbs"["the " em["verbs"]]]
@@ -73,6 +80,11 @@ accept	[the manual](AGENTS.md)	p[link:page"AGENTS.md"["the manual"]]
 accept	[redo](kernel.undo.md#redo)	p[link:page"kernel.undo.md"#"redo"["redo"]]
 accept	[stops](#when-it-stops)	p[link:anchor"when-it-stops"["stops"]]
 accept	[plain](a.txt)	p[link:page"a.txt"["plain"]]
+# An address GitHub's Markdown links where it is written bare is text here:
+# the one construct of another reader that is read, never refused.
+accept	see https://example.org/a now	p["see https://example.org/a now"]
+accept	see www.example.org now	p["see www.example.org now"]
+accept	write to a@example.org now	p["write to a@example.org now"]
 accept	\\* \\_ \\[ \\] \\` \\\\ \\< \\# \\&	p["* _ [ ] ` \\ < # &"]
 accept	&lt;b&gt; &amp; AT&T a & b &nope	p["<b> & AT&T a & b &nope"]
 accept	2 < 3 and 3 > 2 and a <- b	p["2 < 3 and 3 > 2 and a <- b"]
@@ -127,6 +139,15 @@ refuse	=====	1:1	setext
 refuse	----	1:1	break
 refuse	***	1:1	break
 refuse	___	1:1	break
+refuse	_ _ _	1:1	break
+refuse	__ _	1:1	break
+refuse	-- -	1:1	break
+refuse	--- -	1:1	break
+refuse	- - -	1:1	break
+refuse	* * *	1:1	break
+refuse	> _ _ _	1:3	break
+refuse	- _ _ _	1:3	break
+refuse	1. _ _ _	1:4	break
 refuse	>quoted	1:2	quote
 refuse	>	1:1	quote
 refuse	* star	1:1	marker
@@ -148,6 +169,9 @@ refuse	text\n# T	2:1	joined
 refuse	text\n- item	2:1	joined
 refuse	text\n> quote	2:1	joined
 refuse	text\n| a |	2:1	joined
+refuse	a\n___	2:1	joined
+refuse	a\n-- -	2:1	joined
+refuse	a\n***	2:1	joined
 refuse	- a\nlazy	2:1	joined
 refuse	> a\nlazy	2:1	joined
 refuse	```\nx\n```\ntext	4:1	joined
@@ -185,6 +209,11 @@ refuse	a*\u{1f150}*b	1:2	star
 refuse	a*\u{1f170}*b	1:2	star
 refuse	a*(b)* c	1:2	star
 refuse	a "_" b	1:4	underscore
+refuse	~~a~~	1:1	tilde
+refuse	~a~	1:1	tilde
+refuse	a ~~b~~ c	1:3	tilde
+refuse	a~ b	1:2	tilde
+refuse	a ~~~b~~~	1:3	tilde
 refuse	a\n~~~	2:1	joined
 refuse	[text]	1:1	bracket
 refuse	[text](	1:7	target

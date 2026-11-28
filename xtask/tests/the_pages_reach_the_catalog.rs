@@ -1544,7 +1544,7 @@ static PROSE: [(&str, &str); 3626] = [
     ),
     (
         "cli.md",
-        "Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.",
+        "Shows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.",
     ),
     ("cli.md", "Categories: none"),
     ("cli.md", "Tags: footer, show, modeline, prompt, interface"),
@@ -1563,7 +1563,7 @@ static PROSE: [(&str, &str); 3626] = [
     ),
     (
         "cli.md",
-        "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.",
+        "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.",
     ),
     ("cli.md", "Categories: none"),
     (
@@ -5973,14 +5973,14 @@ static PROSE: [(&str, &str); 3626] = [
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"footer_show\",\"description\":\"Show the footer's three lines now, even where the setting hides it.\\n\\nShows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"footer_show\",\"description\":\"Show the footer's three lines now, even where the setting hides it.\\n\\nShows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "In `pt-BR`:"),
     ("mcp-tools.md", "```json"),
     (
         "mcp-tools.md",
-        "{\"name\":\"footer_show\",\"description\":\"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\\n\\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
+        "{\"name\":\"footer_show\",\"description\":\"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\\n\\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true}}",
     ),
     ("mcp-tools.md", "```"),
     ("mcp-tools.md", "## `info.clear`"),

@@ -2211,7 +2211,8 @@ hover, selection and drag.
   run's state, which shows nothing but the footer.
 - **A Leader tap follows `NOCTUA.md §12.8`'s three rules in order**: with the leader menu
   open in the drawer of the seat's window, shown, it sends the next page to the other
-  place, with the seat's keyboard on the prompt of a window shown it opens the menu —
+  place and puts the seat's keyboard on the menu, with the seat's keyboard on the prompt
+  of a window shown it opens the menu and gives it the keyboard —
   whatever the state's "shown now" says, since a footer is always shown or folds open
   around the keyboard inside it — and otherwise — the menu left open in a window hidden
   or closed included — it shows the window and puts the keyboard on the prompt. Every tap
@@ -2254,8 +2255,11 @@ what a page is drawn from:
   thematic break; code spans, emphasis, strong, links, a backslash before ASCII
   punctuation and three entities. Anything else is refused with a rule of its own, at the
   line and the column — in characters — it was read at: raw HTML and an autolink first, an
-  image, a reference link, a setext heading, an indented block, a hard break, a tab, the
-  line or the paragraph separator, or another control character.
+  image, a reference link, a setext heading, a thematic break of any shape but `---` —
+  spaces between its marks too, and under a paragraph's line, where CommonMark ends the
+  paragraph — strikethrough, an indented block, a hard break, a tab, the line or the
+  paragraph separator, or another control character. One construct of GitHub's is read and
+  not refused, an address written bare, which "What is deliberately not claimed" names.
 - **No markup of a text's own reaches a reader of the tree.** There is no node for raw
   HTML, so none is passed through; what a node holds is text, its escapes and entities
   already read, for whoever draws it to escape as its own.
@@ -5601,7 +5605,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   reveal — a Leader tap or `footer.show` begins it, and the kernel ends it once a keyboard
   moves and none is left on the footer or the drawer (`footer_let_go` and `changed` in
   `crates/nc-kernel/src/shell.rs`), whether the window reports where the keyboard went, a
-  command moves it, or its window closes; the pointer at the window's bottom edge or over
+  command moves it, or its window closes. Every tap leaves the tapping seat's keyboard on
+  one of the two — a flip of the open menu puts it on the menu, wherever it was — so only
+  `footer.show`, which moves no keyboard, begins a reveal none holds, and that one stands
+  until a keyboard moves; the pointer at the window's bottom edge or over
   the footer, and a keyboard coming back to it, open it by the design system's own rules,
   which no test here presses, and begin no reveal — and a keyboard on the prompt line is
   one tap from the leader menu all the same, the line being open around it. `footer.hide` under `always` changes the state's flag and nothing a
@@ -5625,8 +5632,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   else: no suite compares what another reader of Markdown — a forge, CommonMark's
   reference — makes of a text of the subset, so "a page reads the same wherever it is
   rendered" is the subset's intent, measured only by what it refuses. One difference is
-  known: a bare `https://` address in a page is text here and a link where a reader
-  autolinks, as `docs/keybindings.md`'s sources are. Emphasis follows CommonMark's
+  known, and kept: an address GitHub's Markdown links where it stands, written bare — one
+  opening with `https://` or `www.`, or an e-mail address — is text here and a link there,
+  as `docs/keybindings.md`'s sources are; refusing it would refuse a person's words that
+  hold an address, and no target is ever read from one. GitHub's strikethrough is not
+  such a difference: a run of `~` beside a word is refused (`tilde`), and every writer of a
+  person's words into a page — `as_text` in `xtask/src/release.rs`, `words` in
+  `crates/nc-catalog-compiler/src/docs.rs` — escapes a `~`. Emphasis follows CommonMark's
   flanking rules for `*` and `_`, and a character beside a run that is neither a letter,
   a digit, whitespace nor punctuation of the basic Latin set — punctuation to one version
   of CommonMark, a symbol to another, and no table of Unicode's categories in this crate —
@@ -5635,7 +5647,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   separators, which are refused with the controls, and its letters but the circled and
   squared Latin letters, which are symbols to Unicode and read both ways; measured once by
   hand against `pandoc -f gfm` over random sources of those characters, which no suite
-  runs. A source outside the subset in two
+  runs, as the thematic breaks, the runs of `~` and the bare addresses of the corpus were
+  against `pandoc -f commonmark` and `-f gfm`. A source outside the subset in two
   places is told of the first the reader meets, which is not always the first in the
   source: every line's control characters and trailing space are read before any block,
   and a block's shape before its text. The reader bounds its depth and not

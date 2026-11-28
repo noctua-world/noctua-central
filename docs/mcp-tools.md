@@ -278,13 +278,13 @@ In `pt-BR`:
 In `en`:
 
 ```json
-{"name":"footer_show","description":"Show the footer's three lines now, even where the setting hides it.\n\nShows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"footer_show","description":"Show the footer's three lines now, even where the setting hides it.\n\nShows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 In `pt-BR`:
 
 ```json
-{"name":"footer_show","description":"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\n\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
+{"name":"footer_show","description":"Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde.\n\nMostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.","inputSchema":{"type":"object","properties":{},"additionalProperties":false},"annotations":{"readOnlyHint":true}}
 ```
 
 ## `info.clear`

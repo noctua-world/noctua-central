@@ -38,23 +38,33 @@
 //! Emphasis may hold strong and strong emphasis, neither itself; a link holds
 //! no link. **A run of `*` opens where `CommonMark`'s left-flanking rule lets it
 //! and closes where its right-flanking rule does, and `_` is text**, refused
-//! wherever `CommonMark` would let it open emphasis. A character beside a run
-//! that this crate cannot class — outside ASCII, and neither a letter, a digit
-//! nor whitespace: punctuation to one version of `CommonMark` and not to another
-//! — is read both ways, and a run the two readings disagree on is refused; so
-//! is a circled or squared Latin letter, a symbol Rust counts as a letter. So
-//! a page reads the same wherever it is rendered.
+//! wherever `CommonMark` would let it open emphasis; a run of `~` is text too,
+//! refused wherever GitHub's Markdown would let it strike text through. A
+//! character beside a run that this crate cannot class — outside ASCII, and
+//! neither a letter, a digit nor whitespace: punctuation to one version of
+//! `CommonMark` and not to another — is read both ways, and a run the two
+//! readings disagree on is refused; so is a circled or squared Latin letter,
+//! a symbol Rust counts as a letter. So a page reads the same wherever
+//! `CommonMark` is read, and wherever GitHub's Markdown is but for the one
+//! difference below.
 //!
 //! # What is outside it
 //!
-//! Raw HTML, an autolink, an image, a reference link, a setext heading, an
-//! indented code block, a tilde fence, a `*` or `+` bullet, a `1)` item, a
-//! table's alignment colons, a hard line break, a tab or any other control
-//! character, the line and the paragraph separators, a line ending in a
-//! space, and an entity not listed above. Each is refused with a [`Rule`] of
-//! its own, at the line and the column it was read at ([`Refused`]) — never
-//! read as text, since the same source would then be one page here and
-//! another wherever Markdown is read whole.
+//! Raw HTML, an autolink, an image, a reference link, a setext heading, a
+//! thematic break of any shape but `---` — spaces between its marks among
+//! them — an indented code block, a tilde fence, a `*` or `+` bullet, a `1)`
+//! item, a table's alignment colons, strikethrough, a hard line break, a tab
+//! or any other control character, the line and the paragraph separators, a
+//! line ending in a space, and an entity not listed above. Each is refused
+//! with a [`Rule`] of its own, at the line and the column it was read at
+//! ([`Refused`]) — never read as text, since the same source would then be
+//! one page here and another wherever Markdown is read whole.
+//!
+//! **One construct of GitHub's is read as text, and not refused**: an
+//! address it links where it stands, written bare — one opening with
+//! `https://` or `www.`, or an e-mail address. Here it is the text it is;
+//! there, the same words are a link. No target is ever read from one, and
+//! refusing it would refuse the words of a person who writes an address.
 //!
 //! # The coordinates
 //!
@@ -243,6 +253,9 @@ pub enum Rule {
     Nested,
     /// A `_` `CommonMark` would let open emphasis, for any reader.
     Underscore,
+    /// A run of `~` GitHub's Markdown would let open or close strikethrough,
+    /// for any reader.
+    Tilde,
     /// A `[` or a `]` that is no link's.
     Bracket,
     /// A link's target of no form [`Target`] holds.
@@ -255,7 +268,7 @@ pub enum Rule {
 
 impl Rule {
     /// Every rule, in the order declared.
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::Control,
         Self::Trailing,
         Self::Indent,
@@ -280,6 +293,7 @@ impl Rule {
         Self::Star,
         Self::Nested,
         Self::Underscore,
+        Self::Tilde,
         Self::Bracket,
         Self::Target,
         Self::Image,
@@ -315,6 +329,7 @@ impl Rule {
             Self::Star => "star",
             Self::Nested => "nested",
             Self::Underscore => "underscore",
+            Self::Tilde => "tilde",
             Self::Bracket => "bracket",
             Self::Target => "target",
             Self::Image => "image",
@@ -400,6 +415,10 @@ impl Rule {
             Self::Underscore => {
                 "the `_` would open emphasis elsewhere: write emphasis with `*`, and `\\_` for \
                  the character"
+            }
+            Self::Tilde => {
+                "the `~` would strike text through where GitHub's Markdown is read: write `\\~` \
+                 for the character, or set it in a code span"
             }
             Self::Bracket => {
                 "the bracket is no link's: write a link as `[text](target)`, and `\\[` or \
@@ -637,11 +656,33 @@ fn marker(text: &str) -> Result<Option<Marker>, Rule> {
 
 /// Whether `line` would begin a block of its own, which a paragraph's
 /// further line may not.
+///
+/// **A thematic break among them**, of any shape: where `CommonMark` reads a
+/// line as one, it ends the paragraph above it and draws a rule, so a
+/// paragraph joining it would be one page here and another there.
 fn begins_a_block(line: Line<'_>) -> bool {
     ["#", ">", "|", "```", "~~~", "<!--", " "]
         .iter()
         .any(|mark| line.text.starts_with(mark))
         || !matches!(marker(line.text), Ok(None))
+        || is_a_break(line.text)
+}
+
+/// Whether `text` is a thematic break as `CommonMark` reads one (4.1): three
+/// or more of one of `-`, `_` and `*`, and nothing else but spaces, between
+/// them or not.
+///
+/// **Every shape, not only the one the subset holds**: [`block`] refuses
+/// each but `---` as [`Rule::Break`], and [`begins_a_block`] counts each, so
+/// a line read as a rule wherever Markdown is read whole is never read as a
+/// paragraph's text here. The spaces before such a line, and after it, are
+/// refused before this is asked.
+fn is_a_break(text: &str) -> bool {
+    ['-', '_', '*'].into_iter().any(|mark| {
+        let spaced = |written: char| written == mark || written == ' ';
+        let marks = text.chars().filter(|written| *written == mark).count();
+        marks >= 3 && text.chars().all(spaced)
+    })
 }
 
 /// The blocks `lines` hold, `depth` containers deep, in a list item where
@@ -725,9 +766,7 @@ fn block(
     if line.is_only('=') {
         return Err(line.refused(0, Rule::Setext));
     }
-    if (line.is_only('-') && text.len() >= 2)
-        || ((line.is_only('*') || line.is_only('_')) && text.len() >= 3)
-    {
+    if (line.is_only('-') && text.len() >= 2) || is_a_break(text) {
         return Err(line.refused(0, Rule::Break));
     }
     if text.starts_with('>') {
@@ -1147,6 +1186,18 @@ fn underscore_opens(before: Side, after: Side) -> bool {
     left_flanking(before, after) && (!right_flanking(before, after) || before == Side::Punctuation)
 }
 
+/// Whether a run of `~` between `before` and `after` may open or close
+/// strikethrough where GitHub's Markdown is read: left-flanking or
+/// right-flanking, as an `*` run is — every run but one with whitespace, or
+/// the edge of the text it is read in, on both sides.
+///
+/// **A run of any length**: GitHub's own reader strikes with one `~` or two,
+/// and a reader that pairs runs of two may pair a longer run as two, so none
+/// is let through that flanks.
+fn tilde_strikes(before: Side, after: Side) -> bool {
+    left_flanking(before, after) || right_flanking(before, after)
+}
+
 /// What `rule` answers of the run at `at`, `marks` long, in `characters`,
 /// where every reader answers alike; none where the reader's class of a
 /// character beside it decides.
@@ -1437,6 +1488,17 @@ fn inlines(characters: &[Character], within: Within) -> Result<Vec<Inline>, Refu
                     return Err(here.refused(Rule::Underscore));
                 }
                 text.extend(core::iter::repeat_n('_', marks));
+                at += marks;
+                continue;
+            }
+            '~' => {
+                // As a run of `_` is: read whole, and text only where no
+                // reader strikes with it.
+                let marks = run(characters, at, '~');
+                if flanked(characters, at, marks, tilde_strikes) != Some(false) {
+                    return Err(here.refused(Rule::Tilde));
+                }
+                text.extend(core::iter::repeat_n('~', marks));
                 at += marks;
                 continue;
             }

@@ -20266,7 +20266,7 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 28, 27),
         ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-markdown/lib.rs", 69, 9),
+        ("nc-markdown/lib.rs", 71, 9),
         ("nc-markdown/the_corpus_is_the_subset.rs", 13, 0),
         ("nc-pages/lib.rs", 13, 2),
         ("nc-platform/clipboard.rs", 16, 11),
@@ -26289,7 +26289,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25793;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 25800;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -26359,7 +26359,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 33488;
+    const THE_REARRANGEMENTS_JUDGED: usize = 33503;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -26413,7 +26413,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **863 of 33,488 are accepted by the first-line
+    /// rules the gates apply: **863 of 33,503 are accepted by the first-line
     /// rule alone, and 579 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -38930,7 +38930,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 3674] = [
+    static OPERATORS: [(&str, &str, &str); 3689] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -39208,6 +39208,11 @@ Options:
             "release",
             "escaped_in_text",
             "an ampersand in a commit's words is escaped",
+        ),
+        (
+            "release",
+            "escaped_in_text",
+            "a tilde in a commit's words is escaped",
         ),
         (
             "release",
@@ -45562,6 +45567,11 @@ Options:
             "kernel_shell",
             "leader_tap",
             "with the leader menu open a tap flips where the next page goes",
+        ),
+        (
+            "kernel_shell",
+            "leader_tap",
+            "a tap that flips the menu gives the menu the keyboard",
         ),
         (
             "kernel_shell",
@@ -54936,7 +54946,42 @@ Options:
         ("markdown", "block", "a fence of tildes is refused"),
         ("markdown", "block", "a line of equals signs is refused"),
         ("markdown", "block", "two hyphens are no thematic break"),
-        ("markdown", "block", "three asterisks are no thematic break"),
+        (
+            "markdown",
+            "block",
+            "a thematic break of another shape is refused",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of hyphens is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of underscores is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break of asterisks is one",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break's marks may have spaces between them",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break holds nothing but its marks and spaces",
+        ),
+        (
+            "markdown",
+            "is_a_break",
+            "a thematic break is three marks at least",
+        ),
+        ("markdown", "is_a_break", "two marks are no thematic break"),
         (
             "markdown",
             "fence",
@@ -55002,6 +55047,11 @@ Options:
             "markdown",
             "begins_a_block",
             "a line of tildes under a paragraph begins a block",
+        ),
+        (
+            "markdown",
+            "begins_a_block",
+            "a thematic break under a paragraph begins a block",
         ),
         (
             "markdown",
@@ -55073,6 +55123,16 @@ Options:
             "markdown",
             "underscore_opens",
             "an underscore after punctuation opens though right-flanking",
+        ),
+        (
+            "markdown",
+            "tilde_strikes",
+            "a run of `~` that may close strikethrough is refused",
+        ),
+        (
+            "markdown",
+            "tilde_strikes",
+            "a run of `~` that may open strikethrough is refused",
         ),
         (
             "markdown",
@@ -55191,6 +55251,12 @@ Options:
             "an underscore run is text only where no reader opens emphasis with it",
         ),
         ("markdown", "inlines", "an underscore run is read whole"),
+        (
+            "markdown",
+            "inlines",
+            "a run of `~` beside a word is refused",
+        ),
+        ("markdown", "inlines", "a run of `~` is read whole"),
         (
             "embedded_pages",
             "page",
@@ -55414,6 +55480,7 @@ Options:
             "a closing bracket in a person's words is escaped",
         ),
         ("pages", "words", "a bar in a person's words is escaped"),
+        ("pages", "words", "a tilde in a person's words is escaped"),
         ("pages", "words", "a `<` in a person's words is no tag"),
         (
             "compiler_surfaces",

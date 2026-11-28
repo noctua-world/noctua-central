@@ -2413,8 +2413,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "command.footer.show.paragraph",
         [
-            "Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more.",
-            "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali.",
+            "Shows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with.",
+            "Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início.",
         ],
     ),
     (

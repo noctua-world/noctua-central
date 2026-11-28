@@ -1765,7 +1765,7 @@ fn the_entry(change: &Change) -> String {
 /// **A code span the words close is kept as written**, since a subject sets
 /// a name as code on purpose; every other character the subset reads as
 /// markup — a backslash, an asterisk, an underscore, a square bracket, an
-/// ampersand, and a backtick that closes nothing — is escaped by a
+/// ampersand, a tilde, and a backtick that closes nothing — is escaped by a
 /// backslash, and a `<` is written `&lt;`. **Where they begin an item, what
 /// would open a block there is escaped too**: a first character of ASCII
 /// punctuation — a heading's `#`, a quote's `>`, a list's `-` or `+`, a
@@ -1853,7 +1853,7 @@ fn as_text(words: &str, begin: bool) -> String {
 /// Whether [`as_text`] escapes `character` by a backslash wherever it
 /// stands.
 const fn escaped_in_text(character: char) -> bool {
-    matches!(character, '\\' | '*' | '_' | '[' | ']' | '&')
+    matches!(character, '\\' | '*' | '_' | '[' | ']' | '&' | '~')
 }
 
 /// Refuses a changelog the one reader of Markdown refuses (`nc_markdown`).
@@ -5674,6 +5674,7 @@ mod tests {
             "| a | table |",
             "```fenced and more",
             "~~~ tildes",
+            "strike ~~this~~ and ~that~ out",
             "--- a break",
             "=== a line",
             "`code` first",

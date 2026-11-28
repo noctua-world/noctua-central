@@ -1667,7 +1667,12 @@ impl Change<'_> {
     /// design system's folding footer, which opens while a keyboard is inside
     /// it — so a keyboard a click or Tab put there under `hidden`, or one
     /// `footer.hide` left there, is one tap from the menu, as rule 2 says.
-    /// **Every tap shows the footer** (§12.3).
+    /// **Every tap shows the footer** (§12.3), **and leaves the seat's
+    /// keyboard on it or on the drawer**: rule 1's on the prompt line, rule
+    /// 2's on the menu it opens, and the menu's flip on the menu, wherever the
+    /// keyboard was — the menu is where the next key chooses the page the flip
+    /// sends — so the reveal a tap begins under `hidden` is one a keyboard
+    /// holds, and ends as every other does once that keyboard leaves.
     fn leader_tap(&mut self) -> Result<(), Refusal> {
         let seat = self.seat()?;
         let window = self.state.current(seat);
@@ -1677,6 +1682,10 @@ impl Change<'_> {
         self.state.footer = true;
         if shown && self.state.leader_open() {
             self.state.drawer.flipped = !self.state.drawer.flipped;
+            self.state.seat_mut(seat).focus = Some(Focus {
+                window,
+                region: Region::Drawer,
+            });
             return Ok(());
         }
         let on_the_prompt = Focus {
@@ -2235,11 +2244,14 @@ impl State {
     /// tap or `footer.show` shows it, it stays while a seat's keyboard is on
     /// the footer or the drawer, and a keyboard moved with none left on them
     /// ends it — moved where the window says it went or by a command, or gone
-    /// with the window it was in ([`changed`]) — what §12.3 asks for focus,
-    /// decided here so every window folds it at once. The pointer's
-    /// part, and a keyboard's inside the footer it is on, are the design
-    /// system's folding footer's own, which opens under a pointer or around a
-    /// focus whatever this says. A footer always shown is left as it is.
+    /// with the window it was in ([`changed`]). A tap leaves its seat's
+    /// keyboard on one of them; `footer.show` moves none, so a reveal it
+    /// begins with none there stands until a keyboard moves. That is what
+    /// §12.3 asks for focus, decided here so every window folds it at once.
+    /// The pointer's part, and a keyboard's inside the footer it is on, are
+    /// the design system's folding footer's own, which opens under a pointer
+    /// or around a focus whatever this says. A footer always shown is left as
+    /// it is.
     fn footer_let_go(&mut self) {
         if self.settings.visibility == HIDDEN {
             self.footer = self.footer && self.holds_the_footer();
@@ -4548,7 +4560,10 @@ mod tests {
     /// unless another seat's keyboard is still on the footer — and
     /// `footer.show`, beginning a reveal no keyboard holds, is kept by a
     /// command that moves no keyboard and ended by one that moves a keyboard
-    /// anywhere but the footer.
+    /// anywhere but the footer. **A tap's reveal is always held**: one that
+    /// flips the menu, the keyboard gone from it to the workspace area, puts
+    /// the keyboard back on the menu, and the keyboard leaving it again lets
+    /// the footer go.
     #[test]
     fn a_hidden_footer_is_let_go_however_the_last_keyboard_leaves_it() {
         let chosen = ran(
@@ -4557,6 +4572,27 @@ mod tests {
             &json!({"visibility": "hidden"}),
         );
         let tapped = ran(&chosen, Verb::LeaderTap, &json!({}));
+        let workspace = json!({"region": "workspace"});
+        let off_the_menu = ran(
+            &ran(&tapped, Verb::LeaderTap, &json!({})),
+            Verb::ShellFocus,
+            &workspace,
+        );
+        assert!(off_the_menu.leader_open() && !off_the_menu.footer);
+        let flipped = ran(&off_the_menu, Verb::LeaderTap, &json!({}));
+        assert!(flipped.drawer.flipped && flipped.footer);
+        assert_eq!(
+            flipped.seats[&1].focus,
+            Some(Focus {
+                window: 1,
+                region: Region::Drawer
+            }),
+            "a tap that flipped the menu left the keyboard off it"
+        );
+        assert!(
+            !ran(&flipped, Verb::ShellFocus, &workspace).footer,
+            "the keyboard leaving the menu a flip gave it kept the footer shown"
+        );
         let sidebar = ran(&tapped, Verb::SidebarCycle, &json!({}));
         assert!(sidebar.footer, "the sidebar shown moved no keyboard");
         let on_the_sidebar = ran(&sidebar, Verb::SidebarCycle, &json!({}));

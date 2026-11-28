@@ -7401,6 +7401,8 @@ fn a_label_that_is_markdown_is_escaped_in_a_cell() {
         ("AT&T;", "AT\\&T;"),
         ("&lt; and <b>", "\\&lt; and &lt;b>"),
         ("C:\\ and |", "C:\\\\ and \\|"),
+        ("from ~5 to 10~", "from \\~5 to 10\\~"),
+        ("~~struck~~", "\\~\\~struck\\~\\~"),
     ] {
         let cell = nc_catalog_compiler::words_for_tests(label);
         assert_eq!(cell, written, "{label}");

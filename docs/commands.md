@@ -410,7 +410,7 @@ Every command the catalog declares — the kernel's own — with what a dispatch
 |---|---|---|
 | Display name | Show the footer | Mostrar o rodapé |
 | Line description | Show the footer's three lines now, even where the setting hides it. | Mostrar agora as três linhas do rodapé, mesmo onde a configuração o esconde. |
-| Paragraph | Shows the footer's three lines now. Where the footer is set to hide, it stays until nothing holds it there any more. | Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que nada mais o segure ali. |
+| Paragraph | Shows the footer's three lines now. Where the footer is set to hide, it stays until a keyboard moves and none is left on the footer or the drawer, even when none was there to begin with. | Mostra agora as três linhas do rodapé. Onde o rodapé está configurado para se esconder, ele fica até que um teclado se mova e nenhum fique no rodapé nem na gaveta, mesmo que nenhum estivesse lá no início. |
 | Tags | footer, show, modeline, prompt, interface | rodapé, mostrar, linha de modo, prompt, interface |
 
 ```json
